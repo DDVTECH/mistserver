@@ -106,3 +106,8 @@ input[type="checkbox"]:checked:after {
   left: 0;
   font-size: 1.2em;
 }
+.mistvideo.casting .mistvideo-forcePlayer,
+.mistvideo.casting .mistvideo-forceType,
+.mistvideo.casting .mistvideo-displayCombo {
+  display: none !important;
+}

@@ -1,6 +1,7 @@
 #pragma once
 #include "input.h"
 #include <mist/util.h>
+#include <mist/urireader.h>
 
 namespace Mist{
 
@@ -122,12 +123,22 @@ namespace Mist{
     }
   };
 
-  class InputEBML : public Input{
+  class InputEBML : public Input, public Util::DataCallback{
   public:
     InputEBML(Util::Config *cfg);
     bool needsLock();
+    virtual bool isSingular(){return standAlone && !config->getBool("realtime");}
+    virtual void dataCallback(const char *ptr, size_t size);
+    virtual size_t getDataCallbackPos() const;
 
   protected:
+
+    HTTP::URIReader inFile;
+    Util::ResizeablePointer readBuffer;
+    uint64_t readBufferOffset;
+    uint64_t readPos;
+    bool firstRead;
+
     virtual size_t streamByteCount(){
       return totalBytes;
     }; // For live streams: to update the stats with correct values.
@@ -135,12 +146,11 @@ namespace Mist{
     bool checkArguments();
     bool preRun();
     bool readHeader();
+    void postHeader();
     bool readElement();
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     void clearPredictors();
-    FILE *inFile;
-    Util::ResizeablePointer ptr;
     bool readingMinimal;
     uint64_t lastClusterBPos;
     uint64_t lastClusterTime;

@@ -1,5 +1,5 @@
-#include "defines.h"
-#include "srtp.h"
+#include <mist/defines.h>
+#include "output_webrtc_srtp.h"
 #include <algorithm>
 #include <string.h>
 
@@ -151,10 +151,12 @@ int SRTPReader::unprotectRtp(uint8_t *data, int *nbytes){
   }
 
   srtp_err_status_t status = srtp_unprotect(session, data, nbytes);
-  if (srtp_err_status_ok != status){
+  if (srtp_err_status_ok != status && status != srtp_err_status_replay_fail){
     ERROR_MSG("Failed to unprotect the given SRTP. %s.", srtp_status_to_string(status).c_str());
     return -5;
   }
+  //For replayed packets, set bytes to zero
+  if (status == srtp_err_status_replay_fail){*nbytes = 0;}
 
   DONTEVEN_MSG("Unprotected SRTP into %d bytes.", *nbytes);
 
@@ -184,10 +186,12 @@ int SRTPReader::unprotectRtcp(uint8_t *data, int *nbytes){
   }
 
   srtp_err_status_t status = srtp_unprotect_rtcp(session, data, nbytes);
-  if (srtp_err_status_ok != status){
+  if (srtp_err_status_ok != status && status != srtp_err_status_replay_fail){
     ERROR_MSG("Failed to unprotect the given SRTCP. %s.", srtp_status_to_string(status).c_str());
     return -5;
   }
+  //For replayed packets, set bytes to zero
+  if (status == srtp_err_status_replay_fail){*nbytes = 0;}
 
   return 0;
 }

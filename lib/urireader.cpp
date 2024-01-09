@@ -11,28 +11,7 @@
 
 namespace HTTP{
 
-  // When another protocol needs this, rename struct to HeaderOverride or similar
-  struct HTTPHeadThenGet {
-    bool continueOperation;
-    std::string date, headAuthorization, getAuthorization;
-
-    HTTPHeadThenGet() : continueOperation(false) {}
-
-    void prepareHeadHeaders(HTTP::Downloader& downloader) {
-      if(!continueOperation) return;
-      downloader.setHeader("Date", date);
-      downloader.setHeader("Authorization", headAuthorization);
-    }
-
-    void prepareGetHeaders(HTTP::Downloader& downloader) {
-      if(!continueOperation) return;
-      // .setHeader() overwrites existing header value
-      downloader.setHeader("Date", date);
-      downloader.setHeader("Authorization", getAuthorization);
-    }
-  };
-
-#ifndef NOSSL
+#ifdef SSL
   inline bool s3CalculateSignature(std::string& signature, const std::string method, const std::string date, const std::string& requestPath, const std::string& accessKey, const std::string& secret) {
     std::string toSign = method + "\n\n\n" + date + "\n" + requestPath;
     unsigned char signatureBytes[MBEDTLS_MD_MAX_SIZE];
@@ -53,42 +32,50 @@ namespace HTTP{
     signature = "AWS " + accessKey + ":" + base64encoded;
     return true;
   }
-  // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-  // Transform to: 
-  // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-  // header Date: ${Util::getDateString(()}
-  // header Authorization: AWS ${url.user}:${signature}
-  inline HTTPHeadThenGet s3TransformToHttp(HTTP::URL& url) {
-    HTTPHeadThenGet result;
-    result.date = Util::getDateString();
-    // remove "s3+" prefix
-    url.protocol = url.protocol.erase(0, 3); 
-    // Use user and pass to create signature and remove from HTTP request
-    std::string accessKey(url.user), secret(url.pass);
-    url.user = "";
-    url.pass = "";
-    std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
-    if(url.args.size()) requestPath += "?" + url.args;
-    // Calculate Authorization data
-    if(!s3CalculateSignature(result.headAuthorization, "HEAD", result.date, requestPath, accessKey, secret)) {
-      result.continueOperation = false;
-      return result;
+#endif // ifdef SSL
+
+
+  inline HTTP::URL injectHeaders(const HTTP::URL& url, const std::string & method, HTTP::Downloader & downer) {
+#ifdef SSL
+    // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+    // Transform to: 
+    // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+    // header Date: ${Util::getDateString(()}
+    // header Authorization: AWS ${url.user}:${signature}
+    if (url.protocol.size() > 3 && url.protocol.substr(0, 3) == "s3+"){
+      std::string date = Util::getDateString();
+      HTTP::URL newUrl = url;
+      // remove "s3+" prefix
+      newUrl.protocol = newUrl.protocol.erase(0, 3); 
+      // Use user and pass to create signature and remove from HTTP request
+      std::string accessKey(url.user), secret(url.pass);
+      newUrl.user = "";
+      newUrl.pass = "";
+      std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
+      if(url.args.size()) requestPath += "?" + url.args;
+      std::string authLine;
+      // Calculate Authorization data
+      if(method.size() && s3CalculateSignature(authLine, method, date, requestPath, accessKey, secret)) {
+        downer.setHeader("Date", date);
+        downer.setHeader("Authorization", authLine);
+      }
+      return newUrl;
     }
-    if(!s3CalculateSignature(result.getAuthorization, "GET", result.date, requestPath, accessKey, secret)) {
-      result.continueOperation = false;
-      return result;
-    }
-    result.continueOperation = true;
-    return result;
+#endif // ifdef SSL
+    return url;
   }
-#endif // ifndef NOSSL
+
+  HTTP::URL localURIResolver(){
+    char workDir[512];
+    getcwd(workDir, 512);
+    return HTTP::URL(std::string("file://") + workDir + "/");
+  }
 
   void URIReader::init(){
     handle = -1;
     mapped = 0;
-    char workDir[512];
-    getcwd(workDir, 512);
-    myURI = HTTP::URL(std::string("file://") + workDir + "/");
+    myURI = localURIResolver();
+    originalUrl = myURI;
     cbProgress = 0;
     minLen = 1;
     maxLen = std::string::npos;
@@ -114,19 +101,31 @@ namespace HTTP{
     open(reluri);
   }
 
-  bool URIReader::open(const std::string &reluri){return open(myURI.link(reluri));}
+  bool URIReader::open(const std::string &reluri){return open(originalUrl.link(reluri));}
 
   /// Internal callback function, used to buffer data.
   void URIReader::dataCallback(const char *ptr, size_t size){allData.append(ptr, size);}
 
+  size_t URIReader::getDataCallbackPos() const{return allData.size();}
+
+  bool URIReader::open(const int fd){
+    close();
+    myURI = HTTP::URL("file://-");
+    originalUrl = myURI;
+    downer.getSocket().open(-1, fd);
+    stateType = HTTP::Stream;
+    startPos = 0;
+    endPos = std::string::npos;
+    totalSize = std::string::npos;
+    return true;
+  }
+
   bool URIReader::open(const HTTP::URL &uri){
+    close();
     myURI = uri;
-    curPos = 0;
-    allData.truncate(0);
-    bufPos = 0;
+    originalUrl = myURI;
 
     if (!myURI.protocol.size() || myURI.protocol == "file"){
-      close();
       if (!myURI.path.size() || myURI.path == "-"){
         downer.getSocket().open(-1, fileno(stdin));
         stateType = HTTP::Stream;
@@ -173,9 +172,7 @@ namespace HTTP{
     }
 
     // prepare for s3 and http
-    HTTPHeadThenGet httpHeaderOverride;
-
-#ifndef NOSSL
+#ifdef SSL
     // In case of s3 URI we prepare HTTP request with AWS authorization and rely on HTTP logic below
     if (myURI.protocol == "s3+https" || myURI.protocol == "s3+http"){
       // Check fallback to global credentials in env vars
@@ -195,13 +192,10 @@ namespace HTTP{
         }
         myURI.pass = envValue;
       }
-      // Transform s3 url to HTTP request:
-      httpHeaderOverride = s3TransformToHttp(myURI);
-      bool errorInSignatureCalculation = !httpHeaderOverride.continueOperation;
-      if(errorInSignatureCalculation) return false;
+      myURI = injectHeaders(originalUrl, "", downer);
       // Do not return, continue to HTTP case
     }
-#endif // ifndef NOSSL
+#endif // ifdef SSL
 
     // HTTP, stream or regular download?
     if (myURI.protocol == "http" || myURI.protocol == "https"){
@@ -209,7 +203,7 @@ namespace HTTP{
       downer.clearHeaders();
 
       // One set of headers specified for HEAD request
-      httpHeaderOverride.prepareHeadHeaders(downer);
+      injectHeaders(originalUrl, "HEAD", downer);
       // Send HEAD request to determine range request is supported, and get total length
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
@@ -218,6 +212,7 @@ namespace HTTP{
         // Close the socket, and clean up the buffer
         downer.getSocket().close();
         downer.getSocket().Received().clear();
+        allData.truncate(0);
         if (!downer.isOk()){return false;}
         supportRangeRequest = false;
         totalSize = std::string::npos;
@@ -229,7 +224,7 @@ namespace HTTP{
       }
 
       // Other set of headers specified for GET request
-      httpHeaderOverride.prepareGetHeaders(downer);
+      injectHeaders(originalUrl, "GET", downer);
       // streaming mode when size is unknown
       if (!supportRangeRequest){
         MEDIUM_MSG("URI get without range request: %s, totalsize: %zu", myURI.getUrl().c_str(), totalSize);
@@ -270,16 +265,26 @@ namespace HTTP{
 
     //HTTP-based needs to do a range request
     if (stateType == HTTP::HTTP && supportRangeRequest){
-      downer.getSocket().close();
-      downer.getSocket().Received().clear();
-      if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
+      downer.clean();
+      curPos = pos;
+      injectHeaders(originalUrl, "GET", downer);
+      if (!downer.getRangeNonBlocking(myURI, pos, 0)){
         FAIL_MSG("Error making range request");
         return false;
       }
-      curPos = pos;
       return true;
     }
     return false;
+  }
+
+  std::string URIReader::getHost() const{
+    if (stateType == HTTP::File){return "";}
+    return downer.getSocket().getHost();
+  }
+
+  std::string URIReader::getBinHost() const{
+    if (stateType == HTTP::File){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16);}
+    return downer.getSocket().getBinHost();
   }
 
   void URIReader::readAll(size_t (*dataCallback)(const char *data, size_t len)){
@@ -311,39 +316,37 @@ namespace HTTP{
   // readsome with callback
   void URIReader::readSome(size_t wantedLen, Util::DataCallback &cb){
     if (isEOF()){return;}
+    // Files read from the memory-mapped file
     if (stateType == HTTP::File){
-      //      dataPtr = mapped + curPos;
-      uint64_t dataLen = 0;
-
-      if (wantedLen < totalSize){
-        if ((wantedLen + curPos) > totalSize){
-          dataLen = totalSize - curPos; // restant
-          // INFO_MSG("file curpos: %llu, dataLen: %llu, totalSize: %llu ", curPos, dataLen, totalSize);
-        }else{
-          dataLen = wantedLen;
-        }
-      }else{
-        dataLen = totalSize;
-      }
-
-      std::string t = std::string(mapped + curPos, dataLen);
-      cb.dataCallback(t.c_str(), dataLen);
-
+      // Simple bounds check, don't read beyond the end of the file
+      uint64_t dataLen = ((wantedLen + curPos) > totalSize) ? totalSize - curPos : wantedLen;
+      cb.dataCallback(mapped + curPos, dataLen);
       curPos += dataLen;
-
-    }else if (stateType == HTTP::HTTP){
+      return;
+    }
+    // HTTP-based read from the Downloader
+    if (stateType == HTTP::HTTP){
+      // Note: this function returns true if the full read was completed only.
+      // It's the reason this function returns void rather than bool.
       downer.continueNonBlocking(cb);
-    }else{// streaming mode
-      int s;
-      if ((downer.getSocket() && downer.getSocket().spool())){// || downer.getSocket().Received().size() > 0){
+      return;
+    }
+    // Everything else uses the socket directly
+    int s = downer.getSocket().Received().bytes(wantedLen);
+    if (!s){
+      // Only attempt to read more if nothing was in the buffer
+      if (downer.getSocket() && downer.getSocket().spool()){
         s = downer.getSocket().Received().bytes(wantedLen);
-        std::string buf = downer.getSocket().Received().remove(s);
-
-        cb.dataCallback(buf.data(), s);
       }else{
         Util::sleep(50);
+        return;
       }
     }
+    // Future optimization: augment the Socket::Buffer to handle a Util::DataCallback as argument.
+    // Would remove the need for this extra copy here.
+    Util::ResizeablePointer buf;
+    downer.getSocket().Received().remove(buf, s);
+    cb.dataCallback(buf, s);
   }
 
   /// Readsome blocking function.
@@ -354,7 +357,7 @@ namespace HTTP{
       bufPos = 0;
     }
     // Read more data if needed
-    while (allData.size() < wantedLen + bufPos && *this){
+    while (allData.size() < wantedLen + bufPos && *this && !downer.completed()){
       readSome(wantedLen - (allData.size() - bufPos), *this);
     }
     // Return wantedLen bytes if we have them
@@ -371,10 +374,12 @@ namespace HTTP{
   }
 
   void URIReader::close(){
+    //Wipe internal state
+    curPos = 0;
+    allData.truncate(0);
+    bufPos = 0;
     // Close downloader socket if open
-    downer.getSocket().close();
-    downer.getSocket().Received().clear();
-    downer.getHTTP().Clean();
+    downer.clean();
     // Unmap file if mapped
     if (mapped){
       munmap(mapped, totalSize);
@@ -426,7 +431,7 @@ namespace HTTP{
 
   uint64_t URIReader::getPos(){return curPos;}
 
-  const HTTP::URL &URIReader::getURI() const{return myURI;}
+  const HTTP::URL &URIReader::getURI() const{return originalUrl;}
 
   size_t URIReader::getSize() const{return totalSize;}
 

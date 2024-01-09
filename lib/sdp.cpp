@@ -511,6 +511,11 @@ namespace SDP{
         nope = true;
         tid = myMeta->addTrack();
 
+        if (tid == INVALID_TRACK_ID){
+          WARN_MSG("Could not add new track, skipping");
+          continue;
+        }
+
         // Strip m=
         std::stringstream words(to.substr(2));
         std::string item;
@@ -877,7 +882,7 @@ namespace SDP{
 
     for (std::map<uint64_t, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       trackID = myMeta->getID(it->first);
-      INFO_MSG("Removing track %zu:%s", it->first, myMeta->getTrackIdentifier(it->first).c_str());
+      INFO_MSG("Removing track %" PRIu64 ":%s", it->first, myMeta->getTrackIdentifier(it->first).c_str());
       if (trackID == INVALID_TRACK_ID){
         WARN_MSG("TrackID was invalid");
       }

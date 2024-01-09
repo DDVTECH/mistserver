@@ -191,8 +191,27 @@ namespace DTSC{
     void setSize(size_t idx, size_t _size);
     size_t getSize(size_t idx) const;
 
+    uint64_t getTotalPartCount();
+    uint32_t getIndexForTime(uint64_t timestamp);
+
+    void applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p);
+
   private:
     bool isConst;
+    bool isLimited;
+    size_t limMin;
+    size_t limMax;
+    //Overrides for max key
+    size_t limMaxParts;
+    uint64_t limMaxDuration;
+    size_t limMaxSize;
+    //Overrides for min key
+    size_t limMinParts;
+    size_t limMinFirstPart;
+    uint64_t limMinDuration;
+    uint64_t limMinTime;
+    size_t limMinSize;
+
     Util::RelAccX empty;
 
     Util::RelAccX &keys;
@@ -238,6 +257,7 @@ namespace DTSC{
     Util::RelAccXFieldData trackCodecField;
     Util::RelAccXFieldData trackFirstmsField;
     Util::RelAccXFieldData trackLastmsField;
+    Util::RelAccXFieldData trackNowmsField;
     Util::RelAccXFieldData trackBpsField;
     Util::RelAccXFieldData trackMaxbpsField;
     Util::RelAccXFieldData trackLangField;
@@ -268,14 +288,27 @@ namespace DTSC{
     Util::RelAccXFieldData fragmentSizeField;
   };
 
+
+  class jitterTimer{
+  public:
+    uint64_t trueTime[8]; // Array of bootMS-based measurement points
+    uint64_t packTime[8]; // Array of corresponding packet times
+    uint64_t curJitter;   // Maximum jitter measurement in past 10 seconds
+    unsigned int x;       // Current indice within above two arrays
+    uint64_t maxJitter;   // Highest jitter ever observed by this jitterTimer
+    uint64_t lastTime;    // Last packet used for a measurement point
+    jitterTimer();
+    uint64_t addPack(uint64_t t);
+  };
+
   class Meta{
   public:
     Meta(const std::string &_streamName, const DTSC::Scan &src);
-    Meta(const std::string &_streamName = "", bool master = true);
+    Meta(const std::string &_streamName = "", bool master = true, bool autoBackOff = true);
     Meta(const std::string &_streamName, const std::string &fileName);
 
     ~Meta();
-    void reInit(const std::string &_streamName, bool master = true);
+    void reInit(const std::string &_streamName, bool master = true, bool autoBackOff = true);
     void reInit(const std::string &_streamName, const std::string &fileName);
     void reInit(const std::string &_streamName, const DTSC::Scan &src);
     void addTrackFrom(const DTSC::Scan &src);
@@ -317,6 +350,7 @@ namespace DTSC{
     size_t trackIDToIndex(size_t trackID, size_t pid = 0) const;
 
     std::string getTrackIdentifier(size_t idx, bool unique = false) const;
+    uint64_t packetTimeToUnixMs(uint64_t pktTime, uint64_t systemBoot = 0) const;
 
     void setInit(size_t trackIdx, const std::string &init);
     void setInit(size_t trackIdx, const char *init, size_t initLen);
@@ -361,6 +395,9 @@ namespace DTSC{
 
     void setLastms(size_t trackIdx, uint64_t lastms);
     uint64_t getLastms(size_t trackIdx) const;
+
+    void setNowms(size_t trackIdx, uint64_t nowms);
+    uint64_t getNowms(size_t trackIdx) const;
 
     uint64_t getDuration(size_t trackIdx) const;
 
@@ -445,6 +482,7 @@ namespace DTSC{
     uint32_t getKeyIndexForTime(uint32_t idx, uint64_t timestamp) const;
 
     uint32_t getPartIndex(uint64_t timestamp, size_t idx) const;
+    uint64_t getPartTime(uint32_t partIndex, size_t idx) const;
 
     bool nextPageAvailable(uint32_t idx, size_t currentPage) const;
     size_t getPageNumberForTime(uint32_t idx, uint64_t time) const;
@@ -459,12 +497,14 @@ namespace DTSC{
     Util::RelAccX &pages(size_t idx);
     const Util::RelAccX &pages(size_t idx) const;
 
+    const Keys getKeys(size_t trackIdx) const;
+
     std::string toPrettyString() const;
 
     void remap(const std::string &_streamName = "");
 
     uint64_t getSendLen(bool skipDynamic = false, std::set<size_t> selectedTracks = std::set<size_t>()) const;
-    void toFile(const std::string &fName) const;
+    void toFile(const std::string &uri) const;
     void send(Socket::Connection &conn, bool skypDynamic = false,
               std::set<size_t> selectedTracks = std::set<size_t>(), bool reID = false) const;
     void toJSON(JSON::Value &res, bool skipDynamic = true, bool tracksOnly = false) const;
@@ -477,9 +517,12 @@ namespace DTSC{
 
     void getHealthJSON(JSON::Value & returnReference) const;
 
+    void removeLimiter();
+    void applyLimiter(uint64_t min, uint64_t max);
+
   protected:
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
-    void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true);
+    void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true, bool autoBackOff = true);
     void streamInit(size_t trackCount = DEFAULT_TRACK_COUNT);
 
     std::string streamName;
@@ -491,6 +534,9 @@ namespace DTSC{
     std::map<size_t, IPC::sharedPage> tM;
 
     bool isMaster;
+    uint64_t limitMin;
+    uint64_t limitMax;
+    bool isLimited;
 
     char *streamMemBuf;
     bool isMemBuf;
@@ -498,6 +544,7 @@ namespace DTSC{
     std::map<size_t, size_t> sizeMemBuf;
 
   private:
+    std::map<size_t, jitterTimer> theJitters;
     // Internal buffers so we don't always need to search for everything
     Util::RelAccXFieldData streamVodField;
     Util::RelAccXFieldData streamLiveField;

@@ -13,6 +13,10 @@ namespace Mist{
 
   protected:
     virtual bool inlineRestartCapable() const{return true;}
+    bool isFileTarget(){
+      if (config->getString("target").size() && config->getString("target").substr(0, 9) != "mkv-exec:"){return true;}
+      return false;
+    }
 
   private:
     bool isRecording();

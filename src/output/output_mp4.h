@@ -15,6 +15,7 @@ namespace Mist{
     uint64_t time;
     uint64_t byteOffset; // Stores relative bpos for fragmented MP4
     uint64_t index;
+    uint64_t firstIndex;
     size_t sampleSize;
     uint16_t sampleDuration;
     uint16_t sampleOffset;
@@ -77,13 +78,6 @@ namespace Mist{
     }
   };
 
-  struct fragSet{
-    uint64_t firstPart;
-    uint64_t lastPart;
-    uint64_t firstTime;
-    uint64_t lastTime;
-  };
-
   class OutMP4 : public HTTPOutput{
   public:
     OutMP4(Socket::Connection &conn);
@@ -93,7 +87,7 @@ namespace Mist{
     uint64_t mp4HeaderSize(uint64_t &fileSize, int fragmented = 0) const;
     bool mp4Header(Util::ResizeablePointer & headOut, uint64_t &size, int fragmented = 0);
 
-    uint64_t mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize) const;
+    uint64_t mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize, std::map<size_t, DTSC::Keys *> & keysCache) const;
     virtual void sendFragmentHeaderTime(uint64_t startFragmentTime,
                                         uint64_t endFragmentTime); // this builds the moof box for fragmented MP4
 
@@ -106,16 +100,11 @@ namespace Mist{
     bool doesWebsockets() { return true; }
     void onWebsocketConnect();
     void onWebsocketFrame();
-    void onIdle();
-    virtual bool onFinish();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
   protected:
-    bool possiblyReselectTracks(uint64_t seekTarget);
+    bool isFileTarget(){return isRecording();}
     void sendWebsocketCodecData(const std::string& type);
     bool handleWebsocketSeek(JSON::Value& command);
-    bool handleWebsocketSetSpeed(JSON::Value& command);
-    bool stayLive;
-    double target_rate; ///< Target playback speed rate (1.0 = normal, 0 = auto)
 
     uint64_t fileSize;
     uint64_t byteStart;
@@ -123,11 +112,10 @@ namespace Mist{
     int64_t leftOver;
     uint64_t currPos;
     uint64_t seekPoint;
-    uint64_t forwardTo;
+    int64_t timeOffset;
 
     uint64_t nextHeaderTime;
     uint64_t headerSize;
-    size_t prevVidTrack;
 
     // variables for standard MP4
     std::set<keyPart> sortSet; // needed for unfragmented MP4, remembers the order of keyparts
@@ -147,9 +135,6 @@ namespace Mist{
     bool chromeWorkaround;
     int keysOnly;
     uint64_t estimateFileSize() const;
-
-    // This is a dirty solution... but it prevents copying and copying and copying again
-    std::map<size_t, fragSet> currentPartSet;
 
     std::string protectionHeader(size_t idx);
     Util::ResizeablePointer webBuf;

@@ -34,6 +34,7 @@
 #include <stdarg.h> // for va_list
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 bool Util::Config::is_active = false;
@@ -41,19 +42,21 @@ bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
 uint32_t Util::printDebugLevel = DEBUG;
 __thread char Util::streamName[256] = {0};
-__thread char Util::exitReason[256] ={0};
-
+__thread char Util::exitReason[256] = {0};
+__thread char* Util::mRExitReason = (char*)ER_UNKNOWN;
+Util::binType Util::Config::binaryType = UNSET;
 
 void Util::setStreamName(const std::string & sn){
   strncpy(Util::streamName, sn.c_str(), 256);
 }
 
-void Util::logExitReason(const char *format, ...){
+void Util::logExitReason(const char* shortString, const char *format, ...){
   if (exitReason[0]){return;}
   va_list args;
   va_start(args, format);
   vsnprintf(exitReason, 255, format, args);
   va_end(args);
+  mRExitReason = (char*)shortString;
 }
 
 std::string Util::listenInterface;
@@ -308,10 +311,6 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
     case 'h':
     case '?': printHelp(std::cout);
     case 'v': std::cout << "Version: " PACKAGE_VERSION ", release " RELEASE << std::endl;
-#ifdef NOCRASHCHECK
-      std::cout << "- Flag: No crash check. Will not attempt to detect and kill crashed processes."
-                << std::endl;
-#endif
 #ifndef SHM_ENABLED
       std::cout << "- Flag: Shared memory disabled. Will use shared files in stead of shared "
                    "memory as IPC method."
@@ -330,7 +329,7 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
       }
 #endif
 #ifndef SSL
-      std::cout << "- Flag: SSL support disabled. HTTPS/RTMPS are unavailable." << std::endl;
+      std::cout << "- Flag: SSL support disabled. HTTPS/RTMPS/WebRTC/WebSockets are either unavailable or may not function fully." << std::endl;
 #endif
 /*LTS-START*/
 #ifndef UPDATER
@@ -341,11 +340,6 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
 #ifdef NOAUTH
       std::cout << "- Flag: No authentication. API calls do not require logging in with a valid "
                    "account first. Make sure access to API port isn't public!"
-                << std::endl;
-#endif
-#ifdef KILLONEXIT
-      std::cout << "- Flag: Kill on exit. All binaries will forcibly shut down all their children "
-                   "on exit. Rolling restart support is disabled."
                 << std::endl;
 #endif
 #ifdef STATS_DELAY
@@ -605,9 +599,9 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
     case SI_TIMER:
     case SI_ASYNCIO:
     case SI_MESGQ:
-      logExitReason("signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
+      logExitReason(ER_CLEAN_SIGNAL, "signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
       break;
-    default: logExitReason("signal %s (%d)", strsignal(signum), signum);
+    default: logExitReason(ER_CLEAN_SIGNAL, "signal %s (%d)", strsignal(signum), signum);
     }
     is_active = false;
   default:
@@ -734,6 +728,171 @@ void Util::Config::addBasicConnectorOptions(JSON::Value &capabilities){
   addOption("json", option);
 }
 
+void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
+  //Set up fast access to the push_parameters
+  JSON::Value & pp = cap["push_parameters"];
+
+  pp["audio"]["name"] = "Audio track(s)";
+  pp["audio"]["help"] = "Override which audio tracks of the stream should be selected";
+  pp["audio"]["type"] = "string";
+  pp["audio"]["validate"][0u] = "track_selector";
+  pp["audio"]["sort"] = "aa";
+
+  pp["video"]["name"] = "Video track(s)";
+  pp["video"]["help"] = "Override which video tracks of the stream should be selected";
+  pp["video"]["type"] = "string";
+  pp["video"]["validate"][0u] = "track_selector";
+  pp["video"]["sort"] = "ab";
+
+  pp["subtitle"]["name"] = "Subtitle track(s)";
+  pp["subtitle"]["help"] = "Override which subtitle tracks of the stream should be selected";
+  pp["subtitle"]["type"] = "string";
+  pp["subtitle"]["validate"].append("track_selector");
+  pp["subtitle"]["sort"] = "ac";
+
+  pp["rate"]["name"] = "Playback rate";
+  pp["rate"]["help"] = "Multiplier for the playback speed rate, or 0 to not limit";
+  pp["rate"]["type"] = "int";
+  pp["rate"]["default"] = "1";
+  pp["rate"]["sort"] = "ba";
+
+  pp["realtime"]["name"] = "Don't speed up output";
+  pp["realtime"]["help"] = "If set to any value, removes the rate override to unlimited normally applied to push outputs";
+  pp["realtime"]["type"] = "bool";
+  pp["realtime"]["format"] = "set_or_unset";
+  pp["realtime"]["sort"] = "bb";
+
+  pp["unmask"]["name"] = "Unmask tracks";
+  pp["unmask"]["help"] = "If set to any value, removes any applied track masking before selecting tracks, acting as if no mask was applied at all";
+  pp["unmask"]["type"] = "bool";
+  pp["unmask"]["format"] = "set_or_unset";
+  pp["unmask"]["sort"] = "bc";
+
+  pp["waittrackcount"]["name"] = "Wait for GOP count";
+  pp["waittrackcount"]["help"] = "Before starting, wait until this number of GOPs is available in the main selected track";
+  pp["waittrackcount"]["type"] = "int";
+  pp["waittrackcount"]["default"] = 2;
+  pp["waittrackcount"]["sort"] = "bd";
+
+  pp["maxwaittrackms"]["name"] = "Max buffer duration for GOP count wait";
+  pp["maxwaittrackms"]["help"] = "When waiting for GOPs on the main track, give up when this much data is available in the main track buffer";
+  pp["maxwaittrackms"]["type"] = "int";
+  pp["maxwaittrackms"]["default"] = "5s, or 120s when using a non-default GOP count";
+  pp["maxwaittrackms"]["unit"] = "ms";
+  pp["maxwaittrackms"]["sort"] = "be";
+
+  pp["noendlist"]["name"] = "Don't end playlist";
+  pp["noendlist"]["help"] = "If set, does not write #X-EXT-ENDLIST when finalizing the playlist on exit";
+  pp["noendlist"]["type"] = "bool";
+  pp["noendlist"]["format"] = "set_or_unset";
+  pp["noendlist"]["sort"] = "bfa";
+
+  pp["append"]["name"] = "Append to file";
+  pp["append"]["help"] = "If set to any value, will (if possible) append to an existing file, rather than overwriting it";
+  pp["append"]["type"] = "bool";
+  pp["append"]["format"] = "set_or_unset";
+  pp["append"]["sort"] = "bf";
+
+  pp["split"]["name"] = "Split interval";
+  pp["split"]["help"] = "Performs a gapless restart of the recording every this many seconds. Always aligns to the next keyframe after this duration, to ensure each recording is fully playable. When set to zero (the default) will not split at all.";
+  pp["split"]["type"] = "int";
+  pp["split"]["unit"] = "s";
+  pp["split"]["sort"] = "bh";
+
+  pp["m3u8"]["name"] = "Playlist path (relative to segments)";
+  pp["m3u8"]["help"] = "If set, will write a m3u8 playlist file for the segments to the given path (relative from the first segment path). When this parameter is used, at least one of the variables $segmentCounter or $currentMediaTime must be part of the segment path (to keep segments from overwriting each other). The \"Split interval\" parameter will default to 60 seconds when using this option.";
+  pp["m3u8"]["type"] = "string";
+  pp["m3u8"]["sort"] = "apa";
+
+  pp["targetAge"]["name"] = "Playlist target age";
+  pp["targetAge"]["help"] = "When writing a playlist, delete segment entries that are more than this many seconds old from the playlist (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+  pp["targetAge"]["type"] = "int";
+  pp["targetAge"]["unit"] = "s";
+  pp["targetAge"]["sort"] = "apb";
+
+  pp["maxEntries"]["name"] = "Playlist max entries";
+  pp["maxEntries"]["help"] = "When writing a playlist, delete oldest segment entries once this entry count has been reached (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+  pp["maxEntries"]["type"] = "int";
+  pp["maxEntries"]["sort"] = "apc";
+
+  pp["pushdelay"]["name"] = "Push delay";
+  pp["pushdelay"]["help"] = "Ensures the stream is always delayed by at least this many seconds. Internally overrides the \"realtime\" and \"start\" parameters";
+  pp["pushdelay"]["type"] = "int";
+  pp["pushdelay"]["unit"] = "s";
+  pp["pushdelay"]["disable"].append("realtime");
+  pp["pushdelay"]["disable"].append("start");
+  pp["pushdelay"]["sort"] = "bg";
+
+  pp["duration"]["name"] = "Duration of push";
+  pp["duration"]["help"] = "How much media time to push, in seconds. Internally overrides \"recstop\"";
+  pp["duration"]["type"] = "int";
+  pp["duration"]["unit"] = "s";
+  pp["duration"]["disable"].append("recstop");
+  pp["duration"]["disable"].append("stop");
+  pp["duration"]["sort"] = "bi";
+
+  pp["stop"]["name"] = "Media timestamp to stop at";
+  pp["stop"]["help"] = "What internal media timestamp to stop at";
+  pp["stop"]["type"] = "int";
+  pp["stop"]["unit"] = "s";
+  pp["stop"]["prot_only"] = true;
+  pp["stop"]["sort"] = "bk";
+
+  pp["start"]["name"] = "Media timestamp to start from";
+  pp["start"]["help"] = "What internal media timestamp to start from";
+  pp["start"]["type"] = "int";
+  pp["start"]["unit"] = "s";
+  pp["start"]["prot_only"] = true;
+  pp["start"]["sort"] = "bl";
+
+  pp["stopunix"]["name"] = "Unix timestamp to stop at";
+  pp["stopunix"]["help"] = "What unix timestamp to stop at";
+  pp["stopunix"]["type"] = "unixtime";
+  pp["stopunix"]["unit"] = "s";
+  pp["stopunix"]["prot_only"] = true;
+  pp["stopunix"]["disable"].append("stop");
+  pp["stopunix"]["sort"] = "bm";
+
+  pp["startunix"]["name"] = "Unix timestamp to start from";
+  pp["startunix"]["help"] = "What unix timestamp to start from";
+  pp["startunix"]["type"] = "unixtime";
+  pp["startunix"]["unit"] = "s";
+  pp["startunix"]["prot_only"] = true;
+  pp["startunix"]["disable"].append("start");
+  pp["startunix"]["sort"] = "bn";
+
+  pp["recstop"]["name"] = "Media timestamp to stop at";
+  pp["recstop"]["help"] = "What internal media timestamp to stop at";
+  pp["recstop"]["type"] = "int";
+  pp["recstop"]["unit"] = "s";
+  pp["recstop"]["file_only"] = true;
+  pp["recstop"]["sort"] = "bo";
+
+  pp["recstart"]["name"] = "Media timestamp to start from";
+  pp["recstart"]["help"] = "What internal media timestamp to start from";
+  pp["recstart"]["type"] = "int";
+  pp["recstart"]["unit"] = "s";
+  pp["recstart"]["file_only"] = true;
+  pp["recstart"]["sort"] = "bp";
+
+  pp["recstopunix"]["name"] = "Unix timestamp to stop at";
+  pp["recstopunix"]["help"] = "What unix timestamp to stop at";
+  pp["recstopunix"]["type"] = "unixtime";
+  pp["recstopunix"]["unit"] = "s";
+  pp["recstopunix"]["file_only"] = true;
+  pp["recstopunix"]["disable"].append("recstop");
+  pp["recstopunix"]["sort"] = "bq";
+
+  pp["recstartunix"]["name"] = "Unix timestamp to start from";
+  pp["recstartunix"]["help"] = "What unix timestamp to start from";
+  pp["recstartunix"]["type"] = "unixtime";
+  pp["recstartunix"]["unit"] = "s";
+  pp["recstartunix"]["file_only"] = true;
+  pp["recstartunix"]["disable"].append("recstart");
+  pp["recstartunix"]["sort"] = "br";
+
+}
+
 /// Gets directory the current executable is stored in.
 std::string Util::getMyPath(){
   char mypath[500];
@@ -743,7 +902,7 @@ std::string Util::getMyPath(){
 #ifdef __APPLE__
   memset(mypath, 0, 500);
   unsigned int refSize = 500;
-  int ret = _NSGetExecutablePath(mypath, &refSize);
+  _NSGetExecutablePath(mypath, &refSize);
 #else
   int ret = readlink("/proc/self/exe", mypath, 500);
   if (ret != -1){
@@ -784,7 +943,14 @@ void Util::getMyExec(std::deque<std::string> &execs){
   do{
     errno = 0;
     if ((dp = readdir(d))){
-      if (strncmp(dp->d_name, "Mist", 4) == 0){execs.push_back(dp->d_name);}
+      if (dp->d_type != DT_DIR && strncmp(dp->d_name, "Mist", 4) == 0){
+        if (dp->d_type != DT_REG) {
+          struct stat st = {};
+          stat(dp->d_name, &st);
+          if (!S_ISREG(st.st_mode))
+            continue;
+        }
+        execs.push_back(dp->d_name);}
     }
   }while (dp != NULL);
   closedir(d);

@@ -13,6 +13,10 @@ namespace Util{
   bool createPath(const std::string &path);
   bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result);
   void stringToLower(std::string &val);
+  size_t replace(std::string &str, const std::string &from, const std::string &to);
+  void stringTrim(std::string &val);
+  void splitString(std::string &val, char delim, std::deque<std::string> &result);
+  bool externalWriter(const std::string & file, int &outFile, bool append = false);
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 
@@ -26,6 +30,8 @@ namespace Util{
     virtual void dataCallback(const char *ptr, size_t size){
       INFO_MSG("default callback, size: %zu", size);
     }
+    virtual size_t getDataCallbackPos() const{return 0;}
+    virtual ~DataCallback(){};
   };
 
   extern Util::DataCallback defaultDataCallback;
@@ -61,6 +67,8 @@ namespace Util{
   void logParser(int in, int out, bool colored,
                  void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool) = 0);
   void redirectLogsIfNeeded();
+  pid_t startConverted(const char *const *argv, int &outFile);
+  void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid);
 
   /// Holds type, size and offset for RelAccX class internal data fields.
   class RelAccXFieldData{
@@ -78,6 +86,7 @@ namespace Util{
       size = s;
       offset = o;
     }
+    operator bool() const {return offset;}
   };
 
 #define RAX_NESTED 0x01
@@ -150,6 +159,7 @@ namespace Util{
     bool isExit() const;
     bool isReload() const;
     bool isRecordAvailable(uint64_t recordNo) const;
+    bool hasField(const std::string &name) const;
     uint32_t getSize(const std::string &name, uint64_t recordNo = 0) const;
 
     char *getPointer(const std::string &name, uint64_t recordNo = 0) const;

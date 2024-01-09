@@ -11,7 +11,6 @@
 #include <mist/flv_tag.h>
 #include <mist/http_parser.h>
 #include <mist/mp4_generic.h>
-#include <mist/socket_srt.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/ts_packet.h>
@@ -49,6 +48,7 @@ int cb_stats(void *arg, const struct rist_stats *stats_container){
   pktReceived += sObj["received"].asInt();
   pktLost += sObj["lost"].asInt();
   pktRetransmitted += sObj["retries"].asInt();
+  rist_stats_free(stats_container);
   return 0;
 }
 
@@ -92,15 +92,15 @@ namespace Mist{
     // These can/may be set to always-on mode
     capa["always_match"].append("rist://*");
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP2");
-    capa["codecs"][0u][1u].append("opus");
-    capa["codecs"][1u][0u].append("rawts");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("HEVC");
+    capa["codecs"]["video"].append("MPEG2");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("MP2");
+    capa["codecs"]["audio"].append("opus");
+    capa["codecs"]["passthrough"].append("rawts");
 
     JSON::Value option;
     option["arg"] = "integer";
@@ -146,6 +146,25 @@ namespace Mist{
     option["help"] = "Enable raw MPEG-TS passthrough mode";
     config->addOption("raw", option);
 
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+
+    option.null();
+    option["long"] = "datatrack";
+    option["short"] = "D";
+    option["arg"] = "string";
+    option["default"] = "";
+    option["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", option);
+
     lastTimeStamp = 0;
     timeStampOffset = 0;
     receiver_ctx = 0;
@@ -156,7 +175,12 @@ namespace Mist{
     rist_destroy(receiver_ctx);
   }
 
-  bool inputTSRIST::checkArguments(){return true;}
+  bool inputTSRIST::checkArguments(){
+    if (config->getString("datatrack") == "json"){
+      tsStream.setRawDataParser(TS::JSON);
+    }
+    return true;
+  }
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
   bool inputTSRIST::preRun(){
@@ -167,7 +191,7 @@ namespace Mist{
     standAlone = false;
     HTTP::URL u(source);
     if (u.protocol != "rist"){
-      FAIL_MSG("Input protocol must begin with rist://");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input protocol must begin with rist://");
       return false;
     }
     std::map<std::string, std::string> arguments;
@@ -184,7 +208,7 @@ namespace Mist{
       while (!hasRaw && config->is_active){
         Util::sleep(50);
         if (!bufferActive()){
-          Util::logExitReason("Buffer shut down");
+          Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
           return;
         }
       }
@@ -198,7 +222,7 @@ namespace Mist{
       }else{
         Util::sleep(50);
         if (!bufferActive()){
-          Util::logExitReason("Buffer shut down");
+          Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
           return;
         }
       }
@@ -224,7 +248,7 @@ namespace Mist{
 
   void inputTSRIST::onFail(const std::string & msg){
     FAIL_MSG("%s", msg.c_str());
-    Util::logExitReason(msg.c_str());
+    Util::logExitReason(ER_FORMAT_SPECIFIC, msg.c_str());
   }
 
   bool inputTSRIST::openStreamSource(){
@@ -284,7 +308,7 @@ namespace Mist{
   }
 
 
-  void inputTSRIST::connStats(Comms::Statistics &statComm){
+  void inputTSRIST::connStats(Comms::Connections &statComm){
     statComm.setUp(0);
     statComm.setDown(downBytes);
     statComm.setHost(getConnectedBinHost());

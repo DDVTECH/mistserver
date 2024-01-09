@@ -12,6 +12,7 @@
 #include "procs.h"
 #include "shared_memory.h"
 #include "socket.h"
+#include "url.h"
 #include "stream.h"
 #include "triggers.h" //LTS
 #include <semaphore.h>
@@ -31,16 +32,6 @@ static std::string strftime_now(const std::string &format){
   struct tm *timeinfo = localtime_r(&rawtime, &timebuf);
   if (!timeinfo || !strftime(buffer, 80, format.c_str(), timeinfo)){return "";}
   return buffer;
-}
-
-/// Replaces any occurrences of 'from' with 'to' in 'str'.
-static void replace(std::string &str, const std::string &from, const std::string &to){
-  if (from.empty()){return;}
-  size_t start_pos = 0;
-  while ((start_pos = str.find(from, start_pos)) != std::string::npos){
-    str.replace(start_pos, from.length(), to);
-    start_pos += to.length();
-  }
 }
 
 std::string Util::codecString(const std::string &codec, const std::string &initData){
@@ -114,38 +105,107 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
   if (codec == "AAC"){return "mp4a.40.2";}
   if (codec == "MP3"){return "mp4a.40.34";}
   if (codec == "AC3"){return "mp4a.a5";}
+  if (codec == "AV1"){
+    if (initData.size() < 4){return "av01";}// Can't determine properties. :-(
+    std::stringstream r;
+    r << "av01.";
+    r << (int)((initData[1] & 0b11100000) >> 5); //profile
+    r << ".";
+    r << std::setw(2) << std::setfill('0') << (int)(initData[1] & 0b00011111); //level
+    r << ((initData[2] & 0b10000000)?"H":"M"); //tier
+    r << ".";
+    switch (initData[2] & 0b01100000){
+      case 0b00000000: r << "08"; break;
+      case 0b01000000: r << "10"; break;
+      case 0b01100000: r << "12"; break;
+      case 0b00100000: r << "??"; break;
+    }
+    /// \TODO Implement the full descriptor as in https://aomediacodec.github.io/av1-isobmff/#codecsparam
+    /// Init data follows this format:
+    /// https://aomediacodec.github.io/av1-isobmff/#av1codecconfigurationbox-syntax
+    return r.str();
+  }
   return "";
 }
 
+/// Local-only helper function that replaces a variable and returns the amount of replacements done
+size_t replaceVar(std::string & input, const std::string & var, const std::string & rep){
+  size_t count = 0;
+  const std::string withBraces = "${"+var+"}";
+  const std::string noBraces = "$"+var;
+  count += Util::replace(input, withBraces, rep);
+  count += Util::replace(input, noBraces, rep);
+  return count;
+}
+
+size_t Util::streamCustomVariables(std::string &str){
+  size_t count = 0;
+  // Read shared memory page containing custom variables
+  static IPC::sharedPage variablePage(SHM_CUSTOM_VARIABLES, 0, false, false);
+  // Check if the page needs to be reopened
+  if (variablePage.mapped){
+    Util::RelAccX varAccX(variablePage.mapped, false);
+    if (varAccX.isReload()){variablePage.close();}
+  }
+  // Reopen memory page if it has been closed
+  if (!variablePage.mapped){
+    variablePage.init(SHM_CUSTOM_VARIABLES, 0, false, false);
+    if(!variablePage.mapped){
+      ERROR_MSG("Unable to substitute custom variables, as memory page %s failed to open", SHM_CUSTOM_VARIABLES);
+      return 0;
+    }
+  }
+  // Extract variables
+  Util::RelAccX varAccX(variablePage.mapped, false);
+  for (size_t i = 0; i < varAccX.getEndPos(); i++){
+    if (varAccX.getPointer("name", i)){
+      count += replaceVar(str, varAccX.getPointer("name", i), varAccX.getPointer("lastVal", i));
+    }
+  }
+  return count;
+}
+
 /// Replaces all stream-related variables in the given 'str' with their values.
-void Util::streamVariables(std::string &str, const std::string &streamname, const std::string &source){
-  replace(str, "$source", source);
-  replace(str, "$datetime", "$year.$month.$day.$hour.$minute.$second");
-  replace(str, "$day", strftime_now("%d"));
-  replace(str, "$month", strftime_now("%m"));
-  replace(str, "$year", strftime_now("%Y"));
-  replace(str, "$hour", strftime_now("%H"));
-  replace(str, "$minute", strftime_now("%M"));
-  replace(str, "$second", strftime_now("%S"));
-  replace(str, "$wday", strftime_now("%u")); // weekday, 1-7, monday=1
-  replace(str, "$yday", strftime_now("%j")); // yearday, 001-366
-  replace(str, "$week", strftime_now("%V")); // week number, 01-53
-  replace(str, "$stream", streamname);
+size_t Util::streamVariables(std::string &str, const std::string &streamname, const std::string &source, uint8_t depth){
+  size_t replaced = 0;
+  if (depth > 9){
+    WARN_MSG("Reached a depth of %u when replacing stream variables", depth);
+    return 0;
+  }
+  // If there are no variables, abort
+  if (str.find('$') == std::string::npos){return 0;}
+  // Find and replace any custom variables
+  replaced += streamCustomVariables(str);
+  replaced += replaceVar(str, "source", source);
+  replaced += replaceVar(str, "datetime", "$year.$month.$day.$hour.$minute.$second");
+  replaced += replaceVar(str, "day", strftime_now("%d"));
+  replaced += replaceVar(str, "month", strftime_now("%m"));
+  replaced += replaceVar(str, "year", strftime_now("%Y"));
+  replaced += replaceVar(str, "hour", strftime_now("%H"));
+  replaced += replaceVar(str, "minute", strftime_now("%M"));
+  replaced += replaceVar(str, "second", strftime_now("%S"));
+  replaced += replaceVar(str, "wday", strftime_now("%u")); // weekday, 1-7, monday=1
+  replaced += replaceVar(str, "yday", strftime_now("%j")); // yearday, 001-366
+  replaced += replaceVar(str, "week", strftime_now("%V")); // week number, 01-53
+  replaced += replaceVar(str, "stream", streamname);
   if (streamname.find('+') != std::string::npos){
     std::string strbase = streamname.substr(0, streamname.find('+'));
     std::string strext = streamname.substr(streamname.find('+') + 1);
-    replace(str, "$basename", strbase);
-    replace(str, "$wildcard", strext);
+    replaced += replaceVar(str, "basename", strbase);
+    replaced += replaceVar(str, "wildcard", strext);
     if (strext.size()){
-      replace(str, "$pluswildcard", "+" + strext);
+      replaced += replaceVar(str, "pluswildcard", "+" + strext);
     }else{
-      replace(str, "$pluswildcard", "");
+      replaced += replaceVar(str, "pluswildcard", "");
     }
   }else{
-    replace(str, "$basename", streamname);
-    replace(str, "$wildcard", "");
-    replace(str, "$pluswildcard", "");
+    replaced += replaceVar(str, "basename", streamname);
+    replaced += replaceVar(str, "wildcard", "");
+    replaced += replaceVar(str, "pluswildcard", "");
   }
+  // Continue recursively if we've replaced a variable which exposed another variable to be replaced
+  if (replaced && str.find('$') != std::string::npos){replaced += streamVariables(str, streamName, source, ++depth);}
+  return replaced;
 }
 
 std::string Util::getTmpFolder(){
@@ -411,6 +471,43 @@ bool Util::streamAlive(std::string &streamname){
   }
 }
 
+/// Returns active tags for an exact-matching (already sanitized) streamname
+std::set<std::string> Util::streamTags(const std::string &streamname){
+  std::set<std::string> ret;
+
+  IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 0, false, false);
+  // Abort silently if page cannot be loaded
+  if (!shmStreams){return ret;}
+
+  Util::RelAccX rlxStreams(shmStreams.mapped);
+  // Abort silently if page cannot be loaded
+  if (!rlxStreams.isReady()){return ret;}
+
+  uint64_t startPos = rlxStreams.getDeleted();
+  uint64_t endPos = rlxStreams.getEndPos();
+  for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
+    const std::string & strm = rlxStreams.getPointer("stream", cPos);
+    if (strm != streamname){continue;}
+
+    // Found it! Fill and break, since only one match can exist.
+    std::string tags = rlxStreams.getPointer("tags", cPos);
+    while (tags.size()){
+      size_t endPos = tags.find(' ');
+      if (!endPos){
+        //extra space, ignore
+        tags.erase(0, 1);
+        continue;
+      }
+      if (endPos == std::string::npos){endPos = tags.size();}
+      ret.insert(tags.substr(0, endPos));
+      if (endPos == tags.size()){break;}
+      tags.erase(0, endPos+1);
+    }
+    break;
+  }
+  return ret;
+}
+
 /// Assures the input for the given stream name is active.
 /// Does stream name sanitation first, followed by a stream name length check (<= 100 chars).
 /// Then, checks if an input is already active by running streamAlive(). If yes, return true.
@@ -622,7 +719,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   // Abort if not available
   if (!inputs){
     FAIL_MSG("Capabilities not available, aborting! Is MistController running?");
-    return false;
+    return JSON::Value();
   }
 
   // check in curConf for <naam>-priority/source_match
@@ -634,6 +731,25 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   for (unsigned int i = 0; i < input_size; ++i){
     DTSC::Scan tmp_input = inputs.getIndice(i);
 
+    // if name prefix based match, always force 99 priority
+    if (tmp_input.getMember("name")){
+      std::string inPrefix = tmp_input.getMember("name").asString() + ":";
+      if (tmpFn.size() > inPrefix.size()){
+        Util::stringToLower(inPrefix);
+        std::string fnPrefix = tmpFn.substr(0, inPrefix.size());
+        Util::stringToLower(fnPrefix);
+        if (inPrefix == fnPrefix){
+          if (tmp_input.getMember("non-provider") && !isProvider){
+            noProviderNoPick = true;
+            continue;
+          }
+          curPrio = 99;
+          selected = true;
+          input = tmp_input;
+        }
+      }
+    }
+
     // if match voor current stream && priority is hoger dan wat we al hebben
     if (tmp_input.getMember("source_match") && curPrio < tmp_input.getMember("priority").asInt()){
       if (tmp_input.getMember("source_match").getSize()){
@@ -644,7 +760,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
           MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
                      tmp_input.getMember("name").asString().c_str(), source.c_str());
 
-          if (tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
+          if (tmpFn.size() >= front.size()+back.size() && tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
             if (tmp_input.getMember("non-provider") && !isProvider){
               noProviderNoPick = true;
               continue;
@@ -661,7 +777,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
         MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
                    tmp_input.getMember("name").asString().c_str(), source.c_str());
 
-        if (tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
+        if (tmpFn.size() >= front.size()+back.size() && tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
           if (tmp_input.getMember("non-provider") && !isProvider){
             noProviderNoPick = true;
             continue;
@@ -683,6 +799,18 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
     ret = input.asJSON();
   }
   return ret;
+}
+
+/// Sends a message to the local UDP API port
+void Util::sendUDPApi(JSON::Value & cmd){
+  HTTP::URL UDPAddr(getGlobalConfig("udpApi").asStringRef());
+  if (UDPAddr.protocol != "udp"){
+    FAIL_MSG("Local UDP API address not defined; can't send command to MistController!");
+    return;
+  }
+  Socket::UDPConnection uSock;
+  uSock.SetDestination(UDPAddr.host, UDPAddr.getPort());
+  uSock.SendNow(cmd.toString());
 }
 
 /// Attempt to start a push for streamname to target.
@@ -730,18 +858,43 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
           std::string back = tar_match.substr(tar_match.find('*') + 1);
           MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(),
                      output.getMember("name").asString().c_str(), checkTarget.c_str());
-
           if (checkTarget.substr(0, front.size()) == front &&
               checkTarget.substr(checkTarget.size() - back.size()) == back){
             output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
             break;
+          }
+          //Check for external writer support
+          if (front == "/" && back.size() && checkTarget.substr(checkTarget.size() - back.size()) == back){
+            HTTP::URL tUri(target);
+            // If it is a remote target, we might need to spawn an external binary
+            if (tUri.isLocalPath()){continue;}
+            // Read configured external writers
+            IPC::sharedPage extwriPage(EXTWRITERS, 0, false, false);
+            if (extwriPage.mapped){
+              Util::RelAccX extWri(extwriPage.mapped, false);
+              if (extWri.isReady()){
+                for (uint64_t i = 0; i < extWri.getEndPos(); i++){
+                  Util::RelAccX protocols = Util::RelAccX(extWri.getPointer("protocols", i));
+                  uint8_t protocolCount = protocols.getPresent();
+                  JSON::Value protocolArray;
+                  for (uint8_t idx = 0; idx < protocolCount; idx++){
+                    if (tUri.protocol == protocols.getPointer("protocol", idx)){
+                      output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
+                      break;
+                    }
+                    if (output_bin.size()){break;}
+                  }
+                  if (output_bin.size()){break;}
+                }
+              }
+            }
           }
         }
       }
     }
   }
 
-  if (output_bin == ""){
+  if (!output_bin.size()){
     FAIL_MSG("No output found for target %s, aborting push.", target.c_str());
     return 0;
   }
@@ -766,9 +919,17 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
 uint8_t Util::getStreamStatus(const std::string &streamname){
   char pageName[NAME_BUFFER_SIZE];
   snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamname.c_str());
-  IPC::sharedPage streamStatus(pageName, 1, false, false);
+  IPC::sharedPage streamStatus(pageName, 2, false, false);
   if (!streamStatus){return STRMSTAT_OFF;}
   return streamStatus.mapped[0];
+}
+
+uint8_t Util::getStreamStatusPercentage(const std::string &streamname){
+  char pageName[NAME_BUFFER_SIZE];
+  snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamname.c_str());
+  IPC::sharedPage streamStatus(pageName, 2, false, false);
+  if (!streamStatus || streamStatus.len < 2){return 0;}
+  return streamStatus.mapped[1];
 }
 
 /// Checks if a given user agent is allowed according to the given exception.
@@ -815,7 +976,12 @@ bool Util::checkException(const JSON::Value &ex, const std::string &useragent){
 }
 
 Util::DTSCShmReader::DTSCShmReader(const std::string &pageName){
-  rPage.init(pageName, 0, false, false);
+  size_t attempts = 0;
+  do {
+    rPage.init(pageName, 0, false, false);
+    ++attempts;
+    if (!rPage && attempts < 5){Util::sleep(10);}
+  } while (!rPage && attempts < 5);
   if (rPage){rAcc = Util::RelAccX(rPage.mapped);}
 }
 
@@ -863,7 +1029,7 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
 
   //Literal track ID, does not check against trackList
   size_t idx = JSON::Value(trackVal).asInt();
-  if (trackVal == JSON::Value(idx).asString()){
+  if (trackVal == JSON::Value((uint64_t)idx).asString()){
     if (!M.trackValid(idx)){
       WARN_MSG("Track %zu does not exist in stream, cannot select", idx);
       return result;
@@ -1048,6 +1214,15 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
 
   // Video-specific matches
   if (!trackType.size() || trackType == "video"){
+    //All tracks containing bframes
+    if (trackLow == "bframes"){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
+        if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+          if (M.hasBFrames(*it)){result.insert(*it);}
+        }
+      }
+      return result;
+    }
     //Highest resolution
     if (trackLow == "highres" || trackLow == "bestres" || trackLow == "maxres"){
       //Select highest resolution track of this type
@@ -1136,7 +1311,7 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
 /// It is necessary to follow up with a selectDefaultTracks() call to strip unsupported
 /// codecs/combinations.
 std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType, const std::string &trackVal, const std::string &UA){
-  std::set<size_t> validTracks = capa?getSupportedTracks(M, capa, "", UA):M.getValidTracks();
+  std::set<size_t> validTracks = capa?getSupportedTracks(M, capa, "", UA):M.getValidTracks(true);
   return pickTracks(M, validTracks, trackType, trackVal);
 }
 
@@ -1150,7 +1325,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::string &track
 
 std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value &capa,
                                           const std::string &type, const std::string &UA){
-  std::set<size_t> validTracks = M.getValidTracks();
+  std::set<size_t> validTracks = M.getValidTracks(true);
   uint64_t maxLastMs = 0;
   std::set<size_t> toRemove;
   for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
@@ -1277,7 +1452,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
   }
   /*LTS-END*/
 
-  std::set<size_t> validTracks = M.getValidTracks();
+  std::set<size_t> validTracks = M.getValidTracks(true);
   if (capa){validTracks = getSupportedTracks(M, capa);}
 
   // check which tracks don't actually exist
@@ -1486,6 +1661,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
                 /*LTS-START*/
                 if (noSelAudio && M.getType(*trit) == "audio"){continue;}
                 if (noSelVideo && M.getType(*trit) == "video"){continue;}
+                if (noSelMeta && M.getType(*trit) == "meta"){continue;}
                 if (noSelSub &&
                     (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
                   continue;

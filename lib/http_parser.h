@@ -14,10 +14,10 @@ namespace HTTP{
 
   /// HTTP variable parser to std::map<std::string, std::string> structure.
   /// Reads variables from data, decodes and stores them to storage.
-  void parseVars(const std::string &data, std::map<std::string, std::string> &storage);
+  void parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator = "&");
 
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
-  class Parser : public Util::DataCallback{
+  class Parser{
   public:
     Parser();
     bool Read(Socket::Connection &conn, Util::DataCallback &cb = Util::defaultDataCallback);
@@ -27,8 +27,8 @@ namespace HTTP{
     void clearHeader(const std::string &i);
     uint8_t getPercentage() const;
     const std::string &GetVar(const std::string &i) const;
-    std::string getUrl();
-    std::string allVars();
+    std::string getUrl() const;
+    std::string allVars() const;
     void SetHeader(std::string i, std::string v);
     void SetHeader(std::string i, long long v);
     void setCORSHeaders();
@@ -57,6 +57,7 @@ namespace HTTP{
     std::string url;
     std::string protocol;
     unsigned int length;
+    bool knownLength;
     unsigned int currentLength;
     bool headerOnly; ///< If true, do not parse body if the length is a known size.
     bool bufferChunks;

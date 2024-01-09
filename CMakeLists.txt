@@ -78,12 +78,6 @@ if (FILLER_DATA AND SHARED_SECRET AND SUPER_SECRET)
 add_definitions(-DFILLER_DATA="${FILLER_DATA}" -DSHARED_SECRET="${SHARED_SECRET}" -DSUPER_SECRET="${SUPER_SECRET}")#LTS
 endif()
 
-option(GEOIP "Enable GeoIP capabilities (deprecated)")
-if (GEOIP)
-  add_definitions(-DGEOIP=1)
-  message("GeoIP is turned ON")
-endif()
-
 option(NOSSL "Disable SSL/TLS support")
 if (NOT NOSSL)
   add_definitions(-DSSL=1)
@@ -104,19 +98,9 @@ if (NOT NOUPDATE)
   add_definitions(-DUPDATER=1)
 endif()
 
-option(PERPETUAL "Disable the licensing system")
-if (NOT PERPETUAL)
-  add_definitions(-DLICENSING=1)
-endif()
-
 option(NOAUTH "Disable API authentication entirely (insecure!)")
 if (NOAUTH)
   add_definitions(-DNOAUTH=1)
-endif()
-
-option(KILLONEXIT "Kill all processes on exit, ensuring nothing is running anymore (disables rolling restart/update support)")
-if (KILLONEXIT)
-  add_definitions(-DKILLONEXIT=true)
 endif()
 
 if (DEFINED UDP_API_HOST )
@@ -138,11 +122,6 @@ endif()
 option(WITH_THREADNAMES "Enable fancy names for threads (not supported on all platforms)")
 if (WITH_THREADNAMES)
   add_definitions(-DWITH_THREADNAMES=1)
-endif()
-
-option(NOCRASHCHECK "Disables the crash check in the controller stats and input userpages. Prevents killing processes that are stalled/stuck.")
-if (NOCRASHCHECK)
-  add_definitions(-DNOCRASHCHECK=1)
 endif()
 
 if (DEFINED STATS_DELAY)
@@ -207,6 +186,7 @@ set(libHeaders
   lib/dtls_srtp_handshake.h
   lib/dtsc.h
   lib/encryption.h
+  lib/flac.h
   lib/flv_tag.h
   lib/h264.h
   lib/h265.h
@@ -233,7 +213,6 @@ set(libHeaders
   lib/sdp_media.h
   lib/shared_memory.h
   lib/socket.h
-  lib/srtp.h
   lib/stream.h
   lib/stun.h
   lib/theora.h
@@ -275,6 +254,7 @@ add_library (mist
   lib/dtls_srtp_handshake.cpp
   lib/dtsc.cpp
   lib/encryption.cpp
+  lib/flac.cpp
   lib/flv_tag.cpp
   lib/h264.cpp
   lib/h265.cpp
@@ -300,7 +280,6 @@ add_library (mist
   lib/sdp_media.cpp
   lib/shared_memory.cpp
   lib/socket.cpp
-  lib/srtp.cpp
   lib/stream.cpp
   lib/stun.cpp
   lib/theora.cpp
@@ -327,7 +306,7 @@ target_link_libraries(mist
   ${LIBRT}
 )
 if (NOT NOSSL)
-  target_link_libraries(mist mbedtls mbedx509 mbedcrypto srtp2)
+  target_link_libraries(mist mbedtls mbedx509 mbedcrypto)
 endif()
 install(
   FILES ${libHeaders}
@@ -409,6 +388,7 @@ makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
 makeAnalyser(RTSP rtsp) #LTS
+makeAnalyser(FLAC flac)
 
 #LTS_START
 ########################################
@@ -485,6 +465,8 @@ makeInput(HLS hls)
 makeInput(DTSC dtsc)
 makeInput(MP3 mp3)
 makeInput(FLV flv)
+makeInput(FLAC flac)
+
 option(WITH_AV "Build a generic libav-based input (not distributable!)")
 if (WITH_AV)
   makeInput(AV av)
@@ -501,7 +483,7 @@ makeInput(Folder folder)#LTS
 makeInput(Playlist playlist)#LTS
 makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
-makeInput(SRT srt)#LTS
+makeInput(SubRip srt)#LTS
 makeInput(SDP sdp)
 
 if(SRT_LIB)
@@ -535,6 +517,9 @@ macro(makeOutput outputName format)
   if (";${ARGN};" MATCHES ";jpg;")
     SET(tsOutput generated/noffmpeg.h generated/noh264.h)
   endif()
+  if (";${ARGN};" MATCHES ";srtp;")
+    SET(tsOutput src/output/output_webrtc_srtp.h src/output/output_webrtc_srtp.cpp)
+  endif()
   add_executable(MistOut${outputName}
     ${outBaseFile}
     src/output/output.cpp
@@ -554,6 +539,9 @@ macro(makeOutput outputName format)
   if (";${ARGN};" MATCHES ";with_rist;")
     target_link_libraries(MistOut${outputName} rist cjson)
   endif()
+  if (";${ARGN};" MATCHES ";srtp;")
+    target_link_libraries(MistOut${outputName} srtp2)
+  endif()
   target_link_libraries(MistOut${outputName} mist )
   install( 
     TARGETS MistOut${outputName}
@@ -563,6 +551,7 @@ endmacro()
 
 makeOutput(RTMP rtmp)
 makeOutput(DTSC dtsc)
+makeOutput(JSONLine jsonline)
 makeOutput(OGG ogg             http)
 makeOutput(FLV flv             http)
 makeOutput(HTTPMinimalServer   http_minimalserver http)
@@ -571,7 +560,7 @@ makeOutput(AAC aac             http)
 makeOutput(MP3 mp3             http)
 makeOutput(H264 h264           http)
 makeOutput(HDS hds             http)
-makeOutput(SRT srt             http)
+makeOutput(SubRip srt             http)
 makeOutput(JSON json           http)
 option(WITH_JPG "Build JPG thumbnailer output support")
 if (WITH_JPG)
@@ -591,6 +580,18 @@ makeOutput(EBML ebml)
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
 makeOutput(SDP sdp             http)
+makeOutput(FLAC flac           http)
+
+add_executable(MistSession
+  ${BINARY_DIR}/mist/.headers
+  src/session.cpp
+)
+install(
+  TARGETS MistSession
+  DESTINATION bin
+)
+target_link_libraries(MistSession mist)
+
 
 add_executable(MistProcFFMPEG
   ${BINARY_DIR}/mist/.headers
@@ -629,7 +630,7 @@ target_link_libraries(MistProcLivepeer mist)
 
 if (NOT NOSSL)
   makeOutput(HTTPS https)#LTS
-  makeOutput(WebRTC webrtc http)#LTS
+  makeOutput(WebRTC webrtc http srtp)#LTS
 endif()
 
 option(WITH_SANITY "Enable MistOutSanityCheck output for testing purposes")
@@ -679,6 +680,8 @@ install(
 ########################################
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
+  set(DOXY_LAYOUT "${SOURCE_DIR}/DoxygenLayout.xml")
+  set(INPUT_DIRS "${SOURCE_DIR}/src ${SOURCE_DIR}/lib")
   configure_file(${SOURCE_DIR}/Doxyfile.in ${BINARY_DIR}/Doxyfile @ONLY)
   add_custom_target( docs
     ${DOXYGEN_EXECUTABLE} ${BINARY_DIR}/Doxyfile
@@ -719,17 +722,6 @@ else()
     message(FATAL_ERROR "Cross compiling and no usable sourcery binary found - please supply it")
   endif()
 endif()
-
-########################################
-# RelAccX Sampler                      #
-########################################
-  add_executable(RelAccXSampler
-    src/relaccxsampler.cpp
-    ${BINARY_DIR}/mist/.headers
-  )
-  target_link_libraries(RelAccXSampler
-    mist 
-  )
 
 ########################################
 # Embed Code                           #
@@ -860,6 +852,7 @@ add_custom_command(OUTPUT generated/server.html.h
 # MistController - Build               #
 ########################################
 add_executable(MistController
+  src/controller/controller_external_writers.h
   src/controller/controller_limits.h
   src/controller/controller_uplink.h
   src/controller/controller_api.h
@@ -870,7 +863,9 @@ add_executable(MistController
   src/controller/controller_capabilities.h
   src/controller/controller_streams.h
   src/controller/controller_push.h
+  src/controller/controller_variables.h
   src/controller/controller.cpp
+  src/controller/controller_external_writers.cpp
   src/controller/controller_updater.cpp
   src/controller/controller_streams.cpp
   src/controller/controller_storage.cpp
@@ -881,6 +876,7 @@ add_executable(MistController
   src/controller/controller_uplink.cpp
   src/controller/controller_api.cpp
   src/controller/controller_push.cpp
+  src/controller/controller_variables.cpp
   generated/server.html.h
   ${BINARY_DIR}/mist/.headers
 )
@@ -919,6 +915,9 @@ add_test(URLTest COMMAND urltest)
 add_executable(logtest test/log.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(logtest mist)
 add_test(LOGTest COMMAND logtest)
+add_executable(logconvertertest test/converter.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(logconvertertest mist)
+add_test(LOGConverterTest COMMAND logconvertertest)
 add_executable(downloadertest test/downloader.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(downloadertest mist)
 add_test(DownloaderTest COMMAND downloadertest)
@@ -937,4 +936,5 @@ add_executable(streamstatustest test/status.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(streamstatustest mist)
 add_executable(websockettest test/websocket.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(websockettest mist)
-
+add_executable(dtsc_sizing_test test/dtsc_sizing.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(dtsc_sizing_test mist)

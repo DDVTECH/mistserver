@@ -13,13 +13,17 @@ namespace HTTP{
   class URL{
   public:
     URL(const std::string &url = "");
-    uint32_t getPort() const;
-    uint32_t getDefaultPort() const;
+    uint16_t getPort() const;
+    void setPort(uint16_t newPort);
+    uint16_t getDefaultPort() const;
     std::string getExt() const;
     std::string getUrl() const;
     std::string getFilePath() const;
+    std::string getEncodedPath() const;
+    std::string getBase() const;
     std::string getBareUrl() const;
     std::string getProxyUrl() const;
+    std::string getLinkFrom(const URL &) const;
     bool isLocalPath() const;
     std::string host;     ///< Hostname or IP address of URL
     std::string protocol; ///< Protocol of URL
@@ -31,6 +35,8 @@ namespace HTTP{
     std::string pass; ///< Password, if it was present
     URL link(const std::string &l) const;
     bool IPv6Addr;
+    bool operator==(const URL& rhs) const;
+    bool operator!=(const URL& rhs) const;
   };
 
 }// namespace HTTP

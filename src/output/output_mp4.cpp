@@ -106,14 +106,13 @@ namespace Mist{
   }
 
   OutMP4::OutMP4(Socket::Connection &conn) : HTTPOutput(conn){
-    prevVidTrack = INVALID_TRACK_ID;
+    wsCmds = true;
+    sending3GP = false;
     nextHeaderTime = 0xffffffffffffffffull;
     startTime = 0;
     endTime = 0xffffffffffffffffull;
     realBaseOffset = 1;
-    stayLive = true;
-    target_rate = 0.0;
-    forwardTo = 0;
+    timeOffset = 0;
   }
   OutMP4::~OutMP4(){}
 
@@ -127,6 +126,7 @@ namespace Mist{
     capa["url_match"][2u] = "/$.fmp4";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
+    capa["codecs"][0u][0u].append("AV1");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
@@ -142,6 +142,17 @@ namespace Mist{
     capa["methods"][1u]["hrn"] = "MP4 WebSocket";
     capa["methods"][1u]["priority"] = 10;
     capa["methods"][1u]["url_rel"] = "/$.mp4";
+
+    capa["push_urls"].append("/*.fmp4");
+    capa["push_urls"].append("/*.mp4");
+
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1;
+    opt["help"] = "Target filename to store (f)MP4 file as, or - for stdout.";
+    cfg->addOption("target", opt);
+
     // MP4 live is broken on Apple
     capa["exceptions"]["live"] =
         JSON::fromString("[[\"blacklist\",[\"iPad\",\"iPhone\",\"iPod\",\"Safari\"]], "
@@ -154,16 +165,16 @@ namespace Mist{
   uint64_t OutMP4::estimateFileSize() const{
     uint64_t retVal = 0;
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      DTSC::Keys keys(M.keys(it->first));
+      DTSC::Keys keys = M.getKeys(it->first);
       size_t endKey = keys.getEndValid();
-      for (size_t i = 0; i < endKey; i++){
+      for (size_t i = keys.getFirstValid(); i < endKey; i++){
         retVal += keys.getSize(i); // Handle number as index, faster for VoD
       }
     }
     return retVal * 1.1;
   }
 
-  uint64_t OutMP4::mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize) const{
+  uint64_t OutMP4::mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize, std::map<size_t, DTSC::Keys *> & keysCache) const{
     size_t totalCount = 0;
     size_t totalSize = 8;
     uint64_t tmpRes = 8; // moof boxsize
@@ -178,14 +189,13 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
-      tmpRes += 8 + 20; // TRAF + TFHD Box
+      tmpRes += 8 + 20 + 20; // TRAF + TFHD + TFDT Box
 
-      DTSC::Keys keys(M.keys(subIt->first));
+      DTSC::Keys & keys = *keysCache.at(subIt->first);
       DTSC::Parts parts(M.parts(subIt->first));
-      DTSC::Fragments fragments(M.fragments(subIt->first));
 
-      uint32_t startKey = M.getKeyIndexForTime(subIt->first, startFragmentTime);
-      uint32_t endKey = M.getKeyIndexForTime(subIt->first, endFragmentTime) + 1;
+      uint32_t startKey = keys.getIndexForTime(startFragmentTime);
+      uint32_t endKey = keys.getIndexForTime(endFragmentTime) + 1;
 
       size_t thisCount = 0;
 
@@ -235,8 +245,9 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
       const std::string tType = M.getType(it->first);
       uint64_t tmpRes = 0;
+      DTSC::Keys keys = M.getKeys(it->first);
       DTSC::Parts parts(M.parts(it->first));
-      uint64_t partCount = parts.getValidCount();
+      uint64_t partCount = keys.getTotalPartCount();
 
       tmpRes += 8 + 92                                        // TRAK + TKHD Boxes
                 + 36                                          // EDTS Box
@@ -262,7 +273,6 @@ namespace Mist{
                   + 16                               // PASP
                   + 8 + M.getInit(it->first).size(); // avcC
         if (!fragmented){
-          DTSC::Keys keys(M.keys(it->first));
           tmpRes += 16 + (keys.getValidCount() * 4); // STSS
         }
       }
@@ -285,16 +295,17 @@ namespace Mist{
       if (!fragmented){
         // Unfortunately, for our STTS and CTTS boxes, we need to loop through all parts of the
         // track
+        size_t firstPart = keys.getFirstPart(keys.getFirstValid());
         uint64_t sttsCount = 1;
-        uint64_t prevDur = parts.getDuration(0);
-        uint64_t prevOffset = parts.getOffset(0);
+        uint64_t prevDur = parts.getDuration(firstPart);
+        uint64_t prevOffset = parts.getOffset(firstPart);
         uint64_t cttsCount = 1;
-        fileSize += parts.getSize(0);
+        fileSize += parts.getSize(firstPart);
         bool isMeta = (tType == "meta");
         for (unsigned int part = 1; part < partCount; ++part){
-          uint64_t partDur = parts.getDuration(part);
-          uint64_t partOffset = parts.getOffset(part);
-          uint64_t partSize = parts.getSize(part)+(isMeta?2:0);
+          uint64_t partDur = parts.getDuration(firstPart + part);
+          uint64_t partOffset = parts.getOffset(firstPart + part);
+          uint64_t partSize = parts.getSize(firstPart + part)+(isMeta?2:0);
           if (prevDur != partDur){
             prevDur = partDur;
             ++sttsCount;
@@ -379,7 +390,7 @@ namespace Mist{
 
     uint64_t firstms = 0xFFFFFFFFFFFFFFull;
     // Construct with duration of -1, as this is the default for fragmented
-    MP4::MVHD mvhdBox(-1);
+    MP4::MVHD mvhdBox(0);
     // Then override it when we are not sending a VoD asset
     if (!M.getLive()){
       // calculating longest duration
@@ -399,7 +410,8 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
       if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
       DTSC::Parts parts(M.parts(it->first));
-      size_t partCount = parts.getValidCount();
+      DTSC::Keys keys = M.getKeys(it->first);
+      size_t partCount = keys.getTotalPartCount();
       uint64_t tDuration = M.getLastms(it->first) - M.getFirstms(it->first);
       std::string tType = M.getType(it->first);
 
@@ -429,7 +441,7 @@ namespace Mist{
         elstBox.setMediaRateFraction(1, 0);
       }else{
         elstBox.setCount(1);
-        elstBox.setSegmentDuration(0, fragmented ? -1 : tDuration);
+        elstBox.setSegmentDuration(0, fragmented ? 0 : tDuration);
         elstBox.setMediaTime(0, 0);
         elstBox.setMediaRateInteger(0, 1);
         elstBox.setMediaRateFraction(0, 0);
@@ -442,7 +454,7 @@ namespace Mist{
 
       // Add the mandatory MDHD and HDLR boxes to the MDIA
       MP4::MDHD mdhdBox(tDuration);
-      if (fragmented){mdhdBox.setDuration(-1);}
+      if (fragmented){mdhdBox.setDuration(0);}
       mdhdBox.setLanguage(M.getLang(it->first));
       mdiaBox.setContent(mdhdBox, mdiaOffset++);
       MP4::HDLR hdlrBox(tType, M.getTrackIdentifier(it->first));
@@ -524,26 +536,28 @@ namespace Mist{
         MP4::CTTS cttsBox;
         cttsBox.setVersion(0);
 
+        size_t firstPart = keys.getFirstPart(keys.getFirstValid());
+
         size_t totalEntries = 0;
         MP4::CTTSEntry tmpEntry;
         tmpEntry.sampleCount = 0;
-        tmpEntry.sampleOffset = parts.getOffset(0);
+        tmpEntry.sampleOffset = parts.getOffset(firstPart);
 
         size_t sttsCounter = 0;
         MP4::STTSEntry sttsEntry;
         sttsEntry.sampleCount = 0;
-        sttsEntry.sampleDelta = parts.getSize(0);;
+        sttsEntry.sampleDelta = parts.getSize(firstPart);
 
         //Calculate amount of entries for CTTS/STTS boxes so we can set the last entry first
         //Our MP4 box implementations dynamically reallocate to fit the data you put inside them,
         //Which means setting the last entry first prevents constant reallocs and slowness.
         for (size_t part = 0; part < partCount; ++part){
-          uint64_t partOffset = parts.getOffset(part);
+          uint64_t partOffset = parts.getOffset(firstPart + part);
           if (partOffset != tmpEntry.sampleOffset){
             ++totalEntries;
             tmpEntry.sampleOffset = partOffset;
           }
-          uint64_t partDur = parts.getDuration(part);
+          uint64_t partDur = parts.getDuration(firstPart + part);
           if (partDur != sttsEntry.sampleDelta){
             ++sttsCounter;
             sttsEntry.sampleDelta = partDur;
@@ -564,14 +578,14 @@ namespace Mist{
         //Reset the values we just used, first.
         totalEntries = 0;
         tmpEntry.sampleCount = 0;
-        tmpEntry.sampleOffset = parts.getOffset(0);
+        tmpEntry.sampleOffset = parts.getOffset(firstPart);
         sttsCounter = 0;
         sttsEntry.sampleCount = 0;
-        sttsEntry.sampleDelta = parts.getDuration(0);
+        sttsEntry.sampleDelta = parts.getDuration(firstPart);
         
         bool isMeta = (tType == "meta");
         for (size_t part = 0; part < partCount; ++part){
-          uint64_t partDur = parts.getDuration(part);
+          uint64_t partDur = parts.getDuration(firstPart + part);
           if (sttsEntry.sampleDelta != partDur){
             // If the duration of this and previous part differ, write current values and reset
             sttsBox.setSTTSEntry(sttsEntry, sttsCounter++);
@@ -580,12 +594,12 @@ namespace Mist{
           }
           sttsEntry.sampleCount++;
 
-          uint64_t partSize = parts.getSize(part)+(isMeta?2:0);
+          uint64_t partSize = parts.getSize(firstPart + part)+(isMeta?2:0);
           stszBox.setEntrySize(partSize, part);
           size += partSize;
           
           if (hasCTTS){
-            uint64_t partOffset = parts.getOffset(part);
+            uint64_t partOffset = parts.getOffset(firstPart + part);
             if (partOffset != tmpEntry.sampleOffset){
               // If the offset of this and previous part differ, write current values and reset
               cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
@@ -612,11 +626,10 @@ namespace Mist{
       if (tType == "video" && !fragmented){
         MP4::STSS stssBox(0);
         size_t tmpCount = 0;
-        DTSC::Keys keys(M.keys(it->first));
-        uint32_t firstKey = keys.getFirstValid();
-        uint32_t endKey = keys.getEndValid();
+        size_t firstKey = keys.getFirstValid();
+        size_t endKey = keys.getEndValid();
         for (size_t i = firstKey; i < endKey; ++i){
-          stssBox.setSampleNumber(tmpCount + 1, i);
+          stssBox.setSampleNumber(tmpCount + 1, i-firstKey);
           tmpCount += keys.getParts(i);
         }
         stblBox.setContent(stssBox, stblOffset++);
@@ -661,7 +674,7 @@ namespace Mist{
       MP4::MVEX mvexBox;
       size_t curBox = 0;
       MP4::MEHD mehdBox;
-      mehdBox.setFragmentDuration(M.getDuration(mainTrack));
+      mehdBox.setFragmentDuration(0);
 
       mvexBox.setContent(mehdBox, curBox++);
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
@@ -716,8 +729,11 @@ namespace Mist{
         if (prevVidTrack != INVALID_TRACK_ID && subIt->first == prevVidTrack){continue;}
         keyPart temp;
         temp.trackID = subIt->first;
-        temp.time = M.getFirstms(subIt->first);
-        temp.index = 0;
+
+        DTSC::Keys keys = M.getKeys(subIt->first);
+        temp.time = keys.getTime(keys.getFirstValid());
+        temp.index = keys.getFirstPart(keys.getFirstValid());
+        temp.firstIndex = temp.index;
         sortSet.insert(temp);
       }
       while (!sortSet.empty()){
@@ -729,16 +745,15 @@ namespace Mist{
         DTSC::Parts & parts = *tL.parts;
         // setting the right STCO size in the STCO box
         if (useLargeBoxes){// Re-using the previously defined boolean for speedup
-          tL.co64Box.setChunkOffset(dataOffset + dataSize, temp.index);
+          tL.co64Box.setChunkOffset(dataOffset + dataSize, temp.index - temp.firstIndex);
         }else{
-          tL.stcoBox.setChunkOffset(dataOffset + dataSize, temp.index);
+          tL.stcoBox.setChunkOffset(dataOffset + dataSize, temp.index - temp.firstIndex);
         }
         dataSize += parts.getSize(temp.index);
 
         if (M.getType(temp.trackID) == "meta"){dataSize += 2;}
-        // add next keyPart to sortSet
-        if (temp.index + 1 < parts.getEndValid()){// Only create new element, when there are new
-                                                    // elements to be added
+        // add next keyPart to sortSet, if we have not yet reached the end time
+        if (temp.time + parts.getDuration(temp.index) < M.getLastms(temp.trackID)){
           temp.time += parts.getDuration(temp.index);
           ++temp.index;
           sortSet.insert(temp);
@@ -764,7 +779,6 @@ namespace Mist{
   /// Calculate a seekPoint, based on byteStart, metadata, tracks and headerSize.
   /// The seekPoint will be set to the timestamp of the first packet to send.
   void OutMP4::findSeekPoint(uint64_t byteStart, uint64_t &seekPoint, uint64_t headerSize){
-    seekPoint = 0;
     // if we're starting in the header, seekPoint is always zero.
     if (byteStart <= headerSize){return;}
     // okay, we're past the header. Substract the headersize from the starting postion.
@@ -794,7 +808,7 @@ namespace Mist{
       // otherwise, set currPos to where we are now and continue
       currPos += partSize;
 
-      if (temp.index + 1 < parts.getEndValid()){// only insert when there are parts left
+      if (temp.time + parts.getDuration(temp.index) < M.getLastms(temp.trackID)){// only insert when there are parts left
         temp.time += parts.getDuration(temp.index);
         ++temp.index;
         sortSet.insert(temp);
@@ -867,7 +881,7 @@ namespace Mist{
     trafBox.setContent(tfdtBox, 1);
 
     MP4::TRUN trunBox;
-    trunBox.setFirstSampleFlags(MP4::isIPicture | MP4::isKeySample);
+    trunBox.setFirstSampleFlags(thisPacket.getFlag("keyframe") ? (MP4::isIPicture | MP4::isKeySample) : (MP4::noIPicture | MP4::noKeySample));
     trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize |
                      MP4::trunsampleDuration | MP4::trunsampleOffsets);
 
@@ -915,6 +929,7 @@ namespace Mist{
     sortSet.clear();
 
     std::set<keyPart> trunOrder;
+    std::set<size_t> keyParts;
     std::deque<size_t> sortedTracks;
 
     if (endFragmentTime == 0){
@@ -923,15 +938,17 @@ namespace Mist{
       endFragmentTime =
           M.getTimeForFragmentIndex(mainTrack, M.getFragmentIndexForTime(mainTrack, startFragmentTime) + 1);
     }
+    
+    std::map<size_t, DTSC::Keys *> keysCache;
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
-      DTSC::Keys keys(M.keys(subIt->first));
+      keysCache[subIt->first] = new DTSC::Keys(M.getKeys(subIt->first));
+      DTSC::Keys & keys = *keysCache[subIt->first];
       DTSC::Parts parts(M.parts(subIt->first));
-      DTSC::Fragments fragments(M.fragments(subIt->first));
 
-      uint32_t startKey = M.getKeyIndexForTime(subIt->first, startFragmentTime);
-      uint32_t endKey = M.getKeyIndexForTime(subIt->first, endFragmentTime) + 1;
+      uint32_t startKey = keys.getIndexForTime(startFragmentTime);
+      uint32_t endKey = keys.getIndexForTime(endFragmentTime) + 1;
 
       for (size_t k = startKey; k < endKey; k++){
 
@@ -951,6 +968,11 @@ namespace Mist{
             temp.time = timeStamp;
             temp.index = p;
             trunOrder.insert(temp);
+
+            uint64_t keyTime = M.getTimeForKeyIndex(subIt->first, keys.getIndexForTime(timeStamp));
+            if (keyTime == timeStamp){
+              keyParts.insert(p);
+            }
           }
 
           timeStamp += parts.getDuration(p);
@@ -970,7 +992,7 @@ namespace Mist{
       }
     }
 
-    uint64_t relativeOffset = mp4moofSize(startFragmentTime, endFragmentTime, mdatSize) + 8;
+    uint64_t relativeOffset = mp4moofSize(startFragmentTime, endFragmentTime, mdatSize, keysCache) + 8;
 
     // We need to loop over each part and fill a new set, because editing byteOffest might edit
     // relative order, and invalidates the iterator.
@@ -987,9 +1009,11 @@ namespace Mist{
     }
     trunOrder.clear(); // erase the trunOrder set, to keep memory usage down
 
-    bool firstSample = true;
-
     for (std::deque<size_t>::iterator it = sortedTracks.begin(); it != sortedTracks.end(); ++it){
+      //Wipe keys cache, no longer needed
+      delete keysCache[*it];
+      keysCache.erase(*it);
+
       size_t tid = *it;
       DTSC::Parts parts(M.parts(*it));
 
@@ -1004,9 +1028,14 @@ namespace Mist{
       tfhdBox.setDefaultSampleSize(444);
       tfhdBox.setDefaultSampleFlags(tid == vidTrack ? (MP4::noIPicture | MP4::noKeySample)
                                                     : (MP4::isIPicture | MP4::isKeySample));
-      trafBox.setContent(tfhdBox, 0);
+      unsigned int trafOffset = 0;
+      trafBox.setContent(tfhdBox, trafOffset++);
 
-      unsigned int trafOffset = 1;
+      MP4::TFDT tfdtBox;
+      tfdtBox.setBaseMediaDecodeTime(startFragmentTime - timeOffset);
+      trafBox.setContent(tfdtBox, trafOffset++);
+
+
       for (std::set<keyPart>::iterator trunIt = sortSet.begin(); trunIt != sortSet.end(); trunIt++){
         if (trunIt->trackID == tid){
           DTSC::Parts parts(M.parts(trunIt->trackID));
@@ -1021,8 +1050,11 @@ namespace Mist{
           // The value set here, will be updated afterwards to the correct value
           trunBox.setDataOffset(trunIt->byteOffset);
 
-          trunBox.setFirstSampleFlags(MP4::isIPicture | (firstSample ? MP4::isKeySample : MP4::noKeySample));
-          firstSample = false;
+          bool isKeyFrame = keyParts.count(trunIt->index);
+          if (M.getType(trunIt->trackID) != "video"){
+            isKeyFrame = true;
+          }
+          trunBox.setFirstSampleFlags(isKeyFrame ? (MP4::isKeySample | MP4::isIPicture) : (MP4::noKeySample | MP4::noIPicture));
 
           MP4::trunSampleInformation sampleInfo;
           sampleInfo.sampleSize = partSize;
@@ -1065,6 +1097,7 @@ namespace Mist{
   void OutMP4::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     //Set global defaults, first
     HTTPOutput::respondHTTP(req, headersOnly);
+    initialSeek();
 
     H.SetHeader("Content-Type", "video/MP4");
     if (!M.getLive()){H.SetHeader("Accept-Ranges", "bytes, parsec");}
@@ -1079,50 +1112,13 @@ namespace Mist{
       return;
     }
 
-    DTSC::Fragments fragments(M.fragments(mainTrack));
-
-    if (req.GetVar("startfrag") != ""){
-      realTime = 0;
-      size_t startFrag = JSON::Value(req.GetVar("startfrag")).asInt();
-      if (startFrag >= fragments.getFirstValid() && startFrag < fragments.getEndValid()){
-        startTime = M.getTimeForFragmentIndex(mainTrack, startFrag);
-
-        // Set endTime to one fragment further, can receive override from next parameter check
-        if (startFrag + 1 < fragments.getEndValid()){
-          endTime = M.getTimeForFragmentIndex(mainTrack, startFrag + 1);
-        }else{
-          endTime = M.getLastms(mainTrack);
-        }
-
-      }else{
-        startTime = M.getLastms(mainTrack);
-      }
-    }
-
-    if (req.GetVar("endfrag") != ""){
-      size_t endFrag = JSON::Value(req.GetVar("endfrag")).asInt();
-      if (endFrag < fragments.getEndValid()){
-        endTime = M.getTimeForFragmentIndex(mainTrack, endFrag);
-      }else{
-        endTime = M.getLastms(mainTrack);
-      }
-    }
-
-    if (req.GetVar("starttime") != ""){
-      startTime = std::max((uint64_t)JSON::Value(req.GetVar("starttime")).asInt(), M.getFirstms(mainTrack));
-    }
-
-    if (req.GetVar("endtime") != ""){
-      endTime = std::min((uint64_t)JSON::Value(req.GetVar("endtime")).asInt(), M.getLastms(mainTrack));
-    }
-
     // Check if the url contains .3gp --> if yes, we will send a 3gp header
-    sending3GP = (H.url.find(".3gp") != std::string::npos);
+    sending3GP = (req.url.find(".3gp") != std::string::npos);
 
     fileSize = 0;
     headerSize = mp4HeaderSize(fileSize, M.getLive());
 
-    seekPoint = 0;
+    seekPoint = Output::startTime();
     // for live we use fragmented mode
     if (M.getLive()){fragSeqNum = 0;}
 
@@ -1131,8 +1127,9 @@ namespace Mist{
          subIt != userSelect.end(); subIt++){
       keyPart temp;
       temp.trackID = subIt->first;
-      temp.time = M.getFirstms(subIt->first);
-      temp.index = 0;
+      DTSC::Keys keys = M.getKeys(subIt->first);
+      temp.time = keys.getTime(keys.getFirstValid());
+      temp.index = keys.getFirstPart(keys.getFirstValid());
       sortSet.insert(temp);
     }
 
@@ -1196,12 +1193,8 @@ namespace Mist{
   }
 
   void OutMP4::sendNext(){
-
-    if (!thisPacket.getData()) {
-      FAIL_MSG("`thisPacket.getData()` is invalid.");
-      return;
-    }
-    
+    //Call parent handler for generic websocket handling
+    HTTPOutput::sendNext();
     // Obtain a pointer to the data of this packet
     char *dataPointer = 0;
     size_t len = 0;
@@ -1209,68 +1202,6 @@ namespace Mist{
 
     // WebSockets send each packet directly. The packet is constructed in `appendSinglePacketMoof()`. 
     if (webSock) {
-
-      if (forwardTo && currentTime() >= forwardTo){
-        forwardTo = 0;
-        if (target_rate == 0.0){
-          realTime = 1000;//set playback speed to default
-          firstTime = Util::bootMS() - currentTime();
-          maxSkipAhead = 0;//enabled automatic rate control
-        }else{
-          stayLive = false;
-          //Set new realTime speed
-          realTime = 1000 / target_rate;
-          firstTime = Util::bootMS() - (currentTime() / target_rate);
-          maxSkipAhead = 1;//disable automatic rate control
-        }
-        JSON::Value r;
-        r["type"] = "set_speed";
-        r["data"]["play_rate_prev"] = "fast-forward";
-        if (target_rate == 0.0){
-          r["data"]["play_rate_curr"] = "auto";
-        }else{
-          r["data"]["play_rate_curr"] = target_rate;
-        }
-        webSock->sendFrame(r.toString());
-      }
-
-      // Handle nice move-over to new track ID
-      if (prevVidTrack != INVALID_TRACK_ID && thisIdx != prevVidTrack && M.getType(thisIdx) == "video"){
-        if (!thisPacket.getFlag("keyframe")){
-          // Ignore the packet if not a keyframe
-          return;
-        }
-        dropTrack(prevVidTrack, "Smoothly switching to new video track", false);
-        prevVidTrack = INVALID_TRACK_ID;
-        onIdle();
-        sendHeader();
-
-/*
-        MP4::AVCC avccbox;
-        avccbox.setPayload(M.getInit(thisIdx));
-        std::string bs = avccbox.asAnnexB();
-        static Util::ResizeablePointer initBuf;
-        initBuf.assign(0,0);
-        initBuf.allocate(bs.size());
-        char * ib = initBuf;
-        initBuf.append(0, nalu::fromAnnexB(bs.data(), bs.size(), ib));
-
-        webBuf.truncate(0);
-        appendSinglePacketMoof(webBuf, bs.size());
-          
-        char mdatHeader[8] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};
-        Bit::htobl(mdatHeader, 8 + len); //8 bytes for the header + length of data.
-        webBuf.append(mdatHeader, 8);
-        webBuf.append(dataPointer, len);
-        webBuf.append(initBuf, initBuf.size());
-        webSock->sendFrame(webBuf, webBuf.size(), 2);
-        return;
-*/
-
-
-      }
-
-
       webBuf.truncate(0);
       appendSinglePacketMoof(webBuf);
         
@@ -1298,8 +1229,17 @@ namespace Mist{
               return;
             }
           }
-          sendFragmentHeaderTime(thisPacket.getTime(), thisPacket.getTime() + needsLookAhead);
-          nextHeaderTime = thisPacket.getTime() + needsLookAhead;
+
+          nextHeaderTime = thisTime + needsLookAhead;
+          if (targetParams.count("recstop")){
+            uint64_t planStop = atoll(targetParams["recstop"].c_str());
+            if (planStop < nextHeaderTime){nextHeaderTime = planStop;}
+          }
+          if (targetParams.count("stop")){
+            uint64_t planStop = atoll(targetParams["stop"].c_str());
+            if (planStop < nextHeaderTime){nextHeaderTime = planStop;}
+          }
+          if (thisTime < nextHeaderTime){sendFragmentHeaderTime(thisTime, nextHeaderTime);}
         }else{
           if (startTime || endTime != 0xffffffffffffffffull){
             sendFragmentHeaderTime(startTime, endTime);
@@ -1319,8 +1259,7 @@ namespace Mist{
       if (webSock) {
         /* create packet */
         webBuf.append(dataPointer, len);
-      }
-      else {
+      }else{
         H.Chunkify(dataPointer, len, myConn);
       }
     }
@@ -1365,15 +1304,19 @@ namespace Mist{
       len += 2;
     }
 
-    if (currPos >= byteStart){
-      H.Chunkify(dataPointer, std::min(leftOver, (int64_t)len), myConn);
-
-      leftOver -= len;
+    if (isRecording()){
+      myConn.SendNow(dataPointer, len);
     }else{
-      if (currPos + len > byteStart){
-        H.Chunkify(dataPointer + (byteStart - currPos),
-                   std::min((uint64_t)leftOver, (len - (byteStart - currPos))), myConn);
-        leftOver -= len - (byteStart - currPos);
+      if (currPos >= byteStart){
+        H.Chunkify(dataPointer, std::min(leftOver, (int64_t)len), myConn);
+
+        leftOver -= len;
+      }else{
+        if (currPos + len > byteStart){
+          H.Chunkify(dataPointer + (byteStart - currPos),
+                     std::min((uint64_t)leftOver, (len - (byteStart - currPos))), myConn);
+          leftOver -= len - (byteStart - currPos);
+        }
       }
     }
 
@@ -1382,7 +1325,7 @@ namespace Mist{
       keyPart temp = *sortSet.begin();
       sortSet.erase(sortSet.begin());
       currPos += parts.getSize(temp.index);
-      if (temp.index + 1 < parts.getEndValid()){// only insert when there are parts left
+      if (temp.time + parts.getDuration(temp.index) < M.getLastms(temp.trackID)){// only insert when there are parts left
         temp.time += parts.getDuration(temp.index);
         ++temp.index;
         sortSet.insert(temp);
@@ -1403,7 +1346,7 @@ namespace Mist{
       r["type"] = "info";
       r["data"]["msg"] = "Sending header";
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        r["data"]["tracks"].append(it->first);
+        r["data"]["tracks"].append((uint64_t)it->first);
       }
       webSock->sendFrame(r.toString());
 
@@ -1414,12 +1357,21 @@ namespace Mist{
       }
 
       webSock->sendFrame(headerData, headerData.size(), 2);
-      std::ofstream bleh("/tmp/bleh.mp4");
-      bleh.write(headerData, headerData.size());
-      bleh.close();
       sentHeader = true;
       return;
     }
+
+    // If we're doing piped output or output to file, we still need to write the actual header here...
+    if (!streamName.size() || isFileTarget()){
+      Util::ResizeablePointer headerData;
+      if (!mp4Header(headerData, fileSize, M.getLive())){
+        FAIL_MSG("Could not generate MP4 header!");
+      }else{
+        myConn.SendNow(headerData, headerData.size());
+      }
+      seekPoint = Output::startTime();
+    }
+
         
     vidTrack = getMainSelectedTrack();
 
@@ -1440,6 +1392,7 @@ namespace Mist{
         INFO_MSG("Increased initial lookAhead of %" PRIu64 "ms", needsLookAhead);
         initialSeek();
       }
+      timeOffset = currentTime();
     }else{
       seek(seekPoint);
     }
@@ -1447,24 +1400,15 @@ namespace Mist{
   }
 
   void OutMP4::onWebsocketConnect() {
-    capa["name"] = "MP4/WS";
     capa["maxdelay"] = 5000;
     fragSeqNum = 0;
-    idleInterval = 1000;
     maxSkipAhead = 0;
-    dataWaitTimeout = 450;
+    if (M.getLive()){dataWaitTimeout = 450;}
   }
 
   void OutMP4::onWebsocketFrame() {
-
     JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
-    if (!command.isMember("type")) {
-      JSON::Value r;
-      r["type"] = "error";
-      r["data"] = "type field missing from command";
-      webSock->sendFrame(r.toString());
-      return;
-    }
+    if (!command.isMember("type")) {return;}
     
     if (command["type"] == "request_codec_data") {
       //If no supported codecs are passed, assume autodetected capabilities
@@ -1489,117 +1433,8 @@ namespace Mist{
       selectDefaultTracks();
       initialSeek();
       sendHeader();
-    }else if (command["type"] == "seek") {
-      handleWebsocketSeek(command);
-    }else if (command["type"] == "pause") {
-      parseData = !parseData;
-      JSON::Value r;
-      r["type"] = "pause";
-      r["paused"] = !parseData;
-      //Make sure we reset our timing code, too
-      if (parseData){
-        firstTime = Util::bootMS() - (currentTime() / target_rate);
-      }
-      webSock->sendFrame(r.toString());
-    }else if (command["type"] == "hold") {
-      parseData = false;
-      webSock->sendFrame("{\"type\":\"pause\",\"paused\":true}");
-    }else if (command["type"] == "tracks") {
-      if (command.isMember("audio")){
-        if (!command["audio"].isNull() && command["audio"] != "auto"){
-          targetParams["audio"] = command["audio"].asString();
-        }else{
-          targetParams.erase("audio");
-        }
-      }
-      if (command.isMember("video")){
-        if (!command["video"].isNull() && command["video"] != "auto"){
-          targetParams["video"] = command["video"].asString();
-        }else{
-          targetParams.erase("video");
-        }
-      }
-      if (command.isMember("seek_time")){
-        possiblyReselectTracks(command["seek_time"].asInt());
-      }else{
-        possiblyReselectTracks(currentTime());
-      }
       return;
-    }else if (command["type"] == "set_speed") {
-      handleWebsocketSetSpeed(command);
-    }else if (command["type"] == "stop") {
-      Util::logExitReason("User requested stop");
-      myConn.close();
-    }else if (command["type"] == "play") {
-      parseData = true;
-      if (command.isMember("seek_time")){handleWebsocketSeek(command);}
     }
-  }
-
-  bool OutMP4::possiblyReselectTracks(uint64_t seekTarget){
-    // Remember the previous video track, if any.
-    std::set<size_t> prevSelTracks;
-    prevVidTrack = INVALID_TRACK_ID;
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      prevSelTracks.insert(it->first);
-      if (M.getType(it->first) == "video"){
-        prevVidTrack = it->first;
-      }
-    }
-    if (!selectDefaultTracks()) {
-      prevVidTrack = INVALID_TRACK_ID;
-      onIdle();
-      return false;
-    }
-    if (seekTarget != currentTime()){prevVidTrack = INVALID_TRACK_ID;}
-    bool hasVideo = false;
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      if (M.getType(it->first) == "video"){hasVideo = true;}
-    }
-    // Add the previous video track back, if we had one.
-    if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack) && hasVideo){
-      userSelect[prevVidTrack].reload(streamName, prevVidTrack);
-      seek(seekTarget);
-      std::set<size_t> newSelTracks;
-      newSelTracks.insert(prevVidTrack);
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        if (M.getType(it->first) != "video"){
-          newSelTracks.insert(it->first);
-        }
-      }
-      if (prevSelTracks != newSelTracks){
-        seek(seekTarget, true);
-        realTime = 0;
-        forwardTo = seekTarget;
-        sendHeader();
-        JSON::Value r;
-        r["type"] = "set_speed";
-        if (target_rate == 0.0){
-          r["data"]["play_rate_prev"] = "auto";
-        }else{
-          r["data"]["play_rate_prev"] = target_rate;
-        }
-        r["data"]["play_rate_curr"] = "fast-forward";
-        webSock->sendFrame(r.toString());
-      }
-    }else{
-      prevVidTrack = INVALID_TRACK_ID;
-      seek(seekTarget, true);
-      realTime = 0;
-      forwardTo = seekTarget;
-      sendHeader();
-      JSON::Value r;
-      r["type"] = "set_speed";
-      if (target_rate == 0.0){
-        r["data"]["play_rate_prev"] = "auto";
-      }else{
-        r["data"]["play_rate_prev"] = target_rate;
-      }
-      r["data"]["play_rate_curr"] = "fast-forward";
-      webSock->sendFrame(r.toString());
-    }
-    onIdle();
-    return true;
   }
 
   void OutMP4::sendWebsocketCodecData(const std::string& type) {
@@ -1620,142 +1455,12 @@ namespace Mist{
         continue;
       }
       r["data"]["codecs"].append(codec);
-      r["data"]["tracks"].append(it->first);
+      r["data"]["tracks"].append((uint64_t)it->first);
       ++it;
     }
     webSock->sendFrame(r.toString());
   }
   
-  bool OutMP4::handleWebsocketSeek(JSON::Value& command) {
-    JSON::Value r;
-    r["type"] = "seek";
-    if (!command.isMember("seek_time")){
-      r["error"] = "seek_time missing";
-      webSock->sendFrame(r.toString());
-      return false;
-    }
-
-    uint64_t seek_time = command["seek_time"].asInt();
-    if (!parseData){
-      parseData = true;
-      selectDefaultTracks();
-    }
-
-    stayLive = (target_rate == 0.0) && (Output::endTime() < seek_time + 5000);
-    if (command["seek_time"].asStringRef() == "live"){stayLive = true;}
-    if (stayLive){seek_time = Output::endTime();}
-    
-    if (!seek(seek_time, true)) {
-      r["error"] = "seek failed, continuing as-is";
-      webSock->sendFrame(r.toString());
-      return false;
-    }
-    if (M.getLive()){r["data"]["live_point"] = stayLive;}
-    if (target_rate == 0.0){
-      r["data"]["play_rate_curr"] = "auto";
-    }else{
-      r["data"]["play_rate_curr"] = target_rate;
-    }
-    if (seek_time >= 250 && currentTime() < seek_time - 250){
-      forwardTo = seek_time;
-      realTime = 0;
-      r["data"]["play_rate_curr"] = "fast-forward";
-    }
-    onIdle();
-    webSock->sendFrame(r.toString());
-    return true;
-  }
-
-  bool OutMP4::handleWebsocketSetSpeed(JSON::Value& command) {
-    JSON::Value r;
-    r["type"] = "set_speed";
-    if (!command.isMember("play_rate")){
-      r["error"] = "play_rate missing";
-      webSock->sendFrame(r.toString());
-      return false;
-    }
-
-    double set_rate = command["play_rate"].asDouble();
-    if (!parseData){
-      parseData = true;
-      selectDefaultTracks();
-    }
-    
-    if (target_rate == 0.0){
-      r["data"]["play_rate_prev"] = "auto";
-    }else{
-      r["data"]["play_rate_prev"] = target_rate;
-    }
-    if (set_rate == 0.0){
-      r["data"]["play_rate_curr"] = "auto";
-    }else{
-      r["data"]["play_rate_curr"] = set_rate;
-    }
-
-    if (target_rate != set_rate){
-      target_rate = set_rate;
-      if (target_rate == 0.0){
-        realTime = 1000;//set playback speed to default
-        firstTime = Util::bootMS() - currentTime();
-        maxSkipAhead = 0;//enabled automatic rate control
-      }else{
-        stayLive = false;
-        //Set new realTime speed
-        realTime = 1000 / target_rate;
-        firstTime = Util::bootMS() - (currentTime() / target_rate);
-        maxSkipAhead = 1;//disable automatic rate control
-      }
-    }
-    if (M.getLive()){r["data"]["live_point"] = stayLive;}
-    webSock->sendFrame(r.toString());
-    onIdle();
-    return true;
-  }
-
-  void OutMP4::onIdle() {
-    if (!webSock){return;}
-    if (!parseData){return;}
-    JSON::Value r;
-    r["type"] = "on_time";
-    r["data"]["current"] = currentTime();
-    r["data"]["begin"] = Output::startTime();
-    r["data"]["end"] = Output::endTime();
-    if (realTime == 0){
-      r["data"]["play_rate_curr"] = "fast-forward";
-    }else{
-      if (target_rate == 0.0){
-        r["data"]["play_rate_curr"] = "auto";
-      }else{
-        r["data"]["play_rate_curr"] = target_rate;
-      }
-    }
-    uint64_t jitter = 0;
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      r["data"]["tracks"].append(it->first);
-      if (jitter < M.getMinKeepAway(it->first)){jitter = M.getMinKeepAway(it->first);}
-    }
-    r["data"]["jitter"] = jitter;
-    if (dataWaitTimeout < jitter*1.5){dataWaitTimeout = jitter*1.5;}
-    if (capa["maxdelay"].asInt() < jitter*1.5){capa["maxdelay"] = jitter*1.5;}
-    webSock->sendFrame(r.toString());
-  }
-
-  bool OutMP4::onFinish() {
-    if (!webSock){
-      H.Chunkify(0, 0, myConn);
-      wantRequest = true;
-      return true;
-    }
-    JSON::Value r;
-    r["type"] = "on_stop";
-    r["data"]["current"] = currentTime();
-    r["data"]["begin"] = Output::startTime();
-    r["data"]["end"] = Output::endTime();
-    webSock->sendFrame(r.toString());
-    parseData = false;
-    return false;
-  }
-
   void OutMP4::dropTrack(size_t trackId, const std::string &reason, bool probablyBad){
     if (webSock && (reason == "EOP: data wait timeout" || reason == "disappeared from metadata") && possiblyReselectTracks(currentTime())){
       return;

@@ -3,6 +3,7 @@
 
 #include "defines.h"
 #include "procs.h"
+#include "stream.h"
 #include <signal.h>
 #include <string.h>
 #include <sys/types.h>
@@ -234,19 +235,96 @@ void Util::Procs::childsig_handler(int signum){
 }
 
 /// Runs the given command and returns the stdout output as a string.
-std::string Util::Procs::getOutputOf(char *const *argv){
+/// \param maxWait amount of milliseconds to wait for new output to come in over stdout before aborting
+std::string Util::Procs::getOutputOf(char *const *argv, uint64_t maxWait){
   int fin = 0, fout = -1, ferr = 0;
+  uint64_t waitedFor = 0;
+  uint8_t tries = 0;
   pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
   Socket::Connection O(-1, fout);
+  O.setBlocking(false);
   Util::ResizeablePointer ret;
   while (childRunning(myProc) || O){
     if (O.spool() || O.Received().size()){
+      waitedFor = 0;
+      tries = 0;
       while (O.Received().size()){
         std::string & t = O.Received().get();
         ret.append(t);
         t.clear();
       }
     }else{
+      if (maxWait && waitedFor > maxWait){
+        WARN_MSG("Timeout while getting output of '%s', returning %zuB of data",  (char *)argv, ret.size());
+        break;
+      }
+      else if(maxWait){
+        uint64_t waitTime = Util::expBackoffMs(tries++, 10, maxWait);
+        Util::sleep(waitTime);
+        waitedFor += waitTime;
+      }
+      else{
+        Util::sleep(50);
+      }
+    }
+  }
+  return std::string(ret, ret.size());
+}
+
+/// Runs the given command and returns the stdout output as a string.
+/// \param maxWait amount of milliseconds to wait before shutting down the spawned process
+/// \param maxValBytes amount of Bytes allowed in the output before shutting down the spawned process
+std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait, uint32_t maxValBytes){
+  int fout = -1;
+  uint64_t waitedFor = 0;
+  uint8_t tries = 0;
+  pid_t myProc = StartPiped(argv, NULL, &fout, NULL);
+  Socket::Connection O(-1, fout);
+  O.setBlocking(false);
+  Util::ResizeablePointer ret;
+  std::string fullCmd;
+  uint8_t idx = 0;
+  while (argv[idx]){
+    fullCmd += argv[idx++];
+    fullCmd += " ";
+  }
+  while (childRunning(myProc) || O){
+    if (O.spool() || O.Received().size()){
+      tries = 0;
+      while (O.Received().size()){
+        std::string & t = O.Received().get();
+        ret.append(t);
+        t.clear();
+      }
+    }else{
+      if (waitedFor > maxWait){
+        WARN_MSG("Reached timeout of %" PRIu64 " ms. Killing process with command %s...", maxWait, fullCmd.c_str());
+        break;
+      }
+      else {
+        uint64_t waitTime = Util::expBackoffMs(tries++, 10, maxWait);
+        Util::sleep(waitTime);
+        waitedFor += waitTime;
+      }
+    }
+    if (ret.size() > maxValBytes){
+      WARN_MSG("Have a limit of %" PRIu32 "B, but received %zuB of data. Killing process with command %s...",  maxValBytes, ret.size(), fullCmd.c_str());
+      break;
+    }
+  }
+  O.close();
+  // Stop the process if it is still running
+  if (childRunning(myProc)){
+    Stop(myProc);
+    waitedFor = 0;
+  }
+  // Give it a few seconds, but then forcefully stop it
+  while (childRunning(myProc)){
+    if (waitedFor > 2000){
+      Murder(myProc);
+      break;
+    }else{
+      waitedFor += 50;
       Util::sleep(50);
     }
   }
@@ -261,10 +339,10 @@ char *const *Util::Procs::dequeToArgv(std::deque<std::string> &argDeq){
   return ret;
 }
 
-std::string Util::Procs::getOutputOf(std::deque<std::string> &argDeq){
+std::string Util::Procs::getOutputOf(std::deque<std::string> &argDeq, uint64_t maxWait){
   std::string ret;
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
-  ret = getOutputOf(argv);
+  ret = getOutputOf(argv, maxWait);
   return ret;
 }
 
@@ -388,15 +466,13 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
       ERROR_MSG("%s trigger failed to execute %s: %s", trggr, argv[0], strerror(errno));
       JSON::Value j;
       j["trigger_fail"] = trggr;
-      Socket::UDPConnection uSock;
-      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-      uSock.SendNow(j.toString());
+      Util::sendUDPApi(j);
       std::cout << getenv("MIST_TRIG_DEF");
-      exit(42);
+      _exit(42);
     }
     /*LTS-END*/
     ERROR_MSG("execvp failed for process %s, reason: %s", argv[0], strerror(errno));
-    exit(42);
+    _exit(42);
   }else if (pid == -1){
     ERROR_MSG("fork failed for process %s, reason: %s", argv[0], strerror(errno));
     if (fdin && *fdin == -1){

@@ -131,7 +131,7 @@ namespace Mist{
         if (pData["source_tracks"].size() != userSelect.size()){
           pData["source_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            pData["source_tracks"].append(it->first);
+            pData["source_tracks"].append((uint64_t)it->first);
           }
         }
       }
@@ -149,7 +149,6 @@ namespace Mist{
         }
         while (!presegs[currPreSeg].fullyRead && conf.is_active){Util::sleep(100);}
         presegs[currPreSeg].data.assign(0, 0);
-        extraKeepAway = 0;
         needsLookAhead = 0;
         maxSkipAhead = 0;
         packCounter = 0;
@@ -193,7 +192,7 @@ namespace Mist{
         if (pData["sink_tracks"].size() != userSelect.size()){
           pData["sink_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            pData["sink_tracks"].append(it->first);
+            pData["sink_tracks"].append((uint64_t)it->first);
           }
         }
       }
@@ -249,7 +248,7 @@ namespace Mist{
         if (!thisPacket){
           Util::sleep(25);
           if (userSelect.size() && userSelect.begin()->second.getStatus() == COMM_STATUS_REQDISCONNECT){
-            Util::logExitReason("buffer requested shutdown");
+            Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
             return;
           }
         }
@@ -487,7 +486,7 @@ void uploadThread(void * num){
       attempts++;
       Util::sleep(100);//Rate-limit retries
       if (attempts > 4){
-        Util::logExitReason("too many upload failures");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "too many upload failures");
         conf.is_active = false;
         return;
       }
@@ -498,7 +497,7 @@ void uploadThread(void * num){
         Mist::pickRandomBroadcaster();
         if (!Mist::currBroadAddr.size()){
           FAIL_MSG("Cannot switch to new broadcaster: none available");
-          Util::logExitReason("no Livepeer broadcasters available");
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "no Livepeer broadcasters available");
           conf.is_active = false;
           return;
         }
@@ -524,6 +523,7 @@ void uploadThread(void * num){
 int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
+  Util::Config::binaryType = Util::PROCESS;
   JSON::Value capa;
 
   {
@@ -537,8 +537,14 @@ int main(int argc, char *argv[]){
     opt["long"] = "json";
     opt["short"] = "j";
     opt["help"] = "Output connector info in JSON format, then exit.";
-    opt["value"].append(0);
+    opt["value"].append(false);
     config.addOption("json", opt);
+    opt.null();
+    opt["long"] = "kickoff";
+    opt["short"] = "K";
+    opt["help"] = "Kick off source if not already active";
+    opt["value"].append(false);
+    config.addOption("kickoff", opt);
   }
 
   capa["codecs"][0u][0u].append("H264");
@@ -753,8 +759,30 @@ int main(int argc, char *argv[]){
     Util::setStreamName(Mist::opt["source"].asString() + "→" + streamName);
   }
 
+
+  const std::string & srcStrm = Mist::opt["source"].asStringRef();
+  if (config.getBool("kickoff")){
+    if (!Util::startInput(srcStrm, "")){
+      FAIL_MSG("Could not connector and/or start source stream!");
+      return 1;
+    }
+    uint8_t streamStat = Util::getStreamStatus(srcStrm);
+    size_t sleeps = 0;
+    while (++sleeps < 2400 && streamStat != STRMSTAT_OFF && streamStat != STRMSTAT_READY){
+      if (sleeps >= 16 && (sleeps % 4) == 0){
+        INFO_MSG("Waiting for stream to boot... (" PRETTY_PRINT_TIME " / " PRETTY_PRINT_TIME ")", PRETTY_ARG_TIME(sleeps/4), PRETTY_ARG_TIME(2400/4));
+      }
+      Util::sleep(250);
+      streamStat = Util::getStreamStatus(srcStrm);
+    }
+    if (streamStat != STRMSTAT_READY){
+      FAIL_MSG("Stream not available!");
+      return 1;
+    }
+  }
+
   //connect to source metadata
-  DTSC::Meta M(Mist::opt["source"].asStringRef(), false);
+  DTSC::Meta M(srcStrm, false);
 
   //find source video track
   std::map<std::string, std::string> targetParams;
@@ -767,10 +795,18 @@ int main(int argc, char *argv[]){
   if (Mist::opt.isMember("source_track") && Mist::opt["source_track"].isString() && Mist::opt["source_track"]){
     targetParams["video"] = Mist::opt["source_track"].asStringRef();
   }
-  std::set<size_t> vidTrack = Util::wouldSelect(M, targetParams, sourceCapa);
-  size_t sourceIdx = *(vidTrack.begin());
-  if (!M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)){
-    FAIL_MSG("Source track does not have a valid width and height");
+  size_t sourceIdx = INVALID_TRACK_ID;
+  size_t sleeps = 0;
+  while (++sleeps < 60 && (sourceIdx == INVALID_TRACK_ID || !M.getWidth(sourceIdx) || !M.getHeight(sourceIdx))){
+    M.reloadReplacedPagesIfNeeded();
+    std::set<size_t> vidTrack = Util::wouldSelect(M, targetParams, sourceCapa);
+    sourceIdx = vidTrack.size() ? (*(vidTrack.begin())) : INVALID_TRACK_ID;
+    if (sourceIdx == INVALID_TRACK_ID || !M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)){
+      Util::sleep(250);
+    }
+  }
+  if (sourceIdx == INVALID_TRACK_ID || !M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)){
+    FAIL_MSG("No valid source track!");
     return 1;
   }
 
@@ -913,9 +949,7 @@ int main(int argc, char *argv[]){
         tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
         pData["ainfo"]["bc"] = Mist::currBroadAddr;
       }
-      Socket::UDPConnection uSock;
-      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-      uSock.SendNow(pStat.toString());
+      Util::sendUDPApi(pStat);
       lastProcUpdate = Util::bootSecs();
     }
   }

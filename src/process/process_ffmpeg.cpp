@@ -71,6 +71,7 @@ void sourceThread(void *){
 int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
+  Util::Config::binaryType = Util::PROCESS;
   JSON::Value capa;
 
   {
@@ -157,9 +158,10 @@ int main(int argc, char *argv[]){
     capa["optional"]["source_track"]["name"] = "Input selection";
     capa["optional"]["source_track"]["help"] =
         "Track ID, codec or language of the source stream to encode.";
-    capa["optional"]["source_track"]["type"] = "track_selector_parameter";
+    capa["optional"]["source_track"]["type"] = "string";
     capa["optional"]["source_track"]["n"] = 1;
     capa["optional"]["source_track"]["default"] = "automatic";
+    capa["optional"]["source_track"]["validate"][0u] = "track_selector_parameter";
 
     // use an array for this parameter, because there are two input field variations
     capa["required"]["codec"][0u]["name"] = "Target codec";
@@ -442,7 +444,7 @@ namespace Mist{
   }
 
   void EncodeInputEBML::setInFile(int stdin_val){
-    inFile = fdopen(stdin_val, "r");
+    inFile.open(stdin_val);
     streamName = opt["sink"].asString();
     if (!streamName.size()){streamName = opt["source"].asString();}
     Util::streamVariables(streamName, opt["source"].asString());

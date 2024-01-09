@@ -137,7 +137,7 @@ namespace Controller{
   /// Downloads the latest details on updates
   JSON::Value checkUpdateInfo(){
     JSON::Value ret;
-    if (strlen(SHARED_SECRET) < 8){
+    if (strlen(SHARED_SECRET) < 8 && std::string(RELEASE).substr(0, 4) != "Free"){
       Log("UPDR", "Self-compiled build. Updater disabled.");
       ret["uptodate"] = 1;
       ret["needs_update"].null();

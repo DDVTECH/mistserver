@@ -19,23 +19,23 @@ namespace Mist{
     capa["source_match"] = "/*.mp3";
     capa["source_file"] = "$source";
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("MP3");
+    capa["codecs"]["audio"].append("MP3");
     timestamp = 0;
   }
 
   bool inputMP3::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -45,12 +45,18 @@ namespace Mist{
   bool inputMP3::preRun(){
     // open File
     inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
     return true;
   }
 
   bool inputMP3::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(isSingular() ? streamName : "");
     size_t tNum = meta.addTrack();
     meta.setID(tNum, tNum);
@@ -85,7 +91,6 @@ namespace Mist{
 
     fseek(inFile, 0, SEEK_SET);
     timestamp = 0;
-    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 
@@ -94,7 +99,10 @@ namespace Mist{
     static char packHeader[3000];
     size_t filePos = ftell(inFile);
     size_t read = fread(packHeader, 1, 3000, inFile);
-    if (!read){return;}
+    if (!read){
+      Util::logExitReason(ER_CLEAN_EOF, "Reached EOF");
+      return;
+    }
     if (packHeader[0] != 0xFF || (packHeader[1] & 0xE0) != 0xE0){
       // Find the first occurence of sync byte
       char *i = (char *)memchr(packHeader, (char)0xFF, read);
@@ -108,7 +116,7 @@ namespace Mist{
         }
       }
       if (!offset){
-        FAIL_MSG("Sync byte not found from offset %zu", filePos);
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Sync byte not found from offset %zu", filePos);
         return;
       }
       filePos += offset;

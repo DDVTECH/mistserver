@@ -169,7 +169,7 @@ namespace Mist{
     }else if (command["type"] == "set_speed") {
       handleWebsocketSetSpeed(command);
     }else if (command["type"] == "stop") {
-      Util::logExitReason("User requested stop");
+      Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "User requested stop");
       myConn.close();
     }else if (command["type"] == "play") {
       parseData = true;
@@ -195,7 +195,7 @@ namespace Mist{
         continue;
       }
       r["data"]["codecs"].append(codec);
-      r["data"]["tracks"].append(it->first);
+      r["data"]["tracks"].append((uint64_t)it->first);
       ++it;
     }
     webSock->sendFrame(r.toString());
@@ -305,7 +305,7 @@ namespace Mist{
       }
     }
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      r["data"]["tracks"].append(it->first);
+      r["data"]["tracks"].append((uint64_t)it->first);
     }
     webSock->sendFrame(r.toString());
   }
@@ -414,13 +414,23 @@ namespace Mist{
         Bit::htobs(webBuf+10, 0);
       }
 
+      size_t lenSize = 4;
+      if (M.getCodec(thisIdx) == "H264"){lenSize = (M.getInit(thisIdx)[4] & 3) + 1;}
       unsigned int i = 0;
+      uint32_t ThisNaluSize;
       while (i + 4 < len){
-        uint32_t ThisNaluSize = Bit::btohl(dataPointer + i);
+        if (lenSize == 4){
+          ThisNaluSize = Bit::btohl(dataPointer + i);
+        }else if (lenSize == 2){
+          ThisNaluSize = Bit::btohs(dataPointer + i);
+        }else{
+          ThisNaluSize = dataPointer[i];
+        }
         webBuf.append("\000\000\000\001", 4);
-        webBuf.append(dataPointer + i + 4, ThisNaluSize);
-        i += ThisNaluSize + 4;
+        webBuf.append(dataPointer + i + lenSize, ThisNaluSize);
+        i += ThisNaluSize + lenSize;
       }
+
       webSock->sendFrame(webBuf, webBuf.size(), 2);
 
       if (stayLive && thisPacket.getFlag("keyframe")){liveSeek();}
@@ -428,13 +438,23 @@ namespace Mist{
       return;
     }
 
+    size_t lenSize = 4;
+    if (M.getCodec(thisIdx) == "H264"){lenSize = (M.getInit(thisIdx)[4] & 3) + 1;}
     unsigned int i = 0;
+    uint32_t ThisNaluSize;
     while (i + 4 < len){
-      uint32_t ThisNaluSize = Bit::btohl(dataPointer + i);
+      if (lenSize == 4){
+        ThisNaluSize = Bit::btohl(dataPointer + i);
+      }else if (lenSize == 2){
+        ThisNaluSize = Bit::btohs(dataPointer + i);
+      }else{
+        ThisNaluSize = dataPointer[i];
+      }
       H.Chunkify("\000\000\000\001", 4, myConn);
-      H.Chunkify(dataPointer + i + 4, ThisNaluSize, myConn);
-      i += ThisNaluSize + 4;
+      H.Chunkify(dataPointer + i + lenSize, ThisNaluSize, myConn);
+      i += ThisNaluSize + lenSize;
     }
+
   }
 
   void OutH264::sendHeader(){
@@ -448,7 +468,7 @@ namespace Mist{
         r["type"] = "info";
         r["data"]["msg"] = "Sending header";
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-          r["data"]["tracks"].append(it->first);
+          r["data"]["tracks"].append((uint64_t)it->first);
         }
         webSock->sendFrame(r.toString());
 

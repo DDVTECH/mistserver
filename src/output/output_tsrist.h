@@ -16,9 +16,11 @@ namespace Mist{
     bool isReadyForPlay(){return true;}
     virtual void requestHandler();
     static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
+    std::string getConnectedHost();
+    std::string getConnectedBinHost();
 
   protected:
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
     //virtual std::string getConnectedHost(){
     //  return srtConn.remotehost;
     //}

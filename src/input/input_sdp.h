@@ -26,7 +26,6 @@ namespace Mist{
     bool checkArguments();
     // Overwrite default functions from input
     bool needHeader(){return false;}
-    bool readHeader(){return true;}
     // Force to stream > serve
     bool needsLock(){return false;}
     // Open connection with input

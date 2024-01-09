@@ -19,55 +19,53 @@ mistplayers.flv = {
     }
     
     if (!window.MediaSource) { return false; }
-    
+    if (!MediaSource.isTypeSupported) { return true; } //we can't ask, but let's assume something will work
+
     try {
-      function test(mime) {
-        return window.MediaSource.isTypeSupported("video/mp4;codecs=\""+mime+"\"");
-      }
-      function translateCodec(track) {
-        
-        function bin2hex(index) {
-          return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
-        }
-        
-        switch (track.codec) {
-          case "AAC":
-            return "mp4a.40.2";
-          case "MP3":
-            return "mp3";
-            //return "mp4a.40.34";
-          case "AC3":
-            return "ec-3";
-          case "H264":
-            return "avc1."+bin2hex(1)+bin2hex(2)+bin2hex(3);
-          case "HEVC":
-            return "hev1."+bin2hex(1)+bin2hex(6)+bin2hex(7)+bin2hex(8)+bin2hex(9)+bin2hex(10)+bin2hex(11)+bin2hex(12);
-          default:
-            return track.codec.toLowerCase();
-        }
-        
-      }
-      var codecs = {};
+
+      //check if both audio and video have at least one playable track
+      //gather track types and codec strings
+      var playabletracks = {};
+      //var hassubtitles = false;
       for (var i in MistVideo.info.meta.tracks) {
-        if (MistVideo.info.meta.tracks[i].type != "meta") {
-          codecs[translateCodec(MistVideo.info.meta.tracks[i])] = MistVideo.info.meta.tracks[i].type;
+        if (MistVideo.info.meta.tracks[i].type == "meta") {
+          //if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
+          continue;
+        }
+        if (!(MistVideo.info.meta.tracks[i].type in playabletracks)) {
+          playabletracks[MistVideo.info.meta.tracks[i].type] = {};
+        }
+        playabletracks[MistVideo.info.meta.tracks[i].type][MistUtil.tracks.translateCodec(MistVideo.info.meta.tracks[i])] = 1;
+      }
+
+      var tracktypes = [];
+      for (var type in playabletracks) {
+        var playable = false;
+
+        for (var codec in playabletracks[type]) {
+          if (MediaSource.isTypeSupported("video/mp4;codecs=\""+codec+"\"")) {
+            playable = true;
+            break;
+          }
+        }
+        if (playable) {
+          tracktypes.push(type);
         }
       }
-      source.supportedCodecs = [];
-      for (var i in codecs) {
-        //i is the long name (like mp4a.40.2), codecs[i] is the type (audio/video)
-        var s = test(i);
-        if (s) {
-          source.supportedCodecs.push(codecs[i]);
+      source.supportedCodecs = tracktypes;
+      /*if (hassubtitles) {
+        //there is a subtitle track, check if there is a webvtt source
+        for (var i in MistVideo.info.source) {
+          if (MistVideo.info.source[i].type == "html5/text/vtt") {
+            tracktypes.push("subtitle");
+            break;
+          }
         }
-      }
-      if ((!MistVideo.options.forceType) && (!MistVideo.options.forcePlayer)) { //unless we force mews, skip this player if not both video and audio are supported
-        if (source.supportedCodecs.length < source.simul_tracks) {
-          MistVideo.log("Not enough playable tracks for this source");
-          return false;
-        }
-      }
-      return source.supportedCodecs.length > 0;
+      }*/
+
+      return tracktypes.length ? tracktypes : false;
+
+
     } catch(e){}
     
     return false;

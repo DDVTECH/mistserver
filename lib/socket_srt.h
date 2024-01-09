@@ -24,9 +24,16 @@ namespace Socket{
     }// namespace SockOpt
   }// namespace SRT
 
+  //Advance declaration so we can make it a friend of SRTConnection
+  class SRTServer;
+
   class SRTConnection{
+    friend class SRTServer;
   public:
     SRTConnection();
+    // copy/assignment constructors
+    SRTConnection(const SRTConnection &rhs);
+    SRTConnection &operator=(const SRTConnection &rhs);
     SRTConnection(SRTSOCKET alreadyConnected);
     SRTConnection(const std::string &_host, int _port, const std::string &_direction = "input",
                   const paramList &_params = paramList());

@@ -11,7 +11,7 @@ namespace Mist{
     // May be set to always-on mode
     capa["always_match"].append("h264-exec:*");
     capa["priority"] = 0;
-    capa["codecs"][0u][0u].append("H264");
+    capa["codecs"]["video"].append("H264");
     frameCount = 0;
     startTime = Util::bootMS();
     inputProcess = 0;
@@ -66,7 +66,7 @@ namespace Mist{
   bool InputH264::checkArguments(){
     std::string input = config->getString("input");
     if (input != "-" && input.substr(0, 10) != "h264-exec:"){
-      FAIL_MSG("Unsupported input type: %s", input.c_str());
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Unsupported input type: %s", input.c_str());
       return false;
     }
     return true;

@@ -8,6 +8,13 @@
 #include <mist/triggers.h>
 #include <netdb.h> // ifaddr, listing ip addresses.
 #include <mist/stream.h>
+/*
+This file handles both input and output, and can operate in WHIP/WHEP as well as WebSocket signaling mode.
+In case of WHIP/WHEP: the Socket is closed after signaling has happened and the keepGoing function
+  is overridden to handle this case
+When handling WebRTC Input a second thread is started dedicated to UDP traffic. In this case
+  no UDP traffic may be handled on the main thread whatsoever
+*/
 
 namespace Mist{
 
@@ -51,6 +58,7 @@ namespace Mist{
   /* ------------------------------------------------ */
 
   OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
+    noSignalling = false;
     totalPkts = 0;
     totalLoss = 0;
     totalRetrans = 0;
@@ -65,10 +73,9 @@ namespace Mist{
     vidTrack = INVALID_TRACK_ID;
     prevVidTrack = INVALID_TRACK_ID;
     audTrack = INVALID_TRACK_ID;
-    stayLive = true;
-    target_rate = 0.0;
     firstKey = true;
     repeatInit = true;
+    wsCmds = true;
 
     lastTimeSync = 0;
     maxSkipAhead = 0;
@@ -163,9 +170,13 @@ namespace Mist{
   void OutWebRTC::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "WebRTC";
+    capa["friendly"] = "WebRTC";
     capa["desc"] = "Provides WebRTC output";
     capa["url_rel"] = "/webrtc/$";
     capa["url_match"] = "/webrtc/$";
+
+    capa["incoming_push_url"] = "http://$host:$port/webrtc/$stream";
+
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("VP8");
     capa["codecs"][0u][0u].append("VP9");
@@ -174,9 +185,15 @@ namespace Mist{
     capa["codecs"][0u][1u].append("ULAW");
     capa["methods"][0u]["handler"] = "ws";
     capa["methods"][0u]["type"] = "webrtc";
-    capa["methods"][0u]["hrn"] = "WebRTC";
+    capa["methods"][0u]["hrn"] = "WebRTC with WebSocket signalling";
     capa["methods"][0u]["priority"] = 2;
     capa["methods"][0u]["nobframes"] = 1;
+
+    capa["methods"][1u]["handler"] = "http";
+    capa["methods"][1u]["type"] = "whep";
+    capa["methods"][1u]["hrn"] = "WebRTC with WHEP signalling";
+    capa["methods"][1u]["priority"] = 5;
+    capa["methods"][1u]["nobframes"] = 1;
 
     capa["optional"]["preferredvideocodec"]["name"] = "Preferred video codecs";
     capa["optional"]["preferredvideocodec"]["help"] =
@@ -289,6 +306,12 @@ namespace Mist{
     config->addOptionsFromCapabilities(capa);
   }
 
+  void OutWebRTC::onFail(const std::string &msg, bool critical){
+    if (!webSock){return HTTPOutput::onFail(msg, critical);}
+    sendSignalingError("error", msg);
+    Output::onFail(msg, critical);
+  }
+
   void OutWebRTC::preWebsocketConnect(){
     HTTP::URL tmpUrl("http://" + H.GetHeader("Host"));
     externalAddr = tmpUrl.host;
@@ -303,6 +326,148 @@ namespace Mist{
     }
   }
 
+  void OutWebRTC::requestHandler(){
+    if (noSignalling){
+      // For WHEP, make sure we keep listening for packets while waiting for new data to come in for sending
+      if (parseData && !handleWebRTCInputOutput()){udp.sendPaced(10);}
+      //After 10s of no packets, abort
+      if (Util::bootMS() > lastRecv + 10000){
+        Util::logExitReason(ER_CLEAN_INACTIVE, "received no data for 10+ seconds");
+        config->is_active = false;
+      }
+      return;
+    }
+    HTTPOutput::requestHandler();
+  }
+
+  void OutWebRTC::respondHTTP(const HTTP::Parser & req, bool headersOnly){
+    // Check for WHIP payload
+    if (req.method == "OPTIONS"){
+      H.setCORSHeaders();
+      H.StartResponse("200", "All good", req, myConn);
+      H.Chunkify(0, 0, myConn);
+    }
+    if (req.method == "POST"){
+      if (req.GetHeader("Content-Type") == "application/sdp"){
+        SDP::Session sdpParser;
+        const std::string &offerStr = req.body;
+        if (packetLog.is_open()){
+          packetLog << "[" << Util::bootMS() << "]" << offerStr << std::endl << std::endl;
+        }
+        if (!sdpParser.parseSDP(offerStr) || !sdpAnswer.parseOffer(offerStr)){
+          H.setCORSHeaders();
+          H.StartResponse("400", "Could not parse", req, myConn);
+          H.Chunkify("Failed to parse offer SDP", myConn);
+          H.Chunkify(0, 0, myConn);
+          return;
+        }
+
+        bool ret = false;
+        if (sdpParser.hasSendOnlyMedia()){
+          ret = handleSignalingCommandRemoteOfferForInput(sdpParser);
+        }else{
+          ret = handleSignalingCommandRemoteOfferForOutput(sdpParser);
+        }
+        if (ret){
+          noSignalling = true;
+          H.SetHeader("Content-Type", "application/sdp");
+          H.SetHeader("Location", streamName + "/" + JSON::Value(getpid()).asString());
+          if (config->getString("iceservers").size()){
+            std::deque<std::string> links;
+            JSON::Value iceConf = JSON::fromString(config->getString("iceservers"));
+            jsonForEach(iceConf, i){
+              if (i->isMember("url") && (*i)["url"].isString()){
+                JSON::Value &u = (*i)["url"];
+                std::string str = u.asString()+"; rel=\"ice-server\";";
+                if (i->isMember("username")){
+                  str += " username=" + (*i)["username"].toString() + ";";
+                }
+                if (i->isMember("credential")){
+                  str += " credential=" + (*i)["credential"].toString() + ";";
+                }
+                if (i->isMember("credentialType")){
+                  str += " credential-type=" + (*i)["credentialType"].toString() + ";";
+                }
+                links.push_back(str);
+              }
+              if (i->isMember("urls") && (*i)["urls"].isString()){
+                JSON::Value &u = (*i)["urls"];
+                std::string str = u.asString()+"; rel=\"ice-server\";";
+                if (i->isMember("username")){
+                  str += " username=" + (*i)["username"].toString() + ";";
+                }
+                if (i->isMember("credential")){
+                  str += " credential=" + (*i)["credential"].toString() + ";";
+                }
+                if (i->isMember("credentialType")){
+                  str += " credential-type=" + (*i)["credentialType"].toString() + ";";
+                }
+                links.push_back(str);
+              }
+              if (i->isMember("urls") && (*i)["urls"].isArray()){
+                jsonForEach((*i)["urls"], j){
+                  JSON::Value &u = *j;
+                  std::string str = u.asString()+"; rel=\"ice-server\";";
+                  if (i->isMember("username")){
+                    str += " username=" + (*i)["username"].toString() + ";";
+                  }
+                  if (i->isMember("credential")){
+                    str += " credential=" + (*i)["credential"].toString() + ";";
+                  }
+                  if (i->isMember("credentialType")){
+                    str += " credential-type=" + (*i)["credentialType"].toString() + ";";
+                  }
+                  links.push_back(str);
+                }
+              }
+            }
+            if (links.size()){
+              if (links.size() == 1){
+                H.SetHeader("Link", *links.begin());
+              }else{
+                std::deque<std::string>::iterator it = links.begin();
+                std::string linkHeader = *it;
+                ++it;
+                while (it != links.end()){
+                  linkHeader += "\r\nLink: " + *it;
+                  ++it;
+                }
+                H.SetHeader("Link", linkHeader);
+              }
+            }
+          }
+          H.setCORSHeaders();
+          H.StartResponse("201", "Created", req, myConn);
+          H.Chunkify(sdpAnswer.toString(), myConn);
+          H.Chunkify(0, 0, myConn);
+          myConn.close();
+          return;
+        }else{
+          H.setCORSHeaders();
+          H.StartResponse("403", "Not allowed", req, myConn);
+          H.Chunkify("Request not allowed", myConn);
+          H.Chunkify(0, 0, myConn);
+          return;
+        }
+      }
+    }
+
+    // We don't implement PATCH requests
+    if (req.method == "PATCH"){
+      H.setCORSHeaders();
+      H.StartResponse("405", "PATCH not supported", req, myConn);
+      H.Chunkify("This endpoint only supports WHIP/WHEP/WISH POST requests or WebSocket connections", myConn);
+      H.Chunkify(0, 0, myConn);
+      return;
+    }
+
+    //Generic response handler
+    H.setCORSHeaders();
+    H.StartResponse("405", "Must POST or use websocket", req, myConn);
+    H.Chunkify("This endpoint only supports WHIP/WHEP/WISH POST requests or WebSocket connections", myConn);
+    H.Chunkify(0, 0, myConn);
+  }
+
   // This function is executed when we receive a signaling data.
   // The signaling data contains commands that are used to start
   // an input or output stream.
@@ -315,7 +480,6 @@ namespace Mist{
     
     JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
     JSON::Value commandResult;
-
 
     if(command.isMember("encrypt")){
       doDTLS = false;
@@ -421,164 +585,6 @@ namespace Mist{
       return;
     }
 
-    std::set<size_t> validTracks = M.getValidTracks();
-    if (command["type"] == "tracks"){
-      if (command.isMember("audio")){
-        if (!command["audio"].isNull()){
-          targetParams["audio"] = command["audio"].asString();
-          if (audTrack && command["audio"].asInt()){
-            uint64_t tId = command["audio"].asInt();
-            if (validTracks.count(tId) && M.getCodec(tId) != M.getCodec(audTrack)){
-              targetParams["audio"] = "none";
-              sendSignalingError("tracks", "Cannot select track because it is encoded as " +
-                                               M.getCodec(tId) + " but the already negotiated track is " +
-                                               M.getCodec(audTrack) + ". Please re-negotiate to play this track.");
-            }
-          }
-        }else{
-          targetParams.erase("audio");
-        }
-      }
-      if (command.isMember("video")){
-        if (!command["video"].isNull()){
-          targetParams["video"] = command["video"].asString();
-          if (vidTrack && command["video"].asInt()){
-            uint64_t tId = command["video"].asInt();
-            if (validTracks.count(tId) && M.getCodec(tId) != M.getCodec(vidTrack)){
-              targetParams["video"] = "none";
-              sendSignalingError("tracks", "Cannot select track because it is encoded as " +
-                                               M.getCodec(tId) + " but the already negotiated track is " +
-                                               M.getCodec(vidTrack) + ". Please re-negotiate to play this track.");
-            }
-          }
-        }else{
-          targetParams.erase("video");
-        }
-      }
-      // Remember the previous video track, if any.
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        if (M.getType(it->first) == "video"){
-          prevVidTrack = it->first;
-          break;
-        }
-      }
-      selectDefaultTracks();
-      // Add the previous video track back, if we had one.
-      if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack)){
-        uint64_t seekTarget = currentTime();
-        userSelect[prevVidTrack].reload(streamName, prevVidTrack);
-        seek(seekTarget);
-      }
-      onIdle();
-      return;
-    }
-
-    if (command["type"] == "seek"){
-      if (!command.isMember("seek_time")){
-        sendSignalingError("on_seek", "Received a seek request but no `seek_time` property.");
-        return;
-      }
-      uint64_t seek_time = command["seek_time"].asInt();
-      if (!parseData){
-        parseData = true;
-        selectDefaultTracks();
-      }
-      stayLive = (target_rate == 0.0) && (endTime() < seek_time + 5000);
-      if (command["seek_time"].asStringRef() == "live"){stayLive = true;}
-      if (stayLive){seek_time = endTime();}
-      seek(seek_time, true);
-      JSON::Value commandResult;
-      commandResult["type"] = "on_seek";
-      commandResult["result"] = true;
-      if (M.getLive()){commandResult["live_point"] = stayLive;}
-      if (target_rate == 0.0){
-        commandResult["play_rate_curr"] = "auto";
-      }else{
-        commandResult["play_rate_curr"] = target_rate;
-      }
-      webSock->sendFrame(commandResult.toString());
-      onIdle();
-      return;
-    }
-
-    if (command["type"] == "set_speed"){
-      if (!command.isMember("play_rate")){
-        sendSignalingError("on_speed", "Received a playback speed setting request but no `play_rate` property.");
-        return;
-      }
-      double set_rate = command["play_rate"].asDouble();
-      if (!parseData){
-        parseData = true;
-        selectDefaultTracks();
-      }
-      JSON::Value commandResult;
-      commandResult["type"] = "on_speed";
-      if (target_rate == 0.0){
-        commandResult["play_rate_prev"] = "auto";
-      }else{
-        commandResult["play_rate_prev"] = target_rate;
-      }
-      if (set_rate == 0.0){
-        commandResult["play_rate_curr"] = "auto";
-      }else{
-        commandResult["play_rate_curr"] = set_rate;
-      }
-      if (target_rate != set_rate){
-        target_rate = set_rate;
-        if (target_rate == 0.0){
-          realTime = 1000;//set playback speed to default
-          firstTime = Util::bootMS() - currentTime();
-          maxSkipAhead = 0;//enabled automatic rate control
-        }else{
-          stayLive = false;
-          //Set new realTime speed
-          realTime = 1000 / target_rate;
-          firstTime = Util::bootMS() - (currentTime() / target_rate);
-          maxSkipAhead = 1;//disable automatic rate control
-        }
-      }
-      if (M.getLive()){commandResult["live_point"] = stayLive;}
-      webSock->sendFrame(commandResult.toString());
-      onIdle();
-      return;
-    }
-
-    if (command["type"] == "pause"){
-      parseData = !parseData;
-      JSON::Value commandResult;
-      commandResult["type"] = "on_time";
-      commandResult["paused"] = !parseData;
-      commandResult["current"] = currentTime();
-      commandResult["begin"] = startTime();
-      commandResult["end"] = endTime();
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append(it->first);
-      }
-      webSock->sendFrame(commandResult.toString());
-      return;
-    }
-
-    if (command["type"] == "hold") {
-      parseData = false;
-      JSON::Value commandResult;
-      commandResult["type"] = "on_time";
-      commandResult["paused"] = !parseData;
-      commandResult["current"] = currentTime();
-      commandResult["begin"] = startTime();
-      commandResult["end"] = endTime();
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append(it->first);
-      }
-      webSock->sendFrame(commandResult.toString());
-      return;
-    }
-
-    if (command["type"] == "stop"){
-      INFO_MSG("Received stop() command.");
-      myConn.close();
-      return;
-    }
-
     if (command["type"] == "keyframe_interval"){
       if (!command.isMember("keyframe_interval_millis")){
         sendSignalingError("on_keyframe_interval", "No keyframe_interval_millis attribute found.");
@@ -604,11 +610,13 @@ namespace Mist{
   }
 
   bool OutWebRTC::dropPushTrack(uint32_t trackId, const std::string & dropReason){
-    JSON::Value commandResult;
-    commandResult["type"] = "on_track_drop";
-    commandResult["track"] = trackId;
-    commandResult["mediatype"] = M.getType(trackId);
-    webSock->sendFrame(commandResult.toString());
+    if (!noSignalling){
+      JSON::Value commandResult;
+      commandResult["type"] = "on_track_drop";
+      commandResult["track"] = trackId;
+      commandResult["mediatype"] = M.getType(trackId);
+      webSock->sendFrame(commandResult.toString());
+    }
     return Output::dropPushTrack(trackId, dropReason);
   }
 
@@ -692,7 +700,7 @@ namespace Mist{
     }
 
     // this is necessary so that we can get the remote IP when creating STUN replies.
-    udp.SetDestination("0.0.0.0", 4444);
+    udp.allocateDestination();
 
     // we set parseData to `true` to start the data flow. Is also
     // used to break out of our loop in `onHTTP()`.
@@ -702,18 +710,8 @@ namespace Mist{
     return true;
   }
 
-  void OutWebRTC::onIdle(){
-    if (parseData){
-      JSON::Value commandResult;
-      commandResult["type"] = "on_time";
-      commandResult["current"] = currentTime();
-      commandResult["begin"] = startTime();
-      commandResult["end"] = endTime();
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append(it->first);
-      }
-      webSock->sendFrame(commandResult.toString());
-    }else if (isPushing()){
+  void OutWebRTC::handleWebsocketIdle(){
+    if (!parseData && isPushing()){
       JSON::Value commandResult;
       commandResult["type"] = "on_media_receive";
       commandResult["millis"] = endTime();
@@ -725,7 +723,9 @@ namespace Mist{
       commandResult["stats"]["jitter_ms"] = stats_jitter;
       commandResult["stats"]["loss_perc"] = stats_lossperc;
       webSock->sendFrame(commandResult.toString());
+      return;
     }
+    HTTPOutput::handleWebsocketIdle();
   }
 
   bool OutWebRTC::onFinish(){
@@ -940,9 +940,9 @@ namespace Mist{
     sdpAnswer.setDirection("recvonly");
 
     // start our receive thread (handles STUN, DTLS, RTP input)
-    webRTCInputOutputThread = new tthread::thread(webRTCInputOutputThreadFunc, NULL);
     rtcpTimeoutInMillis = Util::bootMS() + 2000;
     rtcpKeyFrameTimeoutInMillis = Util::bootMS() + 2000;
+    webRTCInputOutputThread = new tthread::thread(webRTCInputOutputThreadFunc, NULL);
 
     idleInterval = 1000;
 
@@ -1009,13 +1009,13 @@ namespace Mist{
   // function. The `webRTCInputOutputThreadFunc()` is basically empty
   // and all work for the thread is done here.
   void OutWebRTC::handleWebRTCInputOutputFromThread(){
-    udp.SetDestination("0.0.0.0", 4444);
+    udp.allocateDestination();
     while (keepGoing()){
-      if (!handleWebRTCInputOutput()){Util::sleep(20);}
+      if (!handleWebRTCInputOutput()){udp.sendPaced(10);}
     }
   }
 
-  void OutWebRTC::connStats(uint64_t now, Comms::Statistics &statComm){
+  void OutWebRTC::connStats(uint64_t now, Comms::Connections &statComm){
     statComm.setUp(myConn.dataUp());
     statComm.setDown(myConn.dataDown());
     statComm.setPacketCount(totalPkts);
@@ -1147,7 +1147,7 @@ namespace Mist{
     stun_writer.writeFingerprint();
     stun_writer.end();
     
-    udp.SendNow((const char *)stun_writer.getBufferPtr(), stun_writer.getBufferSize());
+    udp.sendPaced((const char *)stun_writer.getBufferPtr(), stun_writer.getBufferSize());
     myConn.addUp(stun_writer.getBufferSize());
   }
 
@@ -1192,7 +1192,7 @@ namespace Mist{
       HIGH_MSG("Could not answer NACK for %" PRIu32 " #%" PRIu16 ": packet not buffered", pSSRC, seq);
       return;
     }
-    udp.SendNow(nb.getData(seq), nb.getSize(seq));
+    udp.sendPaced(nb.getData(seq), nb.getSize(seq));
     myConn.addUp(nb.getSize(seq));
     HIGH_MSG("Answered NACK for %" PRIu32 " #%" PRIu16, pSSRC, seq);
   }
@@ -1228,9 +1228,9 @@ namespace Mist{
       int len = udp.data.size();
       if (srtpReader.unprotectRtp((uint8_t *)(char*)udp.data, &len) != 0){
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTP decrypt failure" << std::endl;}
-        FAIL_MSG("Failed to unprotect a RTP packet.");
         return;
       }
+      if (!len){return;}
       lastRecv = Util::bootMS();
       RTP::Packet unprotPack(udp.data, len);
       DONTEVEN_MSG("%s", unprotPack.toString().c_str());
@@ -1262,9 +1262,9 @@ namespace Mist{
       if (doDTLS){
         if (srtpReader.unprotectRtcp((uint8_t *)(char*)udp.data, &len) != 0){
           if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
-          FAIL_MSG("Failed to unprotect RTCP.");
           return;
         }
+        if (!len){return;}
       }
 
       lastRecv = Util::bootMS();
@@ -1355,9 +1355,21 @@ namespace Mist{
           }
         }
       }else if (pt == 73){
-        //73 = receiver report
-        uint32_t packets = Bit::btoh24(udp.data + 13);
-        totalLoss = packets;
+        //73 = receiver report: https://datatracker.ietf.org/doc/html/rfc3550#section-6.4.2
+        //Packet may contain more than one report
+        char * ptr = udp.data + 8;
+        while (ptr + 24 <= udp.data + udp.data.size()){
+          //Update the counter for this ssrc
+          uint32_t ssrc = Bit::btoh24(ptr);
+          lostPackets[ssrc] = Bit::btoh24(ptr + 5);
+          //Update pointer to next report
+          ptr += 24;
+        }
+        //Count total lost packets
+        totalLoss = 0;
+        for (std::map<uint32_t, uint32_t>::iterator it = lostPackets.begin(); it != lostPackets.end(); ++it){
+          totalLoss += it->second;
+        }
       }else{
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Unknown payload type: " << pt << std::endl;}
         WARN_MSG("Unknown RTP feedback payload type: %u", pt);
@@ -1368,7 +1380,7 @@ namespace Mist{
   /* ------------------------------------------------ */
 
   int OutWebRTC::onDTLSHandshakeWantsToWrite(const uint8_t *data, int *nbytes){
-    udp.SendNow((const char *)data, (size_t)*nbytes);
+    udp.sendPaced((const char *)data, (size_t)*nbytes);
     myConn.addUp(*nbytes);
     return 0;
   }
@@ -1463,7 +1475,7 @@ namespace Mist{
         return;
       }
     }
-    udp.SendNow(rtpOutBuffer, (size_t)protectedSize);
+    udp.sendPaced(rtpOutBuffer, (size_t)protectedSize);
 
     RTP::Packet tmpPkt(rtpOutBuffer, protectedSize);
     uint32_t pSSRC = tmpPkt.getSSRC();
@@ -1502,7 +1514,7 @@ namespace Mist{
       }
     }
     
-    udp.SendNow(rtpOutBuffer, rtcpPacketSize);
+    udp.sendPaced(rtpOutBuffer, rtcpPacketSize);
     myConn.addUp(rtcpPacketSize);
 
     if (volkswagenMode){
@@ -1514,18 +1526,12 @@ namespace Mist{
     
   }
 
-  // This function was implemented (it's virtual) to handle
-  // pushing of media to the browser. This function blocks until
-  // the DTLS handshake has been finished. This prevents
-  // `sendNext()` from being called which is correct because we
-  // don't want to send packets when we can't protect them with
-  // DTLS.
-  void OutWebRTC::sendHeader(){
-
+  void OutWebRTC::sendNext(){
+    HTTPOutput::sendNext();
     // first make sure that we complete the DTLS handshake.
     if(doDTLS){
       while (keepGoing() && !dtlsHandshake.hasKeyingMaterial()){
-        if (!handleWebRTCInputOutput()){Util::sleep(10);}
+        if (!handleWebRTCInputOutput()){udp.sendPaced(10);}else{udp.sendPaced(0);}
         if (lastRecv < Util::bootMS() - 10000){
           WARN_MSG("Killing idle connection in handshake phase");
           onFail("idle connection in handshake phase", false);
@@ -1533,10 +1539,6 @@ namespace Mist{
         }
       }
     }
-    sentHeader = true;
-  }
-
-  void OutWebRTC::sendNext(){
     if (lastRecv < Util::bootMS() - 10000){
       WARN_MSG("Killing idle connection");
       onFail("idle connection", false);
@@ -1556,8 +1558,8 @@ namespace Mist{
       onIdle();
     }
 
-    if (M.getLive() && stayLive && lastTimeSync + 666 < thisPacket.getTime()){
-      lastTimeSync = thisPacket.getTime();
+    if (M.getLive() && stayLive && lastTimeSync + 666 < thisTime){
+      lastTimeSync = thisTime;
       if (liveSeek()){return;}
     }
 
@@ -1604,9 +1606,9 @@ namespace Mist{
     // This checks if we have a whole integer multiplier, and if so,
     // ensures only integer math is used to prevent rounding errors
     if (mult == (uint64_t)mult){
-      rtcTrack.rtpPacketizer.setTimestamp(thisPacket.getTime() * (uint64_t)mult);
+      rtcTrack.rtpPacketizer.setTimestamp(thisTime * (uint64_t)mult);
     }else{
-      rtcTrack.rtpPacketizer.setTimestamp(thisPacket.getTime() * mult);
+      rtcTrack.rtpPacketizer.setTimestamp(thisTime * mult);
     }
 
     bool isKeyFrame = thisPacket.getFlag("keyframe");
@@ -1632,9 +1634,17 @@ namespace Mist{
     rtcTrack.rtpPacketizer.sendData(&udp, onRTPPacketizerHasDataCallback, dataPointer, dataLen,
                                     rtcTrack.payloadType, M.getCodec(thisIdx));
 
-    if (!lastSR.count(thisIdx) || lastSR[thisIdx]+500 < Util::bootMS()){
-      lastSR[thisIdx] = Util::bootMS();
-      rtcTrack.rtpPacketizer.sendRTCP_SR((void *)&udp, onRTPPacketizerHasRTCPDataCallback);
+    //Trigger a re-send of the Sender Report for every track every ~250ms
+    if (lastSR+250 < Util::bootMS()){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        mustSendSR.insert(it->first);
+      }
+      lastSR = Util::bootMS();
+    }
+    //If this track hasn't sent yet, actually sent
+    if (mustSendSR.count(thisIdx)){
+      mustSendSR.erase(thisIdx);
+      rtcTrack.rtpPacketizer.sendRTCP_SR((void *)&udp, 0, onRTPPacketizerHasRTCPDataCallback);
     }
   }
 
@@ -1737,7 +1747,7 @@ namespace Mist{
       }
     }
     
-    udp.SendNow((const char *)&buffer[0], buffer_size_in_bytes);
+    udp.sendPaced((const char *)&buffer[0], buffer_size_in_bytes);
     myConn.addUp(buffer_size_in_bytes);
 
     if (volkswagenMode){
@@ -1778,7 +1788,7 @@ namespace Mist{
       }
     }
 
-    udp.SendNow((const char *)&buffer[0], buffer_size_in_bytes);
+    udp.sendPaced((const char *)&buffer[0], buffer_size_in_bytes);
     myConn.addUp(buffer_size_in_bytes);
 
     if (volkswagenMode){
@@ -1829,7 +1839,7 @@ namespace Mist{
       }
     }
     
-    udp.SendNow((const char *)&buffer[0], buffer_size_in_bytes);
+    udp.sendPaced((const char *)&buffer[0], buffer_size_in_bytes);
     myConn.addUp(buffer_size_in_bytes);
 
     if (volkswagenMode){
@@ -1883,7 +1893,7 @@ namespace Mist{
       //Do not reduce under 32 kbps
       if (videoConstraint < 1024*32){videoConstraint = 1024*32;}
 
-      if (videoConstraint != preConstraint){
+      if (!noSignalling && videoConstraint != preConstraint){
         INFO_MSG("Reduced video bandwidth maximum to %" PRIu32 " because average loss is %.2f", videoConstraint, curr_avg_loss);
         JSON::Value commandResult;
         commandResult["type"] = "on_video_bitrate";

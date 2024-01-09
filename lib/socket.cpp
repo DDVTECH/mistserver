@@ -166,6 +166,8 @@ bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
 /// Converts the given address with optional subnet to binary IPv6 form.
 /// Returns 16 bytes of address, followed by 1 byte of subnet bits, zero or more times.
 std::string Socket::getBinForms(std::string addr){
+  // Check for empty address
+  if (!addr.size()){return std::string(17, (char)0);}
   // Check if we need to do prefix matching
   uint8_t prefixLen = 128;
   if (addr.find('/') != std::string::npos){
@@ -469,6 +471,25 @@ std::string Socket::Buffer::remove(unsigned int count){
     }
   }
   return ret;
+}
+
+/// Removes count bytes from the buffer, appending them to the given ptr.
+/// Does nothing if not all count bytes are available.
+void Socket::Buffer::remove(Util::ResizeablePointer & ptr, unsigned int count){
+  size();
+  if (!available(count)){return;}
+  unsigned int i = 0;
+  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+    if (i + (*it).size() < count){
+      ptr.append(*it);
+      i += (*it).size();
+      (*it).clear();
+    }else{
+      ptr.append(it->data(), count - i);
+      (*it).erase(0, count - i);
+      break;
+    }
+  }
 }
 
 /// Copies count bytes from the buffer, returning them by value.
@@ -1200,12 +1221,12 @@ std::string Socket::Connection::getBoundAddress() const{
 
 /// Gets binary IPv6 address for connection, if available.
 /// Guaranteed to be either empty or 16 bytes long.
-std::string Socket::Connection::getBinHost(){
+std::string Socket::Connection::getBinHost() const{
   return getIPv6BinAddr(remoteaddr);
 }
 
 /// Sets hostname for connection manually.
-/// Overwrites the detected host, thus possibily making it incorrect.
+/// Overwrites the detected host, thus possibly making it incorrect.
 void Socket::Connection::setHost(std::string host){
   remotehost = host;
   struct addrinfo *result, hints;
@@ -1587,6 +1608,7 @@ int Socket::Server::getSocket(){
 /// If both fail, prints an DLVL_FAIL debug message.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock){
+  lastPace = 0;
   boundPort = 0;
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -1624,6 +1646,7 @@ void Socket::UDPConnection::checkRecvBuf(){
     setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
     slen = sizeof(recvbuf);
     getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+#ifdef __linux__
 #ifndef __CYGWIN__
     if (recvbuf < 1024*1024){
       recvbuf = 1024*1024;
@@ -1632,11 +1655,13 @@ void Socket::UDPConnection::checkRecvBuf(){
       getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
     }
 #endif
+#endif
     if (recvbuf < 200*1024){
       recvbuf = 200*1024;
       setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
       slen = sizeof(recvbuf);
       getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+#ifdef __linux__
 #ifndef __CYGWIN__
       if (recvbuf < 200*1024){
         recvbuf = 200*1024;
@@ -1644,6 +1669,7 @@ void Socket::UDPConnection::checkRecvBuf(){
         slen = sizeof(recvbuf);
         getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
       }
+#endif
 #endif
     }
     if (recvbuf < 200*1024){
@@ -1655,6 +1681,7 @@ void Socket::UDPConnection::checkRecvBuf(){
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection &o){
+  lastPace = 0;
   boundPort = 0;
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -1699,6 +1726,22 @@ Socket::UDPConnection::~UDPConnection(){
 void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
   INFO_MSG("Switching UDP socket from %s to %s", addrFam(family), addrFam(AF_TYPE));
   family = AF_TYPE;
+}
+
+/// Allocates enough space for the largest type of address we support, so that receive calls can write to it.
+void Socket::UDPConnection::allocateDestination(){
+  if (destAddr && destAddr_size < sizeof(sockaddr_in6)){
+    free(destAddr);
+    destAddr = 0;
+  }
+  if (!destAddr){
+    destAddr = malloc(sizeof(sockaddr_in6));
+    if (destAddr){
+      destAddr_size = sizeof(sockaddr_in6);
+      memset(destAddr, 0, sizeof(sockaddr_in6));
+      ((struct sockaddr_in *)destAddr)->sin_family = AF_UNSPEC;
+    }
+  }
 }
 
 /// Stores the properties of the receiving end of this UDP socket.
@@ -1796,6 +1839,15 @@ void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
   FAIL_MSG("Could not get destination for UDP socket");
 }// Socket::UDPConnection GetDestination
 
+/// Gets the properties of the receiving end of this UDP socket.
+/// This will be the receiving end for all SendNow calls.
+std::string Socket::UDPConnection::getBinDestination(){
+  std::string binList;
+  if (destAddr && destAddr_size){binList = getIPv6BinAddr(*(sockaddr_in6*)destAddr);}
+  if (binList.size() < 16){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16);}
+  return binList.substr(0, 16);
+}// Socket::UDPConnection GetDestination
+
 /// Returns the port number of the receiving end of this socket.
 /// Returns 0 on error.
 uint32_t Socket::UDPConnection::getDestPort() const{
@@ -1840,6 +1892,57 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
   }else{
     FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
   }
+}
+
+/// Queues sdata, len for sending over this socket.
+/// If there has been enough time since the last packet, sends immediately.
+/// Warning: never call sendPaced for the same socket from a different thread!
+void Socket::UDPConnection::sendPaced(const char *sdata, size_t len){
+  if (!paceQueue.size() && (!lastPace || Util::getMicros(lastPace) > 10000)){
+    SendNow(sdata, len);
+    lastPace = Util::getMicros();
+  }else{
+    paceQueue.push_back(Util::ResizeablePointer());
+    paceQueue.back().assign(sdata, len);
+    // Try to send a packet, if time allows
+    //sendPaced(0);
+  }
+}
+
+/// Spends uSendWindow microseconds either sending paced packets or sleeping, whichever is more appropriate
+/// Warning: never call sendPaced for the same socket from a different thread!
+void Socket::UDPConnection::sendPaced(uint64_t uSendWindow){
+  uint64_t currPace = Util::getMicros();
+  do{
+    uint64_t uTime = Util::getMicros();
+    uint64_t sleepTime = uTime - currPace;
+    if (sleepTime > uSendWindow){
+      sleepTime = 0;
+    }else{
+      sleepTime = uSendWindow - sleepTime;
+    }
+    uint64_t paceWait = uTime - lastPace;
+    size_t qSize = paceQueue.size();
+    // If the queue is complete, wait out the remainder of the time
+    if (!qSize){
+      Util::usleep(sleepTime);
+      return;
+    }
+    // Otherwise, target clearing the queue in 25ms at most.
+    uint64_t targetTime = 25000 / qSize;
+    // If this slows us to below 1 packet per 5ms, go that speed instead.
+    if (targetTime > 5000){targetTime = 5000;}
+    // If the wait is over, send now.
+    if (paceWait >= targetTime){
+      SendNow(*paceQueue.begin(), paceQueue.begin()->size());
+      paceQueue.pop_front();
+      lastPace = uTime;
+      continue;
+    }
+    // Otherwise, wait for the smaller of remaining wait time or remaining send window time.
+    if (targetTime - paceWait < sleepTime){sleepTime = targetTime - paceWait;}
+    Util::usleep(sleepTime);
+  }while(Util::getMicros(currPace) < uSendWindow);
 }
 
 std::string Socket::UDPConnection::getBoundAddress(){
@@ -2048,12 +2151,14 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
 bool Socket::UDPConnection::Receive(){
   if (sock == -1){return false;}
   data.truncate(0);
-  socklen_t destsize = destAddr_size;
-  int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)destAddr, &destsize);
+  sockaddr_in6 addr;
+  socklen_t destsize = sizeof(addr);
+  int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)&addr, &destsize);
   if (r == -1){
     if (errno != EAGAIN){INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));}
     return false;
   }
+  if (destAddr && destsize && destAddr_size >= destsize){memcpy(destAddr, &addr, destsize);}
   data.append(0, r);
   down += r;
   //Handle UDP packets that are too large

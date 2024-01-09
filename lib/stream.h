@@ -13,10 +13,12 @@
 const JSON::Value empty;
 
 namespace Util{
-  void streamVariables(std::string &str, const std::string &streamname, const std::string &source = "");
+  size_t streamCustomVariables(std::string &str);
+  size_t streamVariables(std::string &str, const std::string &streamname, const std::string &source = "", uint8_t depth = 0);
   std::string getTmpFolder();
   void sanitizeName(std::string &streamname);
   bool streamAlive(std::string &streamname);
+  std::set<std::string> streamTags(const std::string &streamname);
   bool startInput(std::string streamname, std::string filename = "", bool forkFirst = true,
                   bool isProvider = false,
                   const std::map<std::string, std::string> &overrides = std::map<std::string, std::string>(),
@@ -25,7 +27,9 @@ namespace Util{
   JSON::Value getStreamConfig(const std::string &streamname);
   JSON::Value getGlobalConfig(const std::string &optionName);
   JSON::Value getInputBySource(const std::string &filename, bool isProvider = false);
+  void sendUDPApi(JSON::Value & cmd);
   uint8_t getStreamStatus(const std::string &streamname);
+  uint8_t getStreamStatusPercentage(const std::string &streamname);
   bool checkException(const JSON::Value &ex, const std::string &useragent);
   std::string codecString(const std::string &codec, const std::string &initData = "");
 
@@ -60,6 +64,7 @@ namespace Util{
     uint64_t time;
     uint64_t offset;
     size_t partIndex;
+    bool ghostPacket;
   };
 
   /// Packet sorter used to determine which packet should be output next

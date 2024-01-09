@@ -80,9 +80,6 @@ namespace Mist{
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 5000;
-    capa["codecs"][0u][0u].append("*");
-    capa["codecs"][0u][1u].append("*");
-    capa["codecs"][0u][2u].append("*");
   }
 
   int inputBalancer::boot(int argc, char *argv[]){

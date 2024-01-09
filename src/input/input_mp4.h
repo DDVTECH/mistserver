@@ -51,8 +51,7 @@ namespace Mist{
     MP4::CTTS cttsBox;
     MP4::STSC stscBox;
     uint64_t timeScale;
-    void getPart(uint64_t index, uint64_t &offset, uint32_t &size, uint64_t &timestamp,
-                 int32_t &timeOffset, uint64_t &duration);
+    void getPart(uint64_t index, uint64_t &offset);
     uint64_t size();
 
   private:
@@ -74,14 +73,15 @@ namespace Mist{
   class inputMP4 : public Input, public Util::DataCallback {
   public:
     inputMP4(Util::Config *cfg);
-    void dataCallback(const char *ptr, size_t size);
+    virtual void dataCallback(const char *ptr, size_t size);
+    virtual size_t getDataCallbackPos() const;
 
   protected:
     // Private Functions
     bool checkArguments();
     bool preRun();
     bool readHeader();
-    bool needHeader(){return true;}
+    bool needHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     void handleSeek(uint64_t seekTime, size_t idx);

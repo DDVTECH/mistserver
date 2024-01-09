@@ -9,6 +9,7 @@
 #include <mist/json.h>
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
+#include <mist/url.h>
 #include <set>
 
 #include "../io.h"
@@ -19,6 +20,20 @@ namespace Mist{
     uint32_t curKey;
     uint32_t curPart;
   };
+
+  struct trackKey{
+    size_t track;
+    size_t key;
+    trackKey(){track = 0; key = 0;}
+    trackKey(size_t t, size_t k){
+      track = t;
+      key = k;
+    }
+  };
+
+  inline bool operator< (const trackKey a, const trackKey b){
+    return a.track < b.track || (a.track == b.track && a.key < b.key);
+  }
 
   class Input : public InOutBase{
   public:
@@ -37,9 +52,17 @@ namespace Mist{
     virtual bool publishesTracks(){return true;}
 
   protected:
+    bool internalOnly;
+    bool isBuffer;
+    Comms::Connections statComm;
+    uint64_t startTime;
+    uint64_t lastStats;
+    uint64_t inputTimeout;
+
     virtual bool checkArguments() = 0;
     virtual bool readHeader();
     virtual bool needHeader(){return !readExistingHeader();}
+    virtual void postHeader(){};
     virtual bool preRun(){return true;}
     virtual bool isThread(){return false;}
     virtual bool isSingular(){return !config->getBool("realtime");}
@@ -52,10 +75,11 @@ namespace Mist{
     virtual bool openStreamSource(){return readHeader();}
     virtual void closeStreamSource(){}
     virtual void parseStreamHeader(){}
-    void checkHeaderTimes(std::string streamFile);
+    virtual void checkHeaderTimes(const HTTP::URL & streamFile);
     virtual void removeUnused();
     virtual void convert();
     virtual void serve();
+    virtual void inputServeStats();
     virtual void stream();
     virtual std::string getConnectedBinHost(){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001", 16);}
     virtual size_t streamByteCount(){
@@ -69,15 +93,18 @@ namespace Mist{
     virtual void userOnActive(size_t id);
     virtual void userOnDisconnect(size_t id);
     virtual void userLeadOut();
-    virtual void connStats(Comms::Statistics & statComm);
+    virtual void connStats(Comms::Connections & statComm);
     virtual void parseHeader();
     bool bufferFrame(size_t track, uint32_t keyNum);
+    void doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason);
+    bool exitAndLogReason();
 
     uint64_t activityCounter;
 
     JSON::Value capa;
 
     std::map<size_t, std::set<uint64_t> > keyTimes;
+    std::map<trackKey, uint64_t> keyLoadPriority;
 
     // Create server for user pages
     Comms::Users users;

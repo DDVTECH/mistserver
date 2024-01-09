@@ -166,7 +166,10 @@ static std::string UTF8(uint32_t c){
     r.append(1, 0x80 | (c & 0x3F));
     return r;
   }
-  r.append(1, 0xC0 | (c >> 18));
+  // Convert from two UTF16 chars to unicode codepoint
+  c = (((c >> 16) & 0x3ff) << 10) + ((c & 0xFFFF) & 0x3ff) + 0x10000;
+  // Encode to 4-byte UTF8 sequence
+  r.append(1, 0xF0 | ((c >> 18) & 0x07));
   r.append(1, 0x80 | ((c >> 12) & 0x3F));
   r.append(1, 0x80 | ((c >> 6) & 0x3F));
   r.append(1, 0x80 | (c & 0x3F));
@@ -205,10 +208,14 @@ static std::string read_string(char separator, std::istream &fromstream){
       case 'u':{
         char d1, d2, d3, d4;
         fromstream.get(d1);
+        if (d1 == separator){goto stopParsing;}
         fromstream.get(d2);
+        if (d2 == separator){goto stopParsing;}
         fromstream.get(d3);
+        if (d3 == separator){goto stopParsing;}
         fromstream.get(d4);
-        uint32_t tmpChar = (c2hex(d4) + (c2hex(d3) << 4) + (c2hex(d2) << 8) + (c2hex(d1) << 16));
+        if (d4 == separator){goto stopParsing;}
+        uint32_t tmpChar = (c2hex(d4) + (c2hex(d3) << 4) + (c2hex(d2) << 8) + (c2hex(d1) << 12));
         if (fullChar && (tmpChar < 0xDC00 || tmpChar > 0xDFFF)){
           // not a low surrogate - handle high surrogate separately!
           out += UTF8(fullChar >> 16);
@@ -236,6 +243,7 @@ static std::string read_string(char separator, std::istream &fromstream){
       out.append(1, c);
     }
   }
+stopParsing:
   if (fullChar){
     out += UTF8(fullChar >> 16);
     fullChar = 0;

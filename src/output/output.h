@@ -11,6 +11,7 @@
 #include <mist/socket.h>
 #include <mist/timing.h>
 #include <mist/stream.h>
+#include <mist/url.h>
 #include <set>
 
 namespace Mist{
@@ -31,8 +32,6 @@ namespace Mist{
     /*LTS-START*/
     std::string reqUrl;
     /*LTS-END*/
-    std::string previousFile;
-    std::string currentFile;
     // non-virtual generic functions
     virtual int run();
     virtual void stats(bool force = false);
@@ -43,9 +42,10 @@ namespace Mist{
     uint64_t currentTime();
     uint64_t startTime();
     uint64_t endTime();
+    uint64_t targetTime();
     void setBlocking(bool blocking);
     bool selectDefaultTracks();
-    bool connectToFile(std::string file, bool append = false);
+    bool connectToFile(std::string file, bool append = false, Socket::Connection *conn = 0);
     static bool listenMode(){return true;}
     uint32_t currTrackCount() const;
     virtual bool isReadyForPlay();
@@ -60,7 +60,7 @@ namespace Mist{
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
     virtual void onRequest();
     static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
-    virtual void initialSeek();
+    virtual void initialSeek(bool dryRun = false);
     uint64_t getMinKeepAway();
     virtual bool liveSeek(bool rateOnly = false);
     virtual bool onFinish(){return false;}
@@ -86,7 +86,6 @@ namespace Mist{
     std::string hostLookup(std::string ip);
     bool onList(std::string ip, std::string list);
     std::string getCountry(std::string ip);
-    void doSync(bool force = false);
     /*LTS-END*/
     std::map<size_t, uint32_t> currentPage;
     void loadPageForKey(size_t trackId, size_t keyNum);
@@ -94,6 +93,9 @@ namespace Mist{
     uint64_t pageNumMax(size_t trackId);
     bool isRecordingToFile;
     uint64_t lastStats; ///< Time of last sending of stats.
+    void reinitPlaylist(std::string &playlistBuffer, uint64_t &maxAge, uint64_t &maxEntries,
+                        uint64_t &segmentCount, uint64_t &segmentsRemoved, uint64_t &curTime,
+                        std::string targetDuration, HTTP::URL &playlistLocation);
 
     Util::packetSorter buffer; ///< A sorted list of next-to-be-loaded packets.
     bool sought;          ///< If a seek has been done, this is set to true. Used for seeking on
@@ -105,6 +107,7 @@ namespace Mist{
     bool firstData;
     uint64_t lastPushUpdate;
     bool newUA;
+    
   protected:              // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{
       return false;
@@ -114,23 +117,22 @@ namespace Mist{
     std::string UA;                                  ///< User Agent string, if known.
     uint64_t uaDelay;                                ///< Seconds to wait before setting the UA.
     uint64_t lastRecv;
-    uint64_t extraKeepAway;
     uint64_t dataWaitTimeout; ///< How long to wait for new packets before dropping a track, in tens of milliseconds.
     uint64_t firstTime; ///< Time of first packet after last seek. Used for real-time sending.
     virtual std::string getConnectedHost();
     virtual std::string getConnectedBinHost();
     virtual std::string getStatsName();
-    virtual bool hasSessionIDs(){return false;}
 
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
 
     std::set<size_t> getSupportedTracks(const std::string &type = "") const;
 
     inline virtual bool keepGoing(){return config->is_active && myConn;}
+    virtual void idleTime(uint64_t ms){Util::sleep(ms);}
 
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
     bool isBlocking; ///< If true, indicates that myConn is blocking.
-    uint32_t crc;    ///< Checksum, if any, for usage in the stats.
+    std::string tkn;    ///< Random identifier used to split connections into sessions
     uint64_t nextKeyTime();
 
     // stream delaying variables
@@ -150,6 +152,9 @@ namespace Mist{
     virtual bool isRecording();
     virtual bool isFileTarget();
     virtual bool isPushing(){return pushing;};
+    std::string getExitTriggerPayload();
+    void recEndTrigger();
+    void outputEndTrigger();
     bool allowPush(const std::string &passwd);
     void waitForStreamPushReady();
 

@@ -1381,6 +1381,7 @@ namespace TS{
       if (codec == "ID3" || codec == "RAW"){sectionLen += M.getInit(*it).size();}
       if (codec == "AAC"){sectionLen += 4;} // length of AAC descriptor
       if (codec == "opus"){sectionLen += 10;} // 6 bytes registration desc, 4 bytes opus desc
+      if (codec == "JSON"){sectionLen += 6;} // 6 bytes registration desc, 4 bytes opus desc
       std::string lang = M.getLang(*it);
       if (lang.size() == 3 && lang != "und"){
         sectionLen += 6; // language descriptor
@@ -1425,6 +1426,9 @@ namespace TS{
         es_info.append("\005\004Opus", 6);//registration descriptor
         es_info.append("\177\002\200", 3);//Opus descriptor
         es_info.append(1, (char)M.getChannels(*it));
+      }else if (codec == "JSON"){
+        entry.setStreamType(0x06);
+        es_info.append("\005\004JSON", 6);//registration descriptor
       }else if (codec == "AC3"){
         entry.setStreamType(0x81);
       }else if (codec == "ID3"){

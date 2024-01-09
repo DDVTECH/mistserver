@@ -9,6 +9,9 @@ int main(int argc, char **argv){
     return 1;
   }
   IPC::sharedPage f(argv[1], 0, false, false);
+  if (!f.mapped){
+    std::cout << "Could not open " << argv[1] << ": does not exist" << std::endl;
+  }
   const Util::RelAccX A(f.mapped, false);
   if (!A.isReady()){
     std::cout << "Memory structure " << argv[1] << " is not ready" << std::endl;

@@ -1,57 +1,3 @@
-/*
-
-  SOME NOTES ON MIST
-
-     - When a user wants to start pushing video into Mist we need to
-       check if the user is actually allowed to do this. When the user
-       is allowed to push we have to call the function `allowPush("")`.
-
-  SIGNALING
-
-     1. Client sends the offer:
-
-          {
-            type: "offer_sdp",
-            offer_sdp: <the-client-offer-sdp>,
-          }
-
-        Server responds with:
-
-          SUCCESS:
-          {
-            type: "on_answer_sdp",
-            result: true,
-            answer_sdp: <the-server-answer-sdp>,
-          }
-
-          ERROR:
-          {
-            type: "on_answer_sdp",
-            result: false,
-          }
-
-     2. Client request new bitrate:
-
-          {
-            type: "video_bitrate"
-            video_bitrate: 600000
-          }
-
-        Server responds with:
-
-          SUCCESS:
-          {
-            type: "on_video_bitrate"
-            result: true
-          }
-
-          ERROR:
-          {
-             type: "on_video_bitrate"
-             result: false
-          }
-
- */
 #pragma once
 
 #include "output.h"
@@ -63,11 +9,11 @@
 #include <mist/rtp_fec.h>
 #include <mist/sdp_media.h>
 #include <mist/socket.h>
-#include <mist/srtp.h>
 #include <mist/stun.h>
 #include <mist/tinythread.h>
 #include <mist/websocket.h>
 #include <fstream>
+#include "output_webrtc_srtp.h"
 
 #define NACK_BUFFER_SIZE 1024
 
@@ -127,14 +73,15 @@ namespace Mist{
   public:
     OutWebRTC(Socket::Connection &myConn);
     ~OutWebRTC();
-    bool hasSessionIDs(){return !config->getBool("mergesessions");}
     static void init(Util::Config *cfg);
-    virtual void sendHeader();
     virtual void sendNext();
     virtual void onWebsocketFrame();
+    virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
+    virtual void preHTTP(){}
     virtual void preWebsocketConnect();
     virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
-    void onIdle();
+    void handleWebsocketIdle();
+    virtual void onFail(const std::string &msg, bool critical = false);
     bool onFinish();
     bool doesWebsockets(){return true;}
     void handleWebRTCInputOutputFromThread();
@@ -144,9 +91,13 @@ namespace Mist{
     void onDTSCConverterHasInitData(const size_t trackID, const std::string &initData);
     void onRTPPacketizerHasRTPPacket(const char *data, size_t nbytes);
     void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
-
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
+    inline virtual bool keepGoing(){return config->is_active && (noSignalling || myConn);}
+    virtual void requestHandler();
+  protected:
+    virtual void idleTime(uint64_t ms){udp.sendPaced(ms*1000);}
   private:
+    bool noSignalling;
     uint64_t lastRecv;
     uint64_t lastPackMs;
     uint64_t totalPkts;
@@ -228,6 +179,7 @@ namespace Mist{
     uint64_t stats_lossnum;
     double stats_lossperc;
     std::deque<double> stats_loss_avg;
+    std::map<uint32_t, uint32_t> lostPackets;
 
 #if defined(WEBRTC_PCAP)
     PCAPWriter pcapOut; ///< Used during development to write unprotected packets that can be
@@ -240,7 +192,9 @@ namespace Mist{
                                                           ///< supports RED/ULPFEC; can also be used to map RTX in the
                                                           ///< future.
     std::map<uint32_t, nackBuffer> outBuffers;
-    std::map<size_t, uint64_t> lastSR;
+
+    uint64_t lastSR;
+    std::set<size_t> mustSendSR;
 
     int64_t ntpClockDifference;
     bool syncedNTPClock;

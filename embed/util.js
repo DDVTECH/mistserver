@@ -37,6 +37,8 @@ var MistUtil = {
       //format a date nicely depending on how long ago it was
       //if the range param [ms] is specified, use that to choose how to format the date string
 
+      if (isNaN(date.getTime())) { return ""; }
+
       var ago = range ? range : new Date().getTime() - date.getTime();
       var out = "";
       var negative = (ago < 0);
@@ -185,7 +187,11 @@ var MistUtil = {
           break;
         }
         case "webrtc": {
-          return "WebRTC";
+          return "WebRTC (WS)";
+          break;
+        }
+        case "whep": {
+          return "WebRTC (WHEP)";
           break;
         }
         case "silverlight": {
@@ -472,6 +478,30 @@ var MistUtil = {
         }
         if (splitparams.length) { ret.push(splitparams.join("&")); }
         return ret.join("?");
+      },
+      append: function(url,append){
+        var a = document.createElement("a");
+        a.href = url;
+        if (append[0] == "?") {
+          if (a.search == "") { 
+            a.search = append;
+          }
+          else {
+            a.search += "&"+append.slice(1);
+          }
+        }
+        else if (append[0] == "&") {
+          if (a.search == "") { 
+            a.search = "?"+append.slice(1);
+          }
+          else {
+            a.search += append;
+          }
+        }
+        else {
+          a.href += append;
+        }
+        return a.href;
       },
       split: function(url){
         var a = document.createElement("a");
@@ -824,7 +854,7 @@ var MistUtil = {
               }
               break;
             case "rate":
-              name[j] = Math.round(track.rate)+"Khz";
+              name[j] = Math.round(track.rate*1e-3)+"Khz";
               break;
             case "language":
               if (track[j] != "Undetermined") { name[j] = track[j]; }
@@ -895,6 +925,28 @@ var MistUtil = {
       }
       
       return output;
+    },
+    translateCodec: function(track){
+    
+      function bin2hex(index) {
+        return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
+      }
+
+      switch (track.codec) {
+        case "AAC":
+          return "mp4a.40.2";
+        case "MP3":
+          return "mp3";
+          //return "mp4a.40.34";
+        case "AC3":
+          return "ec-3";
+        case "H264":
+          return "avc1."+bin2hex(1)+bin2hex(2)+bin2hex(3);
+        case "HEVC":
+          return "hev1."+bin2hex(1)+bin2hex(6)+bin2hex(7)+bin2hex(8)+bin2hex(9)+bin2hex(10)+bin2hex(11)+bin2hex(12);
+        default:
+          return track.codec.toLowerCase();
+      }
     }
   },
   isTouchDevice: function(){
@@ -1084,5 +1136,35 @@ var MistUtil = {
   getAndroid: function(){
     var match = navigator.userAgent.toLowerCase().match(/android\s([\d\.]*)/i);
     return match ? match[1] : false;
+  },
+  sources: {
+    find: function(sources,matchObj){
+      /*
+        Example use: 
+        MistUtil.sources.find(MistVideo.info.source,{
+          type: "html5/text/javascript",
+          protocol: "wss:"
+        })
+      */
+
+      outer:
+      for (var i in sources) {
+        for (var j in matchObj) {
+          if (j == "protocol") {
+            if (sources[i].url.slice(0,matchObj.protocol.length) != matchObj.protocol) {
+              continue outer;
+            }
+          }
+          else {
+            if (sources[i][j] != matchObj[j]) {
+              continue outer;
+            }
+          }
+        }
+        //if any key of matchObj did not match the source, the outer loop was continued and this code does not execute
+        return sources[i];
+      }
+      return false;
+    }
   }
 };

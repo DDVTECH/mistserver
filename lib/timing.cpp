@@ -5,14 +5,15 @@
 #include <cstdio>
 #include <cstring>
 #include <sys/time.h> //for gettimeofday
+#include <sys/stat.h>
 #include <time.h>     //for time and nanosleep
+#include <sstream>
+#include <stdlib.h>
 
 // emulate clock_gettime() for OSX compatibility
 #if defined(__APPLE__) || defined(__MACH__)
 #include <mach/clock.h>
 #include <mach/mach.h>
-#define CLOCK_REALTIME CALENDAR_CLOCK
-#define CLOCK_MONOTONIC SYSTEM_CLOCK
 void clock_gettime(int ign, struct timespec *ts){
   clock_serv_t cclock;
   mach_timespec_t mts;
@@ -51,6 +52,20 @@ void Util::sleep(int64_t ms){
   struct timespec T;
   T.tv_sec = ms / 1000;
   T.tv_nsec = 1000000 * (ms % 1000);
+  nanosleep(&T, 0);
+}
+
+/// Sleeps for roughly the indicated amount of microseconds.
+/// Will not sleep if ms is negative.
+/// Will not sleep for longer than 0.1 seconds (100000us).
+/// Can be interrupted early by a signal, no guarantee of minimum sleep time.
+/// Can be slightly off depending on OS accuracy.
+void Util::usleep(int64_t us){
+  if (us < 0){return;}
+  if (us > 100000){us = 100000;}
+  struct timespec T;
+  T.tv_sec = 0;
+  T.tv_nsec = 1000 * us;
   nanosleep(&T, 0);
 }
 
@@ -110,9 +125,49 @@ std::string Util::getUTCString(uint64_t epoch){
   struct tm *ptm;
   ptm = gmtime(&rawtime);
   char result[20];
-  snprintf(result, 20, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d", ptm->tm_year + 1900, ptm->tm_mon + 1,
-           ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+  snprintf(result, 20, "%.4u-%.2u-%.2uT%.2u:%.2u:%.2u", (ptm->tm_year + 1900)%10000, (ptm->tm_mon + 1)%100, ptm->tm_mday%100, ptm->tm_hour%100, ptm->tm_min%100, ptm->tm_sec%100);
   return std::string(result);
+}
+
+std::string Util::getUTCStringMillis(uint64_t epoch_millis){
+  if (!epoch_millis){epoch_millis = unixMS();}
+  time_t rawtime = epoch_millis/1000;
+  struct tm *ptm;
+  ptm = gmtime(&rawtime);
+  char result[25];
+  snprintf(result, 25, "%.4u-%.2u-%.2uT%.2u:%.2u:%.2u.%.3uZ", (ptm->tm_year + 1900)%10000, (ptm->tm_mon + 1)%100, ptm->tm_mday%100, ptm->tm_hour%100, ptm->tm_min%100, ptm->tm_sec%100, (unsigned int)(epoch_millis%1000));
+  return std::string(result);
+}
+
+// Returns the epoch of a UTC string in the format of %Y-%m-%dT%H:%M:%S%z
+uint64_t Util::getMSFromUTCString(std::string UTCString){
+  if (UTCString.size() < 24){return 0;}
+  // Strip milliseconds
+  std::string millis = UTCString.substr(UTCString.rfind('.') + 1, 3);
+  UTCString = UTCString.substr(0, UTCString.rfind('.')) + "Z";
+  struct tm ptm;
+  memset(&ptm, 0, sizeof(struct tm));
+  strptime(UTCString.c_str(), "%Y-%m-%dT%H:%M:%S%z", &ptm);
+  time_t ts = mktime(&ptm);
+  return ts * 1000 + atoll(millis.c_str());
+}
+
+// Converts epoch_millis into UTC time and returns the diff with UTCString in seconds
+uint64_t Util::getUTCTimeDiff(std::string UTCString, uint64_t epochMillis){
+  if (!epochMillis){return 0;}
+  if (UTCString.size() < 24){return 0;}
+  // Convert epoch to UTC time
+  time_t epochSeconds = epochMillis / 1000;
+  struct tm *ptmEpoch;
+  ptmEpoch = gmtime(&epochSeconds);
+  uint64_t epochTime = mktime(ptmEpoch);
+  // Parse UTC string and strip the milliseconds
+  UTCString = UTCString.substr(0, UTCString.rfind('.')) + "Z";
+  struct tm ptmUTC;
+  memset(&ptmUTC, 0, sizeof(struct tm));
+  strptime(UTCString.c_str(), "%Y-%m-%dT%H:%M:%S%z", &ptmUTC);
+  time_t UTCTime = mktime(&ptmUTC);
+  return epochTime - UTCTime;
 }
 
 std::string Util::getDateString(uint64_t epoch){
@@ -126,3 +181,13 @@ std::string Util::getDateString(uint64_t epoch){
   strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %z", timeinfo);
   return std::string(buffer);
 }
+
+/// Gets unix time of last file modification, or 0 if this information is not available for any reason
+uint64_t Util::getFileUnixTime(const std::string & filename){
+  struct stat fInfo;
+  if (stat(filename.c_str(), &fInfo) == 0){
+    return fInfo.st_mtime;
+  }
+  return 0;
+}
+

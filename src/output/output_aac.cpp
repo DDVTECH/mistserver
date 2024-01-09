@@ -16,6 +16,7 @@ namespace Mist{
     capa["methods"][0u]["type"] = "html5/audio/aac";
     capa["methods"][0u]["hrn"] = "AAC progressive";
     capa["methods"][0u]["priority"] = 8;
+    capa["push_urls"].append("/*.aac");
 
     JSON::Value opt;
     opt["arg"] = "string";
@@ -25,13 +26,14 @@ namespace Mist{
     cfg->addOption("target", opt);
   }
 
-  void OutAAC::initialSeek(){
+  void OutAAC::initialSeek(bool dryRun){
     if (!meta){return;}
     maxSkipAhead = 30000;
     if (targetParams.count("buffer")){
       maxSkipAhead = atof(targetParams["buffer"].c_str())*1000;
     }
-    Output::initialSeek();
+    Output::initialSeek(dryRun);
+    if (dryRun){return;}
     uint64_t cTime = currentTime();
     if (M.getLive() && cTime > maxSkipAhead){
       seek(cTime-maxSkipAhead);

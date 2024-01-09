@@ -35,7 +35,7 @@ namespace Mist{
         if (pData["sink_tracks"].size() != userSelect.size()){
           pData["sink_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            pData["sink_tracks"].append(it->first);
+            pData["sink_tracks"].append((uint64_t)it->first);
           }
         }
       }
@@ -59,7 +59,7 @@ namespace Mist{
       }
     }
     void setInFile(int stdin_val){
-      inFile = fdopen(stdin_val, "r");
+      inFile.open(stdin_val);
       streamName = opt["sink"].asString();
       if (!streamName.size()){streamName = opt["source"].asString();}
       Util::streamVariables(streamName, opt["source"].asString());
@@ -69,10 +69,13 @@ namespace Mist{
         pStat["proc_status_update"]["sink"] = streamName;
         pStat["proc_status_update"]["source"] = opt["source"];
       }
+      if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
+        DTSC::trackValidDefault = opt["target_mask"].asInt();
+      }
     }
     bool needsLock(){return false;}
     bool isSingular(){return false;}
-    void connStats(Comms::Statistics &statComm){
+    void connStats(Comms::Connections &statComm){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
         if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
       }
@@ -107,7 +110,7 @@ namespace Mist{
       OutEBML::dropTrack(trackId, reason, probablyBad);
     }
     void sendHeader(){
-      if (opt["masksource"].asBool()){
+      if (opt["source_mask"].asBool()){
         for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
           if (ti->first == INVALID_TRACK_ID){continue;}
           INFO_MSG("Masking source track %zu", ti->first);
@@ -117,7 +120,7 @@ namespace Mist{
       realTime = 0;
       OutEBML::sendHeader();
     };
-    void connStats(uint64_t now, Comms::Statistics &statComm){
+    void connStats(uint64_t now, Comms::Connections &statComm){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
         if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
       }
@@ -129,12 +132,11 @@ namespace Mist{
         if (pData["source_tracks"].size() != userSelect.size()){
           pData["source_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            pData["source_tracks"].append(it->first);
+            pData["source_tracks"].append((uint64_t)it->first);
           }
         }
       }
       if (thisTime > statSourceMs){statSourceMs = thisTime;}
-      extraKeepAway = 0;
       needsLookAhead = 0;
       maxSkipAhead = 0;
       if (!sendFirst){
@@ -227,9 +229,7 @@ namespace Mist{
         pData["active_seconds"] = (Util::bootSecs() - startTime);
         pData["ainfo"]["sourceTime"] = statSourceMs;
         pData["ainfo"]["sinkTime"] = statSinkMs;
-        Socket::UDPConnection uSock;
-        uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-        uSock.SendNow(pStat.toString());
+        Util::sendUDPApi(pStat);
         lastProcUpdate = Util::bootSecs();
       }
     }
@@ -273,6 +273,7 @@ void sourceThread(void *){
 int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
+  Util::Config::binaryType = Util::PROCESS;
   JSON::Value capa;
 
   {

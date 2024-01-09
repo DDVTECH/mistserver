@@ -73,31 +73,31 @@ namespace HTTP{
   }
 
   /// Takes an incoming HTTP::Parser request for a Websocket, and turns it into one.
-  Websocket::Websocket(Socket::Connection &c, HTTP::Parser &h) : C(c){
+  Websocket::Websocket(Socket::Connection &c, const HTTP::Parser &req, HTTP::Parser &resp) : C(c){
     frameType = 0;
     maskOut = false;
-    std::string connHeader = h.GetHeader("Connection");
+    std::string connHeader = req.GetHeader("Connection");
     Util::stringToLower(connHeader);
     if (connHeader.find("upgrade") == std::string::npos){
       FAIL_MSG("Could not negotiate websocket, connection header incorrect (%s).", connHeader.c_str());
       C.close();
       return;
     }
-    std::string upgradeHeader = h.GetHeader("Upgrade");
+    std::string upgradeHeader = req.GetHeader("Upgrade");
     Util::stringToLower(upgradeHeader);
     if (upgradeHeader != "websocket"){
       FAIL_MSG("Could not negotiate websocket, upgrade header incorrect (%s).", upgradeHeader.c_str());
       C.close();
       return;
     }
-    if (h.GetHeader("Sec-WebSocket-Version") != "13"){
+    if (req.GetHeader("Sec-WebSocket-Version") != "13"){
       FAIL_MSG("Could not negotiate websocket, version incorrect (%s).",
-               h.GetHeader("Sec-WebSocket-Version").c_str());
+               req.GetHeader("Sec-WebSocket-Version").c_str());
       C.close();
       return;
     }
 #ifdef SSL
-    std::string client_key = h.GetHeader("Sec-WebSocket-Key");
+    std::string client_key = req.GetHeader("Sec-WebSocket-Key");
     if (!client_key.size()){
       FAIL_MSG("Could not negotiate websocket, missing key!");
       C.close();
@@ -105,15 +105,13 @@ namespace HTTP{
     }
 #endif
 
-    h.Clean();
-    h.setCORSHeaders();
-    h.SetHeader("Upgrade", "websocket");
-    h.SetHeader("Connection", "Upgrade");
+    resp.SetHeader("Upgrade", "websocket");
+    resp.SetHeader("Connection", "Upgrade");
 #ifdef SSL
-    h.SetHeader("Sec-WebSocket-Accept", calculateKeyAccept(client_key));
+    resp.SetHeader("Sec-WebSocket-Accept", calculateKeyAccept(client_key));
 #endif
     // H.SetHeader("Sec-WebSocket-Protocol", "json");
-    h.SendResponse("101", "Websocket away!", C);
+    resp.SendResponse("101", "Websocket away!", C);
   }
 
   /// Loops calling readFrame until the connection is closed, sleeping in between reads if needed.
@@ -158,19 +156,17 @@ namespace HTTP{
         return false;
       }
       C.Received().remove(headSize); // delete the header
-      std::string pl = C.Received().remove(payLen);
-      if (masked){
-        // If masked, apply the mask to the payload
-        const char *mask = head.data() + headSize - 4; // mask is last 4 bytes of header
-        for (uint32_t i = 0; i < payLen; ++i){pl[i] ^= mask[i % 4];}
-      }
       if ((head[0] & 0xF)){
         // Non-continuation
         frameType = (head[0] & 0xF);
-        data.assign(pl.data(), pl.size());
-      }else{
-        // Continuation
-        data.append(pl.data(), pl.size());
+        data.truncate(0);
+      }
+      size_t preSize = data.size();
+      C.Received().remove(data, payLen);
+      if (masked){
+        // If masked, apply the mask to the payload
+        const char *mask = head.data() + headSize - 4; // mask is last 4 bytes of header
+        for (uint32_t i = 0; i < payLen; ++i){data[i+preSize] ^= mask[i % 4];}
       }
       if (head[0] & 0x80){
         // FIN

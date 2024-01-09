@@ -11,6 +11,14 @@
 #include <mist/util.h>
 #include <sys/stat.h>
 
+const char * trackType(char ID){
+  if (ID == 8){return "audio";}
+  if (ID == 9){return "video";}
+  if (ID == 18){return "metadata";}
+  return "unknown";
+}
+
+
 namespace Mist{
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
     lastSilence = 0;
@@ -54,6 +62,7 @@ namespace Mist{
       }
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(),
                pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
+      myConn.setHost(pushUrl.host);
       initialize();
       initialSeek();
       startPushOut("");
@@ -250,6 +259,7 @@ namespace Mist{
     capa["optional"]["maxkbps"]["type"] = "uint";
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rtmp://*");
     capa["push_urls"].append("rtmps://*");
 
@@ -780,7 +790,7 @@ namespace Mist{
     }
     tag.DTSCMetaInit(meta, selectedTracks);
     if (tag.len){
-      tag.tagTime(currentTime());
+      tag.tagTime(currentTime() - rtmpOffset);
       myConn.SendNow(RTMPStream::SendMedia(tag));
     }
 
@@ -788,13 +798,13 @@ namespace Mist{
       std::string type = M.getType(*it);
       if (type == "video"){
         if (tag.DTSCVideoInit(meta, *it)){
-          tag.tagTime(currentTime());
+          tag.tagTime(currentTime() - rtmpOffset);
           myConn.SendNow(RTMPStream::SendMedia(tag));
         }
       }
       if (type == "audio"){
         if (tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){
-          tag.tagTime(currentTime());
+          tag.tagTime(currentTime() - rtmpOffset);
           myConn.SendNow(RTMPStream::SendMedia(tag));
         }
       }
@@ -845,7 +855,7 @@ namespace Mist{
       //                   Type -sample-chnl-000
       //                   AACLC-44100 -2   -000
       INFO_MSG("Inserting silence track init data");
-      tag.tagTime(currentTime());
+      tag.tagTime(currentTime() - rtmpOffset);
       myConn.SendNow(RTMPStream::SendMedia(tag));
     }
     if (hasCustomAudio){
@@ -1180,7 +1190,7 @@ namespace Mist{
           if (!newStream.size()){
             FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                      getConnectedHost().c_str(), reqUrl.c_str());
-            Util::logExitReason(
+            Util::logExitReason(ER_TRIGGER,
                 "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                 getConnectedHost().c_str(), reqUrl.c_str());
             onFinish();
@@ -1599,7 +1609,7 @@ namespace Mist{
     while (next.Parse(inputBuffer)){
 
       // send ACK if we received a whole window
-      if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size) || Util::bootSecs() > lastAck+15){
+      if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size / 4) || Util::bootSecs() > lastAck+15){
         lastAck = Util::bootSecs();
         RTMPStream::rec_window_at = RTMPStream::rec_cnt;
         myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); // send ack (msg 3)
@@ -1678,6 +1688,7 @@ namespace Mist{
       case 18:{// meta data
         static std::map<size_t, AMF::Object> pushMeta;
         static std::map<size_t, uint64_t> lastTagTime;
+        static std::map<size_t, int64_t> trackOffset;
         static std::map<size_t, size_t> reTrackToID;
         if (!isInitialized || !meta){
           MEDIUM_MSG("Received useless media data");
@@ -1696,7 +1707,7 @@ namespace Mist{
         size_t reTrack = next.cs_id * 3 + (F.data[0] == 0x09 ? 1 : (F.data[0] == 0x08 ? 2 : 3));
         if (!reTrackToID.count(reTrack)){reTrackToID[reTrack] = INVALID_TRACK_ID;}
         F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
-        if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
+        if ((F.getDataLen() || (amf_storage && amf_storage->hasContent())) && !(F.needsInitData() && F.isInitData())){
           uint64_t tagTime = next.timestamp;
           uint64_t timeOffset = 0;
           if (targetParams.count("timeoffset")){
@@ -1710,18 +1721,48 @@ namespace Mist{
             rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset() + timeOffset;
             setRtmpOffset = true;
           }
-          tagTime += rtmpOffset;
+          tagTime += rtmpOffset + trackOffset[reTrack];
           uint64_t &ltt = lastTagTime[reTrack];
           if (tagTime < ltt){
-            WARN_MSG("Timestamps went from %" PRIu64 " to %" PRIu64 " (decreased): rewriting timestamps for continuity", ltt, tagTime);
-            rtmpOffset += (ltt-tagTime) + 1;
-            tagTime += (ltt-tagTime) + 1;
-          }else{
-            if (tagTime > ltt + 600000){
-              WARN_MSG("Timestamps went from %" PRIu64 " to %" PRIu64 " (increased): rewriting timestamps for continuity", ltt, tagTime);
-              rtmpOffset -= (tagTime - ltt) - 1;
-              tagTime -= (tagTime - ltt) - 1;
+            uint64_t diff = ltt - tagTime;
+            // Round to 24-bit rollover if within 0xfff of it on either side.
+            // Round to 32-bit rollover if within 0xfff of it on either side.
+            // Make sure time increases by 1ms if neither applies.
+            if (diff > 0xfff000ull && diff < 0x1000fffull){
+              diff = 0x1000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (decreased by 24-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else if (diff > 0xfffff000ull && diff < 0x100000fffull){
+              diff = 0x100000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (decreased by 32-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else{
+              diff += 1;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (decreased by %" PRIu64 "): compensating", trackType(next.msg_type_id), ltt, tagTime, diff);
             }
+            trackOffset[reTrack] += diff;
+            tagTime += diff;
+          }else if (tagTime > ltt + 600000){
+            uint64_t diff = tagTime - ltt;
+            // Round to 24-bit rollover if within 0xfff of it on either side.
+            // Round to 32-bit rollover if within 0xfff of it on either side.
+            // Make sure time increases by 1ms if neither applies.
+            if (diff > 0xfff000ull && diff < 0x1000fffull){
+              diff = 0x1000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (increased by 24-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else if (diff > 0xfffff000ull && diff < 0x100000fffull){
+              diff = 0x100000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (increased by 32-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else{
+              diff -= 1;
+              if (ltt){
+                WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (increased by %" PRIu64 "): compensating", trackType(next.msg_type_id), ltt, tagTime, diff);
+              }
+            }
+            if (ltt){
+              trackOffset[reTrack] -= diff;
+            }else{
+              rtmpOffset -= diff;
+            }
+            tagTime -= diff;
           }
           size_t idx = reTrackToID[reTrack];
           if (idx != INVALID_TRACK_ID && !userSelect.count(idx)){
@@ -1737,8 +1778,22 @@ namespace Mist{
             }
           }
           ltt = tagTime;
-          //            bufferLivePacket(thisPacket);
-          bufferLivePacket(tagTime, F.offset(), idx, F.getData(), F.getDataLen(), 0, F.isKeyframe);
+          if (ltt){
+            for (std::map<size_t, uint64_t>::iterator it = lastTagTime.begin(); it != lastTagTime.end(); ++it){
+              if (it->second == reTrack){continue;}
+              size_t iIdx = reTrackToID[it->second];
+              if (it->first < ltt){
+                meta.setNowms(iIdx, ltt-1);
+                it->second = ltt-1;
+              }
+            }
+          }
+          if (F.data[0] == 0x12 && amf_storage){
+            std::string mData = amf_storage->toJSON().toString();
+            bufferLivePacket(tagTime, F.offset(), idx, mData.c_str(), mData.size(), 0, true);
+          }else{
+            bufferLivePacket(tagTime, F.offset(), idx, F.getData(), F.getDataLen(), 0, F.isKeyframe);
+          }
           if (!meta){config->is_active = false;}
         }
         break;

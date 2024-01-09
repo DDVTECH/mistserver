@@ -249,6 +249,12 @@ var UI = {
   menu: [
     {
       Overview: {},
+      General: {
+        hiddenmenu: {
+          "Edit variable": {},
+          "Edit external writer": {}
+        }
+      },
       Protocols: {},
       Streams: {
         hiddenmenu: {
@@ -257,12 +263,8 @@ var UI = {
           Embed: {}
         }
       },
-      Push: {
-        LTSonly: true
-      },
-      'Triggers': {
-        LTSonly: false
-      },
+      Push: {},
+      Triggers: {},
       Logs: {},
       Statistics: {},
       'Server Stats': {}
@@ -299,9 +301,6 @@ var UI = {
       );
       for (var k in button.classes) {
         $button.addClass(button.classes[k]);
-      }
-      if ('LTSonly' in button) {
-        $button.addClass('LTSonly');
       }
       if ('link' in button) {
         $button.attr('href',button.link).attr('target','_blank');
@@ -480,6 +479,10 @@ var UI = {
                   
                   //save
                   pointer.main[pointer.index] = val;
+
+                  var fn = $(this).data('opts')['postSave'];
+                  if (fn) { fn.call(this); }
+                  
                 });
                 
                 var fn = $(this).data('opts')['function'];
@@ -598,7 +601,7 @@ var UI = {
           $field = $('<div>').addClass('radioselect');
           for (var i in e.radioselect) {
             var $radio = $('<input>').attr('type','radio').val(e.radioselect[i][0]).attr('name',e.label);
-            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+            if (e.readonly) {
               $radio.prop('disabled',true);
             }
             var $label = $('<label>').append(
@@ -612,7 +615,7 @@ var UI = {
                 $(this).parent().find('input[type=radio]:enabled').prop('checked','true');
               });
               $label.append($select);
-              if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+              if (e.readonly) {
                 $select.prop('disabled',true);
               }
               for (var j in e.radioselect[i][2]) {
@@ -659,10 +662,6 @@ var UI = {
           $field.append($select);
           $select.data("input",false);
           
-          if (('LTSonly' in e) && (!mist.data.LTS)) {
-            $select.prop('disabled',true);
-          }
-          
           for (var i in e.selectinput) {
             var $option = $("<option>");
             $select.append($option);
@@ -698,22 +697,38 @@ var UI = {
         case "inputlist":
           $field = $('<div>').addClass('inputlist');
           var newitem = function(){
-            var $part = $("<input>").attr("type","text").addClass("listitem");
-            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
-              $part.prop('disabled',true);
+            var $part;
+            if ("input" in e) {
+              $part = UI.buildUI([e.input]).find(".field_container");
             }
+            else {
+              var o = Object.assign({},e);
+              delete o.validate;
+              delete o.pointer;
+              o.type = "str";
+              $part = UI.buildUI([o]).find(".field_container");
+            }
+            $part.removeClass("isSetting");
+            $part.addClass("listitem");
+
             var keyup = function(e){
               if ($(this).is(":last-child")) {
-                if ($(this).val() != "") {
-                  $(this).after($part.clone().keyup(keyup).val(""));
+                if ($(this).find(".field").getval() != "") {
+                  var $clone = $part.clone().keyup(keyup);
+                  $clone.find(".field").setval("");
+                  $(this).after($clone);
                 }
                 else if (e.which == 8) { //backspace
-                  $(this).prev().focus();
+                  $(this).prev().find(".field").focus();
                 }
               }
               else {
-                if ($(this).val() == "") {
-                  $(this).next().focus();
+                if ($(this).find(".field").getval() == "") {
+                  var $f = $(this).prev();
+                  if (!$f.length) {
+                    $f = $(this).next();
+                  }
+                  $f.find(".field").focus();
                   $(this).remove();
                 }
               }
@@ -832,7 +847,7 @@ var UI = {
           $c.append($itemsettings);
           break;
         }
-        case "json":
+        case "json": {
           $field = $("<textarea>").on('keydown',function(e){
             e.stopPropagation();
           }).on('keyup change',function(e){
@@ -855,8 +870,33 @@ var UI = {
             e.validate = [f];
           }
           break;
-        default:
+        }
+        case "bitmask": {
+          $field = $("<div>").addClass("bitmask");
+          for (var i in e.bitmask) {
+            $field.append(
+              $("<label>").append(
+                $("<input>").attr("type","checkbox").attr("name","bitmask_"+("pointer" in e ? e.pointer.index : "")).attr("value",e.bitmask[i][0]).addClass("field")
+              ).append(
+                $("<span>").text(e.bitmask[i][1])
+              )
+            );
+          }
+
+          //when the main label is clicked, do nothing (instead of toggeling the first checkbox)
+          $e.attr("for","none");
+          break;
+        }
+        case "str": 
+        default: {
           $field = $('<input>').attr('type','text');
+          if ("maxlength" in e) {
+            $field.attr("maxlength",e.maxlength);
+          }
+          if ("minlength" in e) {
+            $field.attr("minlength",e.minlength);
+          }
+        }
       }
       $field.addClass('field').data('opts',e);
       if ('pointer' in e) { $field.attr('name',e.pointer.index); }
@@ -875,6 +915,11 @@ var UI = {
       if ('unit' in e) {
         $fc.append(
           $('<span>').addClass('unit').html(e.unit)
+        );
+      }
+      if ('prefix' in e) {
+        $fc.prepend(
+          $('<span>').addClass('unit').html(e.prefix)
         );
       }
       if ('readonly' in e) {
@@ -940,10 +985,6 @@ var UI = {
       }
       if ('rows' in e) {
         $field.attr('rows',e.rows);
-      }
-      if (('LTSonly' in e) && (!mist.data.LTS)) {
-        $fc.addClass('LTSonly');
-        $field.prop('disabled',true);
       }
       if ("dependent" in e) {
         for (var i in e.dependent) {
@@ -1128,10 +1169,6 @@ var UI = {
             }
             subUI.field.trigger('change');
           });
-          if (('LTSonly' in e) && (!mist.data.LTS)) {
-            subUI.blackwhite.prop('disabled',true);
-            subUI.prototype.prop('disabled',true);
-          }
           subUI.values.append(subUI.prototype.clone(true));
           $fc.data('subUI',subUI).addClass('limit_list').append(subUI.blackwhite).append(subUI.values);
           break;
@@ -1146,7 +1183,7 @@ var UI = {
           }
         }
       }
-      if ((($field.getval() == "") || ($field.getval() == null)) && ('value' in e)) {
+      if ((($field.getval() == "") || ($field.getval() == null) || !("pointer" in e)) && ('value' in e)) {
         $field.setval(e.value);
       }
       if ('datalist' in e) {
@@ -1233,9 +1270,9 @@ var UI = {
                       classes: ['red']
                     };
                   }
-                  if (val.replace(/[^\da-z_]/g,'') != val) {
+                  if (val.replace(/[^\da-z_\-\.]/g,'') != val) {
                     return {
-                      msg: 'Special characters (except for underscores) are not allowed.',
+                      msg: 'Special characters (except for underscores (_), periods (.) and dashes (-)) are not allowed.',
                       classes: ['red']
                     };
                   }
@@ -1334,9 +1371,21 @@ var UI = {
                 };
                 break;
               }
+              case 'track_selector_parameter': {
+                //the value passed to audio= or video=,
+                //so something like 1, maxbps or eng
+                //leave default for now
+                f = function(){};
+                break;
+
+              }
               case 'track_selector': {
                 //something like "audio=1&video=eng"
-                //keep at default for now..
+                //leave default for now
+
+                f = function(){};
+                break;
+
               }
               default:
                 f = function(){};
@@ -2167,7 +2216,9 @@ var UI = {
       }
     }
     
-    var $currbut = UI.elements.menu.removeClass('hide').find('.plain:contains("'+tab+'")').closest('.button');
+    var $currbut = UI.elements.menu.removeClass('hide').find('.plain:contains("'+tab+'")').filter(function(){
+      return $(this).text() === tab;
+    }).closest('.button');
     if ($currbut.length > 0) {
       //only remove previous button highlight if the current tab is found in the menu
       UI.elements.menu.find('.button.active').removeClass('active');
@@ -2393,34 +2444,10 @@ var UI = {
         var $protocols_on = $('<span>');
         var $protocols_off = $('<span>');
         
-        var s = {
-          serverid: mist.data.config.serverid,
-          debug: mist.data.config.debug,
-          accesslog: mist.data.config.accesslog,
-          prometheus: mist.data.config.prometheus,
-          defaultStream: mist.data.config.defaultStream,
-          trustedproxy: mist.data.config.trustedproxy,
-          location: "location" in mist.data.config ? mist.data.config.location : {}
-        };
-        var b = {};
-        if ("bandwidth" in mist.data) {
-          b = mist.data.bandwidth;
-          if (b == null) { b = {}; }
-          if (!b.limit) {
-            b.limit = "";
-          }
-        }
-        var $bitunit = $("<select>").html(
-          $("<option>").val(1).text("bytes/s")
-        ).append(
-          $("<option>").val(1024).text("KiB/s")
-        ).append(
-          $("<option>").val(1048576).text("MiB/s")
-        ).append(
-          $("<option>").val(1073741824).text("GiB/s")
-        );
         var host = parseURL(mist.user.host);
         host = host.protocol+host.host+host.port;
+
+        var s = {};
         
         $main.append(UI.buildUI([
           {
@@ -2436,8 +2463,7 @@ var UI = {
           },{
             type: 'span',
             label: 'Version check',
-            value: $versioncheck,
-            LTSonly: true
+            value: $versioncheck
           },{
             type: 'span',
             label: 'Server time',
@@ -2445,13 +2471,11 @@ var UI = {
           },{
             type: 'span',
             label: 'Licensed to',
-            value: ("license" in mist.data.config ? mist.data.config.license.user : ""),
-            LTSonly: true
+            value: ("license" in mist.data.config ? mist.data.config.license.user : "")
           },{
             type: 'span',
             label: 'Active licenses',
-            value: $activeproducts,
-            LTSonly: true
+            value: $activeproducts
           },{
             type: 'span',
             label: 'Configured streams',
@@ -2476,156 +2500,26 @@ var UI = {
             type: 'span',
             label: 'Recent problems',
             value: $errors
-          },$('<br>'),{
-            type: 'str',
-            label: 'Human readable name',
-            pointer: {
-              main: s,
-              index: 'serverid'
-            },
-            help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
-          },{
-            type: 'debug',
-            label: 'Debug level',
-            pointer: {
-              main: s,
-              index: 'debug'
-            },
-            help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
-          },{
-            type: "selectinput",
-            label: "Access log",
-            selectinput: [
-              ["","Do not track"],
-              ["LOG","Log to MistServer log"],
-              [{
-                type:"str",
-                label:"Path",
-                LTSonly: true
-              },"Log to file"]
-            ],
-            pointer: {
-              main: s,
-              index: "accesslog"
-            },
-            help: "Enable access logs.",
-            LTSonly: true
-          },{
-            type: "selectinput",
-            label: "Prometheus stats output",
-            selectinput: [
-              ["","Disabled"],
-              [{
-                type: "str",
-                label:"Passphrase",
-                LTSonly: true
-              },"Enabled"]
-            ],
-            pointer: {
-              main: s,
-              index: "prometheus"
-            },
-            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
-            LTSonly: true
-          },{
-            type: "inputlist",
-            label: "Trusted proxies",
-            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
-            LTSonly: true,
-            pointer: {
-              main: s,
-              index: "trustedproxy"
-            }
-          },{
-            type: "selectinput",
-            label: "Load balancer bandwidth limit",
-            selectinput: [
-              ["","Default (1 gbps)"],
-              [{
-                label: "Custom",
-                type: "int",
-                min: 0,
-                unit: $bitunit
-              },"Custom"]
-            ],
-            pointer: {
-              main: b,
-              index: "limit"
-            },
-            help: "This setting only applies when MistServer is combined with a load balancer. This is the amount of traffic this server is willing to handle.",
-            LTSonly: true
-          },{
-            type: "inputlist",
-            label: "Load balancer bandwidth exceptions",
-            pointer: {
-              main: b,
-              index: "exceptions"
-            },
-            help: "This setting only applies when MistServer is combined with a load balancer. Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
-            LTSonly: true
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server latitude",
-            pointer: {
-              main: s.location,
-              index: "lat"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server longitude",
-            pointer: {
-              main: s.location,
-              index: "lon"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
-          },{
-            type: "str",
-            label: "Server location name",
-            pointer: {
-              main: s.location,
-              index: "name"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location.",
-            LTSonly: true
-          },{
-            type: "str",
-            validate: ['streamname_with_wildcard_and_variables'],
-            label: 'Fallback stream',
-            pointer: {
-              main: s,
-              index: "defaultStream"
-            },
-            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
-            LTSonly: true
+          },
+          $("<br>"),
+          $("<h3>").text("Write config now"),
+          {
+            type: "help",
+            help: "Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box."
           },{
             type: 'checkbox',
             label: 'Force configurations save',
             pointer: {
               main: s,
               index: 'save'
-            },
-            help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box.'
+            }            
           },{
             type: 'buttons',
             buttons: [{
               type: 'save',
               label: 'Save',
               'function': function(){
-                var save = {config: s};
-                
-                var bandwidth = {};
-                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
-                bandwidth.exceptions = b.exceptions;
-                if (bandwidth.exceptions === null) {
-                  bandwidth.exceptions = [];
-                }
-                
-                save.bandwidth = bandwidth;
+                var save = {};
                 
                 if (s.save) {
                   save.save = s.save;
@@ -2857,6 +2751,776 @@ var UI = {
         UI.interval.set(updateViewers,30e3);
         
         break;
+      case 'General': {
+
+        var s_general = {
+          serverid: mist.data.config.serverid,
+          debug: mist.data.config.debug,
+          accesslog: mist.data.config.accesslog,
+          prometheus: mist.data.config.prometheus,
+          defaultStream: mist.data.config.defaultStream,
+          trustedproxy: mist.data.config.trustedproxy
+        };
+        var s_sessions = {
+          sessionViewerMode: mist.data.config.sessionViewerMode,
+          sessionInputMode: mist.data.config.sessionInputMode,
+          sessionOutputMode: mist.data.config.sessionOutputMode,
+          sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
+          tknMode: mist.data.config.tknMode,
+          sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode
+        };
+        var s_balancer = {
+          location: "location" in mist.data.config ? mist.data.config.location : {}
+        };
+
+        var b = {limit:""};
+        if ("bandwidth" in mist.data) {
+          b = mist.data.bandwidth;
+          if (b == null) { b = {}; }
+          if (!b.limit) {
+            b.limit = "";
+          }
+        }
+        var $bitunit = $("<select>").html(
+          $("<option>").val(1).text("bytes/s")
+        ).append(
+          $("<option>").val(1024).text("KiB/s")
+        ).append(
+          $("<option>").val(1048576).text("MiB/s")
+        ).append(
+          $("<option>").val(1073741824).text("GiB/s")
+        );
+
+
+        $main.html(UI.buildUI([
+          $("<h2>").text("General settings"),{
+            type: "help",
+            help: "These are settings that apply to your MistServer instance in general."
+          },{
+            type: 'str',
+            label: 'Human readable name',
+            pointer: {
+              main: s_general,
+              index: 'serverid'
+            },
+            help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
+          },{
+            type: 'debug',
+            label: 'Debug level',
+            pointer: {
+              main: s_general,
+              index: 'debug'
+            },
+            help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
+          },{
+            type: "selectinput",
+            label: "Access log",
+            selectinput: [
+              ["","Do not track"],
+              ["LOG","Log to MistServer log"],
+              [{
+                type:"str",
+                label:"Path",
+                LTSonly: true
+              },"Log to file"]
+            ],
+            pointer: {
+              main: s_general,
+              index: "accesslog"
+            },
+            help: "Enable access logs.",
+            LTSonly: true
+          },{
+            type: "selectinput",
+            label: "Prometheus stats output",
+            selectinput: [
+              ["","Disabled"],
+              [{
+                type: "str",
+                label:"Passphrase",
+                LTSonly: true
+              },"Enabled"]
+            ],
+            pointer: {
+              main: s_general,
+              index: "prometheus"
+            },
+            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
+            LTSonly: true
+          },{
+            type: "inputlist",
+            label: "Trusted proxies",
+            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
+            pointer: {
+              main: s_general,
+              index: "trustedproxy"
+            }
+          },{
+            type: "str",
+            validate: ['streamname_with_wildcard_and_variables'],
+            label: 'Fallback stream',
+            pointer: {
+              main: s_general,
+              index: "defaultStream"
+            },
+            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
+            LTSonly: true
+          },{
+            type: 'buttons',
+            buttons: [{
+              type: 'save',
+              label: 'Save',
+              'function': function(ele){
+                $(ele).text("Saving..");
+
+                var save = {config: s_general};
+                                
+                mist.send(function(){
+                  UI.navto('General');
+                },save)
+              }
+            }]
+          }
+        ]));
+
+
+
+        $main.append(UI.buildUI([
+          $("<h3>").text("Sessions"),
+          {
+            type: 'bitmask',
+            label: 'Bundle viewer sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s_sessions,
+              index: 'sessionViewerMode'
+            },
+            help: 'Change the way viewer connections are bundled into sessions.<br>Default: stream name, viewer IP and token'
+          },{
+            type: 'bitmask',
+            label: 'Bundle input sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s_sessions,
+              index: 'sessionInputMode'
+            },
+            help: 'Change the way input connections are bundled into sessions.<br>Default: stream name, input IP, token and protocol'
+          },{
+            type: 'bitmask',
+            label: 'Bundle output sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s_sessions,
+              index: 'sessionOutputMode'
+            },
+            help: 'Change the way output connections are bundled into sessions.<br>Default: stream name, output IP, token and protocol'
+          },{
+            type: 'bitmask',
+            label: 'Bundle unspecified sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s_sessions,
+              index: 'sessionUnspecifiedMode'
+            },
+            help: 'Change the way unspecified connections are bundled into sessions.<br>Default: none'
+          },{
+            type: 'select',
+            label: 'Treat HTTP-only sessions as',
+            select: [
+              [1, 'A viewer session'],
+              [2, 'An output session: skip executing the USER_NEW and USER_END triggers'],
+              [4, 'A separate \'unspecified\' session: skip executing the USER_NEW and USER_END triggers'],
+              [3, 'Do not start a session: skip executing the USER_NEW and USER_END triggers and do not count for statistics']
+            ],
+            pointer: {
+              main: s_sessions,
+              index: 'sessionStreamInfoMode'
+            },
+            help: 'Change the way the stream info connection gets treated.<br>Default: as a viewer session'
+          },{
+            type: "bitmask",
+            label: "Communicate session token",
+            bitmask: [
+              [8,"Write to cookie"],
+              [4,"Write to URL parameter"],
+              [2,"Read from cookie"],
+              [1,"Read from URL parameter"]
+            ],
+            pointer: {
+              main: s_sessions,
+              index: "tknMode"
+            },
+            help: "Change the way the session token gets passed to and from MistServer, which can be set as a cookie or URL parameter named `tkn`. Reading the session token as a URL parameter takes precedence over reading from the cookie.<br>Default: all"
+          },{
+            type: 'buttons',
+            buttons: [{
+              type: 'save',
+              label: 'Save',
+              'function': function(ele){
+                $(ele).text("Saving..");
+
+                var save = {config: s_sessions};
+                                
+                mist.send(function(){
+                  UI.navto('General');
+                },save)
+              }
+            }]
+          }
+
+        ]));
+
+        var $variables = $("<div>").html("Loading..");
+        mist.send(function(d){
+          if (!d.variable_list) {
+            $variables.html("None configured.");
+            return;
+          }
+          var $tbody = $("<tbody>");
+          $variables.html(
+            $("<table>").html(
+              $("<thead>").html(
+                $("<tr>").append(
+                  $("<th>").text("Variable")
+                ).append(
+                  $("<th>").text("Latest value")
+                ).append(
+                  $("<th>").text("Command")
+                ).append(
+                  $("<th>").text("Check interval")
+                ).append(
+                  $("<th>").text("Last checked")
+                ).append(
+                  $("<th>")
+                )
+              )
+            ).append($tbody)
+          );
+          for (var i in d.variable_list) {
+            var v = d.variable_list[i];
+            $tbody.append(
+              $("<tr>").addClass("variable").attr("data-name",i).html(
+                $("<td>").text("$"+i)
+              ).append(
+                $("<td>").html(
+                  $("<code>").text(
+                    typeof v == "string" ?
+                    JSON.stringify(v) :
+                    (v[2] > 0 ? JSON.stringify(v[3]) : "" )
+                  )
+                )
+              ).append(
+                $("<td>").text(typeof v == "string" ? "" : v[0])
+              ).append(
+                $("<td>").html(typeof v == "string" ? "Never" : (v[1] == 0 ? "Once" : UI.format.duration(v[1])))
+              ).append(
+                $("<td>").attr("title",
+                  v[2] > 0 ?
+                  (typeof v == "string" ? "" : "At "+UI.format.dateTime(new Date(v[2]),"long")) :
+                  "Not yet"
+                ).html(
+                  typeof v == "string" ?
+                  "" : 
+                  (v[2] > 0 ? UI.format.duration(new Date().getTime()*1e-3 - v[2])+" ago" : "Not yet")
+                )
+              ).append(
+                $("<td>").html(
+                  $("<button>").text("Edit").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    UI.navto("Edit variable",i);
+                  })
+                ).append(
+                  $("<button>").text("Remove").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    if (confirm("Are you sure you want to remove the custom variable $"+i+"?")) {
+                      mist.send(function(){
+                        UI.showTab("General");
+                      },{variable_remove:i});
+                    }
+                  })
+                )
+              )
+            );
+          }
+        },{variable_list:true});
+
+        $main.append(UI.buildUI([
+          $('<h3>').text("Custom variables"),
+          {
+            type: "help",
+            help: "In certain places, like target URL's and pushes, variable substitution is applied in order to replace a $variable with their corresponding value. Here you can define your own constants and variables which will be used when variable substitution is applied. Variables can be used within variables but will not be reflected in their latest value on this page."
+          },
+          $("<div>").addClass("button_container").css("text-align","right").html(
+            $("<button>").text("New variable").click(function(){
+              UI.navto("Edit variable","");
+            })
+          ),
+          $variables
+        ]));
+
+        $main.append(UI.buildUI([
+          $('<h3>').text("Load balancer"),
+          {
+            type: "help",
+            help: "If you're using MistServer's load balancer, the information below is passed to it so that it can make informed decisions."
+          },
+
+          {
+            type: "selectinput",
+            label: "Server's bandwidth limit",
+            selectinput: [
+              ["","Default (1 gbps)"],
+              [{
+                label: "Custom",
+                type: "int",
+                min: 0,
+                unit: $bitunit
+              },"Custom"]
+            ],
+            pointer: {
+              main: b,
+              index: "limit"
+            },
+            help: "This is the amount of traffic this server is willing to handle."
+          },{
+            type: "inputlist",
+            label: "Bandwidth exceptions",
+            pointer: {
+              main: b,
+              index: "exceptions"
+            },
+            help: "Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>"
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server latitude",
+            pointer: {
+              main: s_balancer.location,
+              index: "lat"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server longitude",
+            pointer: {
+              main: s_balancer.location,
+              index: "lon"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
+          },{
+            type: "str",
+            label: "Server location name",
+            pointer: {
+              main: s_balancer.location,
+              index: "name"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location."
+          },{
+            type: 'buttons',
+            buttons: [{
+              type: 'save',
+              label: 'Save',
+              'function': function(ele){
+                $(ele).text("Saving..");
+
+                var save = {config: s_balancer};
+                
+                var bandwidth = {};
+                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
+                bandwidth.exceptions = b.exceptions;
+                if (bandwidth.exceptions === null) {
+                  bandwidth.exceptions = [];
+                }
+                save.bandwidth = bandwidth;
+                
+                mist.send(function(){
+                  UI.navto('Overview');
+                },save)
+              }
+            }]
+          }
+        ]));
+
+
+        var $uploaders = $("<div>").html("Loading..");
+        $main.append(UI.buildUI([
+
+          $('<h3>').text("External writers"),
+          {
+            type: "help",
+            help: "When pushing a stream to a target unsupported by MistServer like S3 storage, an external writer can be provided which handles writing the media data to the target location. The writer will receive data over stdin and MistServer will print any info written to stdout and stderr as log messages."
+          },
+          $("<div>").addClass("button_container").css("text-align","right").html(
+            $("<button>").text("New external writer").click(function(){
+              UI.navto("Edit external writer","");
+            })
+          ),
+          $uploaders
+
+        ]));
+
+        mist.send(function(d){
+          if (!d.external_writer_list) {
+            $uploaders.html("None configured.");
+          }
+          else {
+            var $tbody = $("<tbody>");
+            $uploaders.html(
+              $("<table>").html(
+                $("<thead>").html(
+                  $("<tr>").append(
+                    $("<th>").text("Name")
+                  ).append(
+                    $("<th>").text("Command line")
+                  ).append(
+                    $("<th>").text("URI protocols handled")
+                  ).append(
+                    $("<th>")
+                  )
+                )
+              ).append($tbody)
+            );
+            for (var i in d.external_writer_list) {
+              var uploader = d.external_writer_list[i];
+              $tbody.append(
+                $("<tr>").addClass("uploader").attr("data-name",i).html(
+                  $("<td>").text(uploader[0])
+                ).append(
+                  $("<td>").html($("<code>").html(uploader[1]))
+                ).append(
+                  $("<td>").text(uploader[2] ? uploader[2].join(", ") : "none").addClass("desc")
+                ).append(
+                  $("<td>").html(
+                  $("<button>").text("Edit").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    UI.navto("Edit external writer",i);
+                  })
+                ).append(
+                  $("<button>").text("Remove").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    var name = d.external_writer_list[i][0];
+                    if (confirm("Are you sure you want to remove the Uploader '"+name+"'?")) {
+                      mist.send(function(){
+                        UI.showTab("General");
+                      },{external_writer_remove:name});
+                    }
+                  })
+                )
+                )
+              );
+            }
+          }
+        },{external_writer_list:true});
+
+        break;
+      }
+      case "Edit external writer": {
+        var editing = false;
+        if (other != '') { editing = true; }
+
+        function buildPage() {
+          if (!editing) {
+            $main.html($('<h2>').text('New external writer'));
+          }
+          else {
+            $main.html($('<h2>').text('Edit external writer \''+other+'\''));
+          }
+
+          var saveas = {};
+          if (mist.data.external_writer_list && (other in mist.data.external_writer_list)) {
+            var uploader = mist.data.external_writer_list[other];
+            saveas.name = uploader[0];
+            saveas.cmdline = uploader[1];
+            saveas.protocols = uploader[2];
+          }
+
+          $main.append(UI.buildUI([
+            {
+              type: "str",
+              label: "Human readable name",
+              help: "A human readable name for the external writer.",
+              validate: ['required'],
+              pointer: {
+                main: saveas,
+                index: "name"
+              }
+            },{
+              type: "str",
+              label: "Command line",
+              help: "Command line for a local command (with optional arguments) which will write media data to the target.",
+              validate: ['required'],
+              pointer: {
+                main: saveas,
+                index: "cmdline"
+              }
+            },{
+              type: "inputlist",
+              label: "URI protocols handled",
+              help: "URI protocols which the external writer will be handling.",
+              validate: ['required',function(val){
+                for (var i in val) {
+                  var v = val[i];
+                  if (v.match(/^([a-z\d\+\-\.])+?$/) === null) {
+                    return {
+                      classes: ["red"],
+                      msg: "There was a problem with the protocol URI '"+function(s){ return $("<div>").text(s).html() }(v)+"':<br>A protocol URI may only contain lower case letters, digits, and the following special characters . + and -"
+                    }
+                    break;
+                  }
+                }
+              }],
+              input: {
+                type: "str",
+                unit: "://"
+              },
+              pointer: {
+                main: saveas,
+                index: "protocols"
+              }
+            },{
+              type: "buttons",
+              buttons: [
+                {
+                  type: 'cancel',
+                  label: 'Cancel',
+                  'function': function(){
+                    UI.navto('General');
+                  }
+                },{
+                  type: 'save',
+                  label: 'Save',
+                  'function': function(){
+                    var o = {external_writer_add:saveas};
+                    var prev_name = null;
+                    if ((other != "") && (other in mist.data.external_writer_list)) { 
+                      prev_name = mist.data.external_writer_list[other][0]; 
+                    }
+
+                    if ((prev_name !== null) && (saveas.name != prev_name)) {
+                      o.external_writer_remove = prev_name;
+                    }
+                    mist.send(function(){
+                      UI.navto('General');
+                    },o);
+                  }
+                }
+              ]
+            }
+          ]));
+        }
+
+        if ("external_writer_list" in mist.data) {
+          buildPage();
+        }
+        else {
+          mist.send(function(){
+            buildPage();
+          },{external_writer_list:true});
+        }
+
+        break;
+      }
+      case 'Edit variable': {
+        var editing = false;
+        if (other != '') { editing = true; }
+
+        function build(saveas,saveas_dyn) {
+          if (!editing) {
+            $main.html($('<h2>').text('New Variable'));
+          }
+          else {
+            $main.html($('<h2>').text('Edit Variable "$'+other+'"'));
+          }
+
+          var $dynamicinputs = $("<div>");
+
+          $main.append(UI.buildUI([
+            {
+              type: "str",
+              maxlength: 31,
+              label: "Variable name",
+              prefix: "$",
+              help: "What should the variable be called? A dollar sign will automatically be prepended.",
+              pointer: {
+                main: saveas,
+                index: "name"
+              },
+              validate: ["required",function(val){
+                if (val.length && (val[0] == "$")) {
+                  return {
+                    msg: 'The dollar sign will automatically be prepended. You don\'t need to type it here.',
+                    classes: ['red']
+                  };
+                }
+                if ((val.indexOf("{") !== -1) || (val.indexOf("}") !== -1) || (val.indexOf("$") !== -1)) {
+                  return {
+                    msg: 'The following symbols are not permitted: "$ { }".',
+                    classes: ['red']
+                  };
+                }
+              }]
+            },{
+              type: "select",
+              label: "Type",
+              help: "What kind of variable is this? It can either be a static value that you can enter below, or a dynamic one that is returned by a command.",
+              select: [
+                ["value","Static value"],
+                ["command","Dynamic through command"]
+              ],
+              value: "value",
+              pointer: {
+                main: saveas_dyn,
+                index: "type"
+              },
+              'function': function(){
+                var b = [$("Invalid variable type")];
+                switch ($(this).val()) {
+                  case "value": {
+                    b = [{
+                      type: "str",
+                      label: "Value",
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "value"
+                      },
+                      help: "The static value that this variable should be replaced with. There is a character limit of 63 characters.",
+                      validate: ["required"]
+                    }];
+                    break;
+                  }
+                  case "command": {
+                    b = [{
+                      type: "str",
+                      label: "Command",
+                      help: "The command that should be executed to retrieve the value for this variable.<br>For example:<br><code>/usr/bin/date +%A</code><br>There is a character limit of 511 characters.",
+                      validate: ["required"],
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "target"
+                      }
+                    },{
+                      type: "int",
+                      min: 0,
+                      max: 4294967295,
+                      'default': 0,
+                      label: "Checking interval",
+                      unit: "s",
+                      help: "At what interval, in seconds, MistServer should execute the command and update the value.<br>To execute the command once when MistServer starts up (and then never update), set the interval to 0.",
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "interval"
+                      }
+                    },{
+                      type: "int",
+                      min: 0,
+                      max: 4294967295,
+                      'default': 1,
+                      label: "Wait time",
+                      unit: "s",
+                      help: "Specifies the maximum time, in seconds, MistServer should wait for data when executing the variable target. If set to 0 this variable takes on the same value as the interval.<br>MistServer only updates one variable at a time, so setting this value too high can block other variables from updating.",
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "waitTime"
+                      }
+                    }];
+                    break;
+                  }
+                }
+                $dynamicinputs.html(UI.buildUI(b));
+              }
+            },
+            $dynamicinputs,
+            {
+              type: "buttons",
+              buttons: [
+                {
+                  type: 'cancel',
+                  label: 'Cancel',
+                  'function': function(){
+                    UI.navto('General');
+                  }
+                },{
+                  type: 'save',
+                  label: 'Save',
+                  'function': function(){
+                    var o = {variable_add:saveas};
+
+                    switch (saveas_dyn.type) {
+                      case "value": {
+                        saveas.value = saveas_dyn.value;
+                        break;
+                      }
+                      case "command": {
+                        saveas.target = saveas_dyn.target;
+                        saveas.interval = saveas_dyn.interval;
+                        saveas.waitTime = saveas_dyn.waitTime;
+                        break;
+                      }
+                    }
+
+                    if (saveas.name != other) {
+                      o.variable_remove = other;
+                    }
+                    mist.send(function(){
+                      UI.navto('General');
+                    },o);
+                  }
+                }
+              ]
+            }
+          ]));
+        }
+
+        $main.html("Loading..");
+        if (!editing) {
+          build({},{});
+        }
+        else {
+          mist.send(function(d){
+            if (other in d.variable_list) {
+              var v = d.variable_list[other];
+              build({
+                name: other
+              },(typeof v == "string" ? {
+                value: v,
+                type: "value"
+              } : {
+                target: v[0],
+                interval: v[1],
+                waitTime: v[4],
+                type: "command"
+              }));
+            }
+            else {
+              $main.append('Variable "$'+other+'" does not exist.');
+            }
+          },{variable_list:true});
+        }
+
+
+        break;
+      }
       case 'Protocols':
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
@@ -3667,6 +4331,27 @@ var UI = {
             send.stop_sessions = other;
             delete saveas.stop_sessions;
           }
+
+          var type = null;
+          for (var i in mist.data.capabilities.inputs) {
+            if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
+            if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,saveas.source)) {
+              type = i;
+              break;
+            }
+          }
+          if (type) {
+            //sanatize saveas, remove options not in capabilities
+            var input = mist.data.capabilities.inputs[type];
+            for (var i in saveas) {
+              if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes")) { continue; }
+              if (("optional" in input) && (i in input.optional)) { continue; }
+              if (("required" in input) && (i in input.required)) { continue; }
+              if ((i == "always_on") && ("always_match" in input) && (mist.inputMatch(input.always_match,saveas.source))) { continue; }
+              delete saveas[i];
+            }
+          }
+
           mist.send(function(){
             delete mist.data.streams[saveas.name].online;
             delete mist.data.streams[saveas.name].error;
@@ -3695,7 +4380,7 @@ var UI = {
           
           
           var port = {};
-          var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe'];
+          var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe','TSSRT','TSSRT.exe'];
           for (var i in trythese) {
             if (trythese[i] in mist.data.capabilities.connectors) {
               port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
@@ -3706,6 +4391,8 @@ var UI = {
             'RTMP.exe': 1935,
             RTSP: 554,
             'RTSP.exe': 554,
+            TSSRT: -1,
+            'TSSRT.exe': -1,
             TS: -1,
             'TS.exe': -1
           };
@@ -3736,6 +4423,10 @@ var UI = {
                 $livestreamhint.find('.field.RTMPurl').setval(str).closest('label').show();
                 $livestreamhint.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label').show();
                 str += (streamname == '' ? 'STREAMNAME' : streamname);
+                break;
+              case 'TSSRT':
+              case 'TSSRT.exe':
+                str = 'srt://'+host.host+useport+'?streamname='+(streamname == '' ? 'STREAMNAME' : streamname);
                 break;
               case 'RTSP':
               case 'RTSP.exe':
@@ -3838,7 +4529,7 @@ var UI = {
                         Linux/MacOS:&nbsp;/PATH/<br>\
                         Windows:&nbsp;/cygdrive/DRIVE/PATH/\
                       </td>\
-                      <td class=LTSonly>\
+                      <td>\
                         A folder stream makes all the recognised files in the selected folder available as a stream.\
                       </td>\
                     </tr>\
@@ -3855,14 +4546,21 @@ var UI = {
                       </td>\
                     </tr>\
                     <tr>\
+                      <th>SRT</th>\
+                      <td>push://(IP)</td>\
+                      <td>\
+                        IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
+                      </td>\
+                    </tr>\
+                    <tr>\
                       <th>RTSP</th>\
                       <td>push://(IP)(@PASSWORD)</td>\
-                      <td class=LTSonly>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
+                      <td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
                     </tr>\
                     <tr>\
                       <th>TS</th>\
                       <td>tsudp://(IP):PORT(/INTERFACE)</td>\
-                      <td class=LTSonly>\
+                      <td>\
                         IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>\
                         PORT is the port you reserve for this stream on the chosen IP.<br>\
                         INTERFACE is the interface used, if left all interfaces will be used.\
@@ -3883,19 +4581,19 @@ var UI = {
                     <tr>\
                       <th>HLS</th>\
                       <td>http://URL/TO/STREAM.m3u8</td>\
-                      <td class=LTSonly>The URL where the HLS stream is available to MistServer.</td>\
+                      <td>The URL where the HLS stream is available to MistServer.</td>\
                     </tr>\
                     <tr>\
                       <th>RTSP</th>\
                       <td>rtsp://(USER:PASSWORD@)IP(:PORT)(/path)</td>\
-                      <td class=LTSonly>\
+                      <td>\
                         USER:PASSWORD is the account used if authorization is required.<br>\
                         IP is the IP address used to pull this stream from.<br>\
                         PORT is the port used to connect through.<br>\
                         PATH is the path to be used to identify the correct stream.\
                       </td>\
                     </tr>\
-                  </table>").replace(/LTSonly/g,(mist.data.LTS ? "\"\"" : "LTSonly"))
+                  </table>")
         ,
             'function': function(){
               var source = $(this).val();
@@ -3931,7 +4629,8 @@ var UI = {
                   pointer: {
                     main: saveas,
                     index: 'always_on'
-                  }
+                  },
+                  value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
                 });
               }
               $inputoptions.append(UI.buildUI(build));
@@ -3968,6 +4667,13 @@ var UI = {
                       help: 'Use this key if your client asks for a stream key'
                     });
                     fields.push({
+                      label: 'SRT',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['TSSRT']
+                    });
+                    fields.push({
                       label: 'RTSP',
                       type: 'span',
                       clipboard: true,
@@ -3999,7 +4705,6 @@ var UI = {
             label: 'Stop sessions',
             type: 'checkbox',
             help: 'When saving these stream settings, kill this stream\'s current connections.',
-            LTSonly: true,
             pointer: {
               main: saveas,
               index: 'stop_sessions'
@@ -4275,7 +4980,7 @@ var UI = {
           var tables = {
             audio: {
               vheader: 'Audio',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index',""],
               content: []
             },
             video: {
@@ -4285,7 +4990,12 @@ var UI = {
             },
             subtitle: {
               vheader: 'Subtitles',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language','Track index'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language','Track index',"","",""],
+              content: []
+            },
+            meta: {
+              vheader: 'Metadata',
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate',"","","","",""],
               content: []
             }
           }
@@ -4322,7 +5032,8 @@ var UI = {
                     track.channels,
                     UI.format.addUnit(UI.format.number(track.rate),'Hz'),
                     ('language' in track ? track.language : 'unknown'),
-                    (trackindex.audio)
+                    (trackindex.audio),
+                    ""
                   ]
                 });
                 trackindex.audio++;
@@ -4355,15 +5066,29 @@ var UI = {
                       peakoravg(track,"bps"),
                       peakoravg(track,"maxbps"),
                       ('language' in track ? track.language : 'unknown'),
-                      (trackindex.subtitle)
+                      (trackindex.subtitle),
+                      "","",""
                     ]
                   });
                   trackindex.subtitle++
                   break;
                 }
+                else {
+                  tables.meta.content.push({
+                    header: 'Track '+i.split('_').pop(),
+                    body: [
+                      track.codec,
+                      UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
+                      peakoravg(track,"bps"),
+                      peakoravg(track,"maxbps"),
+                      "","","","",""
+                    ]
+                  });
+                  break;
+                }
             }
           }
-          var tracktypes = ['audio','video','subtitle'];
+          var tracktypes = ['audio','video','subtitle','meta'];
           var $c = $('<div>').css({
             'display': 'flex',
             'flex-flow': 'row wrap',
@@ -4946,7 +5671,7 @@ var UI = {
         
         $.ajax({
           type: 'GET',
-          url: otherbase+'json_'+escapedstream+'.js',
+          url: otherbase+'json_'+escapedstream+'.js?inclzero=1',
           success: function(d) {
             
             var build = [];
@@ -4980,22 +5705,24 @@ var UI = {
             
             $setTracks.html('');
             var tracks = {};
-            for (var i in d.meta.tracks) {
-              var t = d.meta.tracks[i];
-              if (t.codec == "subtitle") {
-                t.type = "subtitle";
-              }
-              if ((t.type != 'audio') && (t.type != 'video') && (t.type != "subtitle")) { continue; }
-              
-              if (!(t.type in tracks)) {
-                if (t.type == "subtitle") {
-                  tracks[t.type] = [];
+            if (d.meta) { 
+              for (var i in d.meta.tracks) {
+                var t = d.meta.tracks[i];
+                if (t.codec == "subtitle") {
+                  t.type = "subtitle";
                 }
-                else {
-                  tracks[t.type] = [[(''),"Autoselect "+t.type]];
+                if ((t.type != 'audio') && (t.type != 'video') && (t.type != "subtitle")) { continue; }
+
+                if (!(t.type in tracks)) {
+                  if (t.type == "subtitle") {
+                    tracks[t.type] = [];
+                  }
+                  else {
+                    tracks[t.type] = [[(''),"Autoselect "+t.type]];
+                  }
                 }
+                tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+(t.type == "subtitle" ? 1 : 0))]);
               }
-              tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+(t.type == "subtitle" ? 1 : 0))]);
             }
             if (Object.keys(tracks).length) {
               $setTracks.closest('label').show();
@@ -5123,6 +5850,28 @@ var UI = {
             var $target = $('<span>');
             var $logs = $("<span>");
             if ((type == "Automatic") && (push.length >= 4)) {
+
+              function printPrettyComparison(a,b,c){
+                var str = "";
+                str += "$"+a+" ";
+                switch (Number(b)) {
+                  case 0:  { str += "is true";  break; }
+                  case 1:  { str += "is false"; break; }
+                  case 2:  { str += "== "+c; break; }
+                  case 3:  { str += "!= "+c; break; }
+                  case 10: { str += "> (numerical) " +c; break; }
+                  case 11: { str += ">= (numerical) "+c; break; }
+                  case 12: { str += "< (numerical) " +c; break; }
+                  case 13: { str += "<= (numerical) "+c; break; }
+                  case 20: { str += "> (lexical) " +c; break; }
+                  case 21: { str += ">= (lexical) "+c; break; }
+                  case 22: { str += "< (lexical) " +c; break; }
+                  case 23: { str += "<= (lexical) "+c; break; }
+                  default: { str += "comparison operator unknown"; break; }
+                }
+                return str;
+              }
+
               $target.append(
                 $('<span>').text(push[2])
               );
@@ -5136,6 +5885,17 @@ var UI = {
                   $('<span>').text(", complete on "+(new Date(push[4]*1e3)).toLocaleString())
                 );
               }
+              if ((push.length >= 8) && (push[5])) {
+                $target.append(
+                  $('<span>').text(", starts if "+printPrettyComparison(push[5],push[6],push[7]))
+                );
+              }
+              if ((push.length >= 11) && (push[8])) {
+                $target.append(
+                  $('<span>').text(", stops if "+printPrettyComparison(push[8],push[9],push[10]))
+                );
+              }
+
             }
             else if ((push.length >= 4) && (push[2] != push[3])) {
               $target.append(
@@ -5280,7 +6040,7 @@ var UI = {
           }
           
           $c.append(
-            $('<h3>').text('Automatic pushes')
+            $('<h3>').text('Automatic push settings')
           ).append(
             UI.buildUI([
               {
@@ -5289,12 +6049,11 @@ var UI = {
                 type: 'int',
                 min: 0,
                 help: 'How long the delay should be before MistServer retries an automatic push.<br>If set to 0, it does not retry.',
-                'default': 0,
+                'default': 3,
                 pointer: {
                   main: push_settings,
                   index: 'wait'
-                },
-                LTSonly: 1
+                }
               },{
                 label: 'Maximum retries',
                 unit: '/s',
@@ -5305,8 +6064,7 @@ var UI = {
                 pointer: {
                   main: push_settings,
                   index: 'maxspeed'
-                },
-                LTSonly: 1
+                }
               },{
                 type: 'buttons',
                 buttons: [{
@@ -5322,6 +6080,8 @@ var UI = {
                 }]
               }
             ])
+          ).append(
+            $('<h3>').text('Automatic push settings')
           ).append(
             $('<button>').text('Add an automatic push').click(function(){
               UI.navto('Start Push','auto');
@@ -5463,11 +6223,11 @@ var UI = {
         break;
       case 'Start Push':
         
-        if (!('capabilities' in mist.data)) {
+        if (!('capabilities' in mist.data) || !('variable_list' in mist.data) || !('external_writer_list' in mist.data)) {
           $main.append('Loading Mist capabilities..');
           mist.send(function(){
             UI.navto('Start Push',other);
-          },{capabilities:1});
+          },{capabilities:1,variable_list:true,external_writer_list:true});
           return;
         }
         
@@ -5486,23 +6246,46 @@ var UI = {
           }
           
           //retrieve a list of valid targets
-          var target_match = [];
+          //var target_match = [];
+          var file_match = [];
+          var prot_match = [];
           var connector2target_match = {};
+          var writer_protocols = [];
           for (var i in mist.data.capabilities.connectors) {
             var conn = mist.data.capabilities.connectors[i];
             if ('push_urls' in conn) {
-              target_match = target_match.concat(conn.push_urls);
+              //target_match = target_match.concat(conn.push_urls);
               connector2target_match[i] = conn.push_urls;
+              for (var j in conn.push_urls) {
+                if (conn.push_urls[j][0] == "/") {
+                  file_match.push(conn.push_urls[j]);
+                }
+                else {
+                  prot_match.push(conn.push_urls[j]);
+                }
+              }
             }
           }
+          if (mist.data.external_writer_list) {
+            for (var i in mist.data.external_writer_list) {
+              var writer = mist.data.external_writer_list[i];
+              if (writer.length >= 3) {
+                for (var j in writer[2]) {
+                  writer_protocols.push(writer[2][j]+"://");
+                }
+              }
+            }
+          }
+          file_match.sort();
+          prot_match.sort();
           
           if (other == 'auto') {
             $main.find('h2').text('Add automatic push');
           }
           
-          //FOR NOW, ASSUME PROTOCOL SETTINGS BUILDSETTINGS ARE USED
           
           var saveas = {params:{}};
+          var params = []; //will contain all target url params as an array
           if ((other == "auto") && (typeof edit != "undefined")) {
             saveas = {
               "stream": edit[0],
@@ -5521,22 +6304,163 @@ var UI = {
               }
             }
             
-            /*
-            if (edit.length >= 3) { saveas.scheduletime = edit[2]; }
-            if (edit.length >= 4) { saveas.completetime = edit[3]; }
-            if (saveas.target.indexOf("recstartunix=") > -1) {
-              
-              //retrieve recstartunix param value
-              var t = saveas.target.split("recstartunix=")[1];
-              saveas.recstartunix = t.split("&")[0];
-              
-              //remove param from target
-              saveas.target = saveas.target.replace("recstartunix="+saveas.recstartunix,"").replace("?&","?").replace("&&","&");
-              if (saveas.target[saveas.target.length-1] == "?") { saveas.target = saveas.target.slice(0,-1); }
-              
-            }*/
+            if (edit.length >= 3) { saveas.scheduletime = edit[2] != 0 ? edit[2] : null; }
+            if (edit.length >= 4) { saveas.completetime = edit[3] != 0 ? edit[3] : null; }
+            if (edit.length >= 5) { saveas.startVariableName     = edit[4] != '' ? edit[4] : null; }
+            if (edit.length >= 6) { saveas.startVariableOperator = edit[5] != '' ? edit[5] : null; }
+            if (edit.length >= 7) { saveas.startVariableValue    = edit[6] != '' ? edit[6] : null; }
+            if (edit.length >= 8) { saveas.endVariableName       = edit[7] != '' ? edit[7] : null; }
+            if (edit.length >= 9) { saveas.endVariableOperator   = edit[8] != '' ? edit[8] : null; }
+            if (edit.length >= 10){ saveas.endVariableValue      = edit[9] != '' ? edit[9] : null; }
+
           }
           var $additional_params = $("<div>").css("margin","1em 0");
+          var $autopush = $("<div>");
+          var push_parameters;
+          if (other == "auto") {
+            $autopush.css("margin","1em 0").html(UI.buildUI([{
+              label: "This push should be active",
+              help: "When 'based on server time' is selected, a start and/or end timestamp can be configured. When it's 'based on a variable', the push will be activated while the specified variable matches the specified value.",
+              type: "select",
+              select: [["time","Based on server time"],["variable","Based on a variable"]],
+              value: (saveas.startVariableName || saveas.endVariableName ? "variable" : "time"),
+              classes: ["activewhen"],
+              "function": function(){
+                var $varbased = $autopush.find(".varbased").closest(".UIelement");
+                var $timebased = $autopush.find(".timebased").closest(".UIelement");
+
+                if ($(this).getval() == "time") {
+                  $varbased.hide();
+                  $timebased.css("display","");
+                }
+                else {
+                  $timebased.hide();
+                  $varbased.css("display","");
+                  $autopush.find("[name=\"startVariableOperator\"]").trigger("change");
+                  $autopush.find("[name=\"endVariableOperator\"]").trigger("change");
+                }
+              }
+            },
+            $("<br>"),
+            $("<span>").addClass("UIelement").append(
+              $("<h3>").text("Start the push").addClass("varbased")
+            ),{
+              classes: ["varbased"],
+              label: "Use this variable",
+              type: "str",
+              help: "This variable should be used to determine if this push should be started.",
+              prefix: "$",
+              datalist: Object.keys(mist.data.variable_list || []),
+              pointer: { main: saveas, index: "startVariableName" }
+            },{
+              classes: ["varbased"],
+              label: "Comparison operator",
+              type: "select",
+              select: [
+                [0,"is true"],
+                [1,"is false"],
+                [2,"=="],
+                [3,"!="],
+                [10,">  (numerical)"],
+                [11,">= (numerical)"],
+                [12,"<  (numerical)"],
+                [13,"<= (numerical)"],
+                [20,">  (lexical)"],
+                [21,">= (lexical)"],
+                [22,"<  (lexical)"],
+                [23,"<= (lexical)"]
+              ],
+              value: 2,
+              css: {display:"none"},
+              help: "How would you like to compare this variable?",
+              pointer: { main: saveas, index: "startVariableOperator" },
+              "function": function(){
+                var $varvalue = $autopush.find("[name=\"startVariableValue\"]").closest(".UIelement");
+                if (Number($(this).getval()) < 2) {
+                  $varvalue.hide();
+                }
+                else {
+                  $varvalue.css("display","");
+                }
+              }
+            },{
+              classes: ["varbased"],
+              label: "Variable value",
+              type: "str",
+              help: "The variable will be compared with this value to determine if this push should be started.<br>You can also enter another variable here!",
+              datalist: Object.values(mist.data.variable_list || []).map(function(a){return typeof a == "string" ? a : a[3]}).concat(Object.keys(mist.data.variable_list || []).map(function(a){ return "$"+a; })),
+              pointer: { main: saveas, index: "startVariableValue" }
+            },
+              $("<span>").addClass("UIelement").append(
+              $("<h3>").text("Stop the push").addClass("varbased")
+            ),{
+              classes: ["varbased"],
+              label: "Use this variable",
+              type: "str",
+              help: "This variable should be used to determine if this push should be stopped.<br>You can leave this field blank if you do not want to have a stop condition. (You can always stop the push manually)",
+              prefix: "$",
+              datalist: Object.keys(mist.data.variable_list || []),
+              pointer: { main: saveas, index: "endVariableName" }
+            },{
+              classes: ["varbased"],
+              label: "Comparison operator",
+              type: "select",
+              select: [
+                [0,"is true"],
+                [1,"is false"],
+                [2,"=="],
+                [3,"!="],
+                [10,">  (numerical)"],
+                [11,">= (numerical)"],
+                [12,"<  (numerical)"],
+                [13,"<= (numerical)"],
+                [20,">  (lexical)"],
+                [21,">= (lexical)"],
+                [22,"<  (lexical)"],
+                [23,"<= (lexical)"]
+              ],
+              value: 2,
+              help: "How would you like to compare this variable?",
+              pointer: { main: saveas, index: "endVariableOperator" },
+              "function": function(){
+                var $varvalue = $autopush.find("[name=\"endVariableValue\"]").closest(".UIelement");
+                if (Number($(this).getval()) < 2) {
+                  $varvalue.hide();
+                }
+                else {
+                  $varvalue.css("display","");
+                }
+              }
+            },{
+              classes: ["varbased"],
+              label: "Variable value",
+              type: "str",
+              help: "The variable will be compared with this value to determine if this push should be stopped.<br>You can also enter another variable here!",
+              datalist: Object.values(mist.data.variable_list || []).map(function(a){return typeof a == "string" ? a : a[3]}).concat(Object.keys(mist.data.variable_list || []).map(function(a){ return "$"+a; })),
+              pointer: { main: saveas, index: "endVariableValue" }
+            },{
+              classes: ["timebased"],
+              type: "unix",
+              label: "Start time",
+              min: 0,
+              help: "The time where the push will become active. The default is to start immediately.",
+              pointer: {
+                main: saveas,
+                index: "scheduletime"
+              }
+            },{
+              classes: ["timebased"],
+              type: "unix",
+              label: "End time",
+              min: 0,
+              help: "The time where the push will stop. Defaults to never stop automatically.<br>Only makes sense for live streams.",
+              pointer: {
+                main: saveas,
+                index: "completetime"
+              }
+            }],saveas));
+            $autopush.find(".activewhen").trigger("change");
+          }
           var build = [{
             label: 'Stream name',
             type: 'str',
@@ -5562,16 +6486,20 @@ var UI = {
                 "break": false
               };
             }],
-            datalist: allthestreams,
-            LTSonly: 1
+            datalist: allthestreams
           },{
             label: 'Target',
             type: 'str',
             help: 'Where the stream will be pushed to.<br>\
-                  Valid formats:\
+                  Valid push formats:\
                   <ul>\
-                    <li>'+target_match.join('</li><li>')+'</li>\
+                    <li>'+prot_match.join('</li><li>')+'</li>\
                   </ul>\
+                  Valid file formats:\
+                   <ul>\
+                    <li>'+file_match.join('</li><li>')+'</li>\
+                  </ul>\
+                  '+(writer_protocols.length ? 'Additionally, the following protocols (from generic writers) may be used in combination with any of the above file formats:<ul><li>'+writer_protocols.join("</li><li>")+'</li></ul>' : "")+'\
                   Valid text replacements:\
                   <ul>\
                     <li>$stream - inserts the stream name used to push to MistServer</li>\
@@ -5580,37 +6508,58 @@ var UI = {
                     <li>$minute - inserts the minute timestamp the stream was received</li>\
                     <li>$seconds - inserts the seconds timestamp when the stream was received</li>\
                     <li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>\
-                  </ul>\
-                  Valid URL parameters:\
-                  <ul>\
-                    <li>recstart=123 - media timestamp in milisseconds where the push should start</li>\
-                    <li>recstop=456 - media timestamp in miliseconds where the push should stop</li>\
-                    <li>recstartunix=150000000 - unix time in seconds where the push should start. This will override the recstart parameter.</li>\
-                    <li>recstopunix=150000000 - unix time in seconds where the push should stop. This will override the recstop parameter.</li>\
                   </ul>',
             pointer: {
               main: saveas,
               index: 'target'
             },
             validate: ['required',function(val,me){
-              for (var i in target_match) {
-                if (mist.inputMatch(target_match[i],val)) {
+              for (var i in prot_match) {
+                if (mist.inputMatch(prot_match[i],val)) {
                   return false;
                 }
               }
+              for (var i in file_match) {
+                if (mist.inputMatch(file_match[i],val)) {
+                  return false;
+                }
+                for (var j in writer_protocols) {
+                  if (mist.inputMatch(writer_protocols[j]+file_match[i].slice(1),val)) {
+                    return false;
+                  }
+                }
+              }
+
               return {
-                msg: 'Does not match a valid target.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
+                msg: 'Does not match a valid target.<br>Valid push formats:\
+                  <ul>\
+                    <li>'+prot_match.join('</li><li>')+'</li>\
+                  </ul>\
+                  Valid file formats:\
+                   <ul>\
+                    <li>'+file_match.join('</li><li>')+'</li>\
+                  </ul>\
+                  '+(writer_protocols.length ? 'Additionally, the following protocols may be used in combination with any of the above file formats:<ul><li>'+writer_protocols.join("</li><li>")+'</li></ul>' : ""),
                 classes: ['red']
               }
             }],
             "function": function(){
               //find what kind of target this is
               var match = false;
+              var val = $(this).getval();
               for (connector in connector2target_match) {
                 for (var i in connector2target_match[connector]) {
-                  if (mist.inputMatch(connector2target_match[connector][i],$(this).getval())) {
+                  if (mist.inputMatch(connector2target_match[connector][i],val)) {
                     match = connector;
                     break;
+                  }
+                  if (connector2target_match[connector][i][0] == "/") {
+                    for (var j in writer_protocols) {
+                      if (mist.inputMatch(writer_protocols[j]+connector2target_match[connector][i].slice(1),val)) {
+                        match = connector;
+                        break;
+                      }
+                    }
                   }
                 }
               }
@@ -5622,15 +6571,56 @@ var UI = {
                 );
                 return;
               }
-              $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly));
+              $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
+              push_parameters = {};
+              //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
+              for (var i in mist.data.capabilities.connectors[match].push_parameters) {
+                var param = mist.data.capabilities.connectors[match].push_parameters[i];
+                if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { continue; }
+                if (param.file_only && (val[0] != "/")) { continue; }
+                push_parameters[i] = param;
+              }
+
               var capa = {
-                desc: mist.data.capabilities.connectors[match].desc,
-                optional: mist.data.capabilities.connectors[match].push_parameters
+                desc: mist.data.capabilities.connectors[match].desc.replace("over HTTP",""),
+                optional: push_parameters,
+                sort: "sort"
               };
-              $additional_params.append(UI.buildUI(mist.convertBuildOptions(capa,saveas.params)));
-            },
-            LTSonly: 1
-          },$additional_params];
+              var capaform = mist.convertBuildOptions(capa,saveas.params);
+
+              //find left over url params that are not covered by this connector's capabilities
+              var custom_params = [];
+              for (var i in params) {
+                var p = params[i].split("=");
+                var name = p[0];
+                if (!(name in push_parameters)) {
+                  custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
+                }
+              }
+              
+              capaform.push($("<br>"));
+              capaform.push({
+                type: "inputlist",
+                label: "Custom url parameters",
+                value: custom_params,
+                classes: ["custom_url_parameters"],
+                input: {
+                  type: "str",
+                  placeholder: "name=value",
+                  prefix: ""
+                },
+                help: "Any custom url parameters not covered by the parameters configurable above.",
+                pointer: {
+                  main: saveas,
+                  index: "custom_url_params"
+                }
+              });
+
+              $additional_params.append(UI.buildUI(capaform)); 
+            }
+          },
+          $autopush,
+          $additional_params];
           
           
           
@@ -5679,22 +6669,49 @@ var UI = {
             },{
               type: 'save',
               label: 'Save',
+              preSave: function(){
+                //is executed before the variables are saved
+                
+                //clean the object of old settings that may not be part of the current form 
+                delete saveas.startVariableName;
+                delete saveas.startVariableOperator;
+                delete saveas.startVariableValue;
+                delete saveas.endVariableName;
+                delete saveas.endVariableOperator;
+                delete saveas.endVariableValue;
+                delete saveas.completetime;
+                delete saveas.scheduletime;
+              },
               'function': function(){
                 var params = saveas.params;
                 for (var i in params) {
                   if (params[i] === null) {
+                    //remove any params that are set to null
+                    delete params[i];
+                  }
+                  else if (!(i in push_parameters)) {
+                    //remove any params that are not supported by this protocol (they will have been duplicatec to saveas.custom_url_parameters if the user wanted to keep them)
                     delete params[i];
                   }
                 }
-                /*if (saveas.recstartunix) {
-                  //append recstartunix to target
-                  params["recstartunix"] = "recstartunix="+saveas.recstartunix;
+                if (saveas.startVariableName || saveas.endVariableName) {
+                  saveas.scheduletime = 0;
+                  saveas.completetime = 0;
                 }
-                else if (saveas.scheduletime) {
-                  params["recstartunix"] = "recstartunix="+saveas.scheduletime;
+                if (saveas.startVariableName === null) {
+                  delete saveas.startVariableName;
+                  delete saveas.startVariableOperator;
+                  delete saveas.startVariableValue;
                 }
-                delete saveas.recstartunix;*/
-                if (Object.keys(params).length) {
+                if (saveas.endVariableName === null) {
+                  delete saveas.endVariableName;
+                  delete saveas.endVariableOperator;
+                  delete saveas.endVariableValue;
+                }
+                if (saveas.scheduletime) {
+                  params["recstartunix"] = saveas.scheduletime;
+                }
+                if (Object.keys(params).length || (saveas.custom_url_params && saveas.custom_url_params.length)) {
                   var append = "?";
                   var curparams = saveas.target.split("?");
                   if (curparams.length > 1) {
@@ -5706,15 +6723,20 @@ var UI = {
                       if (key in params) { delete params[key]; }
                     }
                   }
-                  if (Object.keys(params).length) {
+                  if (Object.keys(params).length || (saveas.custom_url_params && saveas.custom_url_params.length)) {
                     var str = [];
                     for (var i in params) {
                       str.push(i+"="+params[i]);
+                    }
+                    for (var i in saveas.custom_url_params) {
+                      str.push(saveas.custom_url_params[i]);
                     }
                     append += str.join("&");
                     saveas.target += append;
                   }
                 }
+                delete saveas.params; //these are now part of the target url and we don't need them seperately
+                delete saveas.custom_url_params;
                 
                 var obj = {};
                 obj[(other == 'auto' ? 'push_auto_add' : 'push_start')] = saveas;
@@ -5872,7 +6894,7 @@ var UI = {
         }
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
-            UI.navto(tab);
+            UI.navto(tab,other);
           },{capabilities: true});
           $main.append('Loading..');
           return;
@@ -5915,7 +6937,6 @@ var UI = {
           help: 'For what event this trigger should activate.',
           type: 'select',
           select: triggerSelect,
-          LTSonly: true,
           validate: ['required'],
           'function': function(){
             var v = $(this).getval();
@@ -5998,8 +7019,7 @@ var UI = {
           },
           help: 'For triggers that can apply to specific streams, this value decides what streams they are triggered for. (none checked = always triggered)',
           type: 'checklist',
-          checklist: Object.keys(mist.data.streams),
-          LTSonly: true
+          checklist: Object.keys(mist.data.streams)
         },$('<br>'),{
           label: 'Handler (URL or executable)',
           help: 'This can be either an HTTP URL or a full path to an executable.',
@@ -6008,8 +7028,7 @@ var UI = {
             index: 'url'
           },
           validate: ['required'],
-          type: 'str',
-          LTSonly: true
+          type: 'str'
         },{
           label: 'Blocking',
           type: 'checkbox',
@@ -6017,8 +7036,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'async'
-          },
-          LTSonly: true
+          }
         },{
           label: 'Parameters',
           type: 'str',
@@ -6026,8 +7044,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'params'
-          },
-          LTSonly: true
+          }
         },{
           label: 'Default response',
           type: 'str',
@@ -6036,8 +7053,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'default'
-          },
-          LTSonly: true
+          }
         },{
           type: 'buttons',
           buttons: [
@@ -6719,7 +7735,7 @@ var mist = {
             
             //remove everything we don't care about
             var save = $.extend({},d);
-            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth']; //streams was already copied above
+            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth','variable_list','external_writer_list']; //streams was already copied above
             for (var i in save) {
               if (keep.indexOf(i) == -1) {
                 delete save[i];
@@ -6736,8 +7752,6 @@ var mist = {
             UI.elements.connection.user_and_host.text(mist.user.name+' @ '+mist.user.host);
             UI.elements.connection.msg.removeClass('red').text('Last communication with the server at '+UI.format.time((new Date).getTime()/1000));
             
-            //if this is LTS, get rid of the banner on menu buttons
-            if (d.LTS) { UI.elements.menu.find('.LTSonly').removeClass('LTSonly'); }
             
             if (d.log) {
               var lastlog = d.log[d.log.length-1];
@@ -6983,11 +7997,6 @@ var mist = {
             if ("max" in ele) { obj.max = ele.max; }
             if ("min" in ele) { obj.min = Math.max(obj.min,ele.min); }
             break;
-          case 'json':
-          case 'debug':
-          case 'inputlist':
-            obj.type = ele.type;
-            break;
           case 'radioselect':
             obj.type = 'radioselect';
             obj.radioselect = ele.radioselect;
@@ -7008,13 +8017,42 @@ var mist = {
             obj.sublist = mist.convertBuildOptions(ele,obj.saveas);
             break;
           }
-          case 'str':
+          case 'bool': {
+            obj.type = 'checkbox';
+            break;
+          }
+          case 'unixtime': {
+            obj.type = 'unix';
+            break;
+          }
+          case 'json':
+          case 'debug':
+          case 'inputlist': {
+            obj.type = ele.type;
+            break;
+          }
           default:
             obj.type = 'str';
         }
       }
       else {
         obj.type = "checkbox";
+      }
+      if ("format" in ele) {
+        switch (ele.format) {
+          case "set_or_unset": {
+            //whatever is set as 'postSave' will be called by the save button after validation and after the value has been saved to whatever is set as the pointer
+            obj['postSave'] = function(){
+              //if the value evaluates to false, remove it from the parent object
+              var pointer = $(this).data('pointer');
+              if (!pointer.main[pointer.index]) {
+                delete pointer.main[pointer.index];
+              }
+            };
+
+            break;
+          }
+        }
       }
       if ("influences" in ele) {
         obj["function"] = function(){
@@ -7041,6 +8079,24 @@ var mist = {
           });
         };
       }
+      else if ("disable" in ele) {
+        obj["function"] = function(){
+          var $cont = $(this).closest(".input_container");
+          var val = $(this).getval();
+          for (var i = 0; i < ele.disable.length; i++) {
+            var dependent = ele.disable[i];
+            var $dependency = $cont.find(".field[name=\""+dependent+"\"]").closest(".UIelement");
+            if ($dependency.length) {
+              if (val == "") {
+                $dependency[0].style.display = "";
+              }
+              else {
+                $dependency.hide();
+              }
+            }
+          }
+        };
+      } 
       if ("dependent" in ele) {
         obj.dependent = ele.dependent;
       }
@@ -7049,6 +8105,12 @@ var mist = {
       }
       if ("validate" in ele) {
         obj.validate = obj.validate.concat(ele.validate);
+        if (ele.validate.indexOf("track_selector_parameter") > -1) {
+          obj.help = "<div>"+ele.help+"</div>"+"<p>Track selector parameters consist of a string value which may be any of the following:</p> <ul><li><code>selector,selector</code>: Selects the union of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,!selector</code>: Selects the difference of the given selectors. Specifically, all tracks part of the first selector that are not part of the second selector. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,|selector</code>: Selects the intersection of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>none</code> or <code>-1</code>: Selects no tracks of this type.</li> <li><code>all</code> or <code>*</code>: Selects all tracks of this type.</li> <li>Any positive integer: Select this specific track ID. Does not apply if the given track ID does not exist or is of the wrong type. <strong>Does</strong> apply if the given track ID is incompatible with the currently active protocol or container format.</li> <li>ISO 639-1/639-3 language code: Select all tracks marked as the given language. Case insensitive.</li> <li>Codec string (e.g. <code>h264</code>): Select all tracks of the given codec. Case insensitive.</li> <li><code>highbps</code>, <code>maxbps</code> or <code>bestbps</code>: Select the track of this type with the highest bit rate.</li> <li><code>lowbps</code>, <code>minbps</code> or <code>worstbps</code>: Select the track of this type with the lowest bit rate.</li> <li><code>Xbps</code> or <code>Xkbps</code> or <code>Xmbps</code>: Select the single of this type which has a bit rate closest to the given number X. This number is in bits, not bytes.</li> <li><code>&gt;Xbps</code> or <code>&gt;Xkbps</code> or <code>&gt;Xmbps</code>: Select all tracks of this type which have a bit rate greater than the given number X. This number is in bits, not bytes.</li> <li><code>&lt;Xbps</code> or <code>&lt;Xkbps</code> or <code>&lt;Xmbps</code>: Select all tracks of this type which have a bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>max&lt;Xbps</code> or <code>max&lt;Xkbps</code> or <code>max&lt;Xmbps</code>: Select the one track of this type which has the highest bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>highres</code>, <code>maxres</code> or <code>bestres</code>: Select the track of this type with the highest pixel surface area. Only applied when the track type is video.</li> <li><code>lowres</code>, <code>minres</code> or <code>worstres</code>: Select the track of this type with the lowest pixel surface area. Only applied when the track type is video.</li> <li><code>XxY</code>: Select all tracks of this type with the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>~XxY</code>: Select the single track of this type closest to the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>&gt;XxY</code>: Select all tracks of this type with a pixel surface area greater than X by Y pixels. Only applied when the track type is video.</li> <li><code>&lt;XxY</code>: Select all tracks of this type with a pixel surface area less than X by Y pixels. Only applied when the track type is video.</li> <li><code>720p</code>, <code>1080p</code>, <code>1440p</code>, <code>2k</code>, <code>4k</code>, <code>5k</code>, or <code>8k</code>: Select all tracks of this type with the given pixel surface area. Only applied when the track type is video.</li> <li><code>surround</code>, <code>mono</code>, <code>stereo</code>, <code>Xch</code>: Select all tracks of this type with the given channel count. The 'Xch' variant can use any positive integer for 'X'. Only applied when the track type is audio.</li></ul>";
+        }
+        if (ele.validate.indexOf("track_selector") > -1) {
+          obj.help = "<div>"+ele.help+"</div>"+"<p>A track selector is at least one track type (audio, video or subtitle) combined with a track selector parameter. For example: <code>audio=none&video=maxres</code>.<p>Track selector parameters consist of a string value which may be any of the following:</p> <ul><li><code>selector,selector</code>: Selects the union of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,!selector</code>: Selects the difference of the given selectors. Specifically, all tracks part of the first selector that are not part of the second selector. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,|selector</code>: Selects the intersection of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>none</code> or <code>-1</code>: Selects no tracks of this type.</li> <li><code>all</code> or <code>*</code>: Selects all tracks of this type.</li> <li>Any positive integer: Select this specific track ID. Does not apply if the given track ID does not exist or is of the wrong type. <strong>Does</strong> apply if the given track ID is incompatible with the currently active protocol or container format.</li> <li>ISO 639-1/639-3 language code: Select all tracks marked as the given language. Case insensitive.</li> <li>Codec string (e.g. <code>h264</code>): Select all tracks of the given codec. Case insensitive.</li> <li><code>highbps</code>, <code>maxbps</code> or <code>bestbps</code>: Select the track of this type with the highest bit rate.</li> <li><code>lowbps</code>, <code>minbps</code> or <code>worstbps</code>: Select the track of this type with the lowest bit rate.</li> <li><code>Xbps</code> or <code>Xkbps</code> or <code>Xmbps</code>: Select the single of this type which has a bit rate closest to the given number X. This number is in bits, not bytes.</li> <li><code>&gt;Xbps</code> or <code>&gt;Xkbps</code> or <code>&gt;Xmbps</code>: Select all tracks of this type which have a bit rate greater than the given number X. This number is in bits, not bytes.</li> <li><code>&lt;Xbps</code> or <code>&lt;Xkbps</code> or <code>&lt;Xmbps</code>: Select all tracks of this type which have a bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>max&lt;Xbps</code> or <code>max&lt;Xkbps</code> or <code>max&lt;Xmbps</code>: Select the one track of this type which has the highest bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>highres</code>, <code>maxres</code> or <code>bestres</code>: Select the track of this type with the highest pixel surface area. Only applied when the track type is video.</li> <li><code>lowres</code>, <code>minres</code> or <code>worstres</code>: Select the track of this type with the lowest pixel surface area. Only applied when the track type is video.</li> <li><code>XxY</code>: Select all tracks of this type with the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>~XxY</code>: Select the single track of this type closest to the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>&gt;XxY</code>: Select all tracks of this type with a pixel surface area greater than X by Y pixels. Only applied when the track type is video.</li> <li><code>&lt;XxY</code>: Select all tracks of this type with a pixel surface area less than X by Y pixels. Only applied when the track type is video.</li> <li><code>720p</code>, <code>1080p</code>, <code>1440p</code>, <code>2k</code>, <code>4k</code>, <code>5k</code>, or <code>8k</code>: Select all tracks of this type with the given pixel surface area. Only applied when the track type is video.</li> <li><code>surround</code>, <code>mono</code>, <code>stereo</code>, <code>Xch</code>: Select all tracks of this type with the given channel count. The 'Xch' variant can use any positive integer for 'X'. Only applied when the track type is audio.</li></ul>";
+        }
       }
       
       return obj;
@@ -7170,9 +8232,9 @@ $.fn.getval = function(){
         break;
       case "inputlist":
         val = [];
-        $(this).children().each(function(){
-          if ($(this).val() != "") {
-            val.push($(this).val());
+        $(this).find(".field").each(function(){
+          if ($(this).getval() != "") {
+            val.push($(this).getval());
           }
         });
         break;
@@ -7187,6 +8249,15 @@ $.fn.getval = function(){
           val = null;
         }
         break;
+      case "bitmask": {
+        val = 0;
+        $(this).find("input").each(function(){
+          if ($(this).prop("checked")) {
+            val += Number($(this).val());
+          }
+        });
+        break;
+      }
     }
   }
   return val;
@@ -7232,7 +8303,7 @@ $.fn.setval = function(val){
         }
         break;
       case "unix":
-        if (typeof val != "undefined") {
+        if ((typeof val != "undefined") && (val != "") && (val !== null)) {
           var datetime = new Date(Math.round(val) * 1e3);
           datetime.setMinutes(datetime.getMinutes() - datetime.getTimezoneOffset()); //correct for the browser being a pain and converting to UTC
           datetime = datetime.toISOString();
@@ -7268,9 +8339,9 @@ $.fn.setval = function(val){
       case "inputlist":
         if (typeof val == "string") { val = [val]; }
         for (var i in val) {
-          $(this).append(
-            $(this).data("newitem")().val(val[i])
-          );
+          var $newitem = $(this).data("newitem")();
+          $newitem.find(".field").setval(val[i]);
+          $(this).append($newitem);
         }
         $(this).append($(this).children().first()); //put empty input last
         break;
@@ -7333,6 +8404,21 @@ $.fn.setval = function(val){
         break;
       case "json": {
         $(this).val(val === null ? "" : JSON.stringify(val,null,2));
+        break;
+      }
+      case "bitmask": {
+        var map = $(this).data("opts").bitmask;
+        var $inputs = $(this).find("input");
+        for (var i in map) {
+          $el = $inputs.eq(i);
+          if ((val & map[i][0]) == map[i][0]) {
+            $el.attr("checked","checked");
+          }
+          else {
+            $el.removeAttr("checked");
+          }
+        }
+        break;
       }
     }
   }

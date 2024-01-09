@@ -1,0 +1,8 @@
+[wrap-git]
+directory = librist
+url = https://code.videolan.org/rist/librist.git
+revision = v0.2.7
+
+[provide]
+dependency_names = librist
+

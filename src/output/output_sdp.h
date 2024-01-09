@@ -16,6 +16,8 @@ namespace Mist{
     void sendNext();
     void sendHeader();
     bool onFinish();
+    std::string getConnectedHost();
+    std::string getConnectedBinHost();
 
   private:
     void initTracks(uint32_t & port, std::string targetIP);

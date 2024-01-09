@@ -18,8 +18,9 @@ int main(int argc, char **argv){
   HTTP::URL url(argv[1]);
   if (d.get(url, 10, callback)){
     std::cerr << "Download success!" << std::endl;
-  }else{
-    std::cerr << "Download fail!" << std::endl;
+    return 0;
   }
-  return 0;
+  std::cerr << "Download fail!" << std::endl;
+  return 1;
 }
+

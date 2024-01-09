@@ -33,27 +33,17 @@ mistplayers.html5 = {
     
     try {
       shortmime = shortmime.join("/");
-      
-      function test(mime) {
-        var v = document.createElement("video");
-        if ((v) && (v.canPlayType(mime) != "")) {
-          support = v.canPlayType(mime);
-        }
-        return support;
-      }
-      
+      //works for mp4 but not for webm
       function translateCodec(track) {
-
+        if (track.codecstring){return track.codecstring;}
         function bin2hex(index) {
           return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
         }
-
         switch (track.codec) {
           case "AAC":
             return "mp4a.40.2";
           case "MP3":
-            return "mp3";
-            //return "mp4a.40.34";
+            return "mp4a.40.34";
           case "AC3":
             return "ec-3";
           case "H264":
@@ -63,43 +53,64 @@ mistplayers.html5 = {
           default:
             return track.codec.toLowerCase();
         }
-
       }
+
       var codecs = {};
+      var playabletracks = {};
+      var hassubtitles = false;
       for (var i in MistVideo.info.meta.tracks) {
         if (MistVideo.info.meta.tracks[i].type != "meta") {
-          codecs[translateCodec(MistVideo.info.meta.tracks[i])] = 1;
+          codecs[translateCodec(MistVideo.info.meta.tracks[i])] = MistVideo.info.meta.tracks[i];
         }
+        else if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
       }
-      codecs = MistUtil.object.keys(codecs);
+      var container = mimetype.split("/")[2];
 
-      if (shortmime == "video/mp4") {
-        if (codecs.length) {
-          if (codecs.length > source.simul_tracks) {
-            //not all of the tracks have to work
-            var working = 0;
-            for (var i in codecs) {
-              var s = test(shortmime+";codecs=\""+codecs[i]+"\"");
-              if (s) {
-                working++;
-              }
-            }
-            return (working >= source.simul_tracks);
-          }
-          return test(shortmime+";codecs=\""+codecs.join(",")+"\"");
+      source.supportedCodecs = [];
+      for (var i in codecs) {
+        //i is the long name (like mp4a.40.2), codecs[i] is the track meta, codecs[i].codec is the short name (like AAC)
+        var s = test(i);
+        if (s) {
+          source.supportedCodecs.push(codecs[i].codec);
+          playabletracks[codecs[i].type] = 1;
         }
       }
-      else {
-        //if there's a h265 track, remove it from the list of codecs
-        for (var i = codecs.length-1; i >= 0; i--) {
-          if (codecs[i].substr(0,4) == "hev1") {
-            codecs.splice(i,1);
+      function test(codecs) {
+        var v = document.createElement("video");
+        if ((v) && (typeof v.canPlayType == "function")) {
+          var result;
+          switch (shortmime) {
+            case "video/webm": {
+              //if codecs are included here, at least chrome reports it as not working, even though it does. So we'll just assume it will play if webm returns maybe.
+              result = v.canPlayType(shortmime);
+              break;
+            }
+            case "video/mp4":
+            case "html5/application/vnd.apple.mpegurl":
+            default: {
+              result = v.canPlayType(shortmime+";codecs=\""+codecs+"\"");
+              break;
+            }
+          }
+          if (result != "") {
+            return result;
           }
         }
-        if (codecs.length < source.simul_tracks) { return false; } //if there's no longer enough playable tracks, skip this player
+        return false;
+      }
+
+
+      if (hassubtitles) {
+        //there is a subtitle track, check if there is a webvtt source
+        for (var i in MistVideo.info.source) {
+          if (MistVideo.info.source[i].type == "html5/text/vtt") {
+            playabletracks.subtitle = 1;
+            break;
+          }
+        }
       }
       
-      support = test(shortmime);
+      support = MistUtil.object.keys(playabletracks);
     } catch(e){}
     return support;
   },

@@ -799,6 +799,70 @@ namespace MP4{
     return r.str();
   }
 
+
+  AV1C::AV1C(){
+    memcpy(data + 4, "av1C", 4);
+    setInt8(0b10000001, 0); // Marker 1, version 1: 0b10000001
+  }
+
+  std::string AV1C::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[av1C] AV1 Init Data (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "Marker: " << (int)((getInt8(0) & 0b10000000) >> 7) << std::endl;
+    r << std::string(indent + 1, ' ') << "Version: " << (int)(getInt8(0) & 0b01111111) << std::endl;
+    r << std::string(indent + 1, ' ') << "Profile: " << (int)((getInt8(1) & 0b11100000) >> 5) << std::endl;
+    r << std::string(indent + 1, ' ') << "Level: " << (int)(getInt8(1) & 0b00011111) << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Tier: " << (int)((getInt8(2) & 0b10000000) >> 7) << std::endl;
+
+
+    r << std::string(indent + 1, ' ') << "Bit depth: ";
+    switch ((getInt8(2) & 0b01100000)){
+      case 0b00000000: r << "8"; break;
+      case 0b01000000: r << "10"; break;
+      case 0b01100000: r << "12"; break;
+      case 0b00100000: r << "Unknown"; break;
+    }
+    r << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Subsampling format: ";
+    switch ((getInt8(2) & 0b00011100)){
+      case 0b00000000: r << "YUV 4:4:4"; break;
+      case 0b00001000: r << "YUV 4:2:2"; break;
+      case 0b00001100: r << "YUV 4:2:0"; break;
+      case 0b00011100: r << "Monochrome 4:0:0"; break;
+      default: r << "Unknown";
+    }
+    r << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Subsampling position: ";
+    switch ((getInt8(2) & 0b00000011)){
+      case 0: r << "Unknown"; break;
+      case 1: r << "Vertical"; break;
+      case 2: r << "Co-located"; break;
+      case 3: r << "Reserved"; break;
+    }
+    r << std::endl;
+
+    if (getInt8(3) & 0b00010000){
+      r << std::string(indent + 1, ' ') << "Initial presentation delay: " << (int)(getInt8(3) & 0b00001111) + 1 << std::endl;
+    }else{
+      r << std::string(indent + 1, ' ') << "Initial presentation delay: 0" << std::endl;
+    }
+
+    r << std::string(indent + 1, ' ') << (payloadSize() - 4) << "b of OBU initialization data" << std::endl;
+
+    return r.str();
+  }
+
+  void AV1C::setPayload(std::string newPayload){
+    if (!reserve(0, payloadSize(), newPayload.size())){
+      ERROR_MSG("Cannot allocate enough memory for payload");
+      return;
+    }
+    memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
+  }
+
   Descriptor::Descriptor(){
     data = (char *)malloc(2);
     data[0] = 0;
@@ -1318,6 +1382,8 @@ namespace MP4{
 
   DINF::DINF(){memcpy(data + 4, "dinf", 4);}
 
+  WAVE::WAVE(){memcpy(data + 4, "wave", 4);}
+
   MFRA::MFRA(){memcpy(data + 4, "mfra", 4);}
 
   MFRO::MFRO(){memcpy(data + 4, "mfro", 4);}
@@ -1357,7 +1423,11 @@ namespace MP4{
 
   void HDLR::setName(std::string newName){setString(newName, 24);}
 
-  std::string HDLR::getName(){return getString(24);}
+  std::string HDLR::getName(){
+    std::string tmpName = getString(24);
+    if (tmpName[0] == tmpName.size()-1){tmpName.erase(0, 1);}
+    return tmpName;
+  }
 
   std::string HDLR::toPrettyString(uint32_t indent){
     std::stringstream r;
@@ -1598,9 +1668,10 @@ namespace MP4{
     setDuration(duration); // in ms
     setRate(0x00010000);   // playback rate 1.0X
     setVolume(0x0100);     // volume 1.0X
-    setMatrix(0x00010000, 0);
-    setMatrix(0x00010000, 4);
-    setMatrix(0x40000000, 8);
+    //Identity Transformation Matrix
+    setMatrix(1, 0);
+    setMatrix(1, 4);
+    setMatrix(1, 8);
     setTrackID(0xFFFFFFFF); // empty track numbers is unknown
   }
 
@@ -1702,24 +1773,45 @@ namespace MP4{
   // 10 bytes reserved in between
   uint32_t MVHD::getMatrixCount(){return 9;}
 
-  void MVHD::setMatrix(int32_t newMatrix, size_t index){
+  void MVHD::setMatrix(double newMatrix, size_t index){
     int offset = 0;
     if (getVersion() == 0){
       offset = 24 + 2 + 10;
     }else{
       offset = 36 + 2 + 10;
     }
-    setInt32(newMatrix, offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      setInt32((int32_t)(newMatrix * 1073741824.0), offset + index * 4);
+    }else{
+      setInt32((int32_t)(newMatrix * 65536.0), offset + index * 4);
+    }
   }
 
-  int32_t MVHD::getMatrix(size_t index){
+  double MVHD::getMatrix(size_t index){
     int offset = 0;
     if (getVersion() == 0){
       offset = 36;
     }else{
       offset = 48;
     }
-    return getInt32(offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      return (int32_t)getInt32(offset + index * 4) / 1073741824.0;
+    }else{
+      return (int32_t)getInt32(offset + index * 4) / 65536.0;
+    }
+  }
+
+  uint16_t MVHD::getRotation(){
+    //These are oversimplifications that ignore scaling and translation
+    //We also only handle the 90-degree-increment rotations, nothing else
+    //That should cover practically all videos we'll encounter though...
+    if (getMatrix(1) > 0.0 && getMatrix(3) < 0.0){return 90;}
+    if (getMatrix(1) < 0.0 && getMatrix(3) > 0.0){return 270;}
+    if (getMatrix(0) > 0.0 && getMatrix(4) > 0.0){return 0;}
+    if (getMatrix(0) < 0.0 && getMatrix(4) < 0.0){return 180;}
+    return 0; //Unknown rotation, assume none
   }
 
   // 24 bytes of pre-defined in between
@@ -1755,6 +1847,7 @@ namespace MP4{
       if (i != getMatrixCount() - 1){r << ", ";}
     }
     r << std::endl;
+    r << std::string(indent + 1, ' ') << "Rotation (calculated from Matrix): " << getRotation() << std::endl;
     r << std::string(indent + 1, ' ') << "next_track_ID: " << getTrackID() << std::endl;
     return r.str();
   }
@@ -1914,8 +2007,8 @@ namespace MP4{
   TKHD::TKHD(const DTSC::Meta &M, size_t idx){
     initialize();
     setTrackID(idx + 1);
-    setDuration(-1);
-    if (M.getVod()){setDuration(M.getLastms(idx) - M.getFirstms(idx));}
+    setDuration(0);
+    if (!M.getLive()){setDuration(M.getLastms(idx) - M.getFirstms(idx));}
     if (M.getType(idx) == "video"){
       setWidth(M.getWidth(idx));
       setHeight(M.getHeight(idx));
@@ -1931,9 +2024,10 @@ namespace MP4{
     }
     memset(data + payloadOffset, 0, 84); // set all bytes (92 - 8) to zeroes
     setFlags(3);                         // ENABLED | IN_MOVIE
-    setMatrix(0x00010000, 0);
-    setMatrix(0x00010000, 4);
-    setMatrix(0x40000000, 8);
+    //Identity transformation Matrix
+    setMatrix(1, 0);
+    setMatrix(1, 4);
+    setMatrix(1, 8);
     setVolume(0x0100);
   }
 
@@ -2058,7 +2152,12 @@ namespace MP4{
     }else{
       offset = 52;
     }
-    setInt32(newMatrix, offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      setInt32((int32_t)(newMatrix * 1073741824.0), offset + index * 4);
+    }else{
+      setInt32((int32_t)(newMatrix * 65536.0), offset + index * 4);
+    }
   }
 
   int32_t TKHD::getMatrix(size_t index){
@@ -2068,7 +2167,23 @@ namespace MP4{
     }else{
       offset = 52;
     }
-    return getInt32(offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      return (int32_t)getInt32(offset + index * 4) / 1073741824.0;
+    }else{
+      return (int32_t)getInt32(offset + index * 4) / 65536.0;
+    }
+  }
+
+  uint16_t TKHD::getRotation(){
+    //These are oversimplifications that ignore scaling and translation
+    //We also only handle the 90-degree-increment rotations, nothing else
+    //That should cover practically all videos we'll encounter though...
+    if (getMatrix(1) > 0.0 && getMatrix(3) < 0.0){return 90;}
+    if (getMatrix(1) < 0.0 && getMatrix(3) > 0.0){return 270;}
+    if (getMatrix(0) > 0.0 && getMatrix(4) > 0.0){return 0;}
+    if (getMatrix(0) < 0.0 && getMatrix(4) < 0.0){return 180;}
+    return 0; //Unknown rotation, assume none
   }
 
   void TKHD::setWidth(double newWidth){
@@ -2120,6 +2235,7 @@ namespace MP4{
       if (i != getMatrixCount() - 1){r << ", ";}
     }
     r << std::endl;
+    r << std::string(indent + 1, ' ') << "Rotation (calculated from Matrix): " << getRotation() << std::endl;
     r << std::string(indent + 1, ' ') << "Width: " << getWidth() << std::endl;
     r << std::string(indent + 1, ' ') << "Height: " << getHeight() << std::endl;
     return r.str();
@@ -2640,22 +2756,26 @@ namespace MP4{
       avccBox.setPayload(M.getInit(idx));
       setCLAP(avccBox);
     }
-    /*LTS-START*/
     if (tCodec == "HEVC"){
-      setCodec("hev1");
+      setCodec("hvc1");
       MP4::HVCC hvccBox;
       hvccBox.setPayload(M.getInit(idx));
       setCLAP(hvccBox);
     }
-    /*LTS-END*/
+    if (tCodec == "AV1"){
+      setCodec("av01");
+      MP4::AV1C av1cBox;
+      av1cBox.setPayload(M.getInit(idx));
+      setCLAP(av1cBox);
+    }
     MP4::PASP paspBox;
     setPASP(paspBox);
   }
 
   void VisualSampleEntry::initialize(){
     memcpy(data + 4, "erro", 4);
-    setHorizResolution(0x00480000);
-    setVertResolution(0x00480000);
+    setHorizResolution(72);
+    setVertResolution(72);
     setFrameCount(1);
     setCompressorName("");
     setDepth(0x0018);
@@ -2674,17 +2794,17 @@ namespace MP4{
 
   uint16_t VisualSampleEntry::getHeight(){return getInt16(26);}
 
-  void VisualSampleEntry::setHorizResolution(uint32_t newHorizResolution){
-    setInt32(newHorizResolution, 28);
+  void VisualSampleEntry::setHorizResolution(double newHorizResolution){
+    setInt32(newHorizResolution * 65536.0, 28);
   }
 
-  uint32_t VisualSampleEntry::getHorizResolution(){return getInt32(28);}
+  double VisualSampleEntry::getHorizResolution(){return getInt32(28) / 65536.0;}
 
-  void VisualSampleEntry::setVertResolution(uint32_t newVertResolution){
-    setInt32(newVertResolution, 32);
+  void VisualSampleEntry::setVertResolution(double newVertResolution){
+    setInt32(newVertResolution * 65536.0, 32);
   }
 
-  uint32_t VisualSampleEntry::getVertResolution(){return getInt32(32);}
+  double VisualSampleEntry::getVertResolution(){return getInt32(32) / 65536.0;}
 
   void VisualSampleEntry::setFrameCount(uint16_t newFrameCount){setInt16(newFrameCount, 40);}
 
@@ -2695,7 +2815,11 @@ namespace MP4{
     setString(newCompressorName, 42);
   }
 
-  std::string VisualSampleEntry::getCompressorName(){return getString(42);}
+  std::string VisualSampleEntry::getCompressorName(){
+    std::string tmpName = getString(42);
+    if (tmpName[0] == tmpName.size()-1){tmpName.erase(0, 1);}
+    return tmpName;
+  }
 
   void VisualSampleEntry::setDepth(uint16_t newDepth){setInt16(newDepth, 74);}
 
@@ -2734,7 +2858,7 @@ namespace MP4{
     }
     size_t count = 0;
     size_t offset = 78;
-    while (offset < payloadSize()){
+    while (offset <= payloadSize() - 8){
       offset += getBoxLen(offset);
       count++;
     }
@@ -2783,8 +2907,8 @@ namespace MP4{
     r << toPrettySampleString(indent);
     r << std::string(indent + 1, ' ') << "Width: " << getWidth() << std::endl;
     r << std::string(indent + 1, ' ') << "Height: " << getHeight() << std::endl;
-    r << std::string(indent + 1, ' ') << "HorizResolution: " << getHorizResolution() << std::endl;
-    r << std::string(indent + 1, ' ') << "VertResolution: " << getVertResolution() << std::endl;
+    r << std::string(indent + 1, ' ') << "HorizResolution: " << getHorizResolution() << " DPI" << std::endl;
+    r << std::string(indent + 1, ' ') << "VertResolution: " << getVertResolution() << " DPI" << std::endl;
     r << std::string(indent + 1, ' ') << "FrameCount: " << getFrameCount() << std::endl;
     r << std::string(indent + 1, ' ') << "CompressorName: " << getCompressorName() << std::endl;
     r << std::string(indent + 1, ' ') << "Depth: " << getDepth() << std::endl;
@@ -2839,6 +2963,8 @@ namespace MP4{
     return result;
   }
 
+  uint16_t AudioSampleEntry::getVersion() const{return getInt16(8);}
+
   void AudioSampleEntry::setCodec(const char *newCodec){memcpy(data + 4, newCodec, 4);}
 
   void AudioSampleEntry::setChannelCount(uint16_t newChannelCount){
@@ -2861,9 +2987,9 @@ namespace MP4{
 
   uint32_t AudioSampleEntry::getSampleRate(){return getInt32(24) >> 16;}
 
-  void AudioSampleEntry::setCodecBox(Box &newBox){setBox(newBox, 28);}
+  void AudioSampleEntry::setCodecBox(Box &newBox){setBox(newBox, getBoxOffset());}
 
-  Box &AudioSampleEntry::getCodecBox(){return getBox(28);}
+  Box &AudioSampleEntry::getCodecBox(){return getBox(getBoxOffset());}
 
   /*LTS-START*/
   Box &AudioSampleEntry::getSINFBox(){
@@ -2872,13 +2998,22 @@ namespace MP4{
   }
   /*LTS-END*/
 
+  size_t AudioSampleEntry::getBoxOffset() const{
+    size_t offset = 28;
+    //Quicktime-specific box versions. We should really only do this if we see a "qt  " ftyp
+    /// \TODO Do this properly at some point :-(
+    if (getVersion() == 1){offset = 28 + 16;}
+    if (getVersion() == 2){offset = 28 + 36;}
+    return offset;
+  }
+
   size_t AudioSampleEntry::getBoxEntryCount(){
     if (payloadSize() < 36){// if the EntryBox is not big enough to hold any box
       return 0;
     }
     size_t count = 0;
-    size_t offset = 28;
-    while (offset < payloadSize()){
+    size_t offset = getBoxOffset();
+    while (offset <= payloadSize() - 8){
       offset += getBoxLen(offset);
       count++;
     }
@@ -2889,7 +3024,7 @@ namespace MP4{
     static Box ret = Box((char *)"\000\000\000\010erro", false);
     if (index >= getBoxEntryCount()){return ret;}
     size_t count = 0;
-    size_t offset = 28;
+    size_t offset = getBoxOffset();
     while (offset < payloadSize()){
       if (count == index){return getBox(offset);}
       offset += getBoxLen(offset);
@@ -2904,7 +3039,7 @@ namespace MP4{
       WARN_MSG("This function can not leave empty spaces, appending at index %zu nstead!", index);
     }
     size_t count = 0;
-    size_t offset = 28;
+    size_t offset = getBoxOffset();
     while (offset < payloadSize()){
       if (count == index){
         setBox(box, offset);
@@ -3180,6 +3315,12 @@ namespace MP4{
 
   std::string H264::toPrettyString(uint32_t indent){
     return toPrettyVisualString(indent, "[h264] H.264/MPEG-4 AVC");
+  }
+
+  AV01::AV01(){memcpy(data + 4, "av01", 4);}
+
+  std::string AV01::toPrettyString(uint32_t indent){
+    return toPrettyVisualString(indent, "[av01] AV1 Video");
   }
 
   FIEL::FIEL(){memcpy(data + 4, "fiel", 4);}

@@ -18,7 +18,7 @@
 #define PRETTY_ARG_TIME(t)                                                                         \
   (int)(t) / 86400, ((int)(t) % 86400) / 3600, ((int)(t) % 3600) / 60, (int)(t) % 60
 #define PRETTY_PRINT_MSTIME "%ud%.2uh%.2um%.2us.%.3u"
-#define PRETTY_ARG_MSTIME(t) PRETTY_ARG_TIME(t / 1000), (int)(t % 1000)
+#define PRETTY_ARG_MSTIME(t) PRETTY_ARG_TIME((t) / 1000), (int)((t) % 1000)
 #if DEBUG > -1
 
 #define APPIDENT APPNAME "/" PACKAGE_VERSION
@@ -173,33 +173,42 @@ static inline void show_stackframe(){}
 // Pages get marked for deletion after X seconds of no one watching
 #define DEFAULT_PAGE_TIMEOUT 15
 
-/// \TODO These values are hardcoded and that is dangerous and probably a very bad idea. I don't even know if they are currently correct...?! I doubt they are.
-#define META_META_OFFSET 104
-#define META_META_RECORDSIZE 576
+/// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
+#define META_META_OFFSET 138
+#define META_META_RECORDSIZE 548
 
 #define META_TRACK_OFFSET 148
 #define META_TRACK_RECORDSIZE 1893
 
-#define TRACK_TRACK_OFFSET 184
-#define TRACK_TRACK_RECORDSIZE 362 + (1 * 1024 * 1024)
+#define TRACK_TRACK_OFFSET 193
+#define TRACK_TRACK_RECORDSIZE 1049060
 
 #define TRACK_FRAGMENT_OFFSET 68
 #define TRACK_FRAGMENT_RECORDSIZE 14
 
 #define TRACK_KEY_OFFSET 90
-#define TRACK_KEY_RECORDSIZE 42
+#define TRACK_KEY_RECORDSIZE 40
 
 #define TRACK_PART_OFFSET 60
 #define TRACK_PART_RECORDSIZE 8
 
-#define TRACK_PAGE_OFFSET 92
+#define TRACK_PAGE_OFFSET 100
 #define TRACK_PAGE_RECORDSIZE 36
 
 #define COMMS_STATISTICS "MstStat"
-#define COMMS_STATISTICS_INITSIZE 8 * 1024 * 1024
+#define COMMS_STATISTICS_INITSIZE 16 * 1024 * 1024
 
 #define COMMS_USERS "MstUser%s" //%s stream name
 #define COMMS_USERS_INITSIZE 512 * 1024
+
+#define COMMS_SESSIONS "MstSession%s"
+#define COMMS_SESSIONS_INITSIZE 8 * 1024 * 1024
+
+#define CUSTOM_VARIABLES_INITSIZE 64 * 1024
+
+#define EXTWRITERS "MstExtWriters"
+
+#define EXTWRITERS_INITSIZE 1 * 1024 * 1024
 
 #define SEM_STATISTICS "/MstStat"
 #define SEM_USERS "/MstUser%s" //%s stream name
@@ -207,7 +216,7 @@ static inline void show_stackframe(){}
 #define SHM_TRACK_DATA "MstData%s@%zu_%" PRIu32 //%s stream name, %zu track ID, %PRIu32 page #
 // End new meta
 
-#define INPUT_USER_INTERVAL 1000
+#define INPUT_USER_INTERVAL 250
 
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
 #define SHM_STREAM_CONF "MstSCnf%s"   //%s stream name
@@ -226,17 +235,26 @@ static inline void show_stackframe(){}
 #define SEM_LIVE "/MstLIVE%s"   //%s stream name
 #define SEM_INPUT "/MstInpt%s"  //%s stream name
 #define SEM_TRACKLIST "/MstTRKS%s"  //%s stream name
+#define SEM_SESSION "/MstSess%s"
 #define SEM_SESSCACHE "/MstSessCacheLock"
+#define SESS_TIMEOUT 600 // Session timeout in seconds
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
 #define SHM_PROXY "MstProx"
 #define SHM_STATE_LOGS "MstStateLogs"
 #define SHM_STATE_ACCS "MstStateAccs"
 #define SHM_STATE_STREAMS "MstStateStreams"
+#define SHM_CUSTOM_VARIABLES "MstVars"
 #define NAME_BUFFER_SIZE 200 // char buffer size for snprintf'ing shm filenames
 #define SHM_SESSIONS "/MstSess"
 #define SHM_SESSIONS_ITEM 165     // 4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync
 #define SHM_SESSIONS_SIZE 5248000 // 5MiB = almost 32k sessions
+
+#if defined(__APPLE__)
+#define IPC_MAX_LEN 30 // macos allows a maximum of 31, including terminating null
+#else
+#define IPC_MAX_LEN 250 // most other implementation a maximum of 251, including terminating null
+#endif
 
 #define SHM_STREAM_ENCRYPT "MstCRYP%s" //%s stream name
 
@@ -267,3 +285,45 @@ static inline void show_stackframe(){}
 
 #define NEW_TRACK_ID 0x80000000
 #define QUICK_NEGOTIATE 0xC0000000
+
+// Session and Comm library related constants
+#define COMM_STATUS_SOURCE 0x80
+#define COMM_STATUS_DONOTTRACK 0x40
+#define COMM_STATUS_DISCONNECT 0x20
+#define COMM_STATUS_REQDISCONNECT 0x10
+#define COMM_STATUS_NOKILL 0x8
+#define COMM_STATUS_ACTIVE 0x1
+#define COMM_STATUS_INVALID 0x0
+#define SESS_BUNDLE_DEFAULT_VIEWER 14
+#define SESS_BUNDLE_DEFAULT_OTHER 15
+#define SESS_DEFAULT_STREAM_INFO_MODE 1
+#define SESS_HTTP_AS_VIEWER 1
+#define SESS_HTTP_AS_OUTPUT 2
+#define SESS_HTTP_DISABLED 3
+#define SESS_HTTP_AS_UNSPECIFIED 4
+#define SESS_TKN_DEFAULT_MODE 15
+
+#define ER_UNKNOWN "UNKNOWN"
+#define ER_CLEAN_LIVE_BUFFER_REQ "CLEAN_LIVE_BUFFER_REQ"
+#define ER_CLEAN_CONTROLLER_REQ "CLEAN_CONTROLLER_REQ"
+#define ER_CLEAN_INTENDED_STOP "CLEAN_INTENDED_STOP"
+#define ER_CLEAN_REMOTE_CLOSE "CLEAN_REMOTE_CLOSE"
+#define ER_CLEAN_INACTIVE "CLEAN_INACTIVE"
+#define ER_CLEAN_SIGNAL "CLEAN_SIGNAL"
+#define ER_CLEAN_EOF "CLEAN_EOF"
+#define ER_READ_START_FAILURE "READ_START_FAILURE"
+#define ER_PROCESS_SPECIFIC "PROCESS_SPECIFIC"
+#define ER_FORMAT_SPECIFIC "FORMAT_SPECIFIC"
+#define ER_INTERNAL_ERROR "INTERNAL_ERROR"
+#define ER_WRITE_FAILURE "WRITE_FAILURE"
+#define ER_EXEC_FAILURE "EXEC_FAILURE"
+#define ER_MEMORY "OUT_OF_MEMORY"
+#define ER_SHM_LOST "SHM_LOST"
+#define ER_UNSUPPORTED "UNSUPPORTED"
+#define ER_SEGFAULT "SEGFAULT"
+#define ER_TRIGGER "TRIGGER"
+#define ER_SIGTRAP "SIGTRAP"
+#define ER_SIGABRT "SIGABRT"
+#define ER_SIGILL "SIGILL"
+#define ER_SIGFPE "SIGFPE"
+#define ER_SIGBUS "SIGBUS"

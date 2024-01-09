@@ -17,14 +17,12 @@ namespace Mist{
   protected:
     std::string h264init(const std::string &initData);
     std::string h265init(const std::string &initData);
+    std::string liveIndex();
+    std::string liveIndex(size_t tid, const std::string &sessId, const std::string &urlPrefix = "");
 
-    bool hasSessionIDs(){return !config->getBool("mergesessions");}
-
-    void sendHlsManifest(const std::string url);
-    void sendHlsMasterManifest();
-    void sendHlsMediaManifest(const size_t requestTid);
-
-    uint64_t targetTime;
+    size_t vidTrack;
+    size_t audTrack;
+    uint64_t until;
   };
 }// namespace Mist
 

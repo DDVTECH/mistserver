@@ -39,6 +39,7 @@ namespace Mist{
     JSON::Value & sObj = stats["sender-stats"]["peer"]["stats"];
     pktSent += sObj["sent"].asInt();
     pktRetransmitted += sObj["retransmitted"].asInt();
+    rist_stats_free(stats_container);
     return 0;
   }
 
@@ -46,7 +47,7 @@ namespace Mist{
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "int";
-    pp[param]["default"] = def;
+    pp[param]["default"] = (uint64_t)def;
   }
 
   static void addStrOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, const std::string & def = ""){
@@ -79,7 +80,18 @@ namespace Mist{
     pushOut = false;
     // Push output configuration
     if (config->getString("target").size()){
-      target = HTTP::URL(config->getString("target"));
+      std::string ristURL = config->getString("target").c_str();
+      //If there are two ?, grab everything after the last first
+      if (ristURL.rfind('?') != std::string::npos && ristURL.find('?') != ristURL.rfind('?')){
+        std::string extraParams = ristURL.substr(ristURL.rfind('?')+1);
+        std::map<std::string, std::string> arguments;
+        HTTP::parseVars(extraParams, arguments);
+        for (std::map<std::string, std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it){
+          targetParams[it->first] = it->second;
+        }
+        ristURL.erase(ristURL.rfind('?'));
+      }
+      target = HTTP::URL(ristURL);
       if (target.protocol != "rist"){
         FAIL_MSG("Target %s must begin with rist://, aborting", target.getUrl().c_str());
         onFail("Invalid RIST target: doesn't start with rist://", true);
@@ -96,11 +108,6 @@ namespace Mist{
         return;
       }
       pushOut = true;
-      std::map<std::string, std::string> arguments;
-      HTTP::parseVars(target.args, arguments);
-      for (std::map<std::string, std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it){
-        targetParams[it->first] = it->second;
-      }
 
       rist_profile profile = RIST_PROFILE_MAIN;
       if (targetParams.count("profile")){
@@ -111,8 +118,9 @@ namespace Mist{
         onFail("Failed to create sender context");
         return;
       }
+      INFO_MSG("Letting libRIST parse URL: %s", ristURL.c_str());
       struct rist_peer_config *peer_config_link = 0;
-      if (rist_parse_address2(config->getString("target").c_str(), &peer_config_link)){
+      if (rist_parse_address2(ristURL.c_str(), &peer_config_link)){
         onFail("Failed to parse target URL: %s", config->getString("target").c_str());
         return;
       }
@@ -130,6 +138,7 @@ namespace Mist{
         onFail("Failed to start RIST connection");
         return;
       }
+      myConn.setHost(target.host);
       wantRequest = false;
       parseData = true;
       initialize();
@@ -158,7 +167,7 @@ namespace Mist{
         if (!newStream.size()){
           FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                    getConnectedHost().c_str(), reqUrl.getUrl().c_str());
-          Util::logExitReason(
+          Util::logExitReason(ER_TRIGGER,
               "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
               getConnectedHost().c_str(), reqUrl.getUrl().c_str());
           onFinish();
@@ -172,12 +181,29 @@ namespace Mist{
         onFinish();
         return;
       }
+      if (config->getString("datatrack") == "json"){
+        tsIn.setRawDataParser(TS::JSON);
+      }
       parseData = false;
       wantRequest = true;
 
   }
 
   OutTSRIST::~OutTSRIST(){}
+  
+  std::string OutTSRIST::getConnectedHost(){
+    if (!pushOut) { return Output::getConnectedHost(); }
+    return target.host;
+  }
+  std::string OutTSRIST::getConnectedBinHost(){
+    if (!pushOut) { return Output::getConnectedBinHost(); }
+    std::string binHost = Socket::getBinForms(target.host);
+    if (binHost.size() > 16){ binHost = binHost.substr(0, 16); }
+    if (binHost.size() < 16){
+      binHost = std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001", 16);
+    }
+    return binHost;
+  }
 
   void OutTSRIST::init(Util::Config *cfg){
     Output::init(cfg);
@@ -202,6 +228,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+AC3");
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
+    capa["codecs"][0u][2u].append("+JSON");
     capa["codecs"][1u][0u].append("rawts");
 
     capa["optional"]["profile"]["name"] = "RIST profile";
@@ -217,6 +244,7 @@ namespace Mist{
 
     cfg->addBasicConnectorOptions(capa);
     config = cfg;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rist://*");
                                    //
     JSON::Value & pp = capa["push_parameters"];
@@ -259,6 +287,25 @@ namespace Mist{
     opt["arg_num"] = 1;
     opt["help"] = "Target rist:// URL to push out towards.";
     cfg->addOption("target", opt);
+
+    opt.null();
+    opt["long"] = "datatrack";
+    opt["short"] = "D";
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", opt);
+
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
   }
 
   // Buffers TS packets and sends after 7 are buffered.
@@ -319,7 +366,7 @@ namespace Mist{
     }
   }
 
-  void OutTSRIST::connStats(uint64_t now, Comms::Statistics &statComm){
+  void OutTSRIST::connStats(uint64_t now, Comms::Connections &statComm){
     if (!myConn){return;}
     statComm.setUp(upBytes);
     statComm.setDown(0);
@@ -366,14 +413,14 @@ void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   if (!sockCount){
     INFO_MSG("USR1 received - triggering rolling restart (no connections active)");
     Util::Config::is_restarting = true;
-    Util::logExitReason("signal USR1, no connections");
+    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, no connections");
     ///\TODO Update for RIST
     //server_socket.close();
     Util::Config::is_active = false;
   }else{
     INFO_MSG("USR1 received - triggering rolling restart when connection count reaches zero");
     Util::Config::is_restarting = true;
-    Util::logExitReason("signal USR1, after disconnect wait");
+    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, after disconnect wait");
   }
 }
 
@@ -381,6 +428,7 @@ int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
+  Util::Config::binaryType = Util::OUTPUT;
   mistOut::init(&conf);
   if (conf.parseArgs(argc, argv)){
     if (conf.getBool("json")){
@@ -422,6 +470,7 @@ int main(int argc, char *argv[]){
       sigaction(SIGUSR1, &new_action, NULL);
     }
     if (conf.getInteger("port") && conf.getString("interface").size()){
+      Comms::defaultCommFlags = COMM_STATUS_NOKILL;
 
       if (rist_receiver_create(&rec_ctx, (rist_profile)conf.getInteger("profile"), &Mist::log_settings) != 0){
         FAIL_MSG("Failed to create receiver context");

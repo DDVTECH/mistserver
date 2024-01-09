@@ -11,7 +11,7 @@ namespace Mist{
 
   class inputTSSRT : public Input{
   public:
-    inputTSSRT(Util::Config *cfg, SRTSOCKET s = -1);
+    inputTSSRT(Util::Config *cfg, Socket::SRTConnection s = Socket::SRTConnection());
     ~inputTSSRT();
     void setSingular(bool newSingular);
     virtual bool needsLock();
@@ -40,11 +40,12 @@ namespace Mist{
 
     Socket::SRTConnection srtConn;
     bool singularFlag;
-    virtual void connStats(Comms::Statistics &statComm);
+    virtual void connStats(Comms::Connections &statComm);
 
     Util::ResizeablePointer rawBuffer;
     size_t rawIdx;
     uint64_t lastRawPacket;
+    bool bootMSOffsetCalculated;
   };
 }// namespace Mist
 

@@ -20,6 +20,8 @@ namespace HTTP{
     /// Calls open on the given relative uri during construction
     /// URI is resolved relative to the current working directory
     URIReader(const std::string &reluri);
+    /// Sets the internal URI to file://- and opens the given file descriptor in stream mode.
+    bool open(const int fd);
     /// Sets the internal URI to the given URI and opens it, whatever that may mean for the given URI type.
     bool open(const HTTP::URL &uri);
     /// Links the internal URI to the given relative URI and opens it, whatever that may mean for the current URI type.
@@ -60,9 +62,13 @@ namespace HTTP{
     size_t getSize() const; ///< Returns the size of the currently open URI, if known. Returns std::string::npos if unknown size.
 
     void (*httpBodyCallback)(const char *ptr, size_t size);
-    void dataCallback(const char *ptr, size_t size);
+    virtual void dataCallback(const char *ptr, size_t size);
+    virtual size_t getDataCallbackPos() const;
 
     std::string userAgentOverride;
+
+    std::string getHost() const; ///< Gets hostname for connection, or [::] if local.
+    std::string getBinHost() const; ///< Gets binary form hostname for connection, or [::] if local.
 
   private:
     // Internal state variables
@@ -77,6 +83,7 @@ namespace HTTP{
     size_t bufPos; ///< Current read position in buffer
     int handle;    ///< Open file handle, if file-based.
     char *mapped;  ///< Memory-map of open file handle, if file-based.
+    HTTP::URL originalUrl;
     bool supportRangeRequest;
     Util::ResizeablePointer rPtr;
     Util::ResizeablePointer allData;
@@ -85,4 +92,6 @@ namespace HTTP{
     HTTP::Downloader downer; ///< For HTTP(S)-based URIs, the Downloader instance used for the download.
     void init();
   };
+
+  HTTP::URL localURIResolver();
 }// namespace HTTP

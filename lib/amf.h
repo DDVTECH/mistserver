@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "json.h"
 
 /// Holds all AMF parsing and creation related functions and classes.
 namespace AMF{
@@ -55,7 +56,7 @@ namespace AMF{
   /// container type.
   class Object{
   public:
-    std::string Indice();
+    std::string Indice() const;
     obj0type GetType();
     double NumValue();
     std::string StrValue();
@@ -73,6 +74,7 @@ namespace AMF{
     Object(std::string indice, obj0type setType = AMF0_OBJECT);
     std::string Print(std::string indent = "");
     std::string Pack();
+    JSON::Value toJSON() const;
 
   protected:
     std::string myIndice;         ///< Holds this objects indice, if any.
@@ -95,7 +97,7 @@ namespace AMF{
   /// container type.
   class Object3{
   public:
-    std::string Indice();
+    std::string Indice() const;
     obj3type GetType();
     double DblValue();
     int IntValue();
@@ -114,6 +116,7 @@ namespace AMF{
     Object3(std::string indice, obj3type setType = AMF3_OBJECT);
     std::string Print(std::string indent = "");
     std::string Pack();
+    JSON::Value toJSON() const;
 
   protected:
     std::string myIndice;          ///< Holds this objects indice, if any.

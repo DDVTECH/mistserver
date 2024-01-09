@@ -60,7 +60,7 @@ namespace Mist{
   /// Pretends the stream is always ready to play - we don't care about waiting times or whatever
   bool OutJPG::isReadyForPlay(){return true;}
 
-  void OutJPG::initialSeek(){
+  void OutJPG::initialSeek(bool dryRun){
     size_t mainTrack = getMainSelectedTrack();
     if (mainTrack == INVALID_TRACK_ID){return;}
     INFO_MSG("Doing initial seek");
@@ -107,6 +107,7 @@ namespace Mist{
     capa["methods"][0u]["type"] = "html5/image/jpeg";
     capa["methods"][0u]["hrn"] = "JPEG";
     capa["methods"][0u]["priority"] = 0;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.jpg");
 
     capa["optional"]["cachedir"]["name"] = "Cache directory";

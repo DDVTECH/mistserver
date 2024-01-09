@@ -45,6 +45,7 @@ namespace HTTP{
     Parser &getHTTP();
     Socket::Connection &getSocket();
     const Socket::Connection &getSocket() const;
+    void clean();
     void setSocket(Socket::Connection * socketPtr);
     uint32_t retryCount, dataTimeout;
     bool isProxied() const;

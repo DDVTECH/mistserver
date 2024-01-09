@@ -16,12 +16,16 @@ namespace Controller{
   std::string instanceId; /// instanceId (previously uniqId) is set in controller.cpp
   std::string prometheus;
   std::string accesslog;
+  std::string udpApiBindAddr;
   Util::Config conf;
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;
   tthread::mutex logMutex;
+  std::set<std::string> shmList;
+  tthread::mutex shmListMutex;
   uint64_t logCounter = 0;
-  bool configChanged = false;
+  uint64_t lastConfigChange = 0;
+  uint64_t lastConfigWrite = 0;
   bool isTerminal = false;
   bool isColorized = false;
   uint32_t maxLogsRecs = 0;
@@ -34,6 +38,10 @@ namespace Controller{
   IPC::sharedPage *shmStrm = 0;
   Util::RelAccX *rlxStrm = 0;
   uint64_t systemBoot = Util::unixMS() - Util::bootMS();
+
+  JSON::Value lastConfigWriteAttempt;
+  JSON::Value lastConfigSeen;
+  std::map<std::string, JSON::Value> lastConfigWritten;
 
   Util::RelAccX *logAccessor(){return rlxLogs;}
 
@@ -90,19 +98,6 @@ namespace Controller{
       rlxAccs->setInt("down", down, newEndPos);
       rlxAccs->setString("tags", tags, newEndPos);
       rlxAccs->setEndPos(newEndPos + 1);
-    }
-    if (Triggers::shouldTrigger("USER_END", strm)){
-      std::stringstream plgen;
-      plgen << sessId << "\n"
-            << strm << "\n"
-            << conn << "\n"
-            << host << "\n"
-            << duration << "\n"
-            << up << "\n"
-            << down << "\n"
-            << tags;
-      std::string payload = plgen.str();
-      Triggers::doTrigger("USER_END", payload, strm);
     }
   }
 
@@ -193,10 +188,10 @@ namespace Controller{
     }
     maxAccsRecs = (1024 * 1024 - rlxAccs->getOffset()) / rlxAccs->getRSize();
 
-    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, false, false); // max 1M of stream data
+    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 5*1024 * 1024, false, false); // max 5M of stream data
     if (!shmStrm || !shmStrm->mapped){
       if (shmStrm){delete shmStrm;}
-      shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, true); // max 1M of stream data
+      shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 5*1024 * 1024, true); // max 5M of stream data
     }
     if (!shmStrm->mapped){
       FAIL_MSG("Could not open memory page for stream data");
@@ -209,6 +204,8 @@ namespace Controller{
       rlxStrm->addField("viewers", RAX_64UINT);
       rlxStrm->addField("inputs", RAX_64UINT);
       rlxStrm->addField("outputs", RAX_64UINT);
+      rlxStrm->addField("unspecified", RAX_64UINT);
+      rlxStrm->addField("tags", RAX_512STRING);
       rlxStrm->setReady();
     }
     rlxStrm->setRCount((1024 * 1024 - rlxStrm->getOffset()) / rlxStrm->getRSize());
@@ -217,31 +214,32 @@ namespace Controller{
   void deinitState(bool leaveBehind){
     tthread::lock_guard<tthread::mutex> guard(logMutex);
     if (!leaveBehind){
-      rlxLogs->setExit();
-      shmLogs->master = true;
-      rlxAccs->setExit();
-      shmAccs->master = true;
-      rlxStrm->setExit();
-      shmStrm->master = true;
+      if (rlxLogs){rlxLogs->setExit();}
+      if (shmLogs){shmLogs->master = true;}
+      if (rlxAccs){rlxAccs->setExit();}
+      if (shmAccs){shmAccs->master = true;}
+      if (rlxStrm){rlxStrm->setExit();}
+      if (shmStrm){shmStrm->master = true;}
+      wipeShmPages();
     }else{
-      shmLogs->master = false;
-      shmAccs->master = false;
-      shmStrm->master = false;
+      if (shmLogs){shmLogs->master = false;}
+      if (shmAccs){shmAccs->master = false;}
+      if (shmStrm){shmStrm->master = false;}
     }
     Util::RelAccX *tmp = rlxLogs;
     rlxLogs = 0;
-    delete tmp;
-    delete shmLogs;
+    if (tmp){delete tmp;}
+    if (shmLogs){delete shmLogs;}
     shmLogs = 0;
     tmp = rlxAccs;
     rlxAccs = 0;
-    delete tmp;
-    delete shmAccs;
+    if (tmp){delete tmp;}
+    if (shmAccs){delete shmAccs;}
     shmAccs = 0;
     tmp = rlxStrm;
     rlxStrm = 0;
-    delete tmp;
-    delete shmStrm;
+    if (tmp){delete tmp;}
+    if (shmStrm){delete shmStrm;}
     shmStrm = 0;
   }
 
@@ -249,37 +247,193 @@ namespace Controller{
     Util::logParser((long long)err, fileno(stdout), Controller::isColorized, &Log);
   }
 
-  /// Writes the current config to the location set in the configFile setting.
-  /// On error, prints an error-level message and the config to stdout.
-  void writeConfigToDisk(){
-    JSON::Value tmp;
+  void getConfigAsWritten(JSON::Value & conf){
     std::set<std::string> skip;
     skip.insert("log");
     skip.insert("online");
     skip.insert("error");
-    tmp.assignFrom(Controller::Storage, skip);
+    conf.assignFrom(Controller::Storage, skip);
+  }
+
+  /// Writes the current config to the location set in the configFile setting.
+  /// On error, prints an error-level message and the config to stdout.
+  void writeConfigToDisk(bool forceWrite){
+    bool success = true;
+    JSON::Value tmp;
+    getConfigAsWritten(tmp);
+
+    // We keep an extra copy temporarily, since we want to keep the "full" config around for comparisons
+    JSON::Value mainConfig = tmp;
 
     if (Controller::Storage.isMember("config_split")){
       jsonForEach(Controller::Storage["config_split"], cs){
         if (cs->isString() && tmp.isMember(cs.key())){
+          // Only (attempt to) write if there was a change since last write success
+          if (!forceWrite && lastConfigWritten[cs.key()] == tmp[cs.key()]){
+            if (cs.key() != "config_split"){mainConfig.removeMember(cs.key());}
+            continue;
+          }
           JSON::Value tmpConf = JSON::fromFile(cs->asStringRef());
           tmpConf[cs.key()] = tmp[cs.key()];
+          // Attempt to write this section to the given file
           if (!Controller::WriteFile(cs->asStringRef(), tmpConf.toString())){
-            ERROR_MSG("Error writing config.%s to %s", cs.key().c_str(), cs->asStringRef().c_str());
-            std::cout << "**config." << cs.key() <<"**" << std::endl;
-            std::cout << tmp[cs.key()].toString() << std::endl;
-            std::cout << "**End config." << cs.key() << "**" << std::endl;
+            success = false;
+            // Only print the error + config data if this is new data since the last write attempt
+            if (tmp[cs.key()] != lastConfigWriteAttempt[cs.key()]){
+              ERROR_MSG("Error writing config.%s to %s", cs.key().c_str(), cs->asStringRef().c_str());
+              std::cout << "**config." << cs.key() <<"**" << std::endl;
+              std::cout << tmp[cs.key()].toString() << std::endl;
+              std::cout << "**End config." << cs.key() << "**" << std::endl;
+            }
+          }else{
+            // Log the successfully written data
+            lastConfigWritten[cs.key()] = tmp[cs.key()];
           }
-          if (cs.key() != "config_split"){tmp.removeMember(cs.key());}
+          // Remove this section from the to-be-written main config
+          if (cs.key() != "config_split"){mainConfig.removeMember(cs.key());}
         }
       }
     }
-    if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
-      ERROR_MSG("Error writing config to %s", Controller::conf.getString("configFile").c_str());
-      std::cout << "**Config**" << std::endl;
-      std::cout << tmp.toString() << std::endl;
-      std::cout << "**End config**" << std::endl;
+
+    // Only (attempt to) write if there was a change since last write success
+    if (forceWrite || lastConfigWritten[""] != mainConfig){
+      // Attempt to write this section to the given file
+      if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
+        success = false;
+        // Only print the error + config data if this is new data since the last write attempt
+        if (tmp != lastConfigWriteAttempt){
+          ERROR_MSG("Error writing config to %s", Controller::conf.getString("configFile").c_str());
+          std::cout << "**Config**" << std::endl;
+          std::cout << mainConfig.toString() << std::endl;
+          std::cout << "**End config**" << std::endl;
+        }
+      }else{
+        lastConfigWritten[""] = mainConfig;
+      }
     }
+
+    if (success){
+      INFO_MSG("Wrote updated configuration to disk");
+      lastConfigWrite = Util::epoch();
+    }
+    lastConfigWriteAttempt = tmp;
+  }
+
+  void readConfigFromDisk(){
+    // reload config from config file
+    Controller::Storage = JSON::fromFile(Controller::conf.getString("configFile"));
+
+    if (Controller::Storage.isMember("config_split")){
+      jsonForEach(Controller::Storage["config_split"], cs){
+        if (cs->isString()){
+          JSON::Value tmpConf = JSON::fromFile(cs->asStringRef());
+          if (tmpConf.isMember(cs.key())){
+            INFO_MSG("Loading '%s' section of config from file %s", cs.key().c_str(), cs->asStringRef().c_str());
+            Controller::Storage[cs.key()] = tmpConf[cs.key()];
+          }else{
+            WARN_MSG("There is no '%s' section in file %s; skipping load", cs.key().c_str(), cs->asStringRef().c_str());
+          }
+        }
+      }
+    }
+    // Set default delay before retry
+    if (!Controller::Storage.isMember("push_settings")){
+      Controller::Storage["push_settings"]["wait"] = 3;
+      Controller::Storage["push_settings"]["maxspeed"] = 0;
+    }
+    if (Controller::conf.getOption("debug", true).size() > 1){
+      Controller::Storage["config"]["debug"] = Controller::conf.getInteger("debug");
+    }
+    if (Controller::Storage.isMember("config") && Controller::Storage["config"].isMember("debug") &&
+        Controller::Storage["config"]["debug"].isInt()){
+      Util::printDebugLevel = Controller::Storage["config"]["debug"].asInt();
+    }
+    // check for port, interface and username in arguments
+    // if they are not there, take them from config file, if there
+    if (Controller::Storage["config"]["controller"]["port"]){
+      Controller::conf.getOption("port", true)[0u] =
+          Controller::Storage["config"]["controller"]["port"];
+    }
+    if (Controller::Storage["config"]["controller"]["interface"]){
+      Controller::conf.getOption("interface", true)[0u] = Controller::Storage["config"]["controller"]["interface"];
+    }
+    if (Controller::Storage["config"]["controller"]["username"]){
+      Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
+    }
+    if (Controller::Storage["config"]["controller"].isMember("prometheus")){
+      if (Controller::Storage["config"]["controller"]["prometheus"]){
+        Controller::Storage["config"]["prometheus"] =
+            Controller::Storage["config"]["controller"]["prometheus"];
+      }
+      Controller::Storage["config"]["controller"].removeMember("prometheus");
+    }
+    if (Controller::Storage["config"]["prometheus"]){
+      Controller::conf.getOption("prometheus", true)[0u] =
+          Controller::Storage["config"]["prometheus"];
+    }
+    if (Controller::Storage["config"].isMember("accesslog")){
+      Controller::conf.getOption("accesslog", true)[0u] = Controller::Storage["config"]["accesslog"];
+    }
+    Controller::Storage["config"]["prometheus"] = Controller::conf.getString("prometheus");
+    Controller::Storage["config"]["accesslog"] = Controller::conf.getString("accesslog");
+    Controller::normalizeTrustedProxies(Controller::Storage["config"]["trustedproxy"]);
+    if (!Controller::Storage["config"]["sessionViewerMode"]){
+      Controller::Storage["config"]["sessionViewerMode"] = SESS_BUNDLE_DEFAULT_VIEWER;
+    }
+    if (!Controller::Storage["config"]["sessionInputMode"]){
+      Controller::Storage["config"]["sessionInputMode"] = SESS_BUNDLE_DEFAULT_OTHER;
+    }
+    if (!Controller::Storage["config"]["sessionOutputMode"]){
+      Controller::Storage["config"]["sessionOutputMode"] = SESS_BUNDLE_DEFAULT_OTHER;
+    }
+    if (!Controller::Storage["config"]["sessionUnspecifiedMode"]){
+      Controller::Storage["config"]["sessionUnspecifiedMode"] = 0;
+    }
+    if (!Controller::Storage["config"]["sessionStreamInfoMode"]){
+      Controller::Storage["config"]["sessionStreamInfoMode"] = SESS_DEFAULT_STREAM_INFO_MODE;
+    }
+    if (!Controller::Storage["config"].isMember("tknMode")){
+      Controller::Storage["config"]["tknMode"] = SESS_TKN_DEFAULT_MODE;
+    }
+    Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
+    Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
+
+    // Upgrade old configurations
+    {
+      bool foundCMAF = false;
+      bool edit = false;
+      JSON::Value newVal;
+      jsonForEach(Controller::Storage["config"]["protocols"], it){
+        if ((*it)["connector"].asStringRef() == "HSS"){
+          edit = true;
+          continue;
+        }
+        if ((*it)["connector"].asStringRef() == "DASH"){
+          edit = true;
+          continue;
+        }
+
+        if ((*it)["connector"].asStringRef() == "SRT"){
+          edit = true;
+          JSON::Value newSubRip = *it;
+          newSubRip["connector"] = "SubRip";
+          newVal.append(newSubRip);
+          continue;
+        }
+
+        if ((*it)["connector"].asStringRef() == "CMAF"){foundCMAF = true;}
+        newVal.append(*it);
+      }
+      if (edit && !foundCMAF){newVal.append(JSON::fromString("{\"connector\":\"CMAF\"}"));}
+      if (edit){
+        Controller::Storage["config"]["protocols"] = newVal;
+        Controller::Log("CONF", "Translated protocols to new versions");
+      }
+    }
+    Controller::lastConfigChange = Controller::lastConfigWrite = Util::epoch();
+    Controller::lastConfigWriteAttempt.null();
+    getConfigAsWritten(Controller::lastConfigWriteAttempt);
+    lastConfigSeen = lastConfigWriteAttempt;
   }
 
   void writeCapabilities(){
@@ -292,6 +446,7 @@ namespace Controller{
       mistCapaOut.close();
     }
     mistCapaOut.init(SHM_CAPA, temp.size() + 100, true, false);
+    addShmPage(SHM_CAPA);
     if (!mistCapaOut.mapped){
       FAIL_MSG("Could not open capabilities config for writing! Is shared memory enabled on your "
                "system?");
@@ -304,6 +459,7 @@ namespace Controller{
     A.setRCount(1);
     A.setEndPos(1);
     A.setReady();
+    mistCapaOut.master = false;
   }
 
   void writeProtocols(){
@@ -323,6 +479,7 @@ namespace Controller{
     if (proxy_written != tmpProxy){
       proxy_written = tmpProxy;
       static IPC::sharedPage mistProxOut(SHM_PROXY, proxy_written.size() + 100, true, false);
+      addShmPage(SHM_PROXY);
       mistProxOut.close();
       mistProxOut.init(SHM_PROXY, proxy_written.size() + 100, false, false);
       if (mistProxOut){
@@ -361,6 +518,7 @@ namespace Controller{
       mistProtoOut.close();
     }
     mistProtoOut.init(SHM_PROTO, temp.size() + 100, true, false);
+    addShmPage(SHM_PROTO);
     if (!mistProtoOut.mapped){
       FAIL_MSG(
           "Could not open protocol config for writing! Is shared memory enabled on your system?");
@@ -376,6 +534,7 @@ namespace Controller{
       A.setEndPos(1);
       A.setReady();
     }
+    mistProtoOut.master = false;
   }
 
   void writeStream(const std::string &sName, const JSON::Value &sConf){
@@ -446,11 +605,19 @@ namespace Controller{
 
         // if fields missing, recreate the page
         if (globAccX.isReady()){
-          if(globAccX.getFieldAccX("systemBoot")){
+          if(globAccX.getFieldAccX("systemBoot") && globAccX.getInt("systemBoot")){
             systemBoot = globAccX.getInt("systemBoot");
           }
           if(!globAccX.getFieldAccX("defaultStream")
-             || !globAccX.getFieldAccX("systemBoot")){
+             || !globAccX.getFieldAccX("systemBoot")
+             || !globAccX.getFieldAccX("sessionViewerMode")
+             || !globAccX.getFieldAccX("sessionInputMode")
+             || !globAccX.getFieldAccX("sessionOutputMode")
+             || !globAccX.getFieldAccX("sessionUnspecifiedMode")
+             || !globAccX.getFieldAccX("sessionStreamInfoMode")
+             || !globAccX.getFieldAccX("tknMode")
+             || !globAccX.getFieldAccX("udpApi")
+             ){
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();
@@ -461,13 +628,28 @@ namespace Controller{
         if (!globAccX.isReady()){
           globAccX.addField("defaultStream", RAX_128STRING);
           globAccX.addField("systemBoot", RAX_64UINT);
+          globAccX.addField("sessionViewerMode", RAX_64UINT);
+          globAccX.addField("sessionInputMode", RAX_64UINT);
+          globAccX.addField("sessionOutputMode", RAX_64UINT);
+          globAccX.addField("sessionUnspecifiedMode", RAX_64UINT);
+          globAccX.addField("sessionStreamInfoMode", RAX_64UINT);
+          globAccX.addField("tknMode", RAX_64UINT);
+          globAccX.addField("udpApi", RAX_128STRING);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
         }
         globAccX.setString("defaultStream", Storage["config"]["defaultStream"].asStringRef());
+        globAccX.setInt("sessionViewerMode", Storage["config"]["sessionViewerMode"].asInt());
+        globAccX.setInt("sessionInputMode", Storage["config"]["sessionInputMode"].asInt());
+        globAccX.setInt("sessionOutputMode", Storage["config"]["sessionOutputMode"].asInt());
+        globAccX.setInt("sessionUnspecifiedMode", Storage["config"]["sessionUnspecifiedMode"].asInt());
+        globAccX.setInt("sessionStreamInfoMode", Storage["config"]["sessionStreamInfoMode"].asInt());
+        globAccX.setInt("tknMode", Storage["config"]["tknMode"].asInt());
+        globAccX.setString("udpApi", udpApiBindAddr);
         globAccX.setInt("systemBoot", systemBoot);
         globCfg.master = false; // leave the page after closing
+        addShmPage(SHM_GLOBAL_CONF);
       }
     }
 
@@ -580,4 +762,23 @@ namespace Controller{
     }
     /*LTS-END*/
   }
+
+
+  void addShmPage(const std::string & page){
+    tthread::lock_guard<tthread::mutex> guard(shmListMutex);
+    shmList.insert(page);
+  }
+
+  void wipeShmPages(){
+    tthread::lock_guard<tthread::mutex> guard(shmListMutex);
+    if (!shmList.size()){return;}
+    std::set<std::string>::iterator it;
+    for (it = shmList.begin(); it != shmList.end(); ++it){
+      IPC::sharedPage page(*it, 0, false, false);
+      if (page){page.master = true;}
+    }
+    shmList.clear();
+  }
+
+
 }// namespace Controller

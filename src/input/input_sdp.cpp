@@ -38,22 +38,22 @@ namespace Mist{
     count = 0;
     capa["name"] = "SDP";
     capa["desc"] = "This input allows pulling of RTP packets using a provided SDP file";
-    capa["source_match"].append("*.sdp");
-    capa["always_match"].append("*.sdp");
+    capa["source_match"].append("/*.sdp");
+    capa["always_match"].append("/*.sdp");
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][0u].append("VP8");
-    capa["codecs"][0u][0u].append("VP9");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("ALAW");
-    capa["codecs"][0u][1u].append("ULAW");
-    capa["codecs"][0u][1u].append("PCM");
-    capa["codecs"][0u][1u].append("opus");
-    capa["codecs"][0u][1u].append("MP2");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("HEVC");
+    capa["codecs"]["video"].append("MPEG2");
+    capa["codecs"]["video"].append("VP8");
+    capa["codecs"]["video"].append("VP9");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("ALAW");
+    capa["codecs"]["audio"].append("ULAW");
+    capa["codecs"]["audio"].append("PCM");
+    capa["codecs"]["audio"].append("opus");
+    capa["codecs"]["audio"].append("MP2");
 
     JSON::Value option;
     option["arg"] = "integer";
@@ -77,7 +77,7 @@ namespace Mist{
   bool InputSDP::checkArguments(){
     const std::string &inpt = config->getString("input");
     if (inpt.substr(inpt.length() - 4) != ".sdp"){
-      FAIL_MSG("Expected a SDP file but received: '%s'", inpt.c_str());
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Expected a SDP file but received: '%s'", inpt.c_str());
       return false;
     }
     return true;
@@ -88,18 +88,22 @@ namespace Mist{
     const std::string &inpt = config->getString("input");
     reader.open(inpt);
     // Will return false if it cant open file or it is EOF
-    return reader;
+    if (!reader){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
+    return true;
   }
 
   /// Gets and parses the SDP file
   void InputSDP::parseStreamHeader(){
     if (!reader){
-      FAIL_MSG("Connection lost with input. Could not get stream description!");
+      Util::logExitReason(ER_READ_START_FAILURE, "Connection lost with input. Could not get stream description!");
       return;
     }
 
     reader.readAll(buffer, bytesRead);
-    HIGH_MSG("Downloaded SDP file (%lu B)", bytesRead);
+    HIGH_MSG("Downloaded SDP file (%zu B)", bytesRead);
 
     // Save old buffer in order to identify changes
     oldBuffer = strdup(buffer);
@@ -157,7 +161,7 @@ namespace Mist{
     // Re-read SDP file
     reader.readAll(buffer, bytesRead);
     // Re-init SPD state iff contents have changed
-    INFO_MSG("Downloaded SDP file (%lu B)", bytesRead);
+    INFO_MSG("Downloaded SDP file (%zu B)", bytesRead);
     if (bytesRead != 0){
       if (!compareStrings(oldBuffer, buffer)){
         INFO_MSG("SDP contents have changed. Reparsing SDP file");
@@ -193,7 +197,7 @@ namespace Mist{
 
   // Updates stats and quits if parsePacket returns false
   void InputSDP::streamMainLoop(){
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
     uint64_t startTime = Util::epoch();
     uint64_t lastSecs = 0;
     // Get RTP packets from UDP socket and stop if this fails
@@ -202,23 +206,21 @@ namespace Mist{
       if (lastSecs != currSecs){
         lastSecs = currSecs;
         // Connect to stats for INPUT detection
-        statComm.reload();
+        statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");
         if (statComm){
           if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setDown(bytesRead);
           statComm.setUp(bytesUp);
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
-          statComm.setHost(getConnectedBinHost());
         }
       }
       // If the error flag is raised or we are lacking data, try to recover
@@ -304,7 +306,7 @@ namespace Mist{
     pkt.getString("data", pktData, pktDataLen);
     size_t idx = M.trackIDToIndex(pkt.getTrackId(), getpid());
 
-    HIGH_MSG("Buffering new pkt for track %zu->%zu at offset %zu and time %zu", pkt.getTrackId(), idx, packetOffset, pkt.getTime());
+    HIGH_MSG("Buffering new pkt for track %zu->%zu at offset %" PRId64 " and time %" PRIu64, pkt.getTrackId(), idx, packetOffset, pkt.getTime());
 
     if (idx == INVALID_TRACK_ID){
       INFO_MSG("Invalid index for track number %zu", pkt.getTrackId());
@@ -314,7 +316,7 @@ namespace Mist{
         userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       if (userSelect[idx].getStatus() == COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
       }
     }
 

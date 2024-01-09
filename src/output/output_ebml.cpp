@@ -48,30 +48,6 @@ namespace Mist{
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
       initialize();
       if (!M.getLive()){calcVodSizes();}
-      if (!streamName.size()){
-        WARN_MSG("Recording unconnected EBML output to file! Cancelled.");
-        conn.close();
-        return;
-      }
-      if (config->getString("target") == "-"){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Outputting %s to stdout in EBML format", streamName.c_str());
-        return;
-      }
-      if (!M.getValidTracks().size()){
-        INFO_MSG("Stream not available - aborting");
-        conn.close();
-        return;
-      }
-      if (connectToFile(config->getString("target"))){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Recording %s to %s in EBML format", streamName.c_str(),
-                 config->getString("target").c_str());
-        return;
-      }
-      conn.close();
     }
   }
 
@@ -91,6 +67,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("MPEG2");
     capa["codecs"][0u][0u].append("AV1");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("FLAC");
     capa["codecs"][0u][1u].append("vorbis");
     capa["codecs"][0u][1u].append("opus");
     capa["codecs"][0u][1u].append("PCM");
@@ -124,6 +101,7 @@ namespace Mist{
     capa["exceptions"]["codec:FLOAT"] = blacklistNonChrome;
     capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
     capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.mkv");
     capa["push_urls"].append("/*.webm");
     capa["push_urls"].append("mkv-exec:*");
@@ -217,6 +195,7 @@ namespace Mist{
     if (codec == "PCM"){return "A_PCM/INT/BIG";}
     if (codec == "MP2"){return "A_MPEG/L2";}
     if (codec == "MP3"){return "A_MPEG/L3";}
+    if (codec == "FLAC"){return "A_FLAC";}
     if (codec == "AC3"){return "A_AC3";}
     if (codec == "ALAW"){return "A_MS/ACM";}
     if (codec == "ULAW"){return "A_MS/ACM";}

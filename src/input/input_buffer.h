@@ -31,7 +31,6 @@ namespace Mist{
     bool preRun();
     bool checkArguments(){return true;}
     void updateMeta();
-    bool readHeader(){return false;}
     bool needHeader(){return false;}
     void getNext(size_t idx = INVALID_TRACK_ID){};
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID){};

@@ -4,6 +4,7 @@
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
+#include "controller_external_writers.h"
 #include <dirent.h> //for browse API call
 #include <fstream>
 #include <mist/auth.h>
@@ -19,6 +20,7 @@
 /*LTS-START*/
 #include "controller_limits.h"
 #include "controller_push.h"
+#include "controller_variables.h"
 #include "controller_updater.h"
 /*LTS-END*/
 
@@ -173,22 +175,26 @@ public:
     viewers = rlx.getInt("viewers", entry);
     inputs = rlx.getInt("inputs", entry);
     outputs = rlx.getInt("outputs", entry);
+    tags = rlx.getPointer("tags", entry);
   }
   bool operator==(const streamStat &b) const{
-    return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs);
+    return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs && tags == b.tags);
   }
   bool operator!=(const streamStat &b) const{return !(*this == b);}
   uint8_t status;
   uint64_t viewers;
   uint64_t inputs;
   uint64_t outputs;
+  std::string tags;
 };
 
 void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
   std::string logs = H.GetVar("logs");
   std::string accs = H.GetVar("accs");
   bool doStreams = H.GetVar("streams").size();
-  HTTP::Websocket W(C, H);
+  HTTP::Parser req = H;
+  H.Clean();
+  HTTP::Websocket W(C, req, H);
   if (!W){return;}
 
   IPC::sharedPage shmLogs(SHM_STATE_LOGS, 1024 * 1024);
@@ -288,6 +294,7 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
           tmp[1u].append(tmpStat.viewers);
           tmp[1u].append(tmpStat.inputs);
           tmp[1u].append(tmpStat.outputs);
+          tmp[1u].append(tmpStat.tags);
           W.sendFrame(tmp.toString());
         }
       }
@@ -301,6 +308,7 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
         tmp[1u].append(0u);
         tmp[1u].append(0u);
         tmp[1u].append(0u);
+        tmp[1u].append("");
         W.sendFrame(tmp.toString());
         strmRemove.erase(strm);
         lastStrmStat.erase(strm);
@@ -380,7 +388,13 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
         }
       }
       JSON::Value Response;
-      JSON::Value Request = JSON::fromString(H.GetVar("command"));
+      JSON::Value Request;
+      std::string reqContType = H.GetHeader("Content-Type");
+      if (reqContType == "application/json"){
+        Request = JSON::fromString(H.body);
+      }else{
+        Request = JSON::fromString(H.GetVar("command"));
+      }
       // invalid request? send the web interface, unless requested as "/api"
       if (!Request.isObject() && H.url != "/api" && H.url != "/api2"){
 #include "server.html.h"
@@ -407,12 +421,15 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
         }
         if (authorized){
           handleAPICommands(Request, Response);
-        }else{// unauthorized
-          Util::sleep(1000); // sleep a second to prevent bruteforcing
-          logins++;
+          Controller::checkServerLimits(); /*LTS*/
         }
-        Controller::checkServerLimits(); /*LTS*/
       }// config mutex lock
+      if (!authorized){
+        // sleep a second to prevent bruteforcing.
+        // We need to make sure this happens _after_ unlocking the mutex!
+        Util::sleep(1000);
+        logins++;
+      }
       // send the response, either normally or through JSONP callback.
       std::string jsonp = "";
       if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
@@ -434,12 +451,22 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
 
 void Controller::handleUDPAPI(void *np){
   Socket::UDPConnection uSock(true);
-  if (!uSock.bind(UDP_API_PORT, UDP_API_HOST)){
+  uint16_t boundPort = uSock.bind(UDP_API_PORT, UDP_API_HOST);
+  if (!boundPort){
     FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
     return;
   }
+  HTTP::URL boundAddr;
+  boundAddr.protocol = "udp";
+  boundAddr.setPort(boundPort);
+  boundAddr.host = uSock.getBoundAddress();
+  {
+    tthread::lock_guard<tthread::mutex> guard(configMutex);
+    udpApiBindAddr = boundAddr.getUrl();
+    Controller::writeConfig();
+  }
   Util::Procs::socketList.insert(uSock.getSock());
-  uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
+  uSock.allocateDestination();
   while (Controller::conf.is_active){
     if (uSock.Receive()){
       MEDIUM_MSG("UDP API: %s", (const char*)uSock.data);
@@ -535,6 +562,11 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     Response["config_backup"].assignFrom(Controller::Storage, skip);
   }
 
+  if (Request.isMember("config_reload")){
+    INFO_MSG("Reloading configuration from disk on request");
+    Controller::readConfigFromDisk();
+  }
+
   if (Request.isMember("config_restore")){
     std::set<std::string> skip;
     skip.insert("log");
@@ -594,6 +626,12 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       out["prometheus"] = in["prometheus"];
       Controller::prometheus = out["prometheus"].asStringRef();
     }
+    if (in.isMember("sessionViewerMode")){out["sessionViewerMode"] = in["sessionViewerMode"];}
+    if (in.isMember("sessionInputMode")){out["sessionInputMode"] = in["sessionInputMode"];}
+    if (in.isMember("sessionOutputMode")){out["sessionOutputMode"] = in["sessionOutputMode"];}
+    if (in.isMember("sessionUnspecifiedMode")){out["sessionUnspecifiedMode"] = in["sessionUnspecifiedMode"];}
+    if (in.isMember("sessionStreamInfoMode")){out["sessionStreamInfoMode"] = in["sessionStreamInfoMode"];}
+    if (in.isMember("tknMode")){out["tknMode"] = in["tknMode"];}
     if (in.isMember("defaultStream")){out["defaultStream"] = in["defaultStream"];}
     if (in.isMember("location") && in["location"].isObject()){
       out["location"]["lat"] = in["location"]["lat"].asDouble();
@@ -1130,6 +1168,69 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
+  if (Request.isMember("tag_stream")){
+    if (Request["tag_stream"].isObject()){
+      jsonForEach(Request["tag_stream"], it){
+        if (it->isString()){
+          Controller::stream_tag(it.key(), it->asStringRef());
+        }else if (it->isArray()){
+          jsonForEach(*it, jt){
+            if (jt->isString()){
+              Controller::stream_tag(it.key(), jt->asStringRef());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (Request.isMember("untag_stream")){
+    if (Request["untag_stream"].isObject()){
+      jsonForEach(Request["untag_stream"], it){
+        if (it->isString()){
+          Controller::stream_untag(it.key(), it->asStringRef());
+        }else if (it->isArray()){
+          jsonForEach(*it, jt){
+            if (jt->isString()){
+              Controller::stream_untag(it.key(), jt->asStringRef());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (Request.isMember("stream_tags")){
+    JSON::Value & rT = Response["stream_tags"];
+    if (Request["stream_tags"].isArray()){
+      jsonForEach(Request["stream_tags"], it){
+        if (it->isString()){
+          std::set<std::string> tags = Controller::stream_tags(it->asStringRef());
+          JSON::Value & tRef = rT[it->asStringRef()];
+          for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
+        }
+      }
+    }else if (Request["stream_tags"].isObject()){
+      jsonForEach(Request["stream_tags"], it){
+        std::set<std::string> tags = Controller::stream_tags(it.key());
+        JSON::Value & tRef = rT[it.key()];
+        for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
+      }
+    }else if (Request["stream_tags"].isString() && Request["stream_tags"].asStringRef().size()){
+      std::set<std::string> tags = Controller::stream_tags(Request["stream_tags"].asStringRef());
+      JSON::Value & tRef = rT[Request["stream_tags"].asStringRef()];
+      for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
+    }else{
+      JSON::Value nullPkt, resp;
+      Controller::fillActive(nullPkt, resp);
+      jsonForEach(resp, it){
+        std::set<std::string> tags = Controller::stream_tags(it->asStringRef());
+        JSON::Value & tRef = rT[it->asStringRef()];
+        for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
+      }
+    }
+  }
+
   if (Request.isMember("push_start")){
     std::string stream;
     std::string target;
@@ -1169,13 +1270,13 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
-  if (Request.isMember("push_auto_add")){Controller::addPush(Request["push_auto_add"]);}
+  if (Request.isMember("push_auto_add")){Controller::addPush(Request["push_auto_add"], Response["push_list"]);}
 
   if (Request.isMember("push_auto_remove")){
     if (Request["push_auto_remove"].isArray()){
-      jsonForEach(Request["push_auto_remove"], it){Controller::removePush(*it);}
+      jsonForEach(Request["push_auto_remove"], it){Controller::removePush(*it, Response["push_list"]);}
     }else{
-      Controller::removePush(Request["push_auto_remove"]);
+      Controller::removePush(Request["push_auto_remove"], Response["push_list"]);
     }
   }
 
@@ -1187,12 +1288,22 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
   }
 
+  if (Request.isMember("variable_list")){Controller::listCustomVariables(Response["variable_list"]);}
+  if (Request.isMember("variable_add")){Controller::addVariable(Request["variable_add"], Response["variable_list"]);}
+  if (Request.isMember("variable_remove")){Controller::removeVariable(Request["variable_remove"], Response["variable_list"]);}
+
+  if (Request.isMember("external_writer_remove")){Controller::removeExternalWriter(Request["external_writer_remove"]);}
+  if (Request.isMember("external_writer_add")){Controller::addExternalWriter(Request["external_writer_add"]);}
+  if (Request.isMember("external_writer_remove") || Request.isMember("external_writer_add") || 
+      Request.isMember("external_writer_list")){
+    Controller::listExternalWriters(Response["external_writer_list"]);
+  }
+
   Controller::writeConfig();
-  Controller::configChanged = false;
 
   if (Request.isMember("save")){
     Controller::Log("CONF", "Writing config to file on request through API");
-    Controller::writeConfigToDisk();
+    Controller::writeConfigToDisk(true);
   }
 
 }

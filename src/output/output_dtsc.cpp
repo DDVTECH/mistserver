@@ -96,8 +96,17 @@ namespace Mist{
     capa["desc"] = "Real time streaming over DTSC (proprietary protocol for efficient inter-server streaming)";
     capa["deps"] = "";
     capa["codecs"][0u][0u].append("+*");
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("dtsc://*");
     capa["incoming_push_url"] = "dtsc://$host:$port/$stream?pass=$password";
+
+    capa["url_rel"] = "/$";
+
+    capa["methods"][0u]["handler"] = "dtsc";
+    capa["methods"][0u]["type"] = "dtsc";
+    capa["methods"][0u]["hrn"] = "DTSC";
+    capa["methods"][0u]["priority"] = 10;
+
 
     JSON::Value opt;
     opt["arg"] = "string";
@@ -209,7 +218,7 @@ namespace Mist{
             if (kDur > longest_key){longest_key = kDur;}
           }
           if (dur > longest_key*1.2){
-            onFail("Key duration mismatch; disconnecting "+myConn.getHost()+" to recover ("+JSON::Value(longest_key).asString()+" -> "+JSON::Value(dur).asString()+")", true);
+            onFail("Key duration mismatch; disconnecting "+myConn.getHost()+" to recover ("+JSON::Value(longest_key).asString()+" -> "+JSON::Value((uint64_t)dur).asString()+")", true);
             return;
           }else{
             sendOk("Key duration matches upstream");
@@ -327,7 +336,7 @@ namespace Mist{
       if (!newStream.size()){
         FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                  getConnectedHost().c_str(), reqUrl.c_str());
-        Util::logExitReason(
+        Util::logExitReason(ER_TRIGGER,
             "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
             getConnectedHost().c_str(), reqUrl.c_str());
         onFail("Push not allowed - rejected by trigger");

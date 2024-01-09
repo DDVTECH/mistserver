@@ -105,13 +105,13 @@ namespace Mist{
     option["long"] = "segment-size";
     option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
-    option["value"].append(1900);
+    option["value"].append(DEFAULT_FRAGMENT_DURATION);
     config->addOption("segmentsize", option);
     capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
     capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
-    capa["optional"]["segmentsize"]["default"] = 1900;
+    capa["optional"]["segmentsize"]["default"] = DEFAULT_FRAGMENT_DURATION;
 
     capa["optional"]["fallback_stream"]["name"] = "Fallback stream";
     capa["optional"]["fallback_stream"]["help"] =
@@ -129,12 +129,9 @@ namespace Mist{
         "live media data. The push://[host][@password] style source allows all enabled protocols "
         "that support push input to accept a push into MistServer, where you can accept incoming "
         "streams from everyone, based on a set password, and/or use hostname/IP whitelisting.";
-    capa["codecs"][0u][0u].append("*");
-    capa["codecs"][0u][1u].append("*");
-    capa["codecs"][0u][2u].append("*");
     bufferTime = 50000;
     cutTime = 0;
-    segmentSize = 1900;
+    segmentSize = DEFAULT_FRAGMENT_DURATION;
     hasPush = false;
     everHadPush = false;
     resumeMode = false;
@@ -190,6 +187,10 @@ namespace Mist{
   /// Detected issues in string format, or empty string if no issues
   /// ~~~~~~~~~~~~~~~
   void inputBuffer::updateMeta(){
+    if (!M){
+      Util::logExitReason(ER_SHM_LOST, "Lost connection to metadata");
+      return;
+    }
     static bool wentDry = false;
     static uint64_t lastFragCount = 0xFFFFull;
     static uint32_t lastBPS = 0; /*LTS*/
@@ -332,6 +333,9 @@ namespace Mist{
 
   void inputBuffer::removeUnused(){
     meta.reloadReplacedPagesIfNeeded();
+    if (!meta){
+      return;
+    }
     // first remove all tracks that have not been updated for too long
     bool changed = true;
     while (changed){
@@ -352,6 +356,8 @@ namespace Mist{
       }
       for (std::set<size_t>::iterator idx = tracks.begin(); idx != tracks.end(); idx++){
         size_t i = *idx;
+        //Don't delete idle metadata tracks
+        if (M.getType(i) == "meta"){continue;}
         uint64_t lastUp = M.getLastUpdated(i);
         //Prevent issues when getLastUpdated > current time. This can happen if the second rolls over exactly during this loop.
         if (lastUp >= time){continue;}
@@ -416,6 +422,13 @@ namespace Mist{
       /// \TODO Make sure data has been in the buffer for at least bufferTime after it goes in
       while (keys.getValidCount() > 1 && (M.getLastms(i) - keys.getTime(keys.getFirstValid() + 1)) > bufferTime){
         if (!removeKey(i)){break;}
+      }
+      Util::RelAccX &tPages = meta.pages(i);
+      Util::RelAccXFieldData firstKeyEnt = tPages.getFieldData("firstkey");
+      Util::RelAccXFieldData keyCount = tPages.getFieldData("keycount");
+      for (uint32_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
+        if (tPages.getInt(firstKeyEnt, j) + tPages.getInt(keyCount, j) > firstKey){break;}
+        bufferRemove(i, tPages.getInt(firstKeyEnt, j), j);
       }
     }
     updateMeta();
@@ -492,7 +505,7 @@ namespace Mist{
     }
     if (hasPush){everHadPush = true;}
     if (!hasPush && everHadPush && !resumeMode && config->is_active){
-      Util::logExitReason("source disconnected for non-resumable stream");
+      Util::logExitReason(ER_CLEAN_EOF, "source disconnected for non-resumable stream");
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
       config->is_active = false;
       userSelect.clear();
@@ -544,7 +557,13 @@ namespace Mist{
       bufferTime = tmpNum;
     }
 
-    /*LTS-START*/
+    //Check if input timeout setting is correct
+    tmpNum = retrieveSetting(streamCfg, "inputtimeout");
+    if (inputTimeout != tmpNum){
+      DEVEL_MSG("Setting input timeout from %" PRIu64 " to new value of %" PRIu64, inputTimeout, tmpNum);
+      inputTimeout = tmpNum;
+    }
+
     //Check if cutTime setting is correct
     tmpNum = retrieveSetting(streamCfg, "cut");
     // if the new value is different, print a message and apply it
@@ -581,7 +600,6 @@ namespace Mist{
       meta.setMaxKeepAway(tmpNum);
     }
 
-    /*LTS-END*/
     return true;
   }
 

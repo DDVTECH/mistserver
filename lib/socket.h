@@ -26,6 +26,8 @@
 #include "mbedtls/ssl.h"
 #endif
 
+#include "util.h"
+
 // for being friendly with Socket::Connection down below
 namespace Buffer{
   class user;
@@ -68,6 +70,7 @@ namespace Socket{
     bool available(unsigned int count);
     bool available(unsigned int count) const;
     std::string remove(unsigned int count);
+    void remove(Util::ResizeablePointer & ptr, unsigned int count);
     std::string copy(unsigned int count);
     void clear();
   };
@@ -131,7 +134,7 @@ namespace Socket{
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
     std::string getHost() const; ///< Gets hostname for connection, if available.
-    std::string getBinHost();
+    std::string getBinHost() const;
     void setHost(std::string host); ///< Sets hostname for connection manually.
     std::string getBoundAddress() const;
     int getSocket();        ///< Returns internal socket number.
@@ -203,6 +206,8 @@ namespace Socket{
     std::string boundAddr, boundMulti;
     int boundPort;
     void checkRecvBuf();
+    std::deque<Util::ResizeablePointer> paceQueue;
+    uint64_t lastPace;
 
   public:
     Util::ResizeablePointer data;
@@ -213,8 +218,10 @@ namespace Socket{
     int getSock();
     uint16_t bind(int port, std::string iface = "", const std::string &multicastAddress = "");
     void setBlocking(bool blocking);
+    void allocateDestination();
     void SetDestination(std::string hostname, uint32_t port);
     void GetDestination(std::string &hostname, uint32_t &port);
+    std::string getBinDestination();
     const void * getDestAddr(){return destAddr;}
     size_t getDestAddrLen(){return destAddr_size;}
     std::string getBoundAddress();
@@ -223,6 +230,8 @@ namespace Socket{
     void SendNow(const std::string &data);
     void SendNow(const char *data);
     void SendNow(const char *data, size_t len);
+    void sendPaced(const char * data, size_t len);
+    void sendPaced(uint64_t uSendWindow);
     void setSocketFamily(int AF_TYPE);
   };
 }// namespace Socket

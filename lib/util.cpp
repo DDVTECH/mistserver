@@ -7,6 +7,8 @@
 #include "procs.h"
 #include "timing.h"
 #include "util.h"
+#include "url.h"
+#include "urireader.h"
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iomanip>
 #include <iostream>
@@ -150,6 +152,141 @@ namespace Util{
     }
   }
 
+  /// Replaces any occurrences of 'from' with 'to' in 'str', returns how many replacements were made
+  size_t replace(std::string &str, const std::string &from, const std::string &to){
+    if (from.empty()){return 0;}
+    size_t counter = 0;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos){
+      str.replace(start_pos, from.length(), to);
+      ++counter;
+      start_pos += to.length();
+    }
+    return counter;
+  }
+
+  /// \brief Removes whitespace from the beginning and end of a given string
+  void stringTrim(std::string &val){
+    if (!val.size()){ return; }
+    uint64_t startPos = 0;
+    uint64_t length = 0;
+    // Set startPos to the first character which does not have value 09-13
+    for (uint64_t i = 0; i < val.size(); i++){
+      if (val[i] == 32){continue;}
+      if (val[i] < 9 || val[i] > 13){
+        startPos = i;
+        break;
+      }
+    }
+    // Same thing in reverse for endPos
+    for (uint64_t i = val.size() - 1; i > 0 ; i--){
+      if (val[i] == 32){continue;}
+      if (val[i] < 9 || val[i] > 13){
+        length = i + 1 - startPos;
+        break;
+      }
+    }
+    val = val.substr(startPos, length);
+  }
+  
+  /// \brief splits a string on commas and returns a list of substrings
+  void splitString(std::string &src, char delim, std::deque<std::string> &result){
+    result.clear();
+    std::deque<uint64_t> positions;
+    uint64_t pos = src.find(delim, 0);
+    while (pos != std::string::npos){
+      positions.push_back(pos);
+      pos = src.find(delim, pos + 1);
+    }
+    if (positions.size() == 0){
+      result.push_back(src);
+      return;
+    }
+    uint64_t prevPos = 0;
+    for (int i = 0; i < positions.size(); i++) {
+      if (!prevPos){result.push_back(src.substr(prevPos, positions[i]));}
+      else{result.push_back(src.substr(prevPos + 1, positions[i] - prevPos - 1));}
+      prevPos = positions[i];
+    }
+    if (prevPos < src.size()){result.push_back(src.substr(prevPos + 1));}
+  }
+
+  /// \brief Connects the given file descriptor to a file or uploader binary
+  /// \param uri target URL or filepath
+  /// \param outFile file descriptor which will be used to send data
+  /// \param append whether to open this connection in truncate or append mode
+  bool externalWriter(const std::string & uri, int &outFile, bool append){
+    HTTP::URL target = HTTP::localURIResolver().link(uri);
+    // If it is a remote target, we might need to spawn an external binary
+    if (!target.isLocalPath()){
+      bool matchedProtocol = false;
+      // Read configured external writers
+      IPC::sharedPage extwriPage(EXTWRITERS, 0, false, false);
+      if (extwriPage.mapped){
+        Util::RelAccX extWri(extwriPage.mapped, false);
+        if (extWri.isReady()){
+          for (uint64_t i = 0; i < extWri.getEndPos(); i++){
+            // Retrieve binary config
+            std::string name = extWri.getPointer("name", i);
+            std::string cmdline = extWri.getPointer("cmdline", i);
+            Util::RelAccX protocols = Util::RelAccX(extWri.getPointer("protocols", i));
+            uint8_t protocolCount = protocols.getPresent();
+            JSON::Value protocolArray;
+            for (uint8_t idx = 0; idx < protocolCount; idx++){
+              protocolArray.append(protocols.getPointer("protocol", idx));
+            }
+            jsonForEach(protocolArray, protocol){
+              if (target.protocol != (*protocol).asStringRef()){ continue; }
+              HIGH_MSG("Using %s in order connect to URL with protocol %s", name.c_str(), target.protocol.c_str());
+              matchedProtocol = true;
+              // Split configured parameters for this writer on whitespace
+              // TODO: we might want to trim whitespaces and remove empty parameters
+              std::deque<std::string> parameterList;
+              Util::splitString(cmdline, ' ', parameterList);
+              // Build the startup command, which needs space for the program name, each parameter, the target url and a null at the end
+              char **cmd = (char**)malloc(sizeof(char*) * (parameterList.size() + 2));
+              size_t curArg = 0;
+              // Write each parameter
+              for (size_t j = 0; j < parameterList.size(); j++) {
+                cmd[curArg++] = (char*)parameterList[j].c_str();
+              }
+              // Write the target URL as the last positional argument then close with a null at the end
+              cmd[curArg++] = (char*)uri.c_str();
+              cmd[curArg++] = 0;
+
+              pid_t child = startConverted(cmd, outFile);
+              if (child == -1){
+                ERROR_MSG("'%s' process did not start, aborting", cmd[0]);
+                return false;
+              }
+              Util::Procs::forget(child);
+              free(cmd);
+              break;
+            }
+            if (matchedProtocol){ break; }
+          }
+        }
+      }
+      if (!matchedProtocol){
+        ERROR_MSG("Could not connect to '%s', since we do not have a configured external writer to handle '%s' protocols", uri.c_str(), target.protocol.c_str());
+        return false;
+      }
+    }else{
+      int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+      int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
+      std::string path = target.getFilePath();
+      if (!Util::createPathFor(path)){
+        ERROR_MSG("Cannot not create file %s: could not create parent folder", path.c_str());
+        return false;
+      }
+      outFile = open(path.c_str(), mode, flags);
+      if (outFile < 0){
+        ERROR_MSG("Failed to open file %s, error: %s", path.c_str(), strerror(errno));
+        return false;
+      }
+    }
+    return true;
+  }
   //Returns the time to wait in milliseconds for exponential back-off waiting.
   //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
   //Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.
@@ -214,8 +351,8 @@ namespace Util{
   }
 
   bool ResizeablePointer::append(const void *p, uint32_t l){
-    // We're writing to ourselves or from null pointer - assume outside write (e.g. fread or socket operation) and update the size
-    if (!p || p == ((char *)ptr) + currSize){
+    // We're writing from null pointer - assume outside write (e.g. fread or socket operation) and update the size
+    if (!p){
       if (currSize + l > maxSize){
         FAIL_MSG("Pointer write went beyond allocated size! Memory corruption likely.");
         BACKTRACE;
@@ -300,14 +437,124 @@ namespace Util{
     }
   }
 
+  /// \brief Forks to a log converter, which spawns an external writer and pretty prints it stdout and stderr
+  pid_t startConverted(const char *const *argv, int &outFile){
+    int p[2];
+    if (pipe(p) == -1){
+      ERROR_MSG("Unable to create pipe in order to connect to the STDIN of the target binary");
+      return -1;
+    }
+    Util::Procs::fork_prepare();
+    pid_t converterPid = fork();
+    // Child process
+    if (converterPid == 0){
+      Util::Procs::fork_complete();
+      close(p[1]);
+      // Override signals
+      struct sigaction new_action;
+      new_action.sa_handler = SIG_IGN;
+      sigemptyset(&new_action.sa_mask);
+      new_action.sa_flags = 0;
+      sigaction(SIGINT, &new_action, NULL);
+      sigaction(SIGHUP, &new_action, NULL);
+      sigaction(SIGTERM, &new_action, NULL);
+      sigaction(SIGPIPE, &new_action, NULL);
+      // Start external writer
+      int fdOut = -1;
+      int fdErr = -1;
+      pid_t binPid = Util::Procs::StartPiped(argv, &p[0], &fdOut, &fdErr);
+      close(p[0]);
+      if (binPid == -1){
+        FAIL_MSG("Failed to start binary `%s`", argv[0]);
+      }
+      // Close all sockets in the socketList
+      for (std::set<int>::iterator it = Util::Procs::socketList.begin();
+            it != Util::Procs::socketList.end(); ++it){
+        close(*it);
+      }
+      // Okay, so.... hear me out here.
+      // This code normalizes the stdin and stdout file descriptors, so that
+      // they are connected to the pipes we're reading from the child process.
+      // This is not technically needed, but it makes it easier to debug pipe-
+      // related problems, and works around a nasty issue were left-over stdout
+      // connected to another converted process may keep that other process alive
+      // when it really shouldn't.
+      // This isn't pretty, it's not fully correct, but it's good enough for now.
+      // If somebody writes a prettier version of this, please do sent a pull request.
+      // Thanks <3
+      std::set<int> toClose;
+      while (fdErr == 0 || fdErr == 1){
+        int tmp = dup(fdErr);
+        if (tmp > -1){
+          toClose.insert(fdErr);
+          fdErr = tmp;
+        }
+      }
+      while (fdOut == 0 || fdOut == 1){
+        int tmp = dup(fdOut);
+        if (tmp > -1){
+          toClose.insert(fdOut);
+          fdOut = tmp;
+        }
+      }
+      while (toClose.size()){
+        close(*toClose.begin());
+        toClose.erase(toClose.begin());
+      }
+      dup2(fdErr, 1);
+      dup2(fdOut, 0);
+      close(fdErr);
+      close(fdOut);
+      // Read pipes and write to the stdErr of parent process
+      Util::logConverter(1, 0, 2, argv[0], binPid);
+      exit(0);
+    }
+    if (converterPid == -1){
+      FAIL_MSG("Failed to fork log converter for log handling!");
+      close(p[1]);
+    }else{
+      Util::Procs::remember(converterPid);
+      outFile = p[1];
+    }
+    close(p[0]);
+    Util::Procs::fork_complete();
+    return converterPid;
+  }
+
+  void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid){
+    Socket::Connection errStream(-1, inErr);
+    Socket::Connection outStream(-1, inOut);
+    errStream.setBlocking(false);
+    outStream.setBlocking(false);
+    while (errStream || outStream){
+      if (errStream.spool() || errStream.Received().size()){
+        while (errStream.Received().size()){
+          std::string &line = errStream.Received().get();
+          while (line.find('\r') != std::string::npos){line.erase(line.find('\r'));}
+          while (line.find('\n') != std::string::npos){line.erase(line.find('\n'));}
+          dprintf(out, "INFO|%s|%d||%s|%s\n", progName, pid, Util::streamName, line.c_str());
+          line.clear();
+        }
+      }else if (outStream.spool() || outStream.Received().size()){
+        while (outStream.Received().size()){
+          std::string &line = outStream.Received().get();
+          while (line.find('\r') != std::string::npos){line.erase(line.find('\r'));}
+          while (line.find('\n') != std::string::npos){line.erase(line.find('\n'));}
+          dprintf(out, "INFO|%s|%d||%s|%s\n", progName, pid, Util::streamName, line.c_str());
+          line.clear();
+        }      
+      }else{Util::sleep(25);}
+    }
+    errStream.close();
+    outStream.close();
+  }
+
   /// Parses log messages from the given file descriptor in, printing them to out, optionally
   /// calling the given callback for each valid message. Closes the file descriptor on read error
   void logParser(int in, int out, bool colored,
                  void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool)){
     if (getenv("MIST_COLOR")){colored = true;}
     bool sysd_log = getenv("MIST_LOG_SYSTEMD");
-    char buf[1024];
-    FILE *output = fdopen(in, "r");
     char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg,
         *WARN_msg, *INFO_msg;
     if (colored){
@@ -337,86 +584,125 @@ namespace Util{
       WARN_msg = (char *)"";
       INFO_msg = (char *)"";
     }
-    while (fgets(buf, 1024, output)){
-      unsigned int i = 0;
-      char *kind = buf; // type of message, at begin of string
-      char *progname = 0;
-      char *progpid = 0;
-      char *lineno = 0;
-      char *strmNm = 0;
-      char *message = 0;
-      while (i < 9 && buf[i] != '|' && buf[i] != 0 && buf[i] < 128){++i;}
-      if (buf[i] != '|'){continue;}// on parse error, skip to next message
-      buf[i] = 0;                      // insert null byte
-      ++i;
-      progname = buf + i; // progname starts here
-      while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}// on parse error, skip to next message
-      buf[i] = 0;                      // insert null byte
-      ++i;
-      progpid = buf + i; // progpid starts here
-      while (i < 60 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}// on parse error, skip to next message
-      buf[i] = 0;                      // insert null byte
-      ++i;
-      lineno = buf + i; // lineno starts here
-      while (i < 180 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}// on parse error, skip to next message
-      buf[i] = 0;                      // insert null byte
-      ++i;
-      strmNm = buf + i; // stream name starts here
-      while (i < 380 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}// on parse error, skip to next message
-      buf[i] = 0;                      // insert null byte
-      ++i;
-      message = buf + i; // message starts here
-      // find end of line, insert null byte
-      unsigned int j = i;
-      while (j < 1023 && buf[j] != '\n' && buf[j] != 0){++j;}
-      buf[j] = 0;
-      // print message
-      if (callback){callback(kind, message, strmNm, JSON::Value(progpid).asInt(), true);}
-      color_msg = color_end;
-      if (colored){
-        if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
-        if (!strcmp(kind, "FAIL")){color_msg = FAIL_msg;}
-        if (!strcmp(kind, "ERROR")){color_msg = ERROR_msg;}
-        if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
-        if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
-      }
-      if (sysd_log){
-        if (!strcmp(kind, "CONF")){dprintf(out, "<5>");}
-        if (!strcmp(kind, "FAIL")){dprintf(out, "<0>");}
-        if (!strcmp(kind, "ERROR")){dprintf(out, "<1>");}
-        if (!strcmp(kind, "WARN")){dprintf(out, "<2>");}
-        if (!strcmp(kind, "INFO")){dprintf(out, "<5>");}
-        if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") || !strcmp(kind, "DONTEVEN")){
-          dprintf(out, "<7>");
+
+    Socket::Connection O(-1, in);
+    O.setBlocking(true);
+    Util::ResizeablePointer buf;
+    while (O){
+      if (O.spool()){
+        while (O.Received().size()){
+          std::string & t = O.Received().get();
+          buf.append(t);
+          if (buf.size() && (buf.size() > 1024 || *t.rbegin() == '\n')){
+            unsigned int i = 0;
+            char *kind = buf; // type of message, at begin of string
+            char *progname = 0;
+            char *progpid = 0;
+            char *lineno = 0;
+            char *strmNm = 0;
+            char *message = 0;
+            while (i < 9 && buf[i] != '|' && buf[i] != 0 && buf[i] < 128){++i;}
+            if (buf[i] != '|'){
+              // on parse error, skip to next message
+              t.clear();
+              buf.truncate(0);
+              continue;
+            }
+            buf[i] = 0;                      // insert null byte
+            ++i;
+            progname = buf + i; // progname starts here
+            while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
+            if (buf[i] != '|'){
+              // on parse error, skip to next message
+              t.clear();
+              buf.truncate(0);
+              continue;
+            }
+            buf[i] = 0;                      // insert null byte
+            ++i;
+            progpid = buf + i; // progpid starts here
+            while (i < 60 && buf[i] != '|' && buf[i] != 0){++i;}
+            if (buf[i] != '|'){
+              // on parse error, skip to next message
+              t.clear();
+              buf.truncate(0);
+              continue;
+            }
+            buf[i] = 0;                      // insert null byte
+            ++i;
+            lineno = buf + i; // lineno starts here
+            while (i < 180 && buf[i] != '|' && buf[i] != 0){++i;}
+            if (buf[i] != '|'){
+              // on parse error, skip to next message
+              t.clear();
+              buf.truncate(0);
+              continue;
+            }
+            buf[i] = 0;                      // insert null byte
+            ++i;
+            strmNm = buf + i; // stream name starts here
+            while (i < 380 && buf[i] != '|' && buf[i] != 0){++i;}
+            if (buf[i] != '|'){
+              // on parse error, skip to next message
+              t.clear();
+              buf.truncate(0);
+              continue;
+            }
+            buf[i] = 0;                      // insert null byte
+            ++i;
+            message = buf + i; // message starts here
+            // insert null byte for end of line
+            buf[buf.size()-1] = 0;
+            // print message
+            if (callback){callback(kind, message, strmNm, JSON::Value(progpid).asInt(), true);}
+            color_msg = color_end;
+            if (colored){
+              if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
+              if (!strcmp(kind, "FAIL")){color_msg = FAIL_msg;}
+              if (!strcmp(kind, "ERROR")){color_msg = ERROR_msg;}
+              if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
+              if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
+            }
+            if (sysd_log){
+              if (!strcmp(kind, "CONF")){dprintf(out, "<5>");}
+              if (!strcmp(kind, "FAIL")){dprintf(out, "<0>");}
+              if (!strcmp(kind, "ERROR")){dprintf(out, "<1>");}
+              if (!strcmp(kind, "WARN")){dprintf(out, "<2>");}
+              if (!strcmp(kind, "INFO")){dprintf(out, "<5>");}
+              if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") || !strcmp(kind, "DONTEVEN")){
+                dprintf(out, "<7>");
+              }
+            }else{
+              time_t rawtime;
+              struct tm *timeinfo;
+              struct tm timetmp;
+              char buffer[100];
+              time(&rawtime);
+              timeinfo = localtime_r(&rawtime, &timetmp);
+              strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
+              dprintf(out, "%s[%s] ", color_time, buffer);
+            }
+            if (progname && progpid && strlen(progname) && strlen(progpid)){
+              if (strmNm && strlen(strmNm)){
+                dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);
+              }else{
+                dprintf(out, "%s (%s) ", progname, progpid);
+              }
+            }else{
+              if (strmNm && strlen(strmNm)){dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);}
+            }
+            dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
+            if (lineno && strlen(lineno)){dprintf(out, " (%s) ", lineno);}
+            dprintf(out, "\n");
+            buf.truncate(0);
+          }
+          t.clear();
         }
       }else{
-        time_t rawtime;
-        struct tm *timeinfo;
-        struct tm timetmp;
-        char buffer[100];
-        time(&rawtime);
-        timeinfo = localtime_r(&rawtime, &timetmp);
-        strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
-        dprintf(out, "%s[%s] ", color_time, buffer);
+        Util::sleep(50);
       }
-      if (progname && progpid && strlen(progname) && strlen(progpid)){
-        if (strmNm && strlen(strmNm)){
-          dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);
-        }else{
-          dprintf(out, "%s (%s) ", progname, progpid);
-        }
-      }else{
-        if (strmNm && strlen(strmNm)){dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);}
-      }
-      dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
-      if (lineno && strlen(lineno)){dprintf(out, " (%s) ", lineno);}
-      dprintf(out, "\n");
     }
-    fclose(output);
+    close(out);
     close(in);
   }
 
@@ -543,7 +829,7 @@ namespace Util{
   bool RelAccX::isExit() const{return !p || (p[0] & 2);}
 
   /// Returns true if the structure should be reloaded through out of band means.
-  bool RelAccX::isReload() const{return p[0] & 4;}
+  bool RelAccX::isReload() const{return !p || (p[0] & 4);}
 
   /// Returns true if the given record number can be accessed.
   bool RelAccX::isRecordAvailable(uint64_t recordNo) const{
@@ -552,6 +838,11 @@ namespace Util{
     // Check if the record hasn't been created yet
     if (recordNo >= getEndPos()){return false;}
     return true;
+  }
+
+  /// Returns true if the given field exists.
+  bool RelAccX::hasField(const std::string & name) const{
+    return (fields.find(name) != fields.end());
   }
 
   /// Returns the (max) size of the given field.
@@ -891,9 +1182,9 @@ namespace Util{
   /// Updates the present record counter, shifting the ring buffer end position forward without
   /// moving the ring buffer start position.
   void RelAccX::addRecords(uint32_t amount){
-    if ((*hdrPresent) + amount > *hdrRecordCnt){
+    if ((*hdrEndPos) + amount - *hdrDeleted > *hdrRecordCnt){
       BACKTRACE;
-      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", (*hdrPresent) + amount, *hdrPresent, amount, *hdrRecordCnt);
+      WARN_MSG("Exceeding recordCount (%" PRIu64 " [%" PRIu64 " + %" PRIu32 " - %" PRIu64 "] > %" PRIu32 ")", (*hdrEndPos) + amount - (*hdrDeleted), *hdrEndPos, amount, *hdrDeleted, *hdrRecordCnt);
       *hdrPresent = 0;
     }else{
       *hdrPresent += amount;

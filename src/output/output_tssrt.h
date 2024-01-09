@@ -14,11 +14,12 @@ namespace Mist{
     void sendTS(const char *tsData, size_t len = 188);
     bool isReadyForPlay(){return true;}
     virtual void requestHandler();
+    virtual bool onFinish();
   protected:
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
     virtual std::string getConnectedHost(){return srtConn.remotehost;}
     virtual std::string getConnectedBinHost(){return srtConn.getBinHost();}
-
+    virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
   private:
     HTTP::URL target;
     int64_t timeStampOffset;
@@ -28,6 +29,7 @@ namespace Mist{
     Socket::UDPConnection pushSock;
     TS::Stream tsIn;
     TS::Assembler assembler;
+    bool bootMSOffsetCalculated;
 
     Socket::SRTConnection & srtConn;
   };

@@ -39,9 +39,8 @@ void signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
 
 // We use threads here for multiple input pushes, because of the internals of the SRT Library
 static void callThreadCallbackSRT(void *socknum){
-  SRTSOCKET sock = *((SRTSOCKET *)socknum);
   // use the accepted socket as the second parameter
-  Mist::inputTSSRT inp(cfgPointer, sock);
+  Mist::inputTSSRT inp(cfgPointer, *(Socket::SRTConnection *)socknum);
   inp.setSingular(false);
   inp.run();
 }
@@ -49,9 +48,11 @@ static void callThreadCallbackSRT(void *socknum){
 namespace Mist{
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
-  inputTSSRT::inputTSSRT(Util::Config *cfg, SRTSOCKET s) : Input(cfg){
+  inputTSSRT::inputTSSRT(Util::Config *cfg, Socket::SRTConnection s) : Input(cfg){
     rawIdx = INVALID_TRACK_ID;
     lastRawPacket = 0;
+    bootMSOffsetCalculated = false;
+    assembler.setLive();
     capa["name"] = "TSSRT";
     capa["desc"] = "This input allows for processing MPEG2-TS-based SRT streams. Use mode=listener "
                    "for push input.";
@@ -61,15 +62,15 @@ namespace Mist{
     capa["incoming_push_url"] = "srt://$host:$port";
     capa["incoming_push_url_match"] = "srt://*";
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP2");
-    capa["codecs"][0u][1u].append("opus");
-    capa["codecs"][1u][0u].append("rawts");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("HEVC");
+    capa["codecs"]["video"].append("MPEG2");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("MP2");
+    capa["codecs"]["audio"].append("opus");
+    capa["codecs"]["passthrough"].append("rawts");
 
     JSON::Value option;
     option["arg"] = "integer";
@@ -117,9 +118,28 @@ namespace Mist{
     option["help"] = "Enable raw MPEG-TS passthrough mode";
     config->addOption("raw", option);
     
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+
+    option.null();
+    option["long"] = "datatrack";
+    option["short"] = "D";
+    option["arg"] = "string";
+    option["default"] = "";
+    option["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", option);
+
     // Setup if we are called form with a thread for push-based input.
-    if (s != -1){
-      srtConn = Socket::SRTConnection(s);
+    if (s.connected()){
+      srtConn = s;
       streamName = baseStreamName;
       std::string streamid = srtConn.getStreamName();
       int64_t acc = config->getInteger("acceptable");
@@ -140,7 +160,12 @@ namespace Mist{
 
   inputTSSRT::~inputTSSRT(){}
 
-  bool inputTSSRT::checkArguments(){return true;}
+  bool inputTSSRT::checkArguments(){
+    if (config->getString("datatrack") == "json"){
+      tsStream.setRawDataParser(TS::JSON);
+    }
+    return true;
+  }
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
   bool inputTSSRT::preRun(){
@@ -229,9 +254,9 @@ namespace Mist{
     if (!thisPacket){
       if (srtConn){
         INFO_MSG("Could not getNext TS packet!");
-        Util::logExitReason("internal TS parser error");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "internal TS parser error");
       }else{
-        Util::logExitReason("SRT connection close");
+        Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection close");
       }
       return;
     }
@@ -240,17 +265,23 @@ namespace Mist{
     thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
     if (thisIdx == INVALID_TRACK_ID){getNext(idx);}
 
-    uint64_t adjustTime = thisPacket.getTime() + timeStampOffset;
+    uint64_t pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
     if (lastTimeStamp || timeStampOffset){
-      if (lastTimeStamp + 5000 < adjustTime || lastTimeStamp > adjustTime + 5000){
+      uint64_t targetTime = Util::bootMS() - M.getBootMsOffset();
+      if (targetTime + 5000 < pktTimeWithOffset || targetTime > pktTimeWithOffset + 5000){
         INFO_MSG("Timestamp jump " PRETTY_PRINT_MSTIME " -> " PRETTY_PRINT_MSTIME ", compensating.",
-                 PRETTY_ARG_MSTIME(lastTimeStamp), PRETTY_ARG_MSTIME(adjustTime));
-        timeStampOffset += (lastTimeStamp - adjustTime);
-        adjustTime = thisPacket.getTime() + timeStampOffset;
+                 PRETTY_ARG_MSTIME(targetTime), PRETTY_ARG_MSTIME(pktTimeWithOffset));
+        timeStampOffset += (targetTime - pktTimeWithOffset);
+        pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
       }
     }
-    lastTimeStamp = adjustTime;
-    thisPacket.setTime(adjustTime);
+    if (!bootMSOffsetCalculated){
+      meta.setBootMsOffset((int64_t)Util::bootMS() - (int64_t)pktTimeWithOffset);
+      bootMSOffsetCalculated = true;
+    }
+    lastTimeStamp = pktTimeWithOffset;
+    thisPacket.setTime(pktTimeWithOffset);
+    thisTime = pktTimeWithOffset;
   }
 
   bool inputTSSRT::openStreamSource(){return true;}
@@ -263,9 +294,8 @@ namespace Mist{
       while (config->is_active && sSock.connected()){
         Socket::SRTConnection S = sSock.accept();
         if (S.connected()){// check if the new connection is valid
-          SRTSOCKET sock = S.getSocket();
           // spawn a new thread for this connection
-          tthread::thread T(callThreadCallbackSRT, (void *)&sock);
+          tthread::thread T(callThreadCallbackSRT, (void *)&S);
           // detach it, no need to keep track of it anymore
           T.detach();
           HIGH_MSG("Spawned new thread for socket %i", S.getSocket());
@@ -282,10 +312,9 @@ namespace Mist{
 
   void inputTSSRT::setSingular(bool newSingular){singularFlag = newSingular;}
 
-  void inputTSSRT::connStats(Comms::Statistics &statComm){
+  void inputTSSRT::connStats(Comms::Connections &statComm){
     statComm.setUp(srtConn.dataUp());
     statComm.setDown(srtConn.dataDown());
-    statComm.setHost(getConnectedBinHost());
     statComm.setPacketCount(srtConn.packetCount());
     statComm.setPacketLostCount(srtConn.packetLostCount());
     statComm.setPacketRetransmitCount(srtConn.packetRetransmitCount());

@@ -7,6 +7,8 @@
 #include <mist/stream.h>
 #include <mist/triggers.h>
 
+bool allowStreamNameOverride = true;
+
 namespace Mist{
   OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection & _srtSock) : TSOutput(conn), srtConn(_srtSock){
     // NOTE: conn is useless for SRT, as it uses a different socket type.
@@ -14,6 +16,8 @@ namespace Mist{
     streamName = config->getString("streamname");
     Util::setStreamName(streamName);
     pushOut = false;
+    bootMSOffsetCalculated = false;
+    assembler.setLive();
     // Push output configuration
     if (config->getString("target").size()){
       target = HTTP::URL(config->getString("target"));
@@ -28,11 +32,7 @@ namespace Mist{
         return;
       }
       pushOut = true;
-      std::map<std::string, std::string> arguments;
-      HTTP::parseVars(target.args, arguments);
-      for (std::map<std::string, std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it){
-        targetParams[it->first] = it->second;
-      }
+      HTTP::parseVars(target.args, targetParams);
       size_t connectCnt = 0;
       do{
         srtConn.connect(target.host, target.getPort(), "output", targetParams);
@@ -44,6 +44,9 @@ namespace Mist{
         }
         ++connectCnt;
       }while (!srtConn && connectCnt < 5);
+      if (!srtConn){
+        FAIL_MSG("Failed to connect to '%s'!", config->getString("target").c_str());
+      }
       wantRequest = false;
       parseData = true;
       initialize();
@@ -51,10 +54,12 @@ namespace Mist{
       // Pull output configuration, In this case we have an srt connection in the second constructor parameter.
       // Handle override / append of streamname options
       std::string sName = srtConn.getStreamName();
-      if (sName != ""){
-        streamName = sName;
-        Util::sanitizeName(streamName);
-        Util::setStreamName(streamName);
+      if (allowStreamNameOverride){
+        if (sName != ""){
+          streamName = sName;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+        }
       }
 
       int64_t accTypes = config->getInteger("acceptable");
@@ -100,7 +105,7 @@ namespace Mist{
           if (!newStream.size()){
             FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                      getConnectedHost().c_str(), reqUrl.getUrl().c_str());
-            Util::logExitReason(
+            Util::logExitReason(ER_TRIGGER,
                 "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                 getConnectedHost().c_str(), reqUrl.getUrl().c_str());
             onFinish();
@@ -113,8 +118,10 @@ namespace Mist{
         myConn.setHost(srtConn.remotehost);
         if (!allowPush("")){
           onFinish();
-          srtConn.close();
           return;
+        }
+        if (config->getString("datatrack") == "json"){
+          tsIn.setRawDataParser(TS::JSON);
         }
         parseData = false;
         wantRequest = true;
@@ -125,13 +132,19 @@ namespace Mist{
     timeStampOffset = 0;
   }
 
+  bool OutTSSRT::onFinish(){
+    myConn.close();
+    srtConn.close();
+    return false;
+  }
+
   OutTSSRT::~OutTSSRT(){}
 
   static void addIntOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, size_t def = 0){
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "int";
-    pp[param]["default"] = def;
+    pp[param]["default"] = (uint64_t)def;
   }
 
   static void addStrOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, const std::string & def = ""){
@@ -161,6 +174,14 @@ namespace Mist{
     capa["friendly"] = "TS over SRT";
     capa["desc"] = "Real time streaming of TS data over SRT";
     capa["deps"] = "";
+
+    capa["incoming_push_url"] = "srt://$host:$port?streamid=$stream";
+    capa["url_rel"] = "?streamid=$";
+   
+    capa["methods"][0u]["handler"] = "srt";
+    capa["methods"][0u]["type"] = "srt";
+    capa["methods"][0u]["hrn"] = "SRT";
+    capa["methods"][0u]["priority"] = 10;
 
     capa["optional"]["streamname"]["name"] = "Stream";
     capa["optional"]["streamname"]["help"] = "What streamname to serve if no streamid is given by the other end of the connection";
@@ -192,18 +213,23 @@ namespace Mist{
     capa["optional"]["acceptable"]["select"][2u][0u] = 2;
     capa["optional"]["acceptable"]["select"][2u][1u] = "Allow only incoming connections";
 
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP2");
-    capa["codecs"][0u][1u].append("opus");
+    capa["codecs"][0u][0u].append("+HEVC");
+    capa["codecs"][0u][0u].append("+H264");
+    capa["codecs"][0u][0u].append("+MPEG2");
+    capa["codecs"][0u][1u].append("+AAC");
+    capa["codecs"][0u][1u].append("+MP3");
+    capa["codecs"][0u][1u].append("+AC3");
+    capa["codecs"][0u][1u].append("+MP2");
+    capa["codecs"][0u][1u].append("+opus");
+    capa["codecs"][0u][2u].append("+JSON");
     capa["codecs"][1u][0u].append("rawts");
     cfg->addConnectorOptions(8889, capa);
+    capa["optional"]["port"]["name"] = "UDP port";
+    capa["optional"]["port"]["help"] = "UDP port to listen on";
     config = cfg;
     capa["push_urls"].append("srt://*");
+
+    config->addStandardPushCapabilities(capa);
     JSON::Value & pp = capa["push_parameters"];
 
     pp["mode"]["name"] = "Mode";
@@ -268,6 +294,25 @@ namespace Mist{
     opt["arg_num"] = 1;
     opt["help"] = "Target srt:// URL to push out towards.";
     cfg->addOption("target", opt);
+
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+
+    opt.null();
+    opt["long"] = "datatrack";
+    opt["short"] = "D";
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", opt);
   }
 
   // Buffers TS packets and sends after 7 are buffered.
@@ -280,7 +325,7 @@ namespace Mist{
           srtConn.connect(target.host, target.getPort(), "output", targetParams);
           if (!srtConn){Util::sleep(500);}
         }else{
-          Util::logExitReason("SRT connection closed");
+          Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed");
           myConn.close();
           parseData = false;
           return;
@@ -290,7 +335,7 @@ namespace Mist{
         srtConn.SendNow(packetBuffer, packetBuffer.size());
         if (!srtConn){
           if (!config->getString("target").size()){
-            Util::logExitReason("SRT connection closed");
+            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed");
             myConn.close();
             parseData = false;
           }
@@ -305,6 +350,7 @@ namespace Mist{
     if (!recvSize){
       if (!srtConn){
         myConn.close();
+        srtConn.close();
         wantRequest = false;
       }else{
         Util::sleep(50);
@@ -318,7 +364,15 @@ namespace Mist{
       if (!thisPacket){
         INFO_MSG("Could not get TS packet");
         myConn.close();
+        srtConn.close();
         wantRequest = false;
+        return;
+      }
+
+      // Reconnect to meta if needed, restart push if needed
+      meta.reloadReplacedPagesIfNeeded();
+      if (!meta && !allowPush("")){
+        onFinish();
         return;
       }
 
@@ -329,22 +383,35 @@ namespace Mist{
         userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
-      uint64_t adjustTime = thisPacket.getTime() + timeStampOffset;
+      uint64_t pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
       if (lastTimeStamp || timeStampOffset){
-        if (lastTimeStamp + 5000 < adjustTime || lastTimeStamp > adjustTime + 5000){
+        uint64_t targetTime = Util::bootMS() - M.getBootMsOffset();
+        if (targetTime + 5000 < pktTimeWithOffset || targetTime > pktTimeWithOffset + 5000){
           INFO_MSG("Timestamp jump " PRETTY_PRINT_MSTIME " -> " PRETTY_PRINT_MSTIME ", compensating.",
-                   PRETTY_ARG_MSTIME(lastTimeStamp), PRETTY_ARG_MSTIME(adjustTime));
-          timeStampOffset += (lastTimeStamp - adjustTime);
-          adjustTime = thisPacket.getTime() + timeStampOffset;
+                  PRETTY_ARG_MSTIME(targetTime), PRETTY_ARG_MSTIME(pktTimeWithOffset));
+          timeStampOffset += (targetTime - pktTimeWithOffset);
+          pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
         }
       }
-      lastTimeStamp = adjustTime;
-      thisPacket.setTime(adjustTime);
+      if (!bootMSOffsetCalculated){
+        meta.setBootMsOffset(Util::bootMS() - pktTimeWithOffset);
+        bootMSOffsetCalculated = true;
+      }
+      lastTimeStamp = pktTimeWithOffset;
+      thisPacket.setTime(pktTimeWithOffset);
+      thisTime = pktTimeWithOffset;
       bufferLivePacket(thisPacket);
     }
   }
 
-  void OutTSSRT::connStats(uint64_t now, Comms::Statistics &statComm){
+  bool OutTSSRT::dropPushTrack(uint32_t trackId, const std::string & dropReason){
+    Util::logExitReason(ER_SHM_LOST, "track dropped by buffer");
+    myConn.close();
+    srtConn.close();
+    return Output::dropPushTrack(trackId, dropReason);
+  }
+
+  void OutTSSRT::connStats(uint64_t now, Comms::Connections &statComm){
     if (!srtConn){return;}
     statComm.setUp(srtConn.dataUp());
     statComm.setDown(srtConn.dataDown());
@@ -373,13 +440,13 @@ void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   if (!sockCount){
     INFO_MSG("USR1 received - triggering rolling restart (no connections active)");
     Util::Config::is_restarting = true;
-    Util::logExitReason("signal USR1, no connections");
+    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, no connections");
     server_socket.close();
     Util::Config::is_active = false;
   }else{
     INFO_MSG("USR1 received - triggering rolling restart when connection count reaches zero");
     Util::Config::is_restarting = true;
-    Util::logExitReason("signal USR1, after disconnect wait");
+    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, after disconnect wait");
   }
 }
 
@@ -409,6 +476,7 @@ int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
+  Util::Config::binaryType = Util::OUTPUT;
   mistOut::init(&conf);
   if (conf.parseArgs(argc, argv)){
     if (conf.getBool("json")){
@@ -421,7 +489,8 @@ int main(int argc, char *argv[]){
     int filelimit = conf.getInteger("filelimit");
     Util::sysSetNrOpenFiles(filelimit);
 
-    if (!mistOut::listenMode()){
+    std::string target = conf.getString("target");
+    if (!mistOut::listenMode() && (!target.size() || Socket::interpretSRTMode(HTTP::URL(target)) != "listener")){
       Socket::Connection S(fileno(stdout), fileno(stdin));
       Socket::SRTConnection tmpSock;
       mistOut tmp(S, tmpSock);
@@ -434,7 +503,17 @@ int main(int argc, char *argv[]){
       new_action.sa_flags = 0;
       sigaction(SIGUSR1, &new_action, NULL);
     }
-    if (conf.getInteger("port") && conf.getString("interface").size()){
+    if (target.size()){
+      //Force acceptable option to 1 (outgoing only), since this is a push output and we can't accept incoming connections
+      conf.getOption("acceptable", true).append((uint64_t)1);
+      //Disable overriding streamname with streamid parameter on other side
+      allowStreamNameOverride = false;
+      HTTP::URL tgt(target);
+      std::map<std::string, std::string> arguments;
+      HTTP::parseVars(tgt.args, arguments);
+      server_socket = Socket::SRTServer(tgt.getPort(), tgt.host, arguments, false, "output");
+      conf.getOption("target", true).append("");
+    }else{
       std::map<std::string, std::string> arguments;
       server_socket = Socket::SRTServer(conf.getInteger("port"), conf.getString("interface"), arguments, false, "output");
     }
@@ -462,6 +541,7 @@ int main(int argc, char *argv[]){
       if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
       oldSignal = cur_action.sa_sigaction;
     }
+    Comms::defaultCommFlags = COMM_STATUS_NOKILL;
     Util::Procs::socketList.insert(server_socket.getSocket());
     while (conf.is_active && server_socket.connected()){
       Socket::SRTConnection S = server_socket.accept(false, "output");

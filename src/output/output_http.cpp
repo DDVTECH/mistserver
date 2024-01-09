@@ -10,7 +10,15 @@
 
 namespace Mist{
   HTTPOutput::HTTPOutput(Socket::Connection &conn) : Output(conn){
+    //Websocket related
     webSock = 0;
+    wsCmds = false;
+    stayLive = true;
+    target_rate = 0.0;
+    forwardTo = 0;
+    prevVidTrack = INVALID_TRACK_ID;
+
+    //General
     idleInterval = 0;
     idleLast = 0;
     if (config->getString("ip").size()){myConn.setHost(config->getString("ip"));}
@@ -55,7 +63,6 @@ namespace Mist{
   }
 
   void HTTPOutput::onFail(const std::string &msg, bool critical){
-    INFO_MSG("Failing '%s': %s", H.url.c_str(), msg.c_str());
     if (!webSock && !isRecording() && !responded){
       H.Clean(); // make sure no parts of old requests are left in any buffers
       H.SetHeader("Server", APPIDENT);
@@ -180,16 +187,84 @@ namespace Mist{
     return "";
   }
 
+  bool HTTPOutput::onFinish(){
+    //If we're in the middle of sending a chunked reply, finish it cleanly and get read for the next request
+    if (!webSock && H.sendingChunks){
+      H.Chunkify(0, 0, myConn);
+      wantRequest = true;
+      return true;
+    }
+    //If we're a websocket and handling commands, finish it cleanly too
+    if (webSock && wsCmds){
+      JSON::Value r;
+      r["type"] = "on_stop";
+      r["data"]["current"] = currentTime();
+      r["data"]["begin"] = Output::startTime();
+      r["data"]["end"] = Output::endTime();
+      webSock->sendFrame(r.toString());
+      parseData = false;
+      return false;
+    }
+    //All other cases call the parent finish handler
+    return Output::onFinish();
+  }
+
+  void HTTPOutput::sendNext(){
+    //If we're not in websocket mode and handling commands, we do nothing here
+    if (!wsCmds || !webSock){return;}
+
+    //Finish fast-forwarding if forwardTo time was reached
+    if (forwardTo && thisTime >= forwardTo){
+      forwardTo = 0;
+      if (target_rate == 0.0){
+        realTime = 1000;//set playback speed to default
+        firstTime = Util::bootMS() - thisTime;
+        maxSkipAhead = 0;//enable automatic rate control
+      }else{
+        stayLive = false;
+        //Set new realTime speed
+        realTime = 1000 / target_rate;
+        firstTime = Util::bootMS() - (thisTime / target_rate);
+        maxSkipAhead = 1;//disable automatic rate control
+      }
+      JSON::Value r;
+      r["type"] = "set_speed";
+      r["data"]["play_rate_prev"] = "fast-forward";
+      if (target_rate == 0.0){
+        r["data"]["play_rate_curr"] = "auto";
+      }else{
+        r["data"]["play_rate_curr"] = target_rate;
+      }
+      webSock->sendFrame(r.toString());
+    }
+
+    // Handle nice move-over to new main video track
+    if (prevVidTrack != INVALID_TRACK_ID && thisIdx != prevVidTrack && M.getType(thisIdx) == "video"){
+      if (!thisPacket.getFlag("keyframe")){
+        // Ignore the packet if not a keyframe
+        return;
+      }
+      dropTrack(prevVidTrack, "Smoothly switching to new video track", false);
+      prevVidTrack = INVALID_TRACK_ID;
+      handleWebsocketIdle();
+      onIdle();
+      sendHeader();
+    }
+  }
+
   void HTTPOutput::requestHandler(){
     // Handle onIdle function caller, if needed
     if (idleInterval && (Util::bootMS() > idleLast + idleInterval)){
+      if (wsCmds){handleWebsocketIdle();}
       onIdle();
       idleLast = Util::bootMS();
     }
     // Handle websockets
     if (webSock){
       if (webSock->readFrame()){
-        onWebsocketFrame();
+        if (!wsCmds || !handleWebsocketCommands()){
+          onWebsocketFrame();
+        }
         idleLast = Util::bootMS();
         return;
       }
@@ -218,7 +293,37 @@ namespace Mist{
         myConn.close();
         return;
       }
-      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
+
+      tkn.clear();
+      // Read the session token
+      if (Comms::tknMode & 0x01){
+        // Get session token from the request url
+        if (H.GetVar("tkn") != ""){
+          tkn = H.GetVar("tkn");
+        } else if (H.GetVar("sid") != ""){
+          tkn = H.GetVar("sid");
+        } else if (H.GetVar("sessId") != ""){
+          tkn = H.GetVar("sessId");
+        }
+      }
+      if ((Comms::tknMode & 0x02) && !tkn.size()){
+        // Get session token from the request cookie
+        std::map<std::string, std::string> storage;
+        const std::string koekjes = H.GetHeader("Cookie");
+        HTTP::parseVars(koekjes, storage, "; ");
+        if (storage.count("tkn")){
+          tkn = storage.at("tkn");
+        }
+      }
+      // Generate a session token if it is being sent as a cookie or url parameter and we couldn't read one
+      if (!tkn.size() && Comms::tknMode > 3){
+        const std::string newTkn = UA + JSON::Value(getpid()).asString();
+        tkn = JSON::Value(checksum::crc32(0, newTkn.data(), newTkn.size())).asString();
+        HIGH_MSG("Generated tkn '%s'", tkn.c_str());
+      }
+
+      //Check if we need to change binary and/or reconnect
+      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
         streamName = H.GetVar("stream");
@@ -238,26 +343,16 @@ namespace Mist{
       }
       /*LTS-END*/
       if (H.hasHeader("User-Agent")){UA = H.GetHeader("User-Agent");}
-      if (hasSessionIDs()){
-        if (H.GetVar("sessId").size()){
-          std::string ua = H.GetVar("sessId");
-          crc = checksum::crc32(0, ua.data(), ua.size());
-        }else{
-          std::string ua = JSON::Value(getpid()).asString();
-          crc = checksum::crc32(0, ua.data(), ua.size());
-        }
-      }else{
-        std::string mixed_ua = UA + H.GetHeader("X-Playback-Session-Id");
-        crc = checksum::crc32(0, mixed_ua.data(), mixed_ua.size());
-      }
 
       if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
       if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
+      if (H.GetVar("meta") != ""){targetParams["meta"] = H.GetVar("meta");}
       if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
       if (H.GetVar("start") != ""){targetParams["start"] = H.GetVar("start");}
       if (H.GetVar("stop") != ""){targetParams["stop"] = H.GetVar("stop");}
       if (H.GetVar("startunix") != ""){targetParams["startunix"] = H.GetVar("startunix");}
       if (H.GetVar("stopunix") != ""){targetParams["stopunix"] = H.GetVar("stopunix");}
+      if (H.GetVar("duration") != ""){targetParams["duration"] = H.GetVar("duration");}
       // allow setting of max lead time through buffer variable.
       // max lead time is set in MS, but the variable is in integer seconds for simplicity.
       if (H.GetVar("buffer") != ""){
@@ -281,6 +376,7 @@ namespace Mist{
           realTime = 0;
         }
       }
+
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");
       Util::stringToLower(upgradeHeader);
@@ -288,11 +384,20 @@ namespace Mist{
         INFO_MSG("Switching to Websocket mode");
         setBlocking(false);
         preWebsocketConnect();
-        webSock = new HTTP::Websocket(myConn, H);
+        HTTP::Parser req = H;
+        H.Clean();
+        webSock = new HTTP::Websocket(myConn, req, H);
         if (!(*webSock)){
           delete webSock;
           webSock = 0;
           return;
+        }
+        //Generic websocket handling sets idle interval to 1s and changes name by appending "/WS"
+        if (wsCmds){
+          idleInterval = 1000;
+          if (capa["name"].asStringRef().find("/WS") != std::string::npos){
+            capa["name"] = capa["name"].asStringRef() + "/WS";
+          }
         }
         onWebsocketConnect();
         H.Clean();
@@ -309,6 +414,361 @@ namespace Mist{
     }
     // If we can't read anything more and we're non-blocking, sleep some.
     if (!sawRequest && !myConn.spool() && !isBlocking && !parseData){Util::sleep(100);}
+  }
+
+  /// Handles standardized WebSocket commands.
+  /// Returns true if a command was executed, false otherwise.
+  bool HTTPOutput::handleWebsocketCommands(){
+    //only handle text frames
+    if (webSock->frameType != 1){return false;}
+
+    //Parse JSON and check command type
+    JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
+    if (!command || !command.isMember("type")){return false;}
+    
+    //Seek command, for changing playback position
+    if (command["type"] == "seek") {
+      handleWebsocketSeek(command);
+      return true;
+    }
+
+    //Pause command, toggles pause state
+    if (command["type"] == "pause") {
+      parseData = !parseData;
+      JSON::Value r;
+      r["type"] = "pause";
+      r["paused"] = !parseData;
+      if (!parseData){
+        //Store current target time into lastPacketTime when pausing
+        lastPacketTime = targetTime();
+      }else{
+        //On resume, restore the timing to be where it was when pausing
+        firstTime = Util::bootMS() - (lastPacketTime / target_rate);
+      }
+      webSock->sendFrame(r.toString());
+      return true;
+    }
+
+    //Hold command, forces pause state on
+    if (command["type"] == "hold") {
+      if (parseData){
+        //Store current target time into lastPacketTime when pausing
+        lastPacketTime = targetTime();
+      }
+      parseData = false;
+      webSock->sendFrame("{\"type\":\"pause\",\"paused\":true}");
+      return true;
+    }
+
+    //Tracks command, for (re)selecting tracks
+    if (command["type"] == "tracks") {
+      if (command.isMember("audio")){
+        if (!command["audio"].isNull() && command["audio"] != "auto"){
+          targetParams["audio"] = command["audio"].asString();
+        }else{
+          targetParams.erase("audio");
+        }
+      }
+      if (command.isMember("video")){
+        if (!command["video"].isNull() && command["video"] != "auto"){
+          targetParams["video"] = command["video"].asString();
+        }else{
+          targetParams.erase("video");
+        }
+      }
+      if (command.isMember("meta")){
+        if (!command["meta"].isNull() && command["meta"] != "auto"){
+          targetParams["meta"] = command["meta"].asString();
+        }else{
+          targetParams.erase("meta");
+        }
+      }
+      if (command.isMember("seek_time")){
+        possiblyReselectTracks(command["seek_time"].asInt());
+      }else{
+        if (parseData){possiblyReselectTracks(currentTime());}
+      }
+      return true;
+    }
+
+    //Fast_forward command, fast-forwards to given timestamp and resume previous speed
+    if (command["type"] == "fast_forward"){
+      if (command.isMember("ff_to")){
+        forwardTo = command["ff_to"].asInt();
+        if (forwardTo > currentTime()){
+          realTime = 0;
+        }else{
+          if (target_rate == 0.0){
+            firstTime = Util::bootMS() - forwardTo;
+          }else{
+            firstTime = Util::bootMS() - (forwardTo / target_rate);
+          }
+          forwardTo = 0;
+        }
+      }else{
+        JSON::Value r;
+        r["type"] = "warning";
+        r["warning"] = "Ignored fast_forward command: ff_to property missing";
+        webSock->sendFrame(r.toString());
+      }
+      onIdle();
+      return true;
+    }
+
+    //Set_speed command, changes playback speed
+    if (command["type"] == "set_speed") {
+      JSON::Value r;
+      r["type"] = "set_speed";
+      if (!command.isMember("play_rate")){
+        r["error"] = "play_rate missing";
+        webSock->sendFrame(r.toString());
+        return false;
+      }
+
+      double set_rate = command["play_rate"].asDouble();
+      if (!parseData){
+        parseData = true;
+        selectDefaultTracks();
+      }
+      
+      if (target_rate == 0.0){
+        r["data"]["play_rate_prev"] = "auto";
+      }else{
+        r["data"]["play_rate_prev"] = target_rate;
+      }
+      if (set_rate == 0.0){
+        r["data"]["play_rate_curr"] = "auto";
+      }else{
+        r["data"]["play_rate_curr"] = set_rate;
+      }
+
+      if (target_rate != set_rate){
+        uint64_t prevTargetTime = targetTime();
+        target_rate = set_rate;
+        if (target_rate == 0.0){
+          realTime = 1000;//set playback speed to default
+          firstTime = Util::bootMS() - prevTargetTime;
+          maxSkipAhead = 0;//enabled automatic rate control
+        }else{
+          stayLive = false;
+          //Set new realTime speed
+          realTime = 1000 / target_rate;
+          firstTime = Util::bootMS() - (prevTargetTime / target_rate);
+          maxSkipAhead = 1;//disable automatic rate control
+        }
+      }
+      if (M.getLive()){r["data"]["live_point"] = stayLive;}
+      webSock->sendFrame(r.toString());
+      handleWebsocketIdle();
+      onIdle();
+      return true;
+    }
+
+    //Stop command, ends playback and disconnects the socket explicitly
+    if (command["type"] == "stop") {
+      Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "User requested stop");
+      myConn.close();
+      return true;
+    }
+
+    //Play command, sets pause state off and optionally also seeks
+    if (command["type"] == "play") {
+      parseData = true;
+      if (command.isMember("seek_time")){
+        handleWebsocketSeek(command);
+      }else{
+        if (!currentTime()){
+          command["seek_time"] = 0;
+          handleWebsocketSeek(command);
+        }else{
+          parseData = true;
+          selectDefaultTracks();
+          firstTime = Util::bootMS() - (lastPacketTime / target_rate);
+        }
+      }
+      return true;
+    }
+
+    //Unhandled commands end up here
+    return false;
+  }
+
+  void HTTPOutput::handleWebsocketIdle(){
+    if (!webSock){return;}
+    if (!parseData){return;}
+
+    //Finish fast-forwarding if forwardTo time was reached
+    if (forwardTo && targetTime() >= forwardTo){
+      forwardTo = 0;
+      if (target_rate == 0.0){
+        realTime = 1000;//set playback speed to default
+        firstTime = Util::bootMS() - targetTime();
+        maxSkipAhead = 0;//enable automatic rate control
+      }else{
+        stayLive = false;
+        //Set new realTime speed
+        realTime = 1000 / target_rate;
+        firstTime = Util::bootMS() - (targetTime() / target_rate);
+        maxSkipAhead = 1;//disable automatic rate control
+      }
+      JSON::Value r;
+      r["type"] = "set_speed";
+      r["data"]["play_rate_prev"] = "fast-forward";
+      if (target_rate == 0.0){
+        r["data"]["play_rate_curr"] = "auto";
+      }else{
+        r["data"]["play_rate_curr"] = target_rate;
+      }
+      webSock->sendFrame(r.toString());
+    }
+
+    JSON::Value r;
+    r["type"] = "on_time";
+    r["data"]["current"] = targetTime();
+    r["data"]["next"] = currentTime();
+    r["data"]["begin"] = Output::startTime();
+    
+    r["data"]["end"] = Output::endTime();
+    if (realTime == 0){
+      r["data"]["play_rate_curr"] = "fast-forward";
+    }else{
+      if (target_rate == 0.0){
+        r["data"]["play_rate_curr"] = "auto";
+      }else{
+        r["data"]["play_rate_curr"] = target_rate;
+      }
+    }
+    uint64_t jitter = 0;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      r["data"]["tracks"].append((uint64_t)it->first);
+      if (jitter < M.getMinKeepAway(it->first)){jitter = M.getMinKeepAway(it->first);}
+    }
+    r["data"]["jitter"] = jitter;
+    if (M.getLive() && dataWaitTimeout < jitter*1.5){dataWaitTimeout = jitter*1.5;}
+    if (capa.isMember("maxdelay") && capa["maxdelay"].asInt() < jitter*1.5){capa["maxdelay"] = jitter*1.5;}
+    webSock->sendFrame(r.toString());
+  }
+
+  bool HTTPOutput::possiblyReselectTracks(uint64_t seekTarget){
+    // Remember the previous video track, if any.
+    std::set<size_t> prevSelTracks;
+    prevVidTrack = INVALID_TRACK_ID;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      prevSelTracks.insert(it->first);
+      if (M.getType(it->first) == "video"){
+        prevVidTrack = it->first;
+      }
+    }
+    if (!selectDefaultTracks()) {
+      prevVidTrack = INVALID_TRACK_ID;
+      handleWebsocketIdle();
+      onIdle();
+      return false;
+    }
+    if (seekTarget != currentTime()){prevVidTrack = INVALID_TRACK_ID;}
+    bool hasVideo = false;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (M.getType(it->first) == "video"){hasVideo = true;}
+    }
+    // Add the previous video track back, if we had one.
+    if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack) && hasVideo){
+      userSelect[prevVidTrack].reload(streamName, prevVidTrack);
+      seek(seekTarget);
+      std::set<size_t> newSelTracks;
+      newSelTracks.insert(prevVidTrack);
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (M.getType(it->first) != "video"){
+          newSelTracks.insert(it->first);
+        }
+      }
+      if (prevSelTracks != newSelTracks){
+        seek(seekTarget, true);
+        realTime = 0;
+        forwardTo = seekTarget;
+        sendHeader();
+        JSON::Value r;
+        r["type"] = "set_speed";
+        if (target_rate == 0.0){
+          r["data"]["play_rate_prev"] = "auto";
+        }else{
+          r["data"]["play_rate_prev"] = target_rate;
+        }
+        r["data"]["play_rate_curr"] = "fast-forward";
+        webSock->sendFrame(r.toString());
+      }
+    }else{
+      prevVidTrack = INVALID_TRACK_ID;
+      seek(seekTarget, true);
+      realTime = 0;
+      forwardTo = seekTarget;
+      sendHeader();
+      JSON::Value r;
+      r["type"] = "set_speed";
+      if (target_rate == 0.0){
+        r["data"]["play_rate_prev"] = "auto";
+      }else{
+        r["data"]["play_rate_prev"] = target_rate;
+      }
+      r["data"]["play_rate_curr"] = "fast-forward";
+      webSock->sendFrame(r.toString());
+    }
+    handleWebsocketIdle();
+    onIdle();
+    return true;
+  }
+
+
+  bool HTTPOutput::handleWebsocketSeek(const JSON::Value& command) {
+    JSON::Value r;
+    r["type"] = "seek";
+    if (!command.isMember("seek_time")){
+      r["error"] = "seek_time missing";
+      webSock->sendFrame(r.toString());
+      return false;
+    }
+
+    uint64_t seek_time = command["seek_time"].asInt();
+    if (!parseData){
+      parseData = true;
+      selectDefaultTracks();
+    }
+
+    stayLive = (target_rate == 0.0) && (Output::endTime() < seek_time + 5000);
+    if (command["seek_time"].asStringRef() == "live"){stayLive = true;}
+    if (stayLive){seek_time = Output::endTime();}
+    
+    if (!seek(seek_time, true)) {
+      r["error"] = "seek failed, continuing as-is";
+      webSock->sendFrame(r.toString());
+      return false;
+    }
+    if (M.getLive()){r["data"]["live_point"] = stayLive;}
+    if (target_rate == 0.0){
+      r["data"]["play_rate_curr"] = "auto";
+    }else{
+      r["data"]["play_rate_curr"] = target_rate;
+    }
+    if (command.isMember("ff_to") || (seek_time >= 250 && currentTime() < seek_time - 250)){
+      forwardTo = seek_time;
+      if (command.isMember("ff_to") && command["ff_to"].asInt() > forwardTo){
+        forwardTo = command["ff_to"].asInt();
+      }
+      if (forwardTo < currentTime()){
+        if (target_rate == 0.0){
+          firstTime = Util::bootMS() - forwardTo;
+        }else{
+          firstTime = Util::bootMS() - (forwardTo / target_rate);
+        }
+        forwardTo = 0;
+      }else{
+        realTime = 0;
+        r["data"]["play_rate_curr"] = "fast-forward";
+      }
+    }
+    handleWebsocketIdle();
+    onIdle();
+    webSock->sendFrame(r.toString());
+    return true;
   }
 
   /// Default HTTP handler.
@@ -331,6 +791,14 @@ namespace Mist{
   void HTTPOutput::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     //We generally want the CORS headers to be set for all responses
     H.setCORSHeaders();
+    H.SetHeader("Server", APPIDENT);
+    if (tkn.size()){
+      if (Comms::tknMode & 0x08){
+        std::stringstream cookieHeader;
+        cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
+        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+      }
+    }
     //Set attachment header to force download, if applicable
     if (req.GetVar("dl").size()){
       //If we want to download, and the string contains a dot, use as-is.
@@ -365,13 +833,6 @@ namespace Mist{
           }
           continue;
         }
-        if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
-          p[it.key()] = p[it.key()].asString();
-        }
-        if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" ||
-            (*it)["type"].asStringRef() == "debug"){
-          p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
-        }
         if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
           jsonForEach(p[it.key()], iVal){
             (*iVal) = iVal->asString();
@@ -379,6 +840,12 @@ namespace Mist{
             argarr[argnum++] = (char *)((*iVal).c_str());
           }
           continue;
+        }
+        if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" ||
+            (*it)["type"].asStringRef() == "debug"){
+          p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
+        }else{
+          p[it.key()] = p[it.key()].asString();
         }
         if (p[it.key()].asStringRef().size() > 0){
           argarr[argnum++] = (char *)((*it)["option"].c_str());
@@ -393,6 +860,8 @@ namespace Mist{
   ///\brief Handles requests by starting a corresponding output process.
   ///\param connector The type of connector to be invoked.
   void HTTPOutput::reConnector(std::string &connector){
+    // Clear tkn in order to deal with reverse proxies
+    tkn = "";
     // taken from CheckProtocols (controller_connectors.cpp)
     char *argarr[32];
     for (int i = 0; i < 32; i++){argarr[i] = 0;}

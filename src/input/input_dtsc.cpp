@@ -23,13 +23,13 @@ namespace Mist{
     capa["source_match"].append("dtsc://*");
     capa["always_match"].append("dtsc://*"); // can be said to always-on mode
     capa["source_file"] = "$source";
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("H263");
-    capa["codecs"][0u][0u].append("VP6");
-    capa["codecs"][0u][0u].append("theora");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("vorbis");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("H263");
+    capa["codecs"]["video"].append("VP6");
+    capa["codecs"]["video"].append("theora");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("vorbis");
 
     JSON::Value option;
     option["arg"] = "integer";
@@ -52,13 +52,13 @@ namespace Mist{
     option["long"] = "segment-size";
     option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
-    option["value"].append(1900);
+    option["value"].append(DEFAULT_FRAGMENT_DURATION);
     config->addOption("segmentsize", option);
     capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
     capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
-    capa["optional"]["segmentsize"]["default"] = 1900;
+    capa["optional"]["segmentsize"]["default"] = DEFAULT_FRAGMENT_DURATION;
     /*LTS-END*/
 
     F = NULL;
@@ -210,12 +210,12 @@ namespace Mist{
     if (!needsLock()){return true;}
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -223,7 +223,7 @@ namespace Mist{
     // open File
     F = fopen(config->getString("input").c_str(), "r+b");
     if (!F){
-      HIGH_MSG("Could not open file %s", config->getString("input").c_str());
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open file %s", config->getString("input").c_str());
       return false;
     }
     fseek(F, 0, SEEK_SET);
@@ -236,40 +236,39 @@ namespace Mist{
   }
 
   bool inputDTSC::readHeader(){
-    if (!F){return false;}
-    if (!readExistingHeader()){
-      size_t moreHeader = 0;
-      do{
-        // read existing header from file here?
-        char hdr[8];
-        fseek(F, moreHeader, SEEK_SET);
-        if (fread(hdr, 8, 1, F) != 1){
-          FAIL_MSG("Could not read header @ bpos %zu", moreHeader);
-          return false;
-        }
-        if (memcmp(hdr, DTSC::Magic_Header, 4)){
-          FAIL_MSG("File does not have a DTSC header @ bpos %zu", moreHeader);
-          return false;
-        }
-        size_t pktLen = Bit::btohl(hdr + 4);
-        char *pkt = (char *)malloc(8 + pktLen * sizeof(char));
-        fseek(F, moreHeader, SEEK_SET);
-        if (fread(pkt, 8 + pktLen, 1, F) != 1){
-          free(pkt);
-          FAIL_MSG("Could not read packet @ bpos %zu", moreHeader);
-        }
-        DTSC::Scan S(pkt + 8, pktLen);
-        if (S.hasMember("moreheader") && S.getMember("moreheader").asInt()){
-          moreHeader = S.getMember("moreheader").asInt();
-        }else{
-          moreHeader = 0;
-          meta.reInit(isSingular() ? streamName : "", S);
-        }
-
-        free(pkt);
-      }while (moreHeader);
+    if (!F){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
     }
+    size_t moreHeader = 0;
+    do{
+      char hdr[8];
+      fseek(F, moreHeader, SEEK_SET);
+      if (fread(hdr, 8, 1, F) != 1){
+        Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not read header @ bpos %zu", config->getString("input").c_str(), moreHeader);
+        return false;
+      }
+      if (memcmp(hdr, DTSC::Magic_Header, 4)){
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: File does not have a DTSC header @ bpos %zu", config->getString("input").c_str(), moreHeader);
+        return false;
+      }
+      size_t pktLen = Bit::btohl(hdr + 4);
+      char *pkt = (char *)malloc(8 + pktLen * sizeof(char));
+      fseek(F, moreHeader, SEEK_SET);
+      if (fread(pkt, 8 + pktLen, 1, F) != 1){
+        free(pkt);
+        FAIL_MSG("Could not read packet @ bpos %zu", moreHeader);
+      }
+      DTSC::Scan S(pkt + 8, pktLen);
+      if (S.hasMember("moreheader") && S.getMember("moreheader").asInt()){
+        moreHeader = S.getMember("moreheader").asInt();
+      }else{
+        moreHeader = 0;
+        meta.reInit(isSingular() ? streamName : "", S);
+      }
 
+      free(pkt);
+    }while (moreHeader);
     return meta;
   }
 
@@ -287,6 +286,7 @@ namespace Mist{
     fseek(F, thisPos.bytePos, SEEK_SET);
     if (feof(F)){
       thisPacket.null();
+      Util::logExitReason(ER_CLEAN_EOF, "End of file reached");
       return;
     }
     clearerr(F);
@@ -294,9 +294,9 @@ namespace Mist{
     lastreadpos = ftell(F);
     if (fread(buffer, 4, 1, F) != 1){
       if (feof(F)){
-        INFO_MSG("End of file reached while seeking @ %" PRIu64, lastreadpos);
+        Util::logExitReason(ER_CLEAN_EOF, "End of file reached while seeking @ %" PRIu64, lastreadpos);
       }else{
-        ERROR_MSG("Could not seek to next @ %" PRIu64, lastreadpos);
+        Util::logExitReason(ER_UNKNOWN, "Could not seek to next @ %" PRIu64, lastreadpos);
       }
       thisPacket.null();
       return;
@@ -310,13 +310,13 @@ namespace Mist{
     if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0){version = 1;}
     if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0){version = 2;}
     if (version == 0){
-      ERROR_MSG("Invalid packet header @ %#" PRIx64 " - %.4s != %.4s @ %" PRIu64, lastreadpos,
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Invalid packet header @ %#" PRIx64 " - %.4s != %.4s @ %" PRIu64, lastreadpos,
                 buffer, DTSC::Magic_Packet2, lastreadpos);
       thisPacket.null();
       return;
     }
     if (fread(buffer + 4, 4, 1, F) != 1){
-      ERROR_MSG("Could not read packet size @ %" PRIu64, lastreadpos);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet size @ %" PRIu64, lastreadpos);
       thisPacket.null();
       return;
     }
@@ -325,7 +325,7 @@ namespace Mist{
     pBuf.resize(8 + packSize);
     memcpy((char *)pBuf.data(), buffer, 8);
     if (fread((void *)(pBuf.data() + 8), packSize, 1, F) != 1){
-      ERROR_MSG("Could not read packet @ %" PRIu64, lastreadpos);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet @ %" PRIu64, lastreadpos);
       thisPacket.null();
       return;
     }
@@ -357,7 +357,7 @@ namespace Mist{
         }
         if (cmd == "error"){
           thisPacket.getString("msg", cmd);
-          Util::logExitReason("%s", cmd.c_str());
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "%s", cmd.c_str());
           thisPacket.null();
           return;
         }
@@ -401,7 +401,7 @@ namespace Mist{
         if (longest_key > shrtest_key*2){
           JSON::Value prep;
           prep["cmd"] = "check_key_duration";
-          prep["id"] = thisPacket.getTrackId();
+          prep["id"] = (uint64_t)thisPacket.getTrackId();
           prep["duration"] = longest_key;
           srcConn.SendNow("DTCM");
           char sSize[4] ={0, 0, 0, 0};

@@ -16,25 +16,25 @@ namespace Mist{
     capa["desc"] = "This input allows you to stream ISMV Video on Demand files.";
     capa["source_match"] = "/*.ismv";
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["audio"].append("AAC");
 
     inFile = 0;
   }
 
   bool inputISMV::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -43,11 +43,18 @@ namespace Mist{
 
   bool inputISMV::preRun(){
     inFile = fopen(config->getString("input").c_str(), "r");
-    return inFile; // True if not null
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
+    return true;
   }
 
   bool inputISMV::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(streamName);
     // parse ismv header
     fseek(inFile, 0, SEEK_SET);
@@ -60,7 +67,6 @@ namespace Mist{
 
     std::map<size_t, uint64_t> duration;
 
-    uint64_t currOffset;
     uint64_t lastBytePos = 0;
     uint64_t curBytePos = ftell(inFile);
     // parse fragments form here
@@ -70,7 +76,6 @@ namespace Mist{
 
     while (readMoofSkipMdat(tId, trunSamples) && !feof(inFile)){
       if (!duration.count(tId)){duration[tId] = 0;}
-      currOffset = 8;
       for (std::vector<MP4::trunSampleInformation>::iterator it = trunSamples.begin();
            it != trunSamples.end(); it++){
         bool first = (it == trunSamples.begin());
@@ -86,11 +91,9 @@ namespace Mist{
 
         meta.update(duration[tId] / 10000, offsetConv, tId, it->sampleSize, lastBytePos, first);
         duration[tId] += it->sampleDuration;
-        currOffset += it->sampleSize;
       }
       curBytePos = ftell(inFile);
     }
-    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 
@@ -193,7 +196,10 @@ namespace Mist{
     MP4::MOOF moof;
     moof.read(inFile);
 
-    if (feof(inFile)){return false;}
+    if (feof(inFile)){
+      Util::logExitReason(ER_CLEAN_EOF, "Reached EOF");
+      return false;
+    }
 
     MP4::TRAF trafBox = moof.getChild<MP4::TRAF>();
     for (size_t j = 0; j < trafBox.getContentCount(); j++){
@@ -209,7 +215,11 @@ namespace Mist{
     }
 
     MP4::skipBox(inFile);
-    return !feof(inFile);
+    if (feof(inFile)){
+      Util::logExitReason(ER_CLEAN_EOF, "Reached EOF");
+      return false;
+    }
+    return true;
   }
 
   void inputISMV::bufferFragmentData(size_t trackId, uint32_t keyNum){
@@ -234,7 +244,7 @@ namespace Mist{
       if (trafBox.getContent(j).isType("trun")){trunBox = (MP4::TRUN &)trafBox.getContent(j);}
       if (trafBox.getContent(j).isType("tfhd")){
         if (M.getID(trackId) != ((MP4::TFHD &)trafBox.getContent(j)).getTrackID()){
-          FAIL_MSG("Trackids do not match");
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "Trackids do not match");
           return;
         }
       }

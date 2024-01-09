@@ -12,6 +12,7 @@ MistSkins["default"] = {
         classes: ["mistvideo"],
         children: [{
           type: "hoverWindow",
+          classes: ["mistvideo-maincontainer"],
           mode: "pos",
           style: {position: "relative"},
           transition: {
@@ -59,7 +60,8 @@ MistSkins["default"] = {
       type: "container",
       children: [
         {type: "videobackground", alwaysDisplay: false, delay: 5 },
-        {type: "video"}
+        {type: "video"},
+        {type: "subtitles"}
       ]
     },
     controls: {
@@ -128,11 +130,17 @@ MistSkins["default"] = {
                   then: {
                     type: "container",
                     children: [{
+                      type: "chromecast",
+                      classes: ["mistvideo-pointer"]
+                    },{
                       type: "loop",
                       classes: ["mistvideo-pointer"]
                     },
                     {
                       type: "fullscreen",
+                      classes: ["mistvideo-pointer"]
+                    },{
+                      type: "picture-in-picture",
                       classes: ["mistvideo-pointer"]
                     }]
                   }
@@ -194,11 +202,18 @@ MistSkins["default"] = {
             type: "container",
             classes: ["mistvideo-center"],
             children: [{
+              type: "chromecast",
+              classes: ["mistvideo-pointer"]
+            },{
               type: "loop",
               classes: ["mistvideo-pointer"]
             },
             {
               type: "fullscreen",
+              classes: ["mistvideo-pointer"]
+            },
+            {
+              type: "picture-in-picture",
               classes: ["mistvideo-pointer"]
             }]
           }
@@ -271,6 +286,10 @@ MistSkins["default"] = {
       fullscreen: {
         size: 45,
         svg: '<path d="m2.5 10.928v8.5898l4.9023-2.8008 9.6172 5.7832-9.6172 5.7832-4.9023-2.8008v8.5898h15.031l-4.9004-2.8008 9.8691-5.6387 9.8691 5.6387-4.9004 2.8008h15.031v-8.5898l-4.9023 2.8008-9.6172-5.7832 9.6172-5.7832 4.9023 2.8008v-8.5898h-15.033l4.9023 2.8008-9.8691 5.6387-9.8691-5.6387 4.9023-2.8008z" class="fill">'
+      },
+      pip: {
+        size: 45,
+        svg: '<rect x="5.25" y="12.25" width="34.5" height="19.5" ry="2" class="stroke semiFill toggle"/><rect x="20" y="21" width="17" height="8" rx="2" ry="2" class="semiFill toggle stroke"/>'
       },
       loop: {
         size: 45,
@@ -411,7 +430,7 @@ MistSkins["default"] = {
                       
                       //remove all the things when unmuted
                       var fu = function(){
-                        if (!MistVideo.video.muted) {
+                        if (!MistVideo.player.api.muted) {
                           if (largeMutedButton.parentNode) {
                             MistVideo.container.removeChild(largeMutedButton);
                           }
@@ -894,7 +913,7 @@ MistSkins["default"] = {
       
       //control video states
       container.getPos = function(e){
-        var perc = MistUtil.getPos(this,e);
+        var perc = isNaN(e) ? MistUtil.getPos(this,e) : e;
         if (MistVideo.info.type == "live") {
           //live mode: seek in DVR window
           var bufferWindow = getBufferWindow();
@@ -933,14 +952,8 @@ MistSkins["default"] = {
           return;
         }
         
-        if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
-          tooltip.setText(MistUtil.format.ago(new Date(MistVideo.info.unixoffset + secs*1e3)));
-        }
-        else {
-          tooltip.setText(MistUtil.format.time(secs));
-        }
+        tooltip.setDisplay(secs);
         tooltip.style.opacity = 1;
-
         
         var perc = MistUtil.getPos(this,e);// e.clientX - this.getBoundingClientRect().left;
         var pos = {bottom:20};
@@ -954,6 +967,51 @@ MistSkins["default"] = {
           tooltip.triangle.setMode("bottom","left");
         }
         tooltip.setPos(pos);
+      };
+      var realtime = document.createElement("span");
+      realtime.setAttribute("class","mistvideo-realtime");
+      var realtimetext = document.createTextNode("");
+      realtime.appendChild(realtimetext);
+
+      tooltip.setDisplay = function(secs){
+        if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
+          var range = container.getPos(1) - container.getPos(0); //seconds between start and end of seekbar
+          var ago = new Date().getTime()*1e-3 - (MistVideo.info.unixoffset*1e-3 + container.getPos(1)); //seconds away from "live"
+          var scale = Math.max(range,ago);
+
+          var str = "" ;
+          if (MistVideo.info.type == "live") {
+            if (scale < 60) {
+              str = MistUtil.format.ago(new Date(MistVideo.info.unixoffset + secs*1e3));
+            }
+            else {
+              var secsago = new Date().getTime()*1e-3 - (MistVideo.info.unixoffset*1e-3 + secs);
+              if (secsago < 48*3600) {
+                //also show a negative timestamp that indicates how long ago this was
+                str += " - "+MistUtil.format.time(secsago);
+              }
+            }
+          }
+          else {
+            str += MistUtil.format.time(secs);
+          }
+          if (scale >= 60) {
+            //show when this was
+            realtimetext.nodeValue = " at "+MistUtil.format.ago(new Date(MistVideo.info.unixoffset + secs*1e3),scale*1e3);
+            var f = document.createDocumentFragment();
+            f.appendChild(document.createTextNode(str));
+            f.appendChild(realtime);
+            tooltip.setHtml(f);
+          }
+          else {
+            realtimetext.nodeValue = "";
+            tooltip.setText(str);
+          }
+
+        }
+        else {
+          tooltip.setText(MistUtil.format.time(secs));
+        }
       };
       MistUtil.event.addListener(margincontainer,"mousemove",function(e){
         container.moveTooltip(e);
@@ -1237,7 +1295,12 @@ MistSkins["default"] = {
       
       var container = document.createElement("div");
       var text = document.createTextNode("");
+      var realtime = document.createElement("span");
+      realtime.setAttribute("class","mistvideo-realtime");
       container.appendChild(text);
+      container.appendChild(realtime);
+      var realtimetext = document.createTextNode("");
+      realtime.appendChild(realtimetext);
       
       var video = MistVideo.player.api;
       var formatTime = MistUtil.format.time;
@@ -1246,7 +1309,26 @@ MistSkins["default"] = {
         var t;
         if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
           var d = new Date(MistVideo.info.unixoffset + v*1e3);
-          t = MistUtil.format.ago(d);
+          var ago = new Date() - d;
+          realtimetext.nodeValue = "";
+          if (MistVideo.info.type == "live") {
+            if (ago < 60e3){
+              t = MistUtil.format.ago(d);
+            }
+            else if (ago < 12*3600e3) {
+              //show a negative time stamp
+              t = "- " + MistUtil.format.time(ago*1e-3);
+            }
+            else {
+              t = MistUtil.format.ago(d);
+            }
+          }
+          else {
+            t = formatTime(v);
+            if ((ago > 60e3) && (MistVideo.size.width >= 600)) {
+              realtimetext.nodeValue = " (at "+MistUtil.format.ago(d)+")";
+            }
+          }
           container.setAttribute("title",MistUtil.format.ago(d,34560e6));
         }
         else {
@@ -1287,7 +1369,7 @@ MistSkins["default"] = {
           }
           this.style.display = "";
 
-          if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
+          if (MistVideo.options.useDateTime && MistVideo.info && ((MistVideo.info.type == "live") && MistVideo.info.unixoffset)) {
             var t = new Date(duration*1e3 + MistVideo.info.unixoffset)
             text.nodeValue = MistUtil.format.ago(t);
             container.setAttribute("title",MistUtil.format.ago(t,34560e6)); //format as if more than a year ago
@@ -1365,9 +1447,8 @@ MistSkins["default"] = {
       var button = this.skin.icons.build("loop");
       
       var video = this.video;
-      var api = this.player.api;
       button.set = function(){
-        if (api.loop) {
+        if (MistVideo.player.api.loop) {
           MistUtil.class.remove(this,"off");
         }
         else {
@@ -1376,7 +1457,7 @@ MistSkins["default"] = {
       };
       
       MistUtil.event.addListener(button,"click",function(e){
-        api.loop = !api.loop;
+        MistVideo.player.api.loop = !MistVideo.player.api.loop;
         this.set();
       });
       button.set();
@@ -1463,6 +1544,42 @@ MistSkins["default"] = {
       
       return button;
     },
+    "picture-in-picture": function(){
+      if ((!("setSize" in this.player)) || (!this.info.hasVideo) || (this.source.type.split("/")[1] == "audio") || (!document.pictureInPictureEnabled)) { return; }
+      
+      var MistVideo = this;
+      if (!("requestPictureInPicture" in MistVideo.video)) { return; }
+      
+      var button = this.skin.icons.build("pip");
+      button.set = function(){
+        if (document.pictureInPictureElement) {
+          MistUtil.class.remove(this,"off");
+        }
+        else {
+          MistUtil.class.add(this,"off");
+        }
+      };
+      MistUtil.event.addListener(button,"click",function(){
+        var promise;
+        if (document.pictureInPictureElement) {
+          promise = document.exitPictureInPicture();
+        }
+        else {
+          promise = MistVideo.video.requestPictureInPicture();
+        }
+        if (promise) {
+          promise.then(function(){
+            button.set();
+          });
+        }
+        else {
+          button.set();
+        }
+      });
+      button.set();
+
+      return button;
+    },
     tracks: function(){
       
       if ((!this.info) || (!this.video)) { return; }
@@ -1533,12 +1650,22 @@ MistSkins["default"] = {
         for (var j in tracktypes) {
           var type = tracktypes[j];
           var t = tracks[type];
+
+          if (MistUtil.array.indexOf(["video","audio","subtitle"],type) <= -1) {
+            //Do not display this track type
+            continue;
+          }
           
           if (type == "subtitle") {
-            if ((!("player" in MistVideo)) || (!("api" in MistVideo.player)) || (!("setSubtitle" in MistVideo.player.api))) {
+            if ((!("player" in MistVideo)) || (!("api" in MistVideo.player)) || (!("setWSSubtitle" in MistVideo.player.api) && !("setSubtitle" in MistVideo.player.api))) {
               //this player does not support adding subtitles, don't show track selection in the interface
               MistVideo.log("Subtitle selection was disabled as this player does not support it.");
               continue;
+            }
+            
+            var mime = "html5/text/vtt"
+            if ("setWSSubtitle" in MistVideo.player.api) {
+              mime = "html5/text/javascript";
             }
             
             //check if the VTT output is available
@@ -1546,7 +1673,7 @@ MistSkins["default"] = {
             for (var i in MistVideo.info.source) {
               var source = MistVideo.info.source[i];
               //this is a subtitle source, and it's the same protocol (HTTP/HTTPS) as the video source
-              if ((source.type == "html5/text/vtt") && (MistUtil.http.url.split(source.url).protocol == MistUtil.http.url.split(MistVideo.source.url).protocol.replace(/^ws/,"http"))) {
+              if ((source.type == mime) && (MistUtil.http.url.split(source.url).protocol == MistUtil.http.url.split(MistVideo.source.url).protocol.replace(/^ws/,"http"))) {
                 subtitleSource = source.url.replace(/.srt$/,".vtt");
                 break;
               }
@@ -1554,7 +1681,7 @@ MistSkins["default"] = {
             
             if (!subtitleSource) {
               //if we can't find a subtitle output, don't show track selection in the interface
-              MistVideo.log("Subtitle selection was disabled as an SRT source could not be found.");
+              MistVideo.log("Subtitle selection was disabled as a source could not be found.");
               continue;
             }
             
@@ -1721,17 +1848,22 @@ MistSkins["default"] = {
                   localStorage["mistSubtitleLanguage"] = t[this.value].lang;
                 }
                 catch (e) {}
-                
-                if (this.value != "") {
-                  //gather metadata for this subtitle track here
-                  var trackinfo = MistUtil.object.extend({},t[this.value]);
-                  trackinfo.label = orderValues(trackinfo.describe).join(" ");
-                  
-                  trackinfo.src = MistUtil.http.url.addParam(subtitleSource,{track:this.value});
-                  MistVideo.player.api.setSubtitle(trackinfo);
+
+                if ("setWSSubtitle" in MistVideo.player.api) {
+                  MistVideo.player.api.setWSSubtitle(this.value == "" ? undefined : this.value);
                 }
                 else {
-                  MistVideo.player.api.setSubtitle();
+                  if (this.value != "") {
+                    //gather metadata for this subtitle track here
+                    var trackinfo = MistUtil.object.extend({},t[this.value]);
+                    trackinfo.label = orderValues(trackinfo.describe).join(" ");
+                    
+                    trackinfo.src = MistUtil.http.url.addParam(subtitleSource,{track:this.value});
+                    MistVideo.player.api.setSubtitle(trackinfo);
+                  }
+                  else {
+                    MistVideo.player.api.setSubtitle();
+                  }
                 }
               });
               
@@ -1864,7 +1996,7 @@ MistSkins["default"] = {
         var events = ["waiting","seeking","stalled"];
         for (var i in events) {
           MistUtil.event.addListener(MistVideo.video,events[i],function(e){
-            if ((!this.paused) && ("container" in MistVideo)) {
+            if ((MistVideo.player.api && !MistVideo.player.api.paused) && ("container" in MistVideo)) {
               addIcon(e);
             }
           },icon);
@@ -1899,7 +2031,7 @@ MistSkins["default"] = {
         if (!options.polling && !options.passive && !options.hideTitle) {
           var header = document.createElement("h3");
           message_container.appendChild(header);
-          header.appendChild(document.createTextNode("The player has encountered a problem"));
+          header.appendChild(document.createTextNode("The "+(MistVideo.casting ? "chromecast" : "player")+" has encountered a problem"));
         }
         
         var p = document.createElement("p");
@@ -2036,7 +2168,10 @@ MistSkins["default"] = {
         since = (new Date()).getTime();
         
         
-        var event = this.log(message,"error");
+        var event;
+        if (!MistVideo.casting) { 
+          event = this.log(message,"error");
+        }
         var message_container = container.message(message,false,options);
         message_global = message_container;
         
@@ -2045,7 +2180,19 @@ MistSkins["default"] = {
         message_container.appendChild(button_container);
         
         MistUtil.empty(button_container);
-        if (options.softReload) {
+        if (MistVideo.casting && !options.passive) {
+          var obj = {
+            type: "button",
+            label: "Stop casting",
+            onclick: function(){
+              MistVideo.detachFromCast();
+            }
+          };
+          if (!isNaN(options.softReload+"")) { obj.delay = options.softReload; }
+          button_container.appendChild(MistVideo.UI.buildStructure(obj));
+
+        }
+        if (options.softReload && !MistVideo.casting) {
           var obj = {
             type: "button",
             label: "Reload video",
@@ -2100,7 +2247,8 @@ MistSkins["default"] = {
           MistVideo.container.removeAttribute("data-loading");
         }
         
-        if (event.defaultPrevented) {
+        if (event && event.defaultPrevented) {
+          MistVideo.log("Error event was defaultPrevented, not showing.");
           container.clear();
         }
       };
@@ -2137,12 +2285,34 @@ MistSkins["default"] = {
     },
     tooltip: function(){
       var container = document.createElement("div");
-      
+
+      var mode = "text";
       var textNode = document.createTextNode("");
       container.appendChild(textNode);
       container.setText = function(text){
         textNode.nodeValue = text;
+        if (mode != "text") {
+          container.removeChild(htmlNode);
+          container.appendChild(textNode);
+          mode = "text";
+        }
       };
+      var htmlNode = document.createElement("div");
+      htmlNode.empty = function(){
+        htmlNode.innerText = "";
+        for (var i = htmlNode.children.length - 1; i >= 0; i--) {
+          htmlNode.removeChild(htmlNode.children[i]);
+        }
+      };
+      container.setHtml = function(ele){
+        htmlNode.empty();
+        htmlNode.appendChild(ele);
+        if (mode != "html") {
+          container.removeChild(textNode);
+          container.appendChild(htmlNode);
+          mode = "html";
+        }
+      }
       
       var triangle = document.createElement("div");
       container.triangle = triangle;
@@ -2277,8 +2447,425 @@ MistSkins["default"] = {
 
 
       return ele;
-    }
+    },
+    subtitles: function(options){
+      if (!("WebSocket" in window)) { return false; }
+      var MistVideo = this;
+      if (!("player" in MistVideo) || !("api" in MistVideo.player) || !("currentTime" in MistVideo.player.api)) { return false; }
+      
+      if (!("metaTrackSubscriptions" in MistVideo)) { return false; }
+
+      function clearFormatting(str) {
+        str = str.replace(/\<\/?[bui]\>/gi,""); //remove <b>,</b>,<u>,</u>,<i>,</i>
+        str = str.replace(/{\/?[bui]}/gi,"");   //remove {b},{/b},{u},{/u},{i},{/i}
+        str = str.replace(/{\\a\d+}/gi,"");     //remove {\a3} (line position)
+        str = str.replace(/\<\/?font[^>]*?\>/gi,""); //remove <font color="white">,</font>
+        return str;
+      }
+
+      var container = document.createElement("div");
+
+      var c = document.createElement("span");
+      container.appendChild(c);
+      var textNode = document.createTextNode("");
+      c.appendChild(textNode);
+
+      var timer = false;
+      function displayMessage(message) {
+        textNode.nodeValue = clearFormatting(message.data);
+        if (timer) {
+          //a previous message is still being displayed, remove the timer so that it doesn't remove the new message
+          MistVideo.timers.stop(timer);
+          timer = null;
+        }
+
+
+        function setTimer(delay) {
+          timer = MistVideo.timers.start(function(){
+
+            if (MistVideo.player.api.paused) {
+              //leave the subtitle for now, and start a new timer once the video starts playing
+
+              var playing = MistUtil.event.addListener(MistVideo.video,"playing",function(){
+                setTimer(message.time + ("duration" in message ? message.duration : 5e3) - MistVideo.player.api.currentTime*1e3);
+                MistUtil.event.removeListener(playing);
+              });
+
+              return;
+            }
+
+            textNode.nodeValue = "";
+          },delay);
+        }
+        setTimer("duration" in message ? message.duration : 5e3);
+
+      }
+
+      //when seeking, clear the current subtitle message
+      MistUtil.event.addListener(MistVideo.video,"seeked",function(){
+        textNode.nodeValue = "";
+        if (timer) { MistVideo.timers.stop(timer); }
+        timer = null;
+      });
+
+      if (!("setWSSubtitle" in MistVideo.player.api)) {
+        //insert generic subtitle function unless it already exists
+        var trackid = false;
+        MistVideo.player.api.setWSSubtitle = function(id){
+          if (id == trackid) { return; } //already selected
+
+          //first add, then remove: this prevents the websocket closing because no tracks are selected
+
+          if (typeof id != "undefined") {
+            MistVideo.metaTrackSubscriptions.add(id,displayMessage);
+          }
+
+          if (id != trackid) {
+            MistVideo.metaTrackSubscriptions.remove(trackid,displayMessage);
+          }
+
+          trackid = (id == "undefined" ? false : id);
+        }
+      }
     
+      return container;
+    },
+    chromecast: function(){
+      var MistVideo = this;
+      
+      if ((!"".indexOf) || (MistVideo.options.host.indexOf("localhost") > -1) || (MistVideo.options.host.indexOf("::1") > -1)) { return; } //it's old IE or the Mist host is localhost and so it won't work ^_^
+
+      var ele = document.createElement("div");
+      var casting_ele = document.createElement("div");
+      casting_ele.className = "mistvideo-casting";
+
+      var api, reload, nextCombo, unload;
+      var selectedTracks = {};
+      var remoteData = {
+        currentTime: false,
+        paused: true,
+        volume: 1,
+        muted: false,
+        buffer: [],
+        loop: (MistVideo.player.api ? MistVideo.player.api.loop : MistVideo.options.loop)
+      };
+      MistVideo.casting = false;
+
+      function onCastLoad(tries) {
+        if (!window.chrome || !window.chrome.cast || !window.chrome.cast.isAvailable || (tries > 5)) {
+          if (ele.parentNode) { ele.parentNode.removeChild(ele); }
+          MistVideo.log("Chromecast is not supported");
+          console.warn(chrome,chrome.cast,chrome.cast ? chrome.cast.isAvailable : undefined,cast);
+          return;
+        }
+
+        if (!window.cast) {
+          if (!tries) { tries = 0; }
+          MistVideo.log("Casting api loaded but cast function not yet available, retrying..");
+          MistVideo.timers.start(function(){
+            onCastLoad(tries++);
+          },200)
+          return;
+        }
+
+        MistVideo.log("Chromecast API loaded");
+        if (!window.loadedCastApi || (window.loadedCastApi == "loading")) {
+          window.loadedCastApi = true; //so we don't try this multiple times
+        }
+
+        var cast_ele = document.createElement("google-cast-launcher");
+        ele.appendChild(cast_ele);
+        cast.framework.CastContext.getInstance().setOptions({
+          receiverApplicationId: "E5F1558C",
+          autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+        });
+
+        function detachFromCast(keepSession) {
+          MistUtil.class.remove(cast_ele,"active");
+          MistUtil.class.remove(MistVideo.container,"casting");
+          if (casting_ele.parentNode) { casting_ele.parentNode.removeChild(casting_ele) }
+          if (!keepSession && (cast.framework.CastContext.getInstance().getCurrentSession())) {
+            cast.framework.CastContext.getInstance().getCurrentSession().endSession(true);
+          }
+
+          if (api) { 
+            MistVideo.player.api = api;
+            api.currentTime = remoteData.currentTime;
+            api.play();
+            MistVideo.reload = reload;
+            MistVideo.nextCombo = nextCombo;
+            MistVideo.unload = unload;
+          }
+          else {
+            MistVideo.player.api.play();
+          }
+          if (MistVideo.player.api && MistVideo.player.api.setTracks && MistUtil.object.keys(selectedTracks).length) {
+            MistVideo.player.api.setTracks(selectedTracks);
+          }
+          MistVideo.casting = false;
+          MistVideo.log("Detached chromecast session");
+        }
+        MistVideo.detachFromCast = detachFromCast;
+
+        cast_ele.addEventListener("click",function(e){
+          e.stopPropagation();
+          
+          //if (false) { 
+          if (MistUtil.class.has(cast_ele,"active")) {
+            detachFromCast();
+          }
+          else {
+
+            MistUtil.class.add(cast_ele,"active");
+            casting_ele.innerHTML = "Select a device to cast to";
+            MistVideo.container.appendChild(casting_ele);
+            MistUtil.class.add(MistVideo.container,"casting");
+            MistVideo.log("chromecast: pausing player")
+            MistVideo.player.api.pause();
+            MistVideo.container.setAttribute("data-loading","waiting for cast");
+            MistVideo.casting = true;
+
+            if (!window.MistCast) {
+              window.MistCast = {
+                send: function(obj){
+                  cast.framework.CastContext.getInstance().getCurrentSession().sendMessage("urn:x-cast:mistcaster",JSON.stringify(obj));
+                }
+              };
+            }
+            
+            function loadStream() {
+
+              cast.framework.CastContext.getInstance().getCurrentSession().addMessageListener("urn:x-cast:mistcaster",function(ns,message){
+                if (MistVideo.destroyed) { detachFromCast(); }
+                message = JSON.parse(message);
+                //console.log("chromecast message received:",message);
+                if (message.type) {
+                  switch(message.type){
+                    case "log":
+                    case "error": {
+                      MistVideo.log("[Chromecast] "+message.message,message.type);
+                      break;
+                    }
+                    case "showError":{
+                      MistVideo.showError.apply(MistVideo,message.args);
+                      break;
+                    }
+                    case "event": {
+                      switch (message.event) {
+                        case "timeupdate": {
+                          remoteData.currentTime = message.currentTime;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+                        case "progress": {
+                          remoteData.buffer = message.buffer;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+                        case "pause":
+                        case "paused":
+                        case "ended": 
+                        case "play":
+                        case "playing": {
+                          remoteData.paused = message.paused;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+
+                        case "volumechange": {
+                          remoteData.volume = message.volume;
+                          remoteData.muted = message.muted;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+                        default: {
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                        }
+                      }
+                      break;
+                    }
+                    case "detach": {
+                      if (message.n == MistVideo.n) {
+                        detachFromCast(true); //don't murder the session 
+                      }
+                      break;
+                    }
+                    default: {
+                      console.log("Unknown chromecast message type",message);
+                    }
+                  }
+                }
+              });
+
+              var d = {
+                type: "load",
+                n: MistVideo.n, //indentify which player instance we are
+                options: {
+                  host: MistVideo.options.host,
+                  loop: MistVideo.options.loop, //will be overwritten with the current value if there is a player api
+                  poster: MistVideo.options.poster, //should be an absolute url, because the location will be different
+                  streaminfo: MistVideo.options.streaminfo,
+                  urlappend: MistVideo.options.urlappend,
+                  forcePriority: MistVideo.options.forcePriority,
+                  setTracks: MistVideo.options.setTracks, //when the track selection is changed through the UI, the selected track is saved in the options, so this passes on the currently enforced tracks
+                  controls: false,
+                  skin: "default" //TODO: right now the skin can't really be transfered because there are functions in there that won't be in the JSON. At some point we should fix this, probably by having the Mist backend include a custom skin definition with the player code.
+                },
+                stream: MistVideo.stream
+              };
+              if (MistVideo.info && (MistVideo.info.type != "live")) {
+                d.time = MistVideo.player.api.currentTime;
+              }
+              if (MistVideo.options.skin == "dev") {
+                d.options.skin = MistVideo.options.skin;
+              }
+              if (MistVideo.player && MistVideo.player.api) {
+                d.volume = MistVideo.player.api.volume;
+                d.muted = MistVideo.player.api.muted;
+                d.options.loop = MistVideo.player.api.loop;
+              }
+              
+              MistCast.send(d);
+
+              api = MistVideo.player.api;
+              reload = MistVideo.reload;
+              nextCombo = MistVideo.nextCombo;
+              unload = MistVideo.unload;
+              selectedTracks = MistVideo.options.setTracks ? MistVideo.options.setTracks : {};
+
+              MistVideo.player.api = new Proxy(api,{
+                get: function(target,key,receiver){
+                  var property = target[key];
+                  switch (key) {
+                    case "muted":
+                    case "volume":
+                    case "currentTime":
+                    case "paused":
+                    case "loop": {
+                      return remoteData[key];
+                    }
+                    case "buffered": {
+                      return new function(){
+                        this.length = remoteData.buffer.length;
+                        this.start = function(i){
+                          return remoteData.buffer[i][0];
+                        }
+                        this.end = function(i){
+                          return remoteData.buffer[i][1];
+                        }
+
+                      }
+                    }
+                    case "setTracks":
+                    case "play":
+                    case "pause": {
+                      return function() {
+                        //put the arguments into an array so JSON doesn't turn it into an object
+                        var a = [];
+                        for (var i = 0; i < arguments.length; i++) {
+                          a.push(arguments[i]);
+                        }
+                        if (key == "setTracks") {
+                          //save the selected tracks so that we can restore them when casting detaches
+                          MistUtil.object.extend(selectedTracks,arguments[0]);
+                        }
+                        MistCast.send({type: "cmd", cmd: key, args: a});
+                      }
+                    } 
+                  }
+                  return property;
+                },
+                set: function(target,key,value){
+                  if (key == "loop") {
+                    remoteData[key] = value; //just assume chromecast will apply it properly
+                  }
+                  //console.log("set",key,value);
+                  MistCast.send({type:"set",cmd:key,value:value});
+                }
+              });
+              api.pause();
+              MistVideo.reload = function(){
+                MistCast.send({type:"reload"});
+              };
+              MistVideo.nextCombo = function(){
+                MistCast.send({type:"nextCombo"});
+              };
+              MistVideo.unload = function(){
+                //this one should actually unload the current player, but detach the chromecast session first
+                detachFromCast();
+                return unload.apply(this,arguments);
+              };
+
+              var d = cast.framework.CastContext.getInstance().getCurrentSession().getCastDevice();
+              if (d && d.friendlyName) { casting_ele.innerHTML = "Casting to "+d.friendlyName; }
+
+              var on_session_end = function(){
+                if (cast.framework.CastContext.getInstance().getSessionState() == "SESSION_ENDED") {
+                  if (MistUtil.class.has(cast_ele,"active")) {
+                    detachFromCast();
+                  }
+                  cast.framework.CastContext.getInstance().removeEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,on_session_end);
+                }
+              };
+              cast.framework.CastContext.getInstance().addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,on_session_end);
+
+              /*for (let i of ["sessionstatechanged","caststatechanged"]) {
+                cast.framework.CastContext.getInstance().addEventListener(i,function(){
+console.warn(i,cast.framework.CastContext.getInstance().getSessionState());
+                });
+              }*/
+
+              MistVideo.log("Attached chromecast session");
+            }
+
+
+            if (cast.framework.CastContext.getInstance().getCurrentSession()) {
+              loadStream();
+            }
+            else {
+
+              cast.framework.CastContext.getInstance().requestSession().then(function(){
+                //console.log("Session requested");
+                if (!cast.framework.CastContext.getInstance().getCurrentSession()) { throw "Could not connect to the cast device";  }
+                loadStream();
+              },function(e){
+                MistVideo.log("Chromecast session ended: "+e);
+                detachFromCast();
+              });
+            }
+          }
+
+        },true); //capture so that chrome's own handler doesn't fire
+      }
+
+      if ((!window.chrome || !window.chrome.cast) && (!window.loadedCastApi)) {
+        window['__onGCastApiAvailable'] = function(loaded, errorInfo) {
+          if (!loaded) {
+            MistVideo.log("Error while loading chromecast API: "+errorInfo);
+          }
+          onCastLoad();
+        };
+        window.loadedCastApi = "loading";
+        var script = document.createElement("script");
+        script.setAttribute("src","//www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1");
+        document.head.appendChild(script);
+        MistVideo.log("Appending chromecast script");
+      }
+      else {
+        if (window.loadedCastApi == "loading") {
+          MistVideo.log("Not appending chromecast script - still loading");
+          MistVideo.timers.start(function(){
+            onCastLoad();
+          },200);
+        }
+        else {
+          MistVideo.log("Not appending chromecast script - already loaded");
+          onCastLoad();
+        }
+      }
+
+      return ele;
+    }
   },
   colors: {
     fill: "#fff",
@@ -2770,7 +3357,7 @@ MistSkins.dev.structure.submenu.children.unshift({
       },
       then: {
         type: "container",
-        classes: ["mistvideo-description"],
+        classes: ["mistvideo-description","mistvideo-displayCombo"],
         style: { display: "block" },
         children: [
           {type: "playername", style: { display: "inline" }},

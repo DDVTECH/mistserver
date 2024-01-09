@@ -26,7 +26,6 @@ namespace Mist{
     // Private Functions
     bool checkArguments();
     bool needHeader(){return false;}
-    bool readHeader(){return true;}
     bool openStreamSource();
     void closeStreamSource();
     void parseStreamHeader();

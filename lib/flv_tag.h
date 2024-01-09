@@ -22,7 +22,7 @@ namespace FLV{
 
   // functions
   bool check_header(char *header); ///< Checks a FLV Header for validness.
-  bool is_header(char *header);    ///< Checks the first 3 bytes for the string "FLV".
+  bool is_header(const char *header);    ///< Checks the first 3 bytes for the string "FLV".
 
   /// Helper function that can quickly skip through a file looking for a particular tag type
   bool seekToTagType(FILE *f, uint8_t type);
@@ -55,7 +55,7 @@ namespace FLV{
     bool DTSCMetaInit(const DTSC::Meta &M, std::set<size_t> &selTracks);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack, const std::map<std::string, std::string> &targetParams);
-    bool MemLoader(char *D, unsigned int S, unsigned int &P);
+    bool MemLoader(const char *D, unsigned int S, unsigned int &P);
     bool FileLoader(FILE *f);
     unsigned int getTrackID();
     char *getData();
@@ -68,7 +68,7 @@ namespace FLV{
     void setLen();
     bool checkBufferSize();
     // loader helper functions
-    bool MemReadUntil(char *buffer, unsigned int count, unsigned int &sofar, char *D,
+    bool MemReadUntil(char *buffer, unsigned int count, unsigned int &sofar, const char *D,
                       unsigned int S, unsigned int &P);
     bool FileReadUntil(char *buffer, unsigned int count, unsigned int &sofar, FILE *f);
   };

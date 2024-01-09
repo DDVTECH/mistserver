@@ -4,20 +4,20 @@ namespace Mist{
 
   InputSrt::InputSrt(Util::Config *cfg) : Input(cfg){
     vtt = false;
-    capa["name"] = "SRT";
+    capa["name"] = "SubRip";
     capa["decs"] =
-        "This input allows streaming of SRT and WebVTT subtitle files as Video on Demand.";
+        "This input allows streaming of SubRip (SRT and WebVTT) subtitle files as Video on Demand.";
     capa["source_match"].append("/*.srt");
     capa["source_match"].append("/*.vtt");
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("subtitle");
+    capa["codecs"]["subtitle"].append("subtitle");
   }
 
   bool InputSrt::preRun(){
     fileSource.close();
     fileSource.open(config->getString("input").c_str());
     if (!fileSource.is_open()){
-      FAIL_MSG("Could not open file %s: %s", config->getString("input").c_str(), strerror(errno));
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open file %s: %s", config->getString("input").c_str(), strerror(errno));
       return false;
     }
     return true;
@@ -25,7 +25,7 @@ namespace Mist{
 
   bool InputSrt::checkArguments(){
     if (config->getString("input") == "-"){
-      FAIL_MSG("Reading from standard input not yet supported");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }else{
       preRun();
@@ -33,12 +33,12 @@ namespace Mist{
 
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        FAIL_MSG("Writing to standard output not yet supported");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        FAIL_MSG("File output in player mode not supported");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -46,7 +46,10 @@ namespace Mist{
   }
 
   bool InputSrt::readHeader(){
-    if (!fileSource.good()){return false;}
+    if (!fileSource.good()){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     size_t idx = meta.addTrack();
     meta.setID(idx, 1);
     meta.setType(idx, "meta");
@@ -57,9 +60,6 @@ namespace Mist{
       meta.update(thisPacket);
       getNext();
     }
-
-    // outputting dtsh file
-    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 

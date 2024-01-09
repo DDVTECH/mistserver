@@ -8,18 +8,22 @@
 #include <iterator>
 #include <mist/auth.h>
 #include <mist/defines.h>
-#include <mist/downloader.h>
 #include <mist/encode.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/urireader.h>
 #include <sstream>
 #include <sys/wait.h>
 
 namespace Mist{
   Util::Config *Input::config = NULL;
 
-  void Input::userLeadIn(){connectedUsers = 0;}
+  void Input::userLeadIn(){
+    connectedUsers = 0;
+    keyLoadPriority.clear();
+  }
+
   void Input::userOnActive(size_t id){
     ++connectedUsers;
     size_t track = users.getTrack(id);
@@ -36,12 +40,53 @@ namespace Mist{
     //But! What if our current key is 20+ seconds long? HAVE YOU THOUGHT OF THAT?!
     //Exactly! I thought not! So, if the end key number == the first, we increase by one.
     if (endKey == key){++endKey;}
-    DONTEVEN_MSG("User with ID:%zu is on key %zu->%zu (timestamp %" PRIu64 ")", id, key, endKey, time);
-    for (size_t i = key; i <= endKey; i++){bufferFrame(track, i);}
+    if (endKey > key + 1000){endKey = key + 1000;}
+    DONTEVEN_MSG("User with ID:%zu is on %zu:%zu -> %zu (timestamp %" PRIu64 ")", id, track, key, endKey, time);
+    for (size_t i = key; i <= endKey; ){
+      const Util::RelAccX &tPages = M.pages(track);
+      Util::RelAccXFieldData firstkeyEntry = tPages.getFieldData("firstkey");
+      Util::RelAccXFieldData keyCountEntry = tPages.getFieldData("keycount");
+      if (!tPages.getEndPos()){return;}
+      DTSC::Keys keys(M.keys(track));
+      if (i > keys.getEndValid()){return;}
+      bool found = false;
+      uint64_t cnt = 1, pageNumber = 0;
+      for (uint64_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
+        pageNumber = tPages.getInt(firstkeyEntry, j);
+        cnt = tPages.getInt(keyCountEntry, j);
+        if (pageNumber <= i && pageNumber + cnt > i){
+          found = true;
+          break;
+        }
+      }
+      // Could not find key? Then we're done here.
+      if (!found){return;}
+      uint64_t pageTime = M.getTimeForKeyIndex(track, pageNumber);
+      if (pageTime <= time){
+        keyLoadPriority[trackKey(track, pageNumber)] += 10000;
+      }else{
+        keyLoadPriority[trackKey(track, pageNumber)] += 600 - (pageTime - time) / 1000;
+      }
+      // Make sure we always progress, even in edge cases where there is no full key buffered yet
+      if (!cnt){cnt = 1;}
+      i = pageNumber + cnt;
+    }
     //Now, we can rest assured that the next ~120 seconds or so is pre-buffered in RAM.
   }
   void Input::userOnDisconnect(size_t id){}
-  void Input::userLeadOut(){}
+  void Input::userLeadOut(){
+    if (!keyLoadPriority.size()){return;}
+    //Make reverse mapping
+    std::multimap<uint64_t, trackKey> reverse;
+    for (std::map<trackKey, uint64_t>::iterator i = keyLoadPriority.begin(); i != keyLoadPriority.end(); ++i){
+      reverse.insert(std::pair<uint64_t, trackKey>(i->second, i->first));
+      VERYHIGH_MSG("Key priority for %zu:%zu = %" PRIu64, i->first.track, i->first.key, i->second);
+    }
+    uint64_t timer = Util::bootMS();
+    for (std::multimap<uint64_t, trackKey>::reverse_iterator i = reverse.rbegin(); i != reverse.rend() && Util::bootMS() < timer + INPUT_USER_INTERVAL; ++i){
+      bufferFrame(i->second.track, i->second.key);
+    }
+  }
 
   void Input::reloadClientMeta(){
     if (M.getStreamName() != "" && M.getMaster()){return;}
@@ -54,6 +99,8 @@ namespace Mist{
   Input::Input(Util::Config *cfg) : InOutBase(){
     config = cfg;
     standAlone = true;
+    Util::Config::binaryType = Util::INPUT;
+    inputTimeout = INPUT_TIMEOUT;
 
     JSON::Value option;
     option["long"] = "json";
@@ -85,6 +132,19 @@ namespace Mist{
     option["value"].append(0u);
     option["help"] = "Generate .dtsh, then exit";
     config->addOption("headeronly", option);
+    option.null();
+    option["short"] = "i";
+    option["arg"] = "integer";
+    option["long"] = "inputtimeout";
+    option["value"].append(inputTimeout);
+    option["help"] = "Time in seconds to keep the input process loaded without activity";
+    config->addOption("inputtimeout", option);
+    capa["optional"]["inputtimeout"]["name"] = "Input inactivity timeout";
+    capa["optional"]["inputtimeout"]["help"] = "How long the input should remain loaded without activity";
+    capa["optional"]["inputtimeout"]["default"] = inputTimeout;
+    capa["optional"]["inputtimeout"]["unit"] = "s";
+    capa["optional"]["inputtimeout"]["type"] = "uint";
+    capa["optional"]["inputtimeout"]["option"] = "--inputtimeout";
 
     /*LTS-START*/
     /*
@@ -170,7 +230,19 @@ namespace Mist{
     capa["optional"]["realtime"]["name"] = "Simulated Live";
     capa["optional"]["realtime"]["help"] = "Make this input run as a simulated live stream";
     capa["optional"]["realtime"]["option"] = "--realtime";
+
     option.null();
+    option["short"] = "P";
+    option["long"] = "pagetimeout";
+    option["arg"] = "integer";
+    option["value"].append(DEFAULT_PAGE_TIMEOUT);
+    option["help"] = "For bufferless or live inputs like HLS, set the timeout in seconds for old, inactive pages to be deleted. A longer value results in more memory usage, but ensures that recently buffered data stays in memory for longer";
+    config->addOption("pagetimeout", option);
+    capa["optional"]["pagetimeout"]["name"] = "Memory page timeout";
+    capa["optional"]["pagetimeout"]["help"] = "For bufferless or live inputs like HLS, set the timeout in seconds for old, inactive pages to be deleted. A longer value results in more memory usage, but ensures that recently buffered data stays in memory for longer";
+    capa["optional"]["pagetimeout"]["option"] = "--pagetimeout";
+    capa["optional"]["pagetimeout"]["type"] = "uint";
+    capa["optional"]["pagetimeout"]["default"] = DEFAULT_PAGE_TIMEOUT;
 
     /*LTS-END*/
     capa["optional"]["debug"]["name"] = "debug";
@@ -182,40 +254,51 @@ namespace Mist{
     srtTrack = 0;
     lastBufferCheck = 0;
     bufferPid = 0;
+    internalOnly = false;
+    isBuffer = false;
+    startTime = Util::bootSecs();
+    lastStats = 0;
   }
 
-  void Input::checkHeaderTimes(std::string streamFile){
-    struct stat bufStream;
-    struct stat bufHeader;
-    struct stat srtStream;
+  void Input::checkHeaderTimes(const HTTP::URL & streamFile){
 
-    std::string srtFile = streamFile + ".srt";
-    if (stat(srtFile.c_str(), &srtStream) == 0){
-      hasSrt = true;
-      srtSource.open(srtFile.c_str());
-      INFO_MSG("File %s opened as srt source", srtFile.c_str());
+    /// \TODO Implement remote URLs?
+
+    if (streamFile.isLocalPath()){
+      const std::string & f = streamFile.getFilePath();
+
+      struct stat bufStream;
+      struct stat bufHeader;
+      struct stat srtStream;
+      std::string srtFile = f + ".srt";
+      if (stat(srtFile.c_str(), &srtStream) == 0){
+        hasSrt = true;
+        srtSource.open(srtFile.c_str());
+        INFO_MSG("File %s opened as srt source", srtFile.c_str());
+      }
+
+      if (stat(f.c_str(), &bufStream) != 0){
+        INSANE_MSG("Source is not a file - ignoring header check");
+        return;
+      }
+      std::string headerFile = f + ".dtsh";
+      if (stat(headerFile.c_str(), &bufHeader) != 0){
+        INSANE_MSG("No header exists to compare - ignoring header check");
+        return;
+      }
+      // the same second is not enough - add a 15 second window where we consider it too old
+      if (bufHeader.st_mtime < bufStream.st_mtime + 15){
+        INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
+        remove(headerFile.c_str());
+      }
+
+      // the same second is not enough - add a 15 second window where we consider it too old
+      if (hasSrt && bufHeader.st_mtime < srtStream.st_mtime + 15){
+        INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
+        remove(headerFile.c_str());
+      }
     }
 
-    if (stat(streamFile.c_str(), &bufStream) != 0){
-      INSANE_MSG("Source is not a file - ignoring header check");
-      return;
-    }
-    std::string headerFile = streamFile + ".dtsh";
-    if (stat(headerFile.c_str(), &bufHeader) != 0){
-      INSANE_MSG("No header exists to compare - ignoring header check");
-      return;
-    }
-    // the same second is not enough - add a 15 second window where we consider it too old
-    if (bufHeader.st_mtime < bufStream.st_mtime + 15){
-      INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
-      remove(headerFile.c_str());
-    }
-
-    // the same second is not enough - add a 15 second window where we consider it too old
-    if (hasSrt && bufHeader.st_mtime < srtStream.st_mtime + 15){
-      INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
-      remove(headerFile.c_str());
-    }
   }
 
   void Input::readSrtHeader(){
@@ -299,6 +382,7 @@ namespace Mist{
   int Input::boot(int argc, char *argv[]){
     if (!(config->parseArgs(argc, argv))){return 1;}
     streamName = config->getString("streamname");
+    inputTimeout = config->getInteger("inputtimeout");
     Util::setStreamName(streamName);
 
     if (config->getBool("json")){
@@ -309,9 +393,48 @@ namespace Mist{
 
     INFO_MSG("Input booting");
 
+    //Check if the input uses the name-based-override, and strip it
+    {
+      std::string input = config->getString("input");
+      std::string prefix = capa["name"].asStringRef() + ":";
+      Util::stringToLower(prefix);
+      if (input.size() > prefix.size()){
+        std::string match = input.substr(0, prefix.size());
+        Util::stringToLower(match);
+        if (prefix == match){
+          //We have a prefix match - make sure we don't _also_ have a proper source_match
+          bool source_match = false;
+          if (capa["source_match"].size()){
+            jsonForEach(capa["source_match"], it){
+              const std::string & source = it->asStringRef();
+              std::string front = source.substr(0, source.find('*'));
+              std::string back = source.substr(source.find('*') + 1);
+
+              if (input.size() > front.size()+back.size() && input.substr(0, front.size()) == front && input.substr(input.size() - back.size()) == back){
+                source_match = true;
+                break;
+              }
+            }
+          }else{
+            const std::string & source = capa["source_match"].asStringRef();
+            std::string front = source.substr(0, source.find('*'));
+            std::string back = source.substr(source.find('*') + 1);
+
+            if (input.size() > front.size()+back.size() && input.substr(0, front.size()) == front && input.substr(input.size() - back.size()) == back){
+              source_match = true;
+            }
+          }
+          //Only if no source_match, strip the prefix from the input string
+          if (!source_match){
+            config->getOption("input", true).append(input.substr(prefix.size()));
+          }
+        }
+      }
+    }
+
     if (!checkArguments()){
-      FAIL_MSG("Setup failed - exiting");
-      return 0;
+      Util::logExitReason(ER_UNKNOWN, "Setup failed - exiting");
+      return exitAndLogReason();
     }
 
     IPC::semaphore playerLock;
@@ -334,7 +457,8 @@ namespace Mist{
         //Set stream status to STRMSTAT_INIT, then close the page in non-master mode to keep it around
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
+        streamStatus.init(pageName, 2, false, false);
+        if (!streamStatus){streamStatus.init(pageName, 2, true, false);}
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         streamStatus.master = false;
         streamStatus.close();
@@ -375,24 +499,32 @@ namespace Mist{
 
     config->activate();
 
-    if (getenv("NOFORK")){
-      INFO_MSG("Not using angel process due to NOFORK environment variable");
+    if (getenv("NOFORK") || getenv("ATHEIST")){
+      INFO_MSG("Not using angel process due to ATHEIST environment variable");
       if (playerLock){
         // Re-init streamStatus, previously closed
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
+        streamStatus.init(pageName, 2, false, false);
+        if (!streamStatus){streamStatus.init(pageName, 2, true, false);}
         streamStatus.master = false;
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
       }
-      int ret = 0;
-      if (preRun()){ret = run();}
+      int ret = 1;
+      if (preRun()){
+        ret = run();
+      }else{
+        return exitAndLogReason();
+      }
       if (playerLock){
         playerLock.unlink();
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
-        streamStatus.close();
+        streamStatus.init(pageName, 2, false, false);
+        if (streamStatus){
+          streamStatus.master = true;
+          streamStatus.close();
+        }
       }
       playerLock.unlink();
       pullLock.unlink();
@@ -412,14 +544,17 @@ namespace Mist{
           // Re-init streamStatus, previously closed
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-          streamStatus.init(pageName, 1, true, false);
+          streamStatus.init(pageName, 2, false, false);
+          if (!streamStatus){streamStatus.init(pageName, 2, true, false);}
           streamStatus.master = false;
           if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         }
         // Abandon all semaphores, ye who enter here.
         playerLock.abandon();
         pullLock.abandon();
-        if (!preRun()){return 0;}
+        if (!preRun()){
+          return exitAndLogReason();
+        }
         return run();
       }
       Util::Procs::fork_complete();
@@ -443,22 +578,60 @@ namespace Mist{
       }
       HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       // if the exit was clean, don't restart it
-      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
-        INFO_MSG("Input for stream %s shut down cleanly", streamName.c_str());
+      int exitCode = WEXITSTATUS(status);
+      if (WIFEXITED(status) && (exitCode == 0 || exitCode == 1)){
+        HIGH_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
       if (playerLock){
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
+        streamStatus.init(pageName, 2, false, false);
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
       }
-#if DEBUG >= DLVL_DEVEL
+      // Fire the INPUT_ABORT trigger if the child process ends with an abnormal exit code
+      // Prevents automatic restarts of the input for unrecoverable errors
+      if (WIFEXITED(status)){
+        char exitReason[256];
+        memcpy(exitReason, Util::exitReason, 256);
+        if (exitCode == 2){
+          WARN_MSG("Child process %u exited with exit code %i (major error occurred), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_UNKNOWN, "Child process %u exited with exit code %i (major error occurred)", pid, exitCode);
+        }else if (exitCode == 132){
+          WARN_MSG("Child process %u exited with exit code %i (SIGILL), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_SIGILL, "Child process %u exited with exit code %i (SIGILL)", pid, exitCode);
+        }else if (exitCode == 133){
+          WARN_MSG("Child process %u exited with exit code %i (SIGTRAP)", pid, exitCode);
+          Util::logExitReason(ER_SIGTRAP, "Child process %u exited with exit code %i (SIGTRAP)", pid, exitCode);
+        }else if (exitCode == 134){
+          WARN_MSG("Child process %u exited with exit code %i (SIGABRT)", pid, exitCode);
+          Util::logExitReason(ER_SIGABRT, "Child process %u exited with exit code %i (SIGABRT)", pid, exitCode);
+        }else if (exitCode == 136){
+          WARN_MSG("Child process %u exited with exit code %i (SIGFPE)", pid, exitCode);
+          Util::logExitReason(ER_SIGFPE, "Child process %u exited with exit code %i (SIGFPE)", pid, exitCode);
+        }else if (exitCode == 137){
+          WARN_MSG("Child process %u exited with exit code %i (used too much memory), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_MEMORY, "Child process %u exited with exit code %i (used too much memory)", pid, exitCode);
+        }else if (exitCode == 138){
+          WARN_MSG("Child process %u exited with exit code %i (SIGBUS)", pid, exitCode);
+          Util::logExitReason(ER_SIGBUS, "Child process %u exited with exit code %i (SIGBUS)", pid, exitCode);
+        }else if (exitCode == 139){
+          WARN_MSG("Child process %u exited with exit code %i (SEGFAULT)", pid, exitCode);
+          Util::logExitReason(ER_SEGFAULT, "Child process %u exited with exit code %i (SEGFAULT)", pid, exitCode);
+        }else{
+          WARN_MSG("Child process %u exited with an unhandled exit code %i, cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_UNKNOWN, "Child process %u exited with an unhandled exit code %i", pid, exitCode);
+        }
+        doInputAbortTrigger(pid, Util::mRExitReason, Util::exitReason);
+        memcpy(Util::exitReason, exitReason, 256);
+      }
+      
+      #if DEBUG >= DLVL_DEVEL
       WARN_MSG(
           "Input for stream %s uncleanly shut down! Aborting restart; this is a development build.",
           streamName.c_str());
       break;
-#else
+      #else
       if (config->is_active){
         WARN_MSG("Input for stream %s uncleanly shut down! Cleaning and restarting...", streamName.c_str());
       }else{
@@ -477,12 +650,17 @@ namespace Mist{
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_IPID, streamName.c_str());
       pidPage.init(pageName, 8, false, false);
-      pidPage.master = true;
-      pidPage.close();
+      if (pidPage){
+        pidPage.master = true;
+        pidPage.close();
+      }
       //Clear stream state
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-      streamStatus.init(pageName, 1, true, false);
-      streamStatus.close();
+      streamStatus.init(pageName, 2, false, false);
+      if (streamStatus){
+        streamStatus.master = true;
+        streamStatus.close();
+      }
       //Delete lock
       playerLock.unlink();
     }
@@ -502,18 +680,22 @@ namespace Mist{
   }
 
   int Input::run(){
+    Comms::sessionConfigCache();
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
-    checkHeaderTimes(config->getString("input"));
+    checkHeaderTimes(HTTP::localURIResolver().link(config->getString("input")));
+    //needHeader internally calls readExistingHeader which in turn attempts to read header cache
     if (needHeader()){
-      uint64_t timer = Util::bootMS();
-      bool headerSuccess = readHeader();
-      if (!headerSuccess || (!M && needsLock())){
-        FAIL_MSG("Reading header for '%s' failed.", config->getString("input").c_str());
-        return 0;
+      uint64_t timer = Util::getMicros();
+      if (!readHeader() || (!M && needsLock())){
+        Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed", config->getString("input").c_str());
+        return exitAndLogReason();
       }
-      timer = Util::bootMS() - timer;
-      INFO_MSG("Read header in %" PRIu64 "ms (%zu tracks)", timer, M.trackCount());
+      timer = Util::getMicros(timer);
+      INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
+      //Write header to file for caching purposes
+      M.toFile(config->getString("input") + ".dtsh");
     }
+    postHeader();
     if (config->getBool("headeronly")){return 0;}
     if (M && M.getVod()){
       meta.removeEmptyTracks();
@@ -535,7 +717,7 @@ namespace Mist{
       INFO_MSG("Starting serve");
       serve();
     }
-    return 0;
+    return exitAndLogReason();
   }
 
   void Input::convert(){
@@ -586,7 +768,42 @@ namespace Mist{
     }
     // close file
     file.close();
+    // Export DTSH to a file or remote target
     outMeta.toFile(fileName + ".dtsh");
+  }
+
+  // Fires the `INPUT_ABORT` trigger. Allows overrides to allow parent processes
+  // to fire the trigger for child processes which have already exited (EG segfaults)
+  void Input::doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason){
+    // Calculate variables required for the trigger
+    if (Util::Config::binaryType == Util::INPUT && Triggers::shouldTrigger("INPUT_ABORT", streamName)){
+      std::ostringstream pidString;
+      pidString << pid;
+      std::string payload = streamName + "\n" + config->getString("input") + "\n" \
+        + "MistIn" + capa["name"].asString() + "\n" + pidString.str() + "\n" \
+        + mRExitReason + "\n" + exitReason;
+      Triggers::doTrigger("INPUT_ABORT", payload, streamName);
+    }
+  }
+
+  // Logs the current exit reason and returns a 0 or 1 depending on whether
+  // this was a clean exit or not
+  bool Input::exitAndLogReason(){
+    int returnCode = 1;
+    // If no reason is set at all, return the default status
+    if (!Util::exitReason[0]){
+      INFO_MSG("Input closing without a set exit reason");
+    }else if(strncmp(Util::mRExitReason, "CLEAN", 5) == 0){
+      INFO_MSG("Input closing cleanly with reason: %s", Util::exitReason);
+      returnCode = 0; 
+    }else{
+      WARN_MSG("Input closing unclean, reason: %s", Util::exitReason);
+    }
+    // If this is an unclean exit, fire the INPUT_ABORT trigger
+    if (returnCode){
+      doInputAbortTrigger(getpid(), Util::mRExitReason, Util::exitReason);
+    }
+    return returnCode;
   }
 
   /// Checks in the server configuration if this stream is set to always on or not.
@@ -623,25 +840,27 @@ namespace Mist{
   /// ~~~~~~~~~~~~~~~
   void Input::serve(){
     users.reload(streamName, true);
+    startTime = Util::bootSecs();
 
     if (!M){
       // Initialize meta page
       meta.reInit(streamName, true);
     }else{
-      std::set<size_t> validTracks = M.getValidTracks(true);
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-        bufferFrame(*it, 0);
-      }
+      //std::set<size_t> validTracks = M.getValidTracks(true);
+      //for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      //  bufferFrame(*it, 0);
+      //}
     }
     meta.setSource(config->getString("input"));
 
-    bool internalOnly = (config->getString("input").find("INTERNAL_ONLY") != std::string::npos);
+    internalOnly = (config->getString("input").find("INTERNAL_ONLY") != std::string::npos);
+    isBuffer = (capa["name"].asStringRef() == "Buffer");
 
     /*LTS-START*/
     if (Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
       std::string payload = config->getString("streamname") + "\n" + capa["name"].asStringRef();
       if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
-        Util::logExitReason("STREAM_READY trigger returned false");
+        Util::logExitReason(ER_TRIGGER, "STREAM_READY trigger returned false");
         config->is_active = false;
       }
     }
@@ -652,6 +871,7 @@ namespace Mist{
     activityCounter = Util::bootSecs();
     // main serve loop
     while (keepRunning()){
+      uint64_t preMs = Util::bootMS();
       // load pages for connected clients on request
       userLeadIn();
       COMM_LOOP(users, userOnActive(id), userOnDisconnect(id))
@@ -659,25 +879,52 @@ namespace Mist{
 
       // unload pages that haven't been used for a while
       removeUnused();
+      if (!M){
+        Util::logExitReason(ER_SHM_LOST, "Lost connection to metadata");
+        break;
+      }
 
       if (M.getLive() && !internalOnly){
         uint64_t currLastUpdate = M.getLastUpdated();
         if (currLastUpdate > activityCounter){activityCounter = currLastUpdate;}
       }else{
-        if (connectedUsers && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
+        if ((connectedUsers || isAlwaysOn()) && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
       }
+
+      inputServeStats();
       // if not shutting down, wait 1 second before looping
-      if (config->is_active){Util::wait(INPUT_USER_INTERVAL);}
+      preMs = Util::bootMS() - preMs;
+      uint64_t waitMs = INPUT_USER_INTERVAL;
+      if (preMs >= waitMs){waitMs = 0;}else{waitMs -= preMs;}
+      if (config->is_active && waitMs){
+        Util::wait(waitMs);
+      }
     }
     if (!isThread()){
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
       config->is_active = false;
     }
     finish();
-    INFO_MSG("Input closing clean, reason: %s", Util::exitReason);
     userSelect.clear();
     if (!isThread()){
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
+    }
+  }
+
+  void Input::inputServeStats(){
+    uint64_t now = Util::bootSecs();
+    if (now != lastStats){
+      if (!internalOnly && !isBuffer){
+        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (statComm){
+          statComm.setNow(now);
+          statComm.setStream(streamName);
+          statComm.setTime(now - startTime);
+          statComm.setLastSecond(0);
+          connStats(statComm);
+        }
+      }
+      lastStats = now;
     }
   }
 
@@ -691,11 +938,7 @@ namespace Mist{
     // We keep running in serve mode if the config is still active AND either
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
-    bool ret = config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT);
-    if (!ret && config->is_active && isAlwaysOn()){
-      ret = true;
-      activityCounter = Util::bootSecs();
-    }
+    bool ret = config->is_active && ((Util::bootSecs() - activityCounter) < inputTimeout);
     /*LTS-START*/
     if (!ret){
       if (Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
@@ -708,8 +951,8 @@ namespace Mist{
       }
     }
     /*LTS-END*/
-    if (!ret && ((Util::bootSecs() - activityCounter) >= INPUT_TIMEOUT)){
-      Util::logExitReason("no activity for %u seconds", Util::bootSecs() - activityCounter);
+    if (!ret && ((Util::bootSecs() - activityCounter) >= inputTimeout)){
+      Util::logExitReason(ER_CLEAN_INACTIVE, "no activity for %us (> %" PRIu64 "s)", Util::bootSecs() - activityCounter, inputTimeout);
     }
     return ret;
   }
@@ -754,14 +997,13 @@ namespace Mist{
     if (config->getBool("realtime")){
       realtimeMainLoop();
       finish();
-      INFO_MSG("Real-time input closing clean; reason: %s", Util::exitReason);
       return;
     }
 
     meta.reInit(streamName, false);
 
     if (!openStreamSource()){
-      FAIL_MSG("Unable to connect to source");
+      Util::logExitReason(ER_READ_START_FAILURE, "Unable to connect to source");
       return;
     }
     parseStreamHeader();
@@ -769,9 +1011,9 @@ namespace Mist{
     if (publishesTracks()){
       std::set<size_t> validTracks = M.getMySourceTracks(getpid());
       if (!validTracks.size()){
+        Util::logExitReason(ER_CLEAN_EOF, "No tracks found, cancelling pull");
         userSelect.clear();
         finish();
-        INFO_MSG("No tracks found, cancelling");
         return;
       }
     }
@@ -780,7 +1022,6 @@ namespace Mist{
     closeStreamSource();
     userSelect.clear();
     finish();
-    INFO_MSG("Input closing clean; reason: %s", Util::exitReason);
     return;
   }
 
@@ -794,24 +1035,24 @@ namespace Mist{
   void Input::streamMainLoop(){
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
     getNext();
     if (thisPacket && !userSelect.count(thisIdx)){
       userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
     }
     while (thisPacket && config->is_active && userSelect[thisIdx]){
       if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         break;
       }
       if (isSingular() && !bufferActive()){
-        Util::logExitReason("Buffer shut down");
+        Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
         return;
       }
       bufferLivePacket(thisPacket);
       getNext();
       if (!thisPacket){
-        Util::logExitReason("no more data");
+        Util::logExitReason(ER_CLEAN_EOF, "no more data");
         break;
       }
       if (thisPacket && !userSelect.count(thisIdx)){
@@ -820,18 +1061,16 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload();}
+        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           if (!statComm){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
-          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
           connStats(statComm);
@@ -842,10 +1081,9 @@ namespace Mist{
     }
   }
   
-  void Input::connStats(Comms::Statistics &statComm){
+  void Input::connStats(Comms::Connections &statComm){
     statComm.setUp(0);
     statComm.setDown(streamByteCount());
-    statComm.setHost(getConnectedBinHost());
   }
 
   void Input::realtimeMainLoop(){
@@ -853,7 +1091,7 @@ namespace Mist{
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
     size_t idx;
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
 
 
     DTSC::Meta liveMeta(config->getString("streamname"), false);
@@ -955,7 +1193,7 @@ namespace Mist{
     while (config->is_active){
       getNext();
       if (!thisPacket){
-        Util::logExitReason("no more data");
+        Util::logExitReason(ER_CLEAN_EOF, "no more data");
         break;
       }
       idx = realTimeTrackMap.count(thisIdx) ? realTimeTrackMap[thisIdx] : INVALID_TRACK_ID;
@@ -963,7 +1201,7 @@ namespace Mist{
         userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         break;
       }
       while (config->is_active && userSelect[idx] &&
@@ -985,16 +1223,15 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload();}
+        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setTime(now - startTime);
@@ -1012,9 +1249,9 @@ namespace Mist{
 
   void Input::finish(){
     if (!standAlone || config->getBool("realtime")){return;}
-    for (std::map<size_t, std::map<uint32_t, size_t> >::iterator it = pageCounter.begin();
+    for (std::map<size_t, std::map<uint32_t, uint64_t> >::iterator it = pageCounter.begin();
          it != pageCounter.end(); it++){
-      for (std::map<uint32_t, size_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
+      for (std::map<uint32_t, uint64_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
         it2->second = 1;
       }
     }
@@ -1022,42 +1259,28 @@ namespace Mist{
   }
 
   void Input::removeUnused(){
+    uint64_t timeout = config->getInteger("pagetimeout");
+    uint64_t bufferTime = timeout * 1000;
+    if (config->hasOption("bufferTime")){
+      bufferTime = config->getInteger("bufferTime");
+    }
     uint64_t cTime = Util::bootSecs();
-    std::set<size_t> validTracks = M.getValidTracks();
-    std::map<size_t, std::set<uint32_t> > checkedPages;
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-      Util::RelAccX &tPages = meta.pages(*it);
-      for (size_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
-        uint64_t pageNum = tPages.getInt("firstkey", i);
-        checkedPages[*it].insert(pageNum);
-        if (pageCounter[*it].count(pageNum)){
-          // If the page is still being written to, reset the counter rather than potentially unloading it
-          if (isCurrentLivePage(*it, pageNum)){
-            pageCounter[*it][pageNum] = cTime;
-            continue;
-          }
-          if (cTime > pageCounter[*it][pageNum] + DEFAULT_PAGE_TIMEOUT){
-            pageCounter[*it].erase(pageNum);
-            bufferRemove(*it, pageNum);
-          }
-        }else{
-          pageCounter[*it][pageNum] = cTime;
-        }
-      }
-    }
-    //Check pages we buffered but forgot about
-    for (std::map<size_t, std::map<uint32_t, size_t> >::iterator it = pageCounter.begin();
+    for (std::map<size_t, std::map<uint32_t, uint64_t> >::iterator it = pageCounter.begin();
          it != pageCounter.end(); it++){
-      for (std::map<uint32_t, size_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
-        if (!checkedPages.count(it->first) || !checkedPages[it->first].count(it2->first)){
-          INFO_MSG("Deleting forgotten page %zu:%" PRIu32, it->first, it2->first);
+      std::set<uint32_t> deletedEntries;
+      for (std::map<uint32_t, uint64_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
+        if (isRecentLivePage(it->first, it2->first, bufferTime)){continue;}
+        if (cTime > it2->second + timeout){
+          deletedEntries.insert(it2->first);
           bufferRemove(it->first, it2->first);
-          it->second.erase(it2);
-          it2 = it->second.begin();
+          HIGH_MSG("Unloading page %u track %lu", it2->first, it->first);
         }
       }
+      while (deletedEntries.size()){
+        it->second.erase(*(deletedEntries.begin()));
+        deletedEntries.erase(deletedEntries.begin());
+      }
     }
-
   }
 
   std::string formatGUID(const std::string &val){
@@ -1075,10 +1298,12 @@ namespace Mist{
     return r.str();
   }
 
+  /// Attempts to create a header.
+  /// Returns true on success.
+  /// Default implementation fails and prints a warning.
   bool Input::readHeader(){
-    INFO_MSG("Empty header created by default readHeader handler");
-    meta.reInit(streamName);
-    return true;
+    WARN_MSG("Default readHeader implementation called - this is not expected to happen");
+    return false;
   }
 
   void Input::parseHeader(){
@@ -1283,19 +1508,26 @@ namespace Mist{
 
     const Util::RelAccX &tPages = M.pages(idx);
     DTSC::Keys keys(M.keys(idx));
-    uint32_t keyCount = keys.getValidCount();
+    uint64_t firstKey = keys.getFirstValid();
+    if (keyNum < firstKey){
+      HIGH_MSG("Key %" PRIu32 " on track %zu no longer seekable (earliest requestable key is %" PRIu64
+                "). Cancelling buffering.",
+                keyNum, idx, firstKey);
+      return true;
+    }
+    uint64_t lastKey = keys.getEndValid();
+    if (keyNum > lastKey){
+      // End of movie here, returning true to avoid various error messages
+      if (keyNum > lastKey + 1){
+        WARN_MSG("Key %" PRIu32 " on track %zu is higher than total (latest key is %" PRIu64
+                 "). Cancelling buffering.",
+                 keyNum, idx, lastKey);
+      }
+      return true;
+    }
     if (!tPages.getEndPos()){
       WARN_MSG("No pages for track %zu found! Cancelling bufferFrame", idx);
       return false;
-    }
-    if (keyNum > keyCount){
-      // End of movie here, returning true to avoid various error messages
-      if (keyNum > keyCount + 1){
-        WARN_MSG("Key %" PRIu32 " on track %zu is higher than total (%" PRIu32
-                 "). Cancelling buffering.",
-                 keyNum, idx, keyCount);
-      }
-      return true;
     }
     uint64_t pageIdx = 0;
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
@@ -1303,9 +1535,9 @@ namespace Mist{
       pageIdx = i;
     }
     uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
+    pageCounter[idx][pageNumber] = Util::bootSecs();
     if (isBuffered(idx, pageNumber, meta)){
       // Mark the page as still actively requested
-      pageCounter[idx][pageNumber] = Util::bootSecs();
       DONTEVEN_MSG("Track %zu, key %" PRIu32 " is already buffered in page %" PRIu32
                    ". Cancelling bufferFrame",
                    idx, keyNum, pageNumber);
@@ -1321,6 +1553,8 @@ namespace Mist{
     }
 
     uint64_t keyTime = keys.getTime(keyNum);
+
+    inputServeStats();
 
     bool isSrt = (hasSrt && idx == srtTrack);
     if (isSrt){
@@ -1364,10 +1598,10 @@ namespace Mist{
       }
     }else{
       size_t prevPos = 0;
-      size_t partNo = 0;
-      for (size_t i = 0; i < keyNum; ++i){partNo += keys.getParts(i);}
+      size_t partNo = keys.getFirstPart(keyNum);
       DTSC::Parts parts(M.parts(idx));
       while (thisPacket && thisTime < stopTime){
+        if (connectedUsers || isAlwaysOn()){activityCounter = Util::bootSecs();}
         if (thisTime >= lastBuffered){
           if (sourceIdx != idx){
             if (encryption.find(":") != std::string::npos || M.getEncryption(idx).find(":") != std::string::npos){
@@ -1411,7 +1645,15 @@ namespace Mist{
           size_t dataLen;
           thisPacket.getString("data", data, dataLen);
           if (dataLen != parts.getSize(partNo)){
-            INFO_MSG("Part size mismatch: %zu != %zu", dataLen, parts.getSize(partNo));
+            if (partNo && dataLen == parts.getSize(partNo-1)){
+              FAIL_MSG("Part size for part %zu (%" PRIu64 "ms) matches part before it, instead. Aborting page load!", partNo, thisTime);
+              break;
+            }else if (dataLen == parts.getSize(partNo+1)){
+              FAIL_MSG("Part size for part %zu (%" PRIu64 "ms) matches part after it, instead. Aborting page load!", partNo, thisTime);
+              break;
+            }else{
+              INFO_MSG("Part %zu (@%" PRIu64 ") size mismatch: %zu (actual) != %zu (expected)", partNo, thisTime, dataLen, parts.getSize(partNo));
+            }
           }
           ++partNo;
           HIGH_MSG("Buffering VoD packet (%zuB) @%" PRIu64 " ms on track %zu with offset %" PRIu64, dataLen, thisTime, idx, thisPacket.getInt("offset"));
@@ -1421,6 +1663,7 @@ namespace Mist{
           byteCounter += thisPacket.getDataLen();
           lastBuffered = thisTime;
         }
+        inputServeStats();
         getNext(sourceIdx);
       }
       //Sanity check: are we matching the key's data size?
@@ -1440,14 +1683,24 @@ namespace Mist{
         }
       }
     }
-    bufferFinalize(idx, page);
+    page.close();
     bufferTimer = Util::bootMS() - bufferTimer;
-    INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
-             idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisTime, bufferTimer);
-    INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
-             tPages.getInt("parts", pageIdx), byteCounter);
-    pageCounter[idx][pageNumber] = Util::bootSecs();
-    return true;
+    if (packCounter < tPages.getInt("parts", pageIdx)){
+      FAIL_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") NOT FULLY buffered in %" PRIu64 "ms - erasing for later retry",
+               idx, pageNumber, PRETTY_ARG_MSTIME(tPages.getInt("firsttime", pageIdx)), PRETTY_ARG_MSTIME(thisTime), bufferTimer);
+      INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
+               tPages.getInt("parts", pageIdx), byteCounter);
+      pageCounter[idx].erase(pageNumber);
+      bufferRemove(idx, pageNumber, pageIdx);
+      return false;
+    }else{
+      INFO_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") buffered in %" PRIu64 "ms",
+               idx, pageNumber, PRETTY_ARG_MSTIME(tPages.getInt("firsttime", pageIdx)), PRETTY_ARG_MSTIME(thisTime), bufferTimer);
+      INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
+               tPages.getInt("parts", pageIdx), byteCounter);
+      pageCounter[idx][pageNumber] = Util::bootSecs();
+      return true;
+    }
   }
 
   bool Input::atKeyFrame(){
@@ -1462,28 +1715,34 @@ namespace Mist{
   }
 
   bool Input::readExistingHeader(){
-    if (config->getBool("realtime")){
-      meta.reInit("", config->getString("input") + ".dtsh");
-      if (!meta){return false;}
-      if (meta.version != DTSH_VERSION){
-        INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
-        return false;
-      }
-      return meta;
-    }
-    char pageName[NAME_BUFFER_SIZE];
-    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, config->getString("streamname").c_str());
-    IPC::sharedPage sp(pageName, 0, false, false);
-    if (sp){
-      sp.close();
-      meta.reInit(config->getString("streamname"), false);
-      if (meta){
-        meta.setMaster(true);
-        INFO_MSG("Read existing header");
-        return true;
+    if (!config->getBool("realtime")){
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, config->getString("streamname").c_str());
+      IPC::sharedPage sp(pageName, 0, false, false);
+      if (sp){
+        sp.close();
+        meta.reInit(config->getString("streamname"), false);
+        if (meta){
+          meta.setMaster(true);
+          INFO_MSG("Read existing header");
+          return true;
+        }
       }
     }
-    meta.reInit(config->getString("streamname"), config->getString("input") + ".dtsh");
+    // Try to read any existing DTSH file
+    std::string fileName = config->getString("input") + ".dtsh";
+    HIGH_MSG("Loading metadata for stream '%s' from file '%s'", streamName.c_str(), fileName.c_str());
+    char *scanBuf;
+    size_t fileSize;
+    HTTP::URIReader inFile(fileName);
+    if (!inFile){return false;}
+    inFile.readAll(scanBuf, fileSize);
+    inFile.close();
+    if (!fileSize){return false;}
+    DTSC::Packet pkt(scanBuf, fileSize, true);
+    HIGH_MSG("Retrieved header of %zu bytes", fileSize);
+    meta.reInit(config->getBool("realtime") ? "" : streamName, pkt.getScan());
+
     if (meta.version != DTSH_VERSION){
       INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
       return false;

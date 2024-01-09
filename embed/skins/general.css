@@ -207,6 +207,7 @@ a {
   animation-iteration-count: 1;
   animation-timing-function: steps(1,end);
 }
+
 @keyframes mistvideo-appear { from { opacity: 0; } to { opacity: 1; } }
 
 svg.icon {

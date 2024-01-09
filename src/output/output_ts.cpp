@@ -85,6 +85,7 @@ namespace Mist{
         }
       }
       pushSock.SetDestination(target.host, target.getPort());
+      myConn.setHost(target.host);
       pushing = false;
     }else{
       //No push target? Check if this is a push input or pull output by waiting for data for 5s
@@ -179,9 +180,11 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+AC3");
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
+    capa["codecs"][0u][2u].append("+JSON");
     capa["codecs"][1u][0u].append("rawts");
     cfg->addConnectorOptions(8888, capa);
     config = cfg;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("tsudp://*");
     capa["push_urls"].append("tsrtp://*");
     capa["push_urls"].append("tstcp://*");
@@ -192,12 +195,31 @@ namespace Mist{
     opt["arg_num"] = 1;
     opt["help"] = "Target tsudp:// or tsrtp:// or tstcp:// URL to push out towards.";
     cfg->addOption("target", opt);
+
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+
+    opt.null();
+    opt["long"] = "datatrack";
+    opt["short"] = "D";
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", opt);
   }
 
-  void OutTS::initialSeek(){
+  void OutTS::initialSeek(bool dryRun){
     // Adds passthrough support to the regular initialSeek function
     if (targetParams.count("passthrough")){selectAllTracks();}
-    Output::initialSeek();
+    Output::initialSeek(dryRun);
   }
 
   void OutTS::sendTS(const char *tsData, size_t len){
@@ -233,10 +255,22 @@ namespace Mist{
     }else{
       myConn.SendNow(tsData, len);
       if (!myConn){
-        Util::logExitReason("connection closed by peer");
+        Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed by peer");
         config->is_active = false;
       }
     }
+  }
+
+  std::string OutTS::getConnectedHost(){
+    if (!pushOut) { return Output::getConnectedHost(); }
+    std::string hostname;
+    uint32_t port;
+    pushSock.GetDestination(hostname, port);
+    return hostname;
+  }
+  std::string OutTS::getConnectedBinHost(){
+    if (!pushOut) { return Output::getConnectedBinHost(); }
+    return pushSock.getBinDestination();
   }
 
   bool OutTS::listenMode(){return !(config->getString("target").size());}
@@ -275,6 +309,9 @@ namespace Mist{
         if (!allowPush("")){
           onFinish();
           return;
+        }
+        if (config->getString("datatrack") == "json"){
+          tsIn.setRawDataParser(TS::JSON);
         }
       }
       // we now know we probably have a packet ready at the next 188 bytes

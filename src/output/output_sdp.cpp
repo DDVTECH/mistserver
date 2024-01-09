@@ -119,6 +119,7 @@ namespace Mist{
     capa["methods"][0u]["url_rel"] = "/$.sdp";
     capa["methods"][0u]["priority"] = 11;
 
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.sdp");
 
     JSON::Value opt;
@@ -141,6 +142,18 @@ namespace Mist{
     }
   }
 
+  std::string OutSDP::getConnectedHost(){
+    if (!sdpState.tracks.size()) { return Output::getConnectedHost(); }
+    std::string hostname;
+    uint32_t port;
+    sdpState.tracks[0].data.GetDestination(hostname, port);
+    return hostname;
+  }
+  std::string OutSDP::getConnectedBinHost(){
+    if (!sdpState.tracks.size()) { return Output::getConnectedBinHost(); }
+    return sdpState.tracks[0].data.getBinDestination();
+  }
+
   void OutSDP::sendNext(){
     char *dataPointer = 0;
     size_t dataLen = 0;
@@ -157,7 +170,7 @@ namespace Mist{
       if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
         sdpState.tracks[thisIdx].pack.setTimestamp(timestamp * SDP::getMultiplier(&M, thisIdx));
         sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
-        sdpState.tracks[thisIdx].pack.sendRTCP_SR(&sdpState.tracks[thisIdx].rtcp, sendUDP);
+        sdpState.tracks[thisIdx].pack.sendRTCP_SR(&sdpState.tracks[thisIdx].rtcp, sdpState.tracks[thisIdx].channel, sendUDP);
       }
     }else{
       FAIL_MSG("RTP SDP output does not support TCP. No data will be sent to the target address");

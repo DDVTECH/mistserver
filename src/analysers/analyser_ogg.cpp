@@ -65,7 +65,6 @@ bool AnalyserOGG::parsePacket(){
     }
   }else if (sn2Codec[oggPage.getBitstreamSerialNumber()] == "Opus"){
     if (detail >= 2){std::cout << "  Opus data" << std::endl;}
-    int offset = 0;
     for (unsigned int i = 0; i < oggPage.getAllSegments().size(); i++){
       int len = oggPage.getAllSegments()[i].size();
       const char *part = oggPage.getSegment(i);
@@ -101,7 +100,6 @@ bool AnalyserOGG::parsePacket(){
       }else{
         if (detail >= 4){std::cout << "  " << Opus::Opus_prettyPacket(part, len) << std::endl;}
       }
-      offset += len;
     }
   }
   return true;

@@ -105,7 +105,7 @@ namespace RTP{
                    const char *payload, unsigned int payloadlen, unsigned int channel);
     void sendData(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
                   unsigned int payloadlen, unsigned int channel, std::string codec);
-    void sendRTCP_SR(void *socket, void callBack(void *, const char *, size_t, uint8_t));
+    void sendRTCP_SR(void *socket, uint8_t channel, void callBack(void *, const char *, size_t, uint8_t));
     void sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t));
 
     Packet();
@@ -170,6 +170,7 @@ namespace RTP{
   class toDTSC{
   public:
     toDTSC();
+    virtual ~toDTSC(){}
     void setProperties(const uint64_t track, const std::string &codec, const std::string &type,
                        const std::string &init, const double multiplier);
     void setProperties(const DTSC::Meta &M, size_t tid);

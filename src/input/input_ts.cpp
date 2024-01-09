@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <iostream>
 #include <mist/defines.h>
-#include <mist/downloader.h>
 #include <mist/flv_tag.h>
 #include <mist/http_parser.h>
 #include <mist/mp4_generic.h>
@@ -163,8 +162,11 @@ namespace Mist{
   /// \arg cfg Util::Config that contains all current configurations.
   inputTS::inputTS(Util::Config *cfg) : Input(cfg){
     rawMode = false;
+    udpMode = false;
     rawIdx = INVALID_TRACK_ID;
     lastRawPacket = 0;
+    readPos = 0;
+    unitStartSeen = false;
     capa["name"] = "TS";
     capa["desc"] =
         "This input allows you to stream MPEG2-TS data from static files (/*.ts), streamed files "
@@ -180,6 +182,8 @@ namespace Mist{
     capa["source_match"].append("http-ts://*");
     capa["source_match"].append("https://*.ts");
     capa["source_match"].append("https-ts://*");
+    capa["source_match"].append("s3+http://*.ts");
+    capa["source_match"].append("s3+https://*.ts");
     // These can/may be set to always-on mode
     capa["always_match"].append("stream://*.ts");
     capa["always_match"].append("tsudp://*");
@@ -188,18 +192,19 @@ namespace Mist{
     capa["always_match"].append("http-ts://*");
     capa["always_match"].append("https://*.ts");
     capa["always_match"].append("https-ts://*");
+    capa["always_match"].append("s3+http://*.ts");
+    capa["always_match"].append("s3+https://*.ts");
     capa["incoming_push_url"] = "udp://$host:$port";
     capa["incoming_push_url_match"] = "tsudp://*";
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP2");
-    capa["codecs"][0u][1u].append("opus");
-    capa["codecs"][1u][0u].append("rawts");
-    inFile = NULL;
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("HEVC");
+    capa["codecs"]["video"].append("MPEG2");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("MP2");
+    capa["codecs"]["audio"].append("opus");
+    capa["codecs"]["passthrough"].append("rawts");
     inputProcess = 0;
     isFinished = false;
 
@@ -236,7 +241,26 @@ namespace Mist{
     capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
     capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
     capa["optional"]["segmentsize"]["type"] = "uint";
-    capa["optional"]["segmentsize"]["default"] = 1900;
+    capa["optional"]["segmentsize"]["default"] = DEFAULT_FRAGMENT_DURATION;
+
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+
+    JSON::Value option;
+    option["long"] = "datatrack";
+    option["short"] = "D";
+    option["arg"] = "string";
+    option["default"] = "";
+    option["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", option);
 
     capa["optional"]["fallback_stream"]["name"] = "Fallback stream";
     capa["optional"]["fallback_stream"]["help"] =
@@ -248,7 +272,7 @@ namespace Mist{
     capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
     capa["optional"]["raw"]["option"] = "--raw";
 
-    JSON::Value option;
+    option.null();
     option["long"] = "raw";
     option["short"] = "R";
     option["help"] = "Enable raw MPEG-TS passthrough mode";
@@ -256,14 +280,14 @@ namespace Mist{
   }
 
   inputTS::~inputTS(){
-    if (inFile){fclose(inFile);}
-    if (tcpCon){tcpCon.close();}
     if (!standAlone){
       tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
       threadTimer.clear();
       claimableThreads.clear();
     }
   }
+
+  bool skipPipes = false;
 
   bool inputTS::checkArguments(){
     if (config->getString("input").substr(0, 6) == "srt://"){
@@ -272,40 +296,56 @@ namespace Mist{
       config->getOption("input", true).append("ts-exec:srt-live-transmit " + srtUrl.getUrl() + " file://con");
       INFO_MSG("Rewriting SRT source '%s' to '%s'", source.c_str(), config->getString("input").c_str());
     }
+    if (config->getString("datatrack") == "json"){
+      liveStream.setRawDataParser(TS::JSON);
+      tsStream.setRawDataParser(TS::JSON);
+    }
+
+    // We call preRun early and, if successful, close the opened reader.
+    // This is to ensure we have udpMode/rawMode/standAlone all set properly before the first call to needsLock.
+    // The reader must be closed so that the angel process does not have a reader open.
+    // There is no need to close a potential UDP socket, since that doesn't get opened in preRun just yet.
+    skipPipes = true;
+    if (!preRun()){return false;}
+    skipPipes = false;
+    reader.close();
     return true;
   }
 
   /// Live Setup of TS Input
   bool inputTS::preRun(){
-    INFO_MSG("Prerun: %s", config->getString("input").c_str());
-
+    std::string const inCfg = config->getString("input");
+    udpMode = false;
     rawMode = config->getBool("raw");
     if (rawMode){INFO_MSG("Entering raw mode");}
 
+    // UDP input (tsudp://[host:]port[/iface[,iface[,...]]])
+    if (inCfg.substr(0, 8) == "tsudp://"){
+      standAlone = false;
+      udpMode = true;
+      return true;
+    }
     // streamed standard input
-    if (config->getString("input") == "-"){
+    if (inCfg == "-"){
       standAlone = false;
-      tcpCon.open(fileno(stdout), fileno(stdin));
-      return true;
+      if (skipPipes){return true;}
+      reader.open(0);
+      return reader;
     }
-    if (config->getString("input").substr(0, 7) == "http://" ||
-        config->getString("input").substr(0, 10) == "http-ts://" ||
-        config->getString("input").substr(0, 8) == "https://" ||
-        config->getString("input").substr(0, 11) == "https-ts://"){
+    //file descriptor input
+    if (inCfg.substr(0, 5) == "fd://"){
       standAlone = false;
-      HTTP::URL url(config->getString("input"));
-      if (url.protocol == "http-ts"){url.protocol = "http";}
-      if (url.protocol == "https-ts"){url.protocol = "https";}
-      HTTP::Downloader DL;
-      DL.getHTTP().headerOnly = true;
-      if (!DL.get(url)){return false;}
-      tcpCon = DL.getSocket();
-      DL.getSocket().drop(); // Prevent shutdown of connection, keeping copy of socket open
-      return true;
+      if (skipPipes){return true;}
+      int fd = atoi(inCfg.c_str() + 5);
+      INFO_MSG("Opening file descriptor %s (%d)", inCfg.c_str(), fd);
+      reader.open(fd);
+      return reader;
     }
-    if (config->getString("input").substr(0, 8) == "ts-exec:"){
+    //ts-exec: input
+    if (inCfg.substr(0, 8) == "ts-exec:"){
       standAlone = false;
-      std::string input = config->getString("input").substr(8);
+      if (skipPipes){return true;}
+      std::string input = inCfg.substr(8);
       char *args[128];
       uint8_t argCnt = 0;
       char *startCh = 0;
@@ -328,32 +368,44 @@ namespace Mist{
 
       int fin = -1, fout = -1;
       inputProcess = Util::Procs::StartPiped(args, &fin, &fout, 0);
-      tcpCon.open(-1, fout);
-      return true;
+      reader.open(fout);
+      return reader;
     }
     // streamed file
-    if (config->getString("input").substr(0, 9) == "stream://"){
-      inFile = fopen(config->getString("input").c_str() + 9, "r");
-      tcpCon.open(-1, fileno(inFile));
+    if (inCfg.substr(0, 9) == "stream://"){
+      reader.open(inCfg.substr(9));
+      FILE * inFile = fopen(inCfg.c_str() + 9, "r");
+      reader.open(fileno(inFile));
       standAlone = false;
-      return inFile;
-    }
-    //file descriptor input
-    if (config->getString("input").substr(0, 5) == "fd://"){
-      int fd = atoi(config->getString("input").c_str() + 5);
-      INFO_MSG("Opening file descriptor %s (%d)", config->getString("input").c_str(), fd);
-      tcpCon.open(-1, fd);
-      standAlone = false;
-      return tcpCon;
-    }
-    // UDP input (tsudp://[host:]port[/iface[,iface[,...]]])
-    if (config->getString("input").substr(0, 8) == "tsudp://"){
-      standAlone = false;
+      if (!inFile){
+        Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", inCfg.c_str());
+        return false;
+      }
       return true;
     }
-    // plain VoD file
-    inFile = fopen(config->getString("input").c_str(), "r");
-    return inFile;
+    //Anything else, read through URIReader
+    HTTP::URL url = HTTP::localURIResolver().link(inCfg);
+    if (url.protocol == "http-ts"){url.protocol = "http";}
+    if (url.protocol == "https-ts"){url.protocol = "https";}
+    reader.open(url);
+    standAlone = reader.isSeekable();
+    if (!reader){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", inCfg.c_str());
+      return false;
+    }
+    return true;
+  }
+
+  void inputTS::dataCallback(const char *ptr, size_t size){
+    if (standAlone){
+      unitStartSeen |= assembler.assemble(tsStream, ptr, size, true, readPos);
+    }else{
+      liveReadBuffer.append(ptr, size);
+    }
+    readPos += size;
+  }
+  size_t inputTS::getDataCallbackPos() const{
+    return readPos;
   }
 
   bool inputTS::needHeader(){
@@ -366,19 +418,21 @@ namespace Mist{
   /// It encounters a new PES start, it writes the currently found PES data
   /// for a specific track to metadata. After the entire stream has been read,
   /// it writes the remaining metadata.
-  ///\todo Find errors, perhaps parts can be made more modular
   bool inputTS::readHeader(){
-    if (!inFile){return false;}
+    if (!reader){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(isSingular() ? streamName : "");
     TS::Packet packet; // to analyse and extract data
     DTSC::Packet headerPack;
-    fseek(inFile, 0, SEEK_SET); // seek to beginning
 
-    uint64_t lastBpos = 0;
-    while (packet.FromFile(inFile) && !feof(inFile)){
-      tsStream.parse(packet, lastBpos);
-      lastBpos = Util::ftell(inFile);
-      if (packet.getUnitStart()){
+    while (!reader.isEOF()){
+      uint64_t prePos = readPos;
+      reader.readSome(188, *this);
+      if (readPos == prePos){Util::sleep(50);}
+      if (unitStartSeen){
+        unitStartSeen = false;
         while (tsStream.hasPacketOnEachTrack()){
           tsStream.getEarliestPacket(headerPack);
           size_t pid = headerPack.getTrackId();
@@ -393,10 +447,14 @@ namespace Mist{
           meta.update(headerPack.getTime(), headerPack.getInt("offset"), idx, dataLen,
                       headerPack.getInt("bpos"), headerPack.getFlag("keyframe"), headerPack.getDataLen());
         }
+        //Set progress counter
+        if (streamStatus && streamStatus.len > 1 && reader.getSize()){
+          streamStatus.mapped[1] = (255 * readPos) / reader.getSize();
+        }
       }
     }
     tsStream.finish();
-    INFO_MSG("Reached %s at %" PRIu64 " bytes", feof(inFile) ? "EOF" : "error", lastBpos);
+    INFO_MSG("Reached %s at %" PRIu64 " bytes", reader.isEOF() ? "EOF" : "error", readPos);
     while (tsStream.hasPacket()){
       tsStream.getEarliestPacket(headerPack);
       size_t pid = headerPack.getTrackId();
@@ -411,9 +469,6 @@ namespace Mist{
       meta.update(headerPack.getTime(), headerPack.getInt("offset"), idx, dataLen,
                   headerPack.getInt("bpos"), headerPack.getFlag("keyframe"), headerPack.getDataLen());
     }
-
-    fseek(inFile, 0, SEEK_SET);
-    meta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 
@@ -426,17 +481,17 @@ namespace Mist{
     INSANE_MSG("Getting next on track %zu", idx);
     thisPacket.null();
     bool hasPacket = (idx == INVALID_TRACK_ID ? tsStream.hasPacket() : tsStream.hasPacket(pid));
-    while (!hasPacket && !feof(inFile) &&
+    while (!hasPacket && !reader.isEOF() &&
            (inputProcess == 0 || Util::Procs::childRunning(inputProcess)) && config->is_active){
-      tsBuf.FromFile(inFile);
-      if (idx == INVALID_TRACK_ID || pid == tsBuf.getPID()){
-        tsStream.parse(tsBuf, 0); // bPos == 0
-        if (tsBuf.getUnitStart()){
-          hasPacket = (idx == INVALID_TRACK_ID ? tsStream.hasPacket() : tsStream.hasPacket(pid));
-        }
+      uint64_t prePos = readPos;
+      reader.readSome(188, *this);
+      if (readPos == prePos){Util::sleep(50);}
+      if (unitStartSeen){
+        unitStartSeen = false;
+        hasPacket = (idx == INVALID_TRACK_ID ? tsStream.hasPacket() : tsStream.hasPacket(pid));
       }
     }
-    if (feof(inFile)){
+    if (reader.isEOF()){
       if (!isFinished){
         tsStream.finish();
         isFinished = true;
@@ -451,7 +506,7 @@ namespace Mist{
     }
 
     if (!thisPacket){
-      INFO_MSG("Could not getNext TS packet!");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not getNext TS packet!");
       return;
     }
     tsStream.initializeMetadata(meta);
@@ -460,33 +515,23 @@ namespace Mist{
     if (thisIdx == INVALID_TRACK_ID){getNext(idx);}
   }
 
-  void inputTS::readPMT(){
-    // save current file position
-    uint64_t bpos = Util::ftell(inFile);
-    if (fseek(inFile, 0, SEEK_SET)){
-      FAIL_MSG("Seek to 0 failed");
-      return;
-    }
+  /// Guarantees the PMT is read and we know about all tracks.
+  void inputTS::postHeader(){
+    if (!standAlone){return;}
+    tsStream.clear();
+    assembler.clear();
+    reader.seek(0);
+    readPos = reader.getPos();
 
-    TS::Packet tsBuffer;
-    while (!tsStream.hasPacketOnEachTrack() && tsBuffer.FromFile(inFile)){
-      tsStream.parse(tsBuffer, 0);
-    }
-
-    // Clear leaves the PMT in place
-    tsStream.partialClear();
-
-    // Restore original file position
-    if (Util::fseek(inFile, bpos, SEEK_SET)){
-      clearerr(inFile);
-      return;
+    while (!tsStream.hasPacketOnEachTrack()){
+      uint64_t prePos = readPos;
+      reader.readSome(188, *this);
+      if (readPos == prePos){Util::sleep(50);}
     }
   }
 
   /// Seeks to a specific time
   void inputTS::seek(uint64_t seekTime, size_t idx){
-    tsStream.clear();
-    readPMT();
     uint64_t seekPos = 0xFFFFFFFFull;
     if (idx != INVALID_TRACK_ID){
       uint32_t keyNum = M.getKeyNumForTime(idx, seekTime);
@@ -501,34 +546,26 @@ namespace Mist{
         if (thisBPos < seekPos){seekPos = thisBPos;}
       }
     }
-    clearerr(inFile);
-    Util::fseek(inFile, seekPos, SEEK_SET); // seek to the correct position
+    isFinished = false;
+    tsStream.partialClear();
+    assembler.clear();
+    reader.seek(seekPos);
+    readPos = reader.getPos();
   }
 
   bool inputTS::openStreamSource(){
-    const std::string &inpt = config->getString("input");
-    if (inpt.substr(0, 8) == "tsudp://"){
-      HTTP::URL input_url(inpt);
-      udpCon.setBlocking(false);
-      udpCon.bind(input_url.getPort(), input_url.host, input_url.path);
-      if (udpCon.getSock() == -1){
-        FAIL_MSG("Could not open UDP socket. Aborting.");
-        return false;
-      }
-    }
-    return true;
-  }
-
-  void inputTS::parseStreamHeader(){
-    // Placeholder empty track to force normal code to continue despite no tracks available
-    tmpIdx = meta.addTrack(0, 0, 0, 0);
+    //Non-UDP mode inputs were already opened in preRun()
+    if (!udpMode){return reader;}
+    HTTP::URL input_url(config->getString("input"));
+    udpCon.setBlocking(false);
+    udpCon.bind(input_url.getPort(), input_url.host, input_url.path);
+    // This line assures memory for destination address is allocated, so we can fill it during receive later
+    udpCon.allocateDestination();
+    return (udpCon.getSock() != -1);
   }
 
   void inputTS::streamMainLoop(){
-    meta.removeTrack(tmpIdx);
-    INFO_MSG("Removed temptrack %zu", tmpIdx);
-    Comms::Statistics statComm;
-    uint64_t downCounter = 0;
+    Comms::Connections statComm;
     uint64_t startTime = Util::bootSecs();
     uint64_t noDataSince = Util::bootSecs();
     bool gettingData = false;
@@ -537,18 +574,20 @@ namespace Mist{
     globalStreamName = streamName;
     unsigned long long threadCheckTimer = Util::bootSecs();
     while (config->is_active){
-      if (tcpCon){
-        if (tcpCon.spool()){
-          while (tcpCon.Received().available(188)){
-            while (tcpCon.Received().get()[0] != 0x47 && tcpCon.Received().available(188)){
-              tcpCon.Received().remove(1);
+      if (!udpMode){
+        uint64_t prePos = readPos;
+        reader.readSome(188, *this);
+        if (readPos == prePos){
+          Util::sleep(50);
+        }else{
+          while (liveReadBuffer.size() >= 188){
+            while (liveReadBuffer[0] != 0x47 && liveReadBuffer.size() >= 188){
+              liveReadBuffer.shift(1);
             }
-            if (tcpCon.Received().available(188) && tcpCon.Received().get()[0] == 0x47){
-              std::string newData = tcpCon.Received().remove(188);
+            if (liveReadBuffer.size() >= 188 && liveReadBuffer[0] == 0x47){
               if (rawMode){
                 keepAlive();
-                rawBuffer.append(newData);
-                if (rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
+                if (liveReadBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
                   if (rawIdx == INVALID_TRACK_ID){
                     rawIdx = meta.addTrack();
                     meta.setType(rawIdx, "meta");
@@ -557,31 +596,35 @@ namespace Mist{
                     userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
                   }
                   uint64_t packetTime = Util::bootMS();
-                  thisPacket.genericFill(packetTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);
+                  uint64_t packetLen = (liveReadBuffer.size() / 188) * 188;
+                  thisPacket.genericFill(packetTime, 0, 1, liveReadBuffer, packetLen, 0, 0);
                   bufferLivePacket(thisPacket);
                   lastRawPacket = packetTime;
-                  rawBuffer.truncate(0);
+                  liveReadBuffer.shift(packetLen);
                 }
               }else {
-                tsBuf.FromPointer(newData.data());
-                liveStream.add(tsBuf);
-                if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
+                size_t shiftAmount = 0;
+                for (size_t offset = 0; liveReadBuffer.size() >= offset + 188; offset += 188){
+                  tsBuf.FromPointer(liveReadBuffer + offset);
+                  liveStream.add(tsBuf);
+                  if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
+                  shiftAmount += 188;
+                }
+                liveReadBuffer.shift(shiftAmount);
               }
             }
           }
           noDataSince = Util::bootSecs();
-        }else{
-          Util::sleep(100);
         }
-        if (!tcpCon){
+        if (!reader){
           config->is_active = false;
-          Util::logExitReason("end of streamed input");
+          Util::logExitReason(ER_CLEAN_EOF, "end of streamed input");
           return;
         }
       }else{
         bool received = false;
         while (udpCon.Receive()){
-          downCounter += udpCon.data.size();
+          readPos += udpCon.data.size();
           received = true;
           if (!gettingData){
             gettingData = true;
@@ -589,8 +632,8 @@ namespace Mist{
           }
           if (rawMode){
             keepAlive();
-            rawBuffer.append(udpCon.data, udpCon.data.size());
-            if (rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
+            liveReadBuffer.append(udpCon.data, udpCon.data.size());
+            if (liveReadBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
               if (rawIdx == INVALID_TRACK_ID){
                 rawIdx = meta.addTrack();
                 meta.setType(rawIdx, "meta");
@@ -599,10 +642,10 @@ namespace Mist{
                 userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
               }
               uint64_t packetTime = Util::bootMS();
-              thisPacket.genericFill(packetTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);
+              thisPacket.genericFill(packetTime, 0, 1, liveReadBuffer, liveReadBuffer.size(), 0, 0);
               bufferLivePacket(thisPacket);
               lastRawPacket = packetTime;
-              rawBuffer.truncate(0);
+              liveReadBuffer.truncate(0);
             }
           }else{
             assembler.assemble(liveStream, udpCon.data, udpCon.data.size());
@@ -620,24 +663,24 @@ namespace Mist{
       }
       // Check for and spawn threads here.
       if (Util::bootSecs() - threadCheckTimer > 1){
-        // Connect to stats for INPUT detection
-        statComm.reload();
+        if (!statComm && gettingData){
+          // Connect to stats for INPUT detection
+          statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");
+        }
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setUp(0);
-          statComm.setDown(downCounter + tcpCon.dataDown());
+          statComm.setDown(readPos);
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
-          statComm.setHost(getConnectedBinHost());
         }
 
         std::set<size_t> activeTracks = liveStream.getActiveTracks();
@@ -646,7 +689,7 @@ namespace Mist{
           if (hasStarted && !threadTimer.size()){
             if (!isAlwaysOn()){
               config->is_active = false;
-              Util::logExitReason("no active threads and we had input in the past");
+              Util::logExitReason(ER_CLEAN_INACTIVE, "no active threads and we had input in the past");
               return;
             }else{
               liveStream.clear();
@@ -678,7 +721,7 @@ namespace Mist{
       if (Util::bootSecs() - noDataSince > 20){
         if (!isAlwaysOn()){
           config->is_active = false;
-          Util::logExitReason("no packets received for 20 seconds");
+          Util::logExitReason(ER_CLEAN_INACTIVE, "no packets received for 20 seconds");
           return;
         }else{
           noDataSince = Util::bootSecs();
@@ -702,18 +745,5 @@ namespace Mist{
     }while (threadCount);
   }
 
-  bool inputTS::needsLock(){
-    // we already know no lock will be needed
-    if (!standAlone){return false;}
-    // otherwise, check input param
-    const std::string &inpt = config->getString("input");
-    if (inpt.size() && inpt != "-" && inpt.substr(0, 9) != "stream://" && inpt.substr(0, 8) != "tsudp://" &&
-        inpt.substr(0, 8) != "ts-exec:" && inpt.substr(0, 6) != "srt://" &&
-        inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://" &&
-        inpt.substr(0, 8) != "https://" && inpt.substr(0, 11) != "https-ts://"){
-      return Input::needsLock();
-    }
-    return false;
-  }
 
 }// namespace Mist

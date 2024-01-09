@@ -13,15 +13,19 @@ namespace Controller{
   bool isPushActive(uint64_t id);
 
   // Functions for automated pushes, add/remove
-  void addPush(JSON::Value &request);
-  void removePush(const JSON::Value &request);
+  void addPush(JSON::Value &request, JSON::Value &response);
+  void removePush(const JSON::Value &request, JSON::Value &response);
   void removeAllPush(const std::string &streamname);
 
   // internal use only
+  void removePush(const JSON::Value &pushInfo);
   void doAutoPush(std::string &streamname);
   void pushCheckLoop(void *np);
   bool isPushActive(const std::string &streamname, const std::string &target);
   void stopActivePushes(const std::string &streamname, const std::string &target);
+  bool checkCondition(const JSON::Value &currentValue, const uint8_t &comparisonOperator, const JSON::Value &matchedValue);
+  bool checkCondition(const std::string &currentValue, const uint8_t &comparisonOperator, const std::string &matchedValue);
+  bool checkCondition(const int64_t &currentValue, const uint8_t &comparisonOperator, const int64_t &matchedValue);
 
   // for storing/retrieving settings
   void pushSettings(const JSON::Value &request, JSON::Value &response);

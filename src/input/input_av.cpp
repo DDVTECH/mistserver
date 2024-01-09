@@ -20,15 +20,20 @@ namespace Mist{
     capa["source_match"] = "/*";
     capa["source_file"] = "$source";
     capa["priority"] = 1;
-    capa["codecs"][0u][0u].null();
-    capa["codecs"][0u][1u].null();
-    capa["codecs"][0u][2u].null();
+    capa["codecs"].null();
+#if (LIBAVFORMAT_VERSION_MAJOR < 59)
     av_register_all();
-    AVCodec *cInfo = 0;
+#endif
+    const AVCodec *cInfo = 0;
+#if (LIBAVCODEC_VERSION_MAJOR < 59)
     while ((cInfo = av_codec_next(cInfo)) != 0){
-      if (cInfo->type == AVMEDIA_TYPE_VIDEO){capa["codecs"][0u][0u].append(cInfo->name);}
-      if (cInfo->type == AVMEDIA_TYPE_AUDIO){capa["codecs"][0u][1u].append(cInfo->name);}
-      if (cInfo->type == AVMEDIA_TYPE_SUBTITLE){capa["codecs"][0u][3u].append(cInfo->name);}
+#else
+    void *i = 0;
+    while ((cInfo = av_codec_iterate(&i))) {
+#endif
+      if (cInfo->type == AVMEDIA_TYPE_VIDEO){capa["codecs"]["video"].append(cInfo->name);}
+      if (cInfo->type == AVMEDIA_TYPE_AUDIO){capa["codecs"]["audio"].append(cInfo->name);}
+      if (cInfo->type == AVMEDIA_TYPE_SUBTITLE){capa["codecs"]["subtitle"].append(cInfo->name);}
     }
   }
 
@@ -38,17 +43,17 @@ namespace Mist{
 
   bool inputAV::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -59,7 +64,9 @@ namespace Mist{
     // make sure all av inputs are registered properly, just in case
     // the constructor already does this, but under windows it doesn't remember that it has.
     // Very sad, that. We may need to get windows some medication for it.
+#if (LIBAVFORMAT_VERSION_MAJOR < 59)
     av_register_all();
+#endif
 
     // close any already open files
     if (pFormatCtx){
@@ -72,7 +79,7 @@ namespace Mist{
     if (ret != 0){
       char errstr[300];
       av_strerror(ret, errstr, 300);
-      FAIL_MSG("Could not open file: %s", errstr);
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open file: %s", errstr);
       return false; // Couldn't open file
     }
 
@@ -81,15 +88,18 @@ namespace Mist{
     if (ret < 0){
       char errstr[300];
       av_strerror(ret, errstr, 300);
-      FAIL_MSG("Could not find stream info: %s", errstr);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not find stream info: %s", errstr);
       return false;
     }
     return true;
   }
 
   bool inputAV::readHeader(){
-    for (unsigned int i = 0; i < pFormatCtx->nb_streams;){
-      AVStream *strm = pFormatCtx->streams[i++];
+    if (!meta || (needsLock() && isSingular())){
+      meta.reInit(isSingular() ? streamName : "");
+    }
+    for (unsigned int i = 0; i < pFormatCtx->nb_streams;++i){
+      AVStream *strm = pFormatCtx->streams[i];
       size_t idx = meta.addTrack();
       meta.setID(idx, i);
       switch (strm->codecpar->codec_id){
@@ -133,7 +143,7 @@ namespace Mist{
         meta.setType(idx, "audio");
         meta.setRate(idx, strm->codecpar->sample_rate);
         meta.setSize(idx, strm->codecpar->frame_size);
-        meta.setChannels(idx, strm->codecpar->channels);
+        meta.setChannels(idx, strm->codecpar->ch_layout.nb_channels);
       }
     }
 
@@ -164,10 +174,6 @@ namespace Mist{
       size_t idx = meta.trackIDToIndex(packet.stream_index);
       if (idx == INVALID_TRACK_ID){continue;}
       if (wantIdx != INVALID_TRACK_ID && idx != wantIdx){continue;}
-      if (!userSelect.count(idx)){
-        HIGH_MSG("Track %u not selected", packet.stream_index);
-        continue;
-      }
       AVStream *strm = pFormatCtx->streams[packet.stream_index];
       long long packTime = (packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
       long long packOffset = 0;
@@ -181,7 +187,7 @@ namespace Mist{
       }
       thisTime = packTime;
       thisIdx = idx;
-      thisPacket.genericFill(packTime, packOffset, thisIdx,
+      thisPacket.genericFill(packTime, packOffset, packet.stream_index,
                              (const char *)packet.data, packet.size, 0, isKey);
       av_packet_unref(&packet);
       return; // success!
@@ -189,7 +195,7 @@ namespace Mist{
     thisPacket.null();
     preRun();
     // failure :-(
-    FAIL_MSG("getNext failed");
+    Util::logExitReason(ER_UNKNOWN, "getNext failed");
   }
 
   void inputAV::seek(uint64_t seekTime, size_t idx){

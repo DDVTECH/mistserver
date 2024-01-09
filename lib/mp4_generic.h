@@ -200,6 +200,13 @@ namespace MP4{
     h265::metaInfo getMetaInfo();
   };
 
+  class AV1C : public Box{
+  public:
+    AV1C();
+    void setPayload(std::string newPayload);
+    std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class Descriptor{
   public:
     Descriptor();
@@ -346,6 +353,11 @@ namespace MP4{
     DINF();
   };
 
+  class WAVE : public containerBox{
+  public:
+    WAVE();
+  };
+
   class MFRO : public Box{
   public:
     MFRO();
@@ -465,8 +477,9 @@ namespace MP4{
     void setVolume(uint16_t newVolume);
     uint16_t getVolume();
     uint32_t getMatrixCount();
-    void setMatrix(int32_t newMatrix, size_t index);
-    int32_t getMatrix(size_t index);
+    void setMatrix(double newMatrix, size_t index);
+    double getMatrix(size_t index);
+    uint16_t getRotation();
     void setTrackID(uint32_t newTrackID);
     uint32_t getTrackID();
     std::string toPrettyString(uint32_t indent = 0);
@@ -524,6 +537,7 @@ namespace MP4{
     uint32_t getMatrixCount();
     void setMatrix(int32_t newMatrix, size_t index);
     int32_t getMatrix(size_t index);
+    uint16_t getRotation();
 
     void setWidth(double newWidth);
     double getWidth();
@@ -687,10 +701,10 @@ namespace MP4{
     uint16_t getWidth();
     void setHeight(uint16_t newHeight);
     uint16_t getHeight();
-    void setHorizResolution(uint32_t newHorizResolution);
-    uint32_t getHorizResolution();
-    void setVertResolution(uint32_t newVertResolution);
-    uint32_t getVertResolution();
+    void setHorizResolution(double newHorizResolution);
+    double getHorizResolution();
+    void setVertResolution(double newVertResolution);
+    double getVertResolution();
     void setFrameCount(uint16_t newFrameCount);
     uint16_t getFrameCount();
     void setCompressorName(std::string newCompressorName);
@@ -714,6 +728,7 @@ namespace MP4{
     ///\todo set default values
     AudioSampleEntry();
     AudioSampleEntry(const DTSC::Meta &M, size_t idx);
+    uint16_t getVersion() const;
     void initialize();
     void setCodec(const char *newCodec);
     void setChannelCount(uint16_t newChannelCount);
@@ -725,6 +740,7 @@ namespace MP4{
     void setSampleRate(uint32_t newSampleRate);
     uint16_t toAACInit();
     uint32_t getSampleRate();
+    size_t getBoxOffset() const;
     void setCodecBox(Box &newBox);
     Box &getCodecBox();
     Box &getSINFBox(); /*LTS*/
@@ -839,6 +855,12 @@ namespace MP4{
   class H264 : public VisualSampleEntry{
   public:
     H264();
+    std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class AV01 : public VisualSampleEntry{
+  public:
+    AV01();
     std::string toPrettyString(uint32_t indent = 0);
   };
 

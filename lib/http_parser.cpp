@@ -45,6 +45,7 @@ void HTTP::Parser::CleanPreserveHeaders(){
   protocol = "HTTP/1.1";
   body.clear();
   length = 0;
+  knownLength = false;
   vars.clear();
 }
 
@@ -284,8 +285,18 @@ void HTTP::Parser::StartResponse(std::string code, std::string message, const HT
   protocol = prot;
   if (sendingChunks){
     SetHeader("Transfer-Encoding", "chunked");
+    //Chunked encoding does not allow a Content-Length, so convert to Content-Range instead
+    if (headers.count("Content-Length")){
+      uint32_t len = atoi(headers["Content-Length"].c_str());
+      if (len && !headers.count("Content-Range")){
+        std::stringstream rangeReply;
+        rangeReply << "bytes 0-" << (len-1) << "/" << len;
+        SetHeader("Content-Range", rangeReply.str());
+      }
+      headers.erase("Content-Length");
+    }
   }else{
-    SetHeader("Connection", "close");
+    if (!headers.count("Content-Length")){SetHeader("Connection", "close");}
   }
   bufferChunks = bufferAllChunks;
   if (!bufferAllChunks){SendResponse(code, message, conn);}
@@ -413,7 +424,7 @@ void HTTP::Parser::SetBody(const char *buffer, int len){
 }
 
 /// Returns header i, if set.
-std::string HTTP::Parser::getUrl(){
+std::string HTTP::Parser::getUrl() const{
   if (url.find('?') != std::string::npos){
     return url.substr(0, url.find('?'));
   }else{
@@ -453,10 +464,10 @@ const std::string &HTTP::Parser::GetVar(const std::string &i) const{
   }
 }
 
-std::string HTTP::Parser::allVars(){
+std::string HTTP::Parser::allVars() const{
   std::string ret;
   if (!vars.size()){return ret;}
-  for (std::map<std::string, std::string>::iterator it = vars.begin(); it != vars.end(); ++it){
+  for (std::map<std::string, std::string>::const_iterator it = vars.begin(); it != vars.end(); ++it){
     if (!it->second.size()){continue;}
     if (ret.size() > 1){
       ret += "&";
@@ -609,11 +620,13 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
         if (tmpA.size() == 0){
           seenHeaders = true;
           body.clear();
+          knownLength = false;
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
             if (!bodyCallback && (&cb == &Util::defaultDataCallback) && body.capacity() < length){
               body.reserve(length);
             }
+            knownLength = true;
           }
           if (GetHeader("Transfer-Encoding") == "chunked"){
             getChunks = true;
@@ -635,7 +648,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
         unsigned int code = atoi(url.data());
         if ((code >= 100 && code < 200) || code == 204 || code == 304){return true;}
       }
-      if (length > 0 && !getChunks){
+      if (knownLength && !getChunks){
         unsigned int toappend = length - body.length();
 
         // limit the amount of bytes that will be appended to the amount there
@@ -663,8 +676,8 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           currentLength += toappend;
         }
         if (length == body.length()){
-          // parse POST variables
-          if (method == "POST"){parseVars(body, vars);}
+          // parse POST body if the content type is URLEncoded
+          if (method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded"){parseVars(body, vars);}
           return true;
         }else{
           return false;
@@ -742,13 +755,13 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
 
 /// HTTP variable parser to std::map<std::string, std::string> structure.
 /// Reads variables from data, decodes and stores them to storage.
-void HTTP::parseVars(const std::string &data, std::map<std::string, std::string> &storage){
+void HTTP::parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator){
   std::string varname;
   std::string varval;
   // position where a part starts (e.g. after &)
   size_t pos = 0;
   while (pos < data.length()){
-    size_t nextpos = data.find('&', pos);
+    size_t nextpos = data.find(separator, pos);
     if (nextpos == std::string::npos){nextpos = data.length();}
     size_t eq_pos = data.find('=', pos);
     if (eq_pos < nextpos){
@@ -769,7 +782,7 @@ void HTTP::parseVars(const std::string &data, std::map<std::string, std::string>
       break;
     }
     // erase &
-    pos = nextpos + 1;
+    pos = nextpos + separator.size();
   }
 }
 

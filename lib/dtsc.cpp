@@ -5,8 +5,9 @@
 #include "defines.h"
 #include "dtsc.h"
 #include "encode.h"
-#include "lib/shared_memory.h"
-#include "lib/util.h"
+#include "shared_memory.h"
+#include "util.h"
+#include "stream.h"
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -130,20 +131,23 @@ namespace DTSC{
   void Packet::reInit(Socket::Connection &src){
     int sleepCount = 0;
     null();
-    int toReceive = 0;
+    Util::ResizeablePointer ptr;
     while (src.connected()){
-      if (!toReceive && src.Received().available(8)){
+      if (!ptr.rsize() && src.Received().available(8)){
         if (src.Received().copy(2) != "DT"){
           WARN_MSG("Invalid DTSC Packet header encountered (%s)",
                    Encodings::Hex::encode(src.Received().copy(4)).c_str());
           break;
         }
-        toReceive = Bit::btohl(src.Received().copy(8).data() + 4);
+        ptr.allocate(Bit::btohl(src.Received().copy(8).data() + 4) + 8);
       }
-      if (toReceive && src.Received().available(toReceive + 8)){
-        std::string dataBuf = src.Received().remove(toReceive + 8);
-        reInit(dataBuf.data(), dataBuf.size());
-        return;
+      unsigned int readable = src.Received().bytes(ptr.rsize() - ptr.size());
+      if (ptr.rsize() && readable){
+        src.Received().remove(ptr, readable);
+        if (ptr.size() == ptr.rsize()){
+          reInit(ptr, ptr.size());
+          return;
+        }
       }
       if (!src.spool()){
         if (sleepCount++ > 750){
@@ -892,18 +896,20 @@ namespace DTSC{
     streamMemBuf = 0;
     isMemBuf = false;
     isMaster = true;
+    removeLimiter();
     reInit(_streamName, src);
   }
 
   /// Initialize empty metadata, in master or slave mode.
   /// If stream name is empty, slave mode is enforced.
-  Meta::Meta(const std::string &_streamName, bool master){
+  Meta::Meta(const std::string &_streamName, bool master, bool autoBackOff){
     if (!_streamName.size()){master = false;}
     version = DTSH_VERSION;
     streamMemBuf = 0;
     isMemBuf = false;
     isMaster = master;
-    reInit(_streamName, master);
+    removeLimiter();
+    reInit(_streamName, master, autoBackOff);
   }
 
   /// Initialize metadata from given DTSH file in master mode.
@@ -912,6 +918,7 @@ namespace DTSC{
     streamMemBuf = 0;
     isMemBuf = false;
     isMaster = true;
+    removeLimiter();
     reInit(_streamName, fileName);
   }
 
@@ -922,12 +929,12 @@ namespace DTSC{
   /// Calls clear(), then initializes freshly.
   /// If stream name is set, uses shared memory backing.
   /// If stream name is empty, uses non-shared memory backing.
-  void Meta::reInit(const std::string &_streamName, bool master){
+  void Meta::reInit(const std::string &_streamName, bool master, bool autoBackOff){
     clear();
     if (_streamName == ""){
       sBufMem();
     }else{
-      sBufShm(_streamName, DEFAULT_TRACK_COUNT, master);
+      sBufShm(_streamName, DEFAULT_TRACK_COUNT, master, autoBackOff);
     }
     streamInit();
   }
@@ -950,12 +957,8 @@ namespace DTSC{
     inFile.read(scanBuf, fileSize);
 
     inFile.close();
-
-    size_t offset = 8;
-    if (!memcmp(scanBuf, "DTP2", 4)){offset = 20;}
-
-    DTSC::Scan src(scanBuf + offset, fileSize - offset);
-    reInit(_streamName, src);
+    DTSC::Packet pkt(scanBuf, fileSize, true);
+    reInit(_streamName, pkt.getScan());
     free(scanBuf);
   }
 
@@ -989,15 +992,16 @@ namespace DTSC{
     // Unix Time at zero point of a stream
     if (src.hasMember("unixzero")){
       setBootMsOffset(src.getMember("unixzero").asInt() - Util::unixMS() + Util::bootMS());
+      setUTCOffset(src.getMember("unixzero").asInt());
     }else{
       MEDIUM_MSG("No member \'unixzero\' found in DTSC::Scan. Calculating locally.");
-      int64_t lastMs = 0;
+      int64_t nowMs = 0;
       for (std::map<size_t, Track>::iterator it = tracks.begin(); it != tracks.end(); it++){
-        if (it->second.track.getInt(it->second.trackLastmsField) > lastMs){
-          lastMs = it->second.track.getInt(it->second.trackLastmsField);
+        if (it->second.track.getInt(it->second.trackNowmsField) > nowMs){
+          nowMs = it->second.track.getInt(it->second.trackNowmsField);
         }
       }
-      setBootMsOffset(Util::bootMS() - lastMs);
+      setBootMsOffset(Util::bootMS() - nowMs);
     }
   }
 
@@ -1032,6 +1036,9 @@ namespace DTSC{
     setID(tIdx, trak.getMember("trackid").asInt());
     setFirstms(tIdx, trak.getMember("firstms").asInt());
     setLastms(tIdx, trak.getMember("lastms").asInt());
+    if (trak.hasMember("nowms")){
+      setNowms(tIdx, trak.getMember("nowms").asInt());
+    }
     setBps(tIdx, trak.getMember("bps").asInt());
     setMaxBps(tIdx, trak.getMember("maxbps").asInt());
     setSourceTrack(tIdx, INVALID_TRACK_ID);
@@ -1118,7 +1125,7 @@ namespace DTSC{
 
   /// Initializes shared memory backed mode, with enough room for the given track count.
   /// Should not be called repeatedly, nor to switch modes.
-  void Meta::sBufShm(const std::string &_streamName, size_t trackCount, bool master){
+  void Meta::sBufShm(const std::string &_streamName, size_t trackCount, bool master, bool autoBackOff){
     isMaster = master;
     if (isMaster){HIGH_MSG("Creating meta page for stream %s", _streamName.c_str());}
 
@@ -1142,7 +1149,7 @@ namespace DTSC{
       streamPage.master = false;
       stream = Util::RelAccX(streamPage.mapped, false);
     }else{
-      streamPage.init(pageName, bufferSize, false, true);
+      streamPage.init(pageName, bufferSize, false, autoBackOff);
       if (!streamPage.mapped){
         INFO_MSG("Page %s not found", pageName);
         return;
@@ -1243,6 +1250,9 @@ namespace DTSC{
       t.trackCodecField = t.track.getFieldData("codec");
       t.trackFirstmsField = t.track.getFieldData("firstms");
       t.trackLastmsField = t.track.getFieldData("lastms");
+      t.trackNowmsField = t.track.getFieldData("nowms");
+      // If there is no nowMs field, fall back to the lastMs field instead ( = old behaviour).
+      if (!t.trackNowmsField){t.trackNowmsField = t.trackLastmsField;}
       t.trackBpsField = t.track.getFieldData("bps");
       t.trackMaxbpsField = t.track.getFieldData("maxbps");
       t.trackLangField = t.track.getFieldData("lang");
@@ -1284,13 +1294,15 @@ namespace DTSC{
     }
     char pageName[NAME_BUFFER_SIZE];
 
-    if (stream.isReload()){
+    if (stream.isReload() || stream.isExit()){
       INFO_MSG("Reloading entire metadata");
       streamPage.close();
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, streamName.c_str());
       streamPage.init(pageName, 0, false, true);
       if (!streamPage.mapped){
         INFO_MSG("Page %s not found", pageName);
+        stream = Util::RelAccX();
+        trackList = Util::RelAccX();
         return true;
       }
       stream = Util::RelAccX(streamPage.mapped, true);
@@ -1332,6 +1344,9 @@ namespace DTSC{
         t.trackCodecField = t.track.getFieldData("codec");
         t.trackFirstmsField = t.track.getFieldData("firstms");
         t.trackLastmsField = t.track.getFieldData("lastms");
+        t.trackNowmsField = t.track.getFieldData("nowms");
+        // If there is no nowMs field, fall back to the lastMs field instead ( = old behaviour).
+        if (!t.trackNowmsField){t.trackNowmsField = t.trackLastmsField;}
         t.trackBpsField = t.track.getFieldData("bps");
         t.trackMaxbpsField = t.track.getFieldData("maxbps");
         t.trackLangField = t.track.getFieldData("lang");
@@ -1542,6 +1557,11 @@ namespace DTSC{
     t.track.setString(t.trackCodecField, origAccess.getPointer("codec"));
     t.track.setInt(t.trackFirstmsField, origAccess.getInt("firstms"));
     t.track.setInt(t.trackLastmsField, origAccess.getInt("lastms"));
+    if (origAccess.hasField("nowms")){
+      t.track.setInt(t.trackNowmsField, origAccess.getInt("nowms"));
+    }else{
+      t.track.setInt(t.trackNowmsField, origAccess.getInt("lastms"));
+    }
     t.track.setInt(t.trackBpsField, origAccess.getInt("bps"));
     t.track.setInt(t.trackMaxbpsField, origAccess.getInt("maxbps"));
     t.track.setString(t.trackLangField, origAccess.getPointer("lang"));
@@ -1684,13 +1704,13 @@ namespace DTSC{
       trackLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!trackLock){
         FAIL_MSG("Could not open semaphore to add track!");
-        return -1;
+        return INVALID_TRACK_ID;
       }
       trackLock.wait();
       if (stream.isExit()){
         trackLock.post();
         FAIL_MSG("Not adding track: stream is shutting down");
-        return -1;
+        return INVALID_TRACK_ID;
       }
     }
 
@@ -1757,6 +1777,7 @@ namespace DTSC{
     t.track.addField("codec", RAX_STRING, 8);
     t.track.addField("firstms", RAX_64UINT);
     t.track.addField("lastms", RAX_64UINT);
+    t.track.addField("nowms", RAX_64UINT);
     t.track.addField("bps", RAX_32UINT);
     t.track.addField("maxbps", RAX_32UINT);
     t.track.addField("lang", RAX_STRING, 4);
@@ -1807,6 +1828,9 @@ namespace DTSC{
     t.trackCodecField = t.track.getFieldData("codec");
     t.trackFirstmsField = t.track.getFieldData("firstms");
     t.trackLastmsField = t.track.getFieldData("lastms");
+    t.trackNowmsField = t.track.getFieldData("nowms");
+    // If there is no nowMs field, fall back to the lastMs field instead ( = old behaviour).
+    if (!t.trackNowmsField){t.trackNowmsField = t.trackLastmsField;}
     t.trackBpsField = t.track.getFieldData("bps");
     t.trackMaxbpsField = t.track.getFieldData("maxbps");
     t.trackLangField = t.track.getFieldData("lang");
@@ -1855,9 +1879,13 @@ namespace DTSC{
     setInit(trackIdx, init.data(), init.size());
   }
 
-  /// Sets the given track's init data.setvod
+  /// Sets the given track's init data.
   void Meta::setInit(size_t trackIdx, const char *init, size_t initLen){
     DTSC::Track &t = tracks.at(trackIdx);
+    if (initLen > t.trackInitField.size){
+      FAIL_MSG("Attempting to store %zu bytes of init data, but we only have room for %" PRIu32 " bytes!", initLen, t.trackInitField.size);
+      initLen = t.trackInitField.size;
+    }
     char *_init = t.track.getPointer(t.trackInitField);
     Bit::htobs(_init, initLen);
     memcpy(_init + 2, init, initLen);
@@ -1983,19 +2011,34 @@ namespace DTSC{
   }
   uint64_t Meta::getFirstms(size_t trackIdx) const{
     const DTSC::Track &t = tracks.at(trackIdx);
+    if (isLimited && limitMin > t.track.getInt(t.trackFirstmsField)){return limitMin;}
     return t.track.getInt(t.trackFirstmsField);
   }
 
   void Meta::setLastms(size_t trackIdx, uint64_t lastms){
     DTSC::Track &t = tracks.at(trackIdx);
     t.track.setInt(t.trackLastmsField, lastms);
+    if (t.trackNowmsField && t.track.getInt(t.trackNowmsField) < lastms){
+      t.track.setInt(t.trackNowmsField, lastms);
+    }
   }
   uint64_t Meta::getLastms(size_t trackIdx) const{
     const DTSC::Track &t = tracks.find(trackIdx)->second;
+    if (isLimited && limitMax < t.track.getInt(t.trackLastmsField)){return limitMax;}
     return t.track.getInt(t.trackLastmsField);
   }
 
+  void Meta::setNowms(size_t trackIdx, uint64_t nowms){
+    DTSC::Track &t = tracks.at(trackIdx);
+    t.track.setInt(t.trackNowmsField, nowms);
+  }
+  uint64_t Meta::getNowms(size_t trackIdx) const{
+    const DTSC::Track &t = tracks.find(trackIdx)->second;
+    return t.track.getInt(t.trackNowmsField);
+  }
+
   uint64_t Meta::getDuration(size_t trackIdx) const{
+    if (isLimited){return getLastms(trackIdx) - getFirstms(trackIdx);}
     const DTSC::Track &t = tracks.at(trackIdx);
     return t.track.getInt(t.trackLastmsField) - t.track.getInt(t.trackFirstmsField);
   }
@@ -2090,12 +2133,16 @@ namespace DTSC{
   void Meta::setVod(bool vod){
     stream.setInt(streamVodField, vod ? 1 : 0);
   }
-  bool Meta::getVod() const{return stream.getInt(streamVodField);}
+  bool Meta::getVod() const{
+    return isLimited || stream.getInt(streamVodField);
+  }
 
   void Meta::setLive(bool live){
     stream.setInt(streamLiveField, live ? 1 : 0);
   }
-  bool Meta::getLive() const{return stream.getInt(streamLiveField);}
+  bool Meta::getLive() const{
+    return (!isLimited || limitMax == 0xFFFFFFFFFFFFFFFFull) && stream.getInt(streamLiveField);
+  }
 
   bool Meta::hasBFrames(size_t idx) const{
     std::set<size_t> vTracks = getValidTracks();
@@ -2124,7 +2171,7 @@ namespace DTSC{
   uint64_t Meta::getBufferWindow() const{return stream.getInt(streamBufferWindowField);}
 
   void Meta::setBootMsOffset(int64_t bootMsOffset){
-    DONTEVEN_MSG("Setting streamBootMsOffsetField to '%ld'", bootMsOffset);
+    DONTEVEN_MSG("Setting streamBootMsOffsetField to %" PRId64, bootMsOffset);
     stream.setInt(streamBootMsOffsetField, bootMsOffset);
   }
   int64_t Meta::getBootMsOffset() const{return stream.getInt(streamBootMsOffsetField);}
@@ -2232,26 +2279,47 @@ namespace DTSC{
       }
     }
     Track &t = tracks[trackIdx];
-    DONTEVEN_MSG("Deleting parts: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", t.parts.getDeleted(), t.parts.getDeleted()+t.keys.getInt(t.keyPartsField, t.keys.getDeleted()), t.parts.getPresent());
-    t.parts.deleteRecords(t.keys.getInt(t.keyPartsField, t.keys.getDeleted()));
-    DONTEVEN_MSG("Deleting key: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", t.keys.getDeleted(), t.keys.getDeleted()+1, t.keys.getPresent());
+    uint64_t deletedPartCount = t.keys.getInt(t.keyPartsField, t.keys.getDeleted());
+    DONTEVEN_MSG("Deleting parts: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", t.parts.getDeleted(), t.parts.getDeleted()+deletedPartCount, t.parts.getPresent());
+    t.parts.deleteRecords(deletedPartCount);
+    uint64_t deletedKeyNum = t.keys.getDeleted();
+    DONTEVEN_MSG("Deleting key: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", deletedKeyNum, deletedKeyNum+1, t.keys.getPresent());
     t.keys.deleteRecords(1);
     if (t.fragments.getInt(t.fragmentFirstKeyField, t.fragments.getDeleted()) < t.keys.getDeleted()){
       t.fragments.deleteRecords(1);
       setMissedFragments(trackIdx, getMissedFragments(trackIdx) + 1);
     }
-    if (t.pages.getPresent() > 1 && t.pages.getInt("firstkey", t.pages.getDeleted() + 1) < t.keys.getDeleted()){
-      // Initialize the correct page, make it master so it gets cleaned up when leaving scope.
-      char thisPageName[NAME_BUFFER_SIZE];
-      snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
-               (uint32_t)t.pages.getInt("firstkey", t.pages.getDeleted()));
-      IPC::sharedPage p(thisPageName, 20971520);
-      p.master = true;
-
-      // Then delete the page entry
-      t.pages.deleteRecords(1);
-    }
+    // Note: pages are not deleted here, but instead deleted by Input::removeUnused (or a child-override)
+    // This is fine, as pages can (and will, at least temporarily) exist for data we no longer fully have in stream metadata
     setFirstms(trackIdx, t.keys.getInt(t.keyTimeField, t.keys.getDeleted()));
+
+    // Update page info
+    Util::RelAccX &tPages = pages(trackIdx);
+    uint32_t firstPage = tPages.getDeleted();
+    uint32_t keyCount = tPages.getInt("keycount", firstPage);
+    uint32_t firstKey = tPages.getInt("firstkey", firstPage);
+    // Delete the page if this was the last key
+    if (firstKey + keyCount <= deletedKeyNum + 1){
+      if (tPages.getInt("avail", firstPage)){
+        // Open the correct page
+        char pageId[NAME_BUFFER_SIZE];
+        snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx, firstKey);
+        std::string pageName(pageId);
+        IPC::sharedPage toErase;
+        toErase.init(pageName, 0, false, false);
+        // Set the master flag so that the page will be destroyed once it leaves scope
+        #if defined(__CYGWIN__) || defined(_WIN32)
+          IPC::releasePage(pageName);
+        #endif
+        toErase.master = true;
+      }
+      tPages.deleteRecords(1);
+    } else if (tPages.getInt("avail", firstPage) == 0){
+      tPages.setInt("keycount", keyCount - 1, firstPage);
+      tPages.setInt("parts", tPages.getInt("parts", firstPage) - deletedPartCount, firstPage);
+      tPages.setInt("firstkey", deletedKeyNum + 1, firstPage);
+    }
+
     if (resizeLock){resizeLock.unlink();}
     return true;
   }
@@ -2274,84 +2342,74 @@ namespace DTSC{
            pack.getFlag("keyframe"), pack.getDataLen());
   }
 
-  /// Helper class that calculates inter-packet jitter
-  class jitterTimer{
-  public:
-    uint64_t trueTime[8]; // Array of bootMS-based measurement points
-    uint64_t packTime[8]; // Array of corresponding packet times
-    uint64_t curJitter;   // Maximum jitter measurement in past 10 seconds
-    unsigned int x;       // Current indice within above two arrays
-    uint64_t maxJitter;   // Highest jitter ever observed by this jitterTimer
-    uint64_t lastTime;    // Last packet used for a measurement point
-    jitterTimer(){
+  jitterTimer::jitterTimer(){
+    for (int i = 0; i < 8; ++i){
+      trueTime[i] = 0;
+      packTime[i] = 0;
+    }
+    maxJitter = 200;
+    lastTime = 0;
+    x = 0;
+  }
+
+  uint64_t jitterTimer::addPack(uint64_t t){
+    if (veryUglyJitterOverride){return veryUglyJitterOverride;}
+    uint64_t curMs = Util::bootMS();
+    if (!x){
+      // First call, set the whole array to this packet
       for (int i = 0; i < 8; ++i){
-        trueTime[i] = 0;
-        packTime[i] = 0;
+        trueTime[i] = curMs;
+        packTime[i] = t;
       }
-      maxJitter = 200;
-      lastTime = 0;
-      x = 0;
+      ++x;
+      trueTime[x % 8] = curMs;
+      packTime[x % 8] = t;
+      lastTime = t;
+      curJitter = 0;
     }
-    uint64_t addPack(uint64_t t){
-      if (veryUglyJitterOverride){return veryUglyJitterOverride;}
-      uint64_t curMs = Util::bootMS();
-      if (!x){
-        // First call, set the whole array to this packet
-        for (int i = 0; i < 8; ++i){
-          trueTime[i] = curMs;
-          packTime[i] = t;
+    if (t > lastTime + 2500){
+      if ((x % 4) == 0){
+        if (maxJitter > 50 && curJitter < maxJitter - 50){
+          MEDIUM_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
+          maxJitter = curJitter;
         }
-        ++x;
-        trueTime[x % 8] = curMs;
-        packTime[x % 8] = t;
-        lastTime = t;
-        curJitter = 0;
+        curJitter = maxJitter*0.90;
       }
-      if (t > lastTime + 2500){
-        if ((x % 4) == 0){
-          if (maxJitter > 50 && curJitter < maxJitter - 50){
-            MEDIUM_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
-            maxJitter = curJitter;
-          }
-          curJitter = maxJitter*0.90;
-        }
-        ++x;
-        trueTime[x % 8] = curMs;
-        packTime[x % 8] = t;
-        lastTime = t;
-      }
-      uint64_t realTime = (curMs - trueTime[(x + 1) % 8]);
-      uint64_t arriTime = (t - packTime[(x + 1) % 8]);
-      int64_t jitter = (realTime - arriTime);
-      if (jitter < 0){
-        // Negative jitter = packets arriving too soon.
-        // This is... ehh... not a bad thing? I guess..?
-        // if (jitter < -1000){
-        //  INFO_MSG("Jitter = %" PRId64 " ms (max: %" PRIu64 ")", jitter, maxJitter);
-        //}
-      }else{
-        // Positive jitter = packets arriving too late.
-        // We need to delay playback at least by this amount to account for it.
-        if ((uint64_t)jitter > maxJitter){
-          if (jitter - maxJitter > 420){
-            INFO_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
-          }else{
-            HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
-          }
-          maxJitter = (uint64_t)jitter;
-        }
-        if (curJitter < (uint64_t)jitter){curJitter = (uint64_t)jitter;}
-      }
-      return maxJitter;
+      ++x;
+      trueTime[x % 8] = curMs;
+      packTime[x % 8] = t;
+      lastTime = t;
     }
-  };
+    uint64_t realTime = (curMs - trueTime[(x + 1) % 8]);
+    uint64_t arriTime = (t - packTime[(x + 1) % 8]);
+    int64_t jitter = (realTime - arriTime);
+    if (jitter < 0){
+      // Negative jitter = packets arriving too soon.
+      // This is... ehh... not a bad thing? I guess..?
+      // if (jitter < -1000){
+      //  INFO_MSG("Jitter = %" PRId64 " ms (max: %" PRIu64 ")", jitter, maxJitter);
+      //}
+    }else{
+      // Positive jitter = packets arriving too late.
+      // We need to delay playback at least by this amount to account for it.
+      if ((uint64_t)jitter > maxJitter){
+        if (jitter - maxJitter > 420){
+          INFO_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+        }else{
+          HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+        }
+        maxJitter = (uint64_t)jitter;
+      }
+      if (curJitter < (uint64_t)jitter){curJitter = (uint64_t)jitter;}
+    }
+    return maxJitter;
+  }
 
   /// Updates the metadata given the packet's properties.
   void Meta::update(uint64_t packTime, int64_t packOffset, uint32_t packTrack, uint64_t packDataSize,
                     uint64_t packBytePos, bool isKeyframe, uint64_t packSendSize){
     ///\todo warning Re-Implement Ivec
     if (getLive()){
-      static std::map<size_t, jitterTimer> theJitters;
       setMinKeepAway(packTrack, theJitters[packTrack].addPack(packTime));
     }
 
@@ -2488,6 +2546,7 @@ namespace DTSC{
     t.fragments.setInt(t.fragmentSizeField,
                        t.fragments.getInt(t.fragmentSizeField, lastFragNum) + packDataSize, lastFragNum);
     t.track.setInt(t.trackLastmsField, packTime);
+    t.track.setInt(t.trackNowmsField, packTime);
     markUpdated(tNumber);
   }
 
@@ -2534,9 +2593,30 @@ namespace DTSC{
     return result.str();
   }
 
+  uint64_t Meta::packetTimeToUnixMs(uint64_t pktTime, uint64_t systemBoot) const{
+    if (getUTCOffset()){
+      return pktTime + getUTCOffset();
+    }
+    if (getLive()){
+      // Grab system boot time from global config file if possible
+      if (!systemBoot){systemBoot = Util::getGlobalConfig("systemBoot").asInt();}
+      // fall back to local calculation if loading from global config fails
+      if (!systemBoot){systemBoot = (Util::unixMS() - Util::bootMS());}
+      return pktTime + systemBoot + getBootMsOffset();
+    }
+    return 0;
+  }
+
   const Util::RelAccX &Meta::parts(size_t idx) const{return tracks.at(idx).parts;}
   Util::RelAccX &Meta::keys(size_t idx){return tracks.at(idx).keys;}
   const Util::RelAccX &Meta::keys(size_t idx) const{return tracks.at(idx).keys;}
+
+  const Keys Meta::getKeys(size_t trackIdx) const{
+    DTSC::Keys k(keys(trackIdx));
+    if (isLimited){k.applyLimiter(limitMin, limitMax, DTSC::Parts(parts(trackIdx)));}
+    return k;
+  }
+
   const Util::RelAccX &Meta::fragments(size_t idx) const{return tracks.at(idx).fragments;}
   const Util::RelAccX &Meta::pages(size_t idx) const{return tracks.at(idx).pages;}
   Util::RelAccX &Meta::pages(size_t idx){return tracks.at(idx).pages;}
@@ -2544,6 +2624,7 @@ namespace DTSC{
   /// Wipes internal structures, also marking as outdated and deleting memory structures if in
   /// master mode.
   void Meta::clear(){
+    theJitters.clear();
     if (isMemBuf){
       isMemBuf = false;
       free(streamMemBuf);
@@ -2634,7 +2715,8 @@ namespace DTSC{
   uint64_t Meta::getSendLen(bool skipDynamic, std::set<size_t> selectedTracks) const{
     uint64_t dataLen = 34; // + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     if (getVod()){dataLen += 14;}
-    if (getLive()){dataLen += 15 + 19;} // 19 for unixzero
+    if (getLive()){dataLen += 15;}
+    if (getLive() || getUTCOffset()){dataLen += 19;} // unixzero field
     for (std::map<size_t, Track>::const_iterator it = tracks.begin(); it != tracks.end(); it++){
       if (!it->second.parts.getPresent()){continue;}
       if (!selectedTracks.size() || selectedTracks.count(it->first)){
@@ -2693,134 +2775,6 @@ namespace DTSC{
     return result;
   }
 
-  /// Writes the current Meta object in DTSH format to the given filename
-  void Meta::toFile(const std::string &fName) const{
-    std::string lVars;
-    size_t lVarSize = 0;
-    if (inputLocalVars.size()){
-      lVars = inputLocalVars.toString();
-      lVarSize = 2 + 14 + 5 + lVars.size();
-    }
-
-    std::ofstream oFile(fName.c_str(), std::ios::binary | std::ios::ate);
-    oFile.write(DTSC::Magic_Header, 4);
-    oFile.write(c32(lVarSize + getSendLen() - 8), 4);
-    oFile.write("\340", 1);
-    if (getVod()){oFile.write("\000\003vod\001\000\000\000\000\000\000\000\001", 14);}
-    if (getLive()){oFile.write("\000\004live\001\000\000\000\000\000\000\000\001", 15);}
-    oFile.write("\000\007version\001", 10);
-    oFile.write(c64(DTSH_VERSION), 8);
-    if (lVarSize){
-      oFile.write("\000\016inputLocalVars\002", 17);
-      oFile.write(c32(lVars.size()), 4);
-      oFile.write(lVars.data(), lVars.size());
-    }
-    oFile.write("\000\006tracks\340", 9);
-    for (std::map<size_t, Track>::const_iterator it = tracks.begin(); it != tracks.end(); it++){
-      if (!it->second.parts.getPresent()){continue;}
-      std::string tmp = getTrackIdentifier(it->first, true);
-      oFile.write(c16(tmp.size()), 2);
-      oFile.write(tmp.data(), tmp.size());
-      oFile.write("\340", 1); // Begin track object
-
-      size_t fragCount = it->second.fragments.getPresent();
-      oFile.write("\000\011fragments\002", 12);
-      oFile.write(c32(fragCount * DTSH_FRAGMENT_SIZE), 4);
-      for (size_t i = 0; i < fragCount; i++){
-        oFile.write(c32(it->second.fragments.getInt("duration", i)), 4);
-        oFile.put(it->second.fragments.getInt("keys", i));
-        oFile.write(c32(it->second.fragments.getInt("firstkey", i) + 1), 4);
-        oFile.write(c32(it->second.fragments.getInt("size", i)), 4);
-      }
-
-      size_t keyCount = it->second.keys.getPresent();
-      oFile.write("\000\004keys\002", 7);
-      oFile.write(c32(keyCount * DTSH_KEY_SIZE), 4);
-      for (size_t i = 0; i < keyCount; i++){
-        oFile.write(c64(it->second.keys.getInt("bpos", i)), 8);
-        oFile.write(c24(it->second.keys.getInt("duration", i)), 3);
-        oFile.write(c32(it->second.keys.getInt("number", i) + 1), 4);
-        oFile.write(c16(it->second.keys.getInt("parts", i)), 2);
-        oFile.write(c64(it->second.keys.getInt("time", i)), 8);
-      }
-      oFile.write("\000\010keysizes\002,", 11);
-      oFile.write(c32(keyCount * 4), 4);
-      for (size_t i = 0; i < keyCount; i++){
-        oFile.write(c32(it->second.keys.getInt("size", i)), 4);
-      }
-
-      size_t partCount = it->second.parts.getPresent();
-      oFile.write("\000\005parts\002", 8);
-      oFile.write(c32(partCount * DTSH_PART_SIZE), 4);
-      for (size_t i = 0; i < partCount; i++){
-        oFile.write(c24(it->second.parts.getInt("size", i)), 3);
-        oFile.write(c24(it->second.parts.getInt("duration", i)), 3);
-        oFile.write(c24(it->second.parts.getInt("offset", i)), 3);
-      }
-
-      oFile.write("\000\007trackid\001", 10);
-      oFile.write(c64(it->second.track.getInt("id")), 8);
-
-      if (it->second.track.getInt("missedFrags")){
-        oFile.write("\000\014missed_frags\001", 15);
-        oFile.write(c64(it->second.track.getInt("missedFrags")), 8);
-      }
-
-      oFile.write("\000\007firstms\001", 10);
-      oFile.write(c64(it->second.track.getInt("firstms")), 8);
-      oFile.write("\000\006lastms\001", 9);
-      oFile.write(c64(it->second.track.getInt("lastms")), 8);
-
-      oFile.write("\000\003bps\001", 6);
-      oFile.write(c64(it->second.track.getInt("bps")), 8);
-
-      oFile.write("\000\006maxbps\001", 9);
-      oFile.write(c64(it->second.track.getInt("maxbps")), 8);
-
-      tmp = getInit(it->first);
-      oFile.write("\000\004init\002", 7);
-      oFile.write(c32(tmp.size()), 4);
-      oFile.write(tmp.data(), tmp.size());
-
-      tmp = getCodec(it->first);
-      oFile.write("\000\005codec\002", 8);
-      oFile.write(c32(tmp.size()), 4);
-      oFile.write(tmp.data(), tmp.size());
-
-      tmp = getLang(it->first);
-      if (tmp.size() && tmp != "und"){
-        oFile.write("\000\004lang\002", 7);
-        oFile.write(c32(tmp.size()), 4);
-        oFile.write(tmp.data(), tmp.size());
-      }
-
-      tmp = getType(it->first);
-      oFile.write("\000\004type\002", 7);
-      oFile.write(c32(tmp.size()), 4);
-      oFile.write(tmp.data(), tmp.size());
-
-      if (tmp == "audio"){
-        oFile.write("\000\004rate\001", 7);
-        oFile.write(c64(it->second.track.getInt("rate")), 8);
-        oFile.write("\000\004size\001", 7);
-        oFile.write(c64(it->second.track.getInt("size")), 8);
-        oFile.write("\000\010channels\001", 11);
-        oFile.write(c64(it->second.track.getInt("channels")), 8);
-      }else if (tmp == "video"){
-        oFile.write("\000\005width\001", 8);
-        oFile.write(c64(it->second.track.getInt("width")), 8);
-        oFile.write("\000\006height\001", 9);
-        oFile.write(c64(it->second.track.getInt("height")), 8);
-        oFile.write("\000\004fpks\001", 7);
-        oFile.write(c64(it->second.track.getInt("fpks")), 8);
-      }
-      oFile.write("\000\000\356", 3); // End this track Object
-    }
-    oFile.write("\000\000\356", 3); // End tracks object
-    oFile.write("\000\000\356", 3); // End global object
-    oFile.close();
-  }
-
   /// Converts the current Meta object to JSON format
   void Meta::toJSON(JSON::Value &res, bool skipDynamic, bool tracksOnly) const{
     res.null();
@@ -2835,9 +2789,10 @@ namespace DTSC{
       std::string type = getType(*it);
 
       trackJSON["codec"] = getCodec(*it);
+      trackJSON["codecstring"] = Util::codecString(getCodec(*it), getInit(*it));
       trackJSON["type"] = type;
-      trackJSON["idx"] = *it;
-      trackJSON["trackid"] = getID(*it);
+      trackJSON["idx"] = (uint64_t)*it;
+      trackJSON["trackid"] = (uint64_t)getID(*it);
       trackJSON["init"] = getInit(*it);
       trackJSON["firstms"] = getFirstms(*it);
       trackJSON["lastms"] = getLastms(*it);
@@ -2885,18 +2840,46 @@ namespace DTSC{
     if (getSource() != ""){res["source"] = getSource();}
   }
 
+  /// Writes the current Meta object in DTSH format to the given uri
+  void Meta::toFile(const std::string &uri) const{
+    // Create writing socket
+    int outFd = -1;
+    if (!Util::externalWriter(uri, outFd, false)){return;}
+    Socket::Connection outFile(outFd, -1);
+    if (outFile){
+      send(outFile, false, getValidTracks(), false);
+      outFile.close();
+    }
+  }
+
   /// Sends the current Meta object through a socket in DTSH format
   void Meta::send(Socket::Connection &conn, bool skipDynamic, std::set<size_t> selectedTracks, bool reID) const{
+    std::string lVars;
+    size_t lVarSize = 0;
+    if (inputLocalVars.size()){
+      lVars = inputLocalVars.toString();
+      lVarSize = 2 + 14 + 5 + lVars.size();
+    }
+
     conn.SendNow(DTSC::Magic_Header, 4);
-    conn.SendNow(c32(getSendLen(skipDynamic, selectedTracks) - 8), 4);
+    conn.SendNow(c32(lVarSize + getSendLen(skipDynamic, selectedTracks) - 8), 4);
     conn.SendNow("\340", 1);
     if (getVod()){conn.SendNow("\000\003vod\001\000\000\000\000\000\000\000\001", 14);}
     if (getLive()){conn.SendNow("\000\004live\001\000\000\000\000\000\000\000\001", 15);}
     conn.SendNow("\000\007version\001", 10);
     conn.SendNow(c64(DTSH_VERSION), 8);
-    if (getLive()){
+    if (getLive() || getUTCOffset()){
       conn.SendNow("\000\010unixzero\001", 11);
-      conn.SendNow(c64(Util::unixMS() - Util::bootMS() + getBootMsOffset()), 8);
+      if (getLive()){
+        conn.SendNow(c64(Util::unixMS() - Util::bootMS() + getBootMsOffset()), 8);
+      }else{
+        conn.SendNow(c64(getUTCOffset()), 8);
+      }
+    }
+    if (lVarSize){
+      conn.SendNow("\000\016inputLocalVars\002", 17);
+      conn.SendNow(c32(lVars.size()), 4);
+      conn.SendNow(lVars.data(), lVars.size());
     }
     conn.SendNow("\000\006tracks\340", 9);
     for (std::set<size_t>::const_iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
@@ -2923,7 +2906,7 @@ namespace DTSC{
           conn.SendNow(c32(fragments.getInt("duration", i + fragBegin)), 4);
           conn.SendNow(std::string(1, (char)fragments.getInt("keys", i + fragBegin)));
 
-          conn.SendNow(c32(fragments.getInt("firstkey", i + fragBegin)), 4);
+          conn.SendNow(c32(fragments.getInt("firstkey", i + fragBegin) + 1), 4);
           conn.SendNow(c32(fragments.getInt("size", i + fragBegin)), 4);
         }
 
@@ -3168,6 +3151,31 @@ namespace DTSC{
     return res;
   }
 
+  /// Returns the part timestamp for the given index.
+  /// Assumes the Packet is for the given track, and assumes the metadata and track data are not out
+  /// of sync. Works by looking up the packet's key's timestamp, then walking through the
+  /// parts adding up durations until we reach the part we want. Returns zero if the track
+  /// index is invalid or if the timestamp cannot be found.
+  uint64_t Meta::getPartTime(uint32_t partIndex, size_t idx) const{
+    if (idx == INVALID_TRACK_ID){return 0;}
+    DTSC::Keys Keys(keys(idx));
+    DTSC::Parts Parts(parts(idx));
+    size_t kId = 0;
+    for (kId = 0; kId < Keys.getEndValid(); ++kId){
+      size_t keyPartId = Keys.getFirstPart(kId);
+      if (keyPartId+Keys.getParts(kId) > partIndex){
+        //It's inside this key. Step through.
+        uint64_t res = Keys.getTime(kId);
+        while (keyPartId < partIndex){
+          res += Parts.getDuration(keyPartId);
+          ++keyPartId;
+        }
+        return res;
+      }
+    }
+    return 0;
+  }
+
   /// Given the current page, check if the next page is available. Returns true if it is.
   bool Meta::nextPageAvailable(uint32_t idx, size_t currentPage) const{
     const Util::RelAccX &pages = tracks.at(idx).pages;
@@ -3190,7 +3198,7 @@ namespace DTSC{
       if (pages.getInt(firsttime, i) > time){break;}
       res = i;
     }
-    DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %zu", time, idx, pages.getInt("firstkey", res));
+    DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %" PRIu64, time, idx, pages.getInt("firstkey", res));
     return pages.getInt("firstkey", res);
   }
 
@@ -3216,7 +3224,7 @@ namespace DTSC{
     const Util::RelAccX &keys = trk.keys;
     const Util::RelAccX &parts = trk.parts;
     if (!keys.getEndPos()){return INVALID_KEY_NUM;}
-    size_t res = keys.getStartPos();
+    size_t res = keys.getDeleted();
     for (size_t i = res; i < keys.getEndPos(); i++){
       if (keys.getInt(trk.keyTimeField, i) > time){
         //It's possible we overshot our timestamp, but the previous key does not contain it.
@@ -3288,7 +3296,7 @@ namespace DTSC{
         if (trackValid(srcTrk)){
           track["source"] = getTrackIdentifier(srcTrk);
         }else{
-          track["source"] = "Invalid track " + JSON::Value(srcTrk).asString();
+          track["source"] = "Invalid track " + JSON::Value((uint64_t)srcTrk).asString();
         }
       }else{
         if (jitter < minKeep){jitter = minKeep;}
@@ -3330,6 +3338,19 @@ namespace DTSC{
     }
     if (issues.str().size()){retRef["issues"] = issues.str();}
     // return is by reference
+  }
+
+  void Meta::removeLimiter(){
+    isLimited = false;
+    limitMin = 0;
+    limitMax = 0;
+  }
+
+  void Meta::applyLimiter(uint64_t min, uint64_t max){
+    isLimited = true;
+    limitMin = min;
+    limitMax = max;
+    INFO_MSG("Applied limiter from %" PRIu64 " to %" PRIu64, min, max);
   }
 
   /// Returns true if the tracks idx1 and idx2 are keyframe aligned
@@ -3385,6 +3406,7 @@ namespace DTSC{
     partsField = cKeys.getFieldData("parts");
     timeField = cKeys.getFieldData("time");
     sizeField = cKeys.getFieldData("size");
+    isLimited = false;
   }
 
   Keys::Keys(const Util::RelAccX &_keys) : isConst(true), keys(empty), cKeys(_keys){
@@ -3395,23 +3417,142 @@ namespace DTSC{
     partsField = cKeys.getFieldData("parts");
     timeField = cKeys.getFieldData("time");
     sizeField = cKeys.getFieldData("size");
+    isLimited = false;
   }
 
-  size_t Keys::getFirstValid() const{return cKeys.getDeleted();}
-  size_t Keys::getEndValid() const{return cKeys.getEndPos();}
+  size_t Keys::getFirstValid() const{
+    return isLimited ? limMin : cKeys.getDeleted();
+  }
+  size_t Keys::getEndValid() const{
+    return isLimited ? limMax : cKeys.getEndPos();
+  }
   size_t Keys::getValidCount() const{return getEndValid() - getFirstValid();}
 
-  size_t Keys::getFirstPart(size_t idx) const{return cKeys.getInt(firstPartField, idx);}
+  size_t Keys::getFirstPart(size_t idx) const{
+    if (isLimited && idx == limMin){return limMinFirstPart;}
+    return cKeys.getInt(firstPartField, idx);
+  }
   size_t Keys::getBpos(size_t idx) const{return cKeys.getInt(bposField, idx);}
-  uint64_t Keys::getDuration(size_t idx) const{return cKeys.getInt(durationField, idx);}
+  uint64_t Keys::getDuration(size_t idx) const{
+    if (isLimited && idx + 1 == limMax){return limMaxDuration;}
+    if (isLimited && idx == limMin){return limMinDuration;}
+    return cKeys.getInt(durationField, idx);
+  }
   size_t Keys::getNumber(size_t idx) const{return cKeys.getInt(numberField, idx);}
-  size_t Keys::getParts(size_t idx) const{return cKeys.getInt(partsField, idx);}
-  uint64_t Keys::getTime(size_t idx) const{return cKeys.getInt(timeField, idx);}
+  size_t Keys::getParts(size_t idx) const{
+    if (isLimited && idx + 1 == limMax){return limMaxParts;}
+    if (isLimited && idx == limMin){return limMinParts;}
+    return cKeys.getInt(partsField, idx);
+  }
+  uint64_t Keys::getTime(size_t idx) const{
+    if (isLimited && idx == limMin){return limMinTime;}
+    return cKeys.getInt(timeField, idx);
+  }
   void Keys::setSize(size_t idx, size_t _size){
     if (isConst){return;}
     keys.setInt(sizeField, _size, idx);
   }
-  size_t Keys::getSize(size_t idx) const{return cKeys.getInt(sizeField, idx);}
+  size_t Keys::getSize(size_t idx) const{
+    if (isLimited && idx + 1 == limMax){return limMaxSize;}
+    if (isLimited && idx == limMin){return limMinSize;}
+    return cKeys.getInt(sizeField, idx);
+  }
+
+  uint64_t Keys::getTotalPartCount(){
+    return getParts(getEndValid()-1) + getFirstPart(getEndValid()-1) - getFirstPart(getFirstValid());
+  }
+  
+  uint32_t Keys::getIndexForTime(uint64_t timestamp){
+    uint32_t firstKey = getFirstValid();
+    uint32_t endKey = getEndValid();
+
+    for (size_t i = firstKey; i < endKey; i++){
+      if (getTime(i) + getDuration(i) > timestamp){return i;}
+    }
+    return endKey;
+  }
+
+  void Keys::applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p){
+    // Determine first and last key available within the limits
+    // Note: limMax replaces getEndValid(), and is thus one _past_ the end key index!
+    limMin = getFirstValid();
+    limMax = getEndValid();
+    for (size_t i = limMin; i < limMax; i++){
+      if (getTime(i) <= _min){limMin = i;}
+      if (getTime(i) >= _max){
+        limMax = i;
+        break;
+      }
+    }
+    // We can't have 0 keys, so force at least 1 key in cases where min >= max.
+    if (limMin >= limMax){limMax = limMin + 1;}
+
+    // If the first key is the last key, the override calculation is a little trickier
+    if (limMin + 1 == limMax){
+      //Calculate combined first/last key override
+      {
+        limMinDuration = 0;
+        limMinParts = 0;
+        limMinSize = 0;
+        limMinFirstPart = getFirstPart(limMin);
+        limMinTime = getTime(limMin);
+        size_t partNo = limMinFirstPart;
+        size_t truePartEnd = partNo + getParts(limMin);
+        while (partNo < truePartEnd){
+          if (limMinTime >= _min){
+            if (limMinTime + limMinDuration >= _max){break;}
+            ++limMinParts;
+            limMinDuration += _p.getDuration(partNo);
+            limMinSize += _p.getSize(partNo);
+          }else{
+            ++limMinFirstPart;
+            limMinTime += _p.getDuration(partNo);
+          }
+          ++partNo;
+        }
+        limMaxSize = limMinSize;
+        limMaxParts = limMinParts;
+        limMaxDuration = limMinDuration;
+      }
+    }else{
+      //Calculate first key overrides
+      {
+        limMinDuration = getDuration(limMin);
+        limMinParts = getParts(limMin);
+        limMinSize = getSize(limMin);
+        limMinFirstPart = getFirstPart(limMin);
+        limMinTime = getTime(limMin);
+        size_t partNo = limMinFirstPart;
+        size_t truePartEnd = partNo + limMinParts;
+        while (partNo < truePartEnd){
+          if (limMinTime >= _min){break;}
+          --limMinParts;
+          limMinDuration -= _p.getDuration(partNo);
+          limMinSize -= _p.getSize(partNo);
+          ++limMinFirstPart;
+          limMinTime += _p.getDuration(partNo);
+          ++partNo;
+        }
+      }
+      //Calculate last key overrides
+      {
+        limMaxDuration = limMaxParts = limMaxSize = 0;
+        size_t partNo = getFirstPart(limMax-1);
+        size_t truePartEnd = partNo + getParts(limMax-1);
+        uint64_t endTime = getTime(limMax-1);
+        while (partNo < truePartEnd){
+          if (endTime + limMaxDuration >= _max){break;}
+          ++limMaxParts;
+          limMaxDuration += _p.getDuration(partNo);
+          limMaxSize += _p.getSize(partNo);
+          ++partNo;
+        }
+      }
+    }
+
+    HIGH_MSG("Key limiter applied from %" PRIu64 " to %" PRIu64 ", key times %" PRIu64 " to %" PRIu64 ", %lld parts, %lld parts", _min, _max, getTime(limMin), getTime(limMax-1), (long long)limMinParts-(long long)getParts(limMin), (long long)limMaxParts-(long long)getParts(limMax-1));
+    isLimited = true;
+  }
 
   Fragments::Fragments(const Util::RelAccX &_fragments) : fragments(_fragments){}
   size_t Fragments::getFirstValid() const{return fragments.getDeleted();}

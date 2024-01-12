@@ -711,17 +711,11 @@ namespace SDP{
   static bool sdp_get_name_value_from_varval(const std::string &str, std::string &var, std::string &value){
 
     if (str.empty()){
-      ERROR_MSG("Cannot get `name` and `value` from string because the given string is empty. "
-                "String is: `%s`",
-                str.c_str());
       return false;
     }
 
     size_t pos = str.find("=");
     if (pos == std::string::npos){
-      WARN_MSG("Cannot get `name` and `value` from string becuase it doesn't contain a `=` sign. "
-               "String is: `%s`. Returning the string as is.",
-               str.c_str());
       value = str;
       return true;
     }

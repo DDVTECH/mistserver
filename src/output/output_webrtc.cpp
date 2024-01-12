@@ -1144,12 +1144,12 @@ namespace Mist{
     if (!bindAddr.size()){
       bindAddr = Socket::resolveHostToBestExternalAddrGuess(externalAddr, AF_INET, myConn.getBoundAddress());
       if (!bindAddr.size()){
-        WARN_MSG("UDP bind to best guess failed - using same address as incoming connection as a last resort");
+        INFO_MSG("UDP bind to best guess failed - using same address as incoming connection as a last resort");
         bindAddr.clear();
       }else{
         udpPort = udp.bind(port, bindAddr);
         if (!udpPort){
-          WARN_MSG("UDP bind to best guess failed - using same address as incoming connection as a last resort");
+          INFO_MSG("UDP bind to best guess failed - using same address as incoming connection as a last resort");
           bindAddr.clear();
         }else{
           INFO_MSG("Bound to public UDP bind address derived from hostname");
@@ -1711,7 +1711,7 @@ namespace Mist{
       while (keepGoing() && !dtlsHandshake.hasKeyingMaterial()){
         if (!handleWebRTCInputOutput()){Util::sleep(10);}
         if (lastRecv < Util::bootMS() - 10000){
-          WARN_MSG("Killing idle connection in handshake phase");
+          INFO_MSG("Killing idle connection in handshake phase");
           onFail("idle connection in handshake phase", false);
           return;
         }
@@ -1722,7 +1722,7 @@ namespace Mist{
 
   void OutWebRTC::sendNext(){
     if (lastRecv < Util::bootMS() - 10000){
-      WARN_MSG("Killing idle connection");
+      INFO_MSG("Killing idle connection");
       onFail("idle connection", false);
       return;
     }

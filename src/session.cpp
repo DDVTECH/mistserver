@@ -67,23 +67,23 @@ void userOnActive(Comms::Connections &connections, size_t idx){
   }
   // Sanity checks
   if (connections.getDown(idx) < connDown[idx]){
-    WARN_MSG("Connection downloaded bytes should be a counter, but has decreased in value");
+    MEDIUM_MSG("Connection downloaded bytes should be a counter, but has decreased in value");
     connDown[idx] = connections.getDown(idx);
   }
   if (connections.getUp(idx) < connUp[idx]){
-    WARN_MSG("Connection uploaded bytes should be a counter, but has decreased in value");
+    MEDIUM_MSG("Connection uploaded bytes should be a counter, but has decreased in value");
     connUp[idx] = connections.getUp(idx);
   }
   if (connections.getPacketCount(idx) < connPktcount[idx]){
-    WARN_MSG("Connection packet count should be a counter, but has decreased in value");
+    MEDIUM_MSG("Connection packet count should be a counter, but has decreased in value");
     connPktcount[idx] = connections.getPacketCount(idx);
   }
   if (connections.getPacketLostCount(idx) < connPktloss[idx]){
-    WARN_MSG("Connection packet loss count should be a counter, but has decreased in value");
+    MEDIUM_MSG("Connection packet loss count should be a counter, but has decreased in value");
     connPktloss[idx] = connections.getPacketLostCount(idx);
   }
   if (connections.getPacketRetransmitCount(idx) < connPktretrans[idx]){
-    WARN_MSG("Connection packets retransmitted should be a counter, but has decreased in value");
+    MEDIUM_MSG("Connection packets retransmitted should be a counter, but has decreased in value");
     connPktretrans[idx] = connections.getPacketRetransmitCount(idx);
   }
   // Add increase in stats to global stats
@@ -218,7 +218,7 @@ int main(int argc, char **argv){
       return 0;
     }
   }
-  
+
   // Claim a spot in shared memory for this session on the global statistics page
   sessions.reload();
   if (!sessions){

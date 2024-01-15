@@ -37,4 +37,4 @@ Full usage instructions and API specifications can be found in the manual: https
 Contributing
 ============
 
-If you're interested in contributing to MistServer development, please reach out to us through info@mistserver.org. Full contribution guidelines will be made available soon.
+If you're interested in contributing to MistServer development, please reach out to us through info@mistserver.org.

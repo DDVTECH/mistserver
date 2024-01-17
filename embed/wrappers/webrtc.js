@@ -193,6 +193,7 @@ p.prototype.build = function (MistVideo,callback) {
               //track type not found, this should not happen
               continue;
             }
+            if (type == "subtitle") { continue; }
             
             //create an event to pass this to the skin
             MistUtil.event.send("playerUpdate_trackChanged",{
@@ -209,7 +210,7 @@ p.prototype.build = function (MistVideo,callback) {
         MistVideo.reporting.stats.d.tracks = ev.tracks.join(",");
       }
     },
-    on_seek: function(e){
+    seek: function(e){
       var thisPlayer = this;
       MistUtil.event.send("seeked",seekoffset,video);
       
@@ -231,7 +232,7 @@ p.prototype.build = function (MistVideo,callback) {
       }
       else { video.play(); }
     },
-    on_speed: function(e){
+    set_speed: function(e){
       this.webrtc.play_rate = e.play_rate_curr;
       MistUtil.event.send("ratechange",e,video);
     },
@@ -269,6 +270,11 @@ p.prototype.build = function (MistVideo,callback) {
         }
         case "on_disconnected": {
           thisWebRTCPlayer.isConnected = false;
+          break;
+        }
+        case "on_error": {
+          MistVideo.showError("WebRTC error: "+MistUtil.format.ucFirst(ev.message));
+          return;
           break;
         }
       }
@@ -323,9 +329,14 @@ p.prototype.build = function (MistVideo,callback) {
           opts.iceServers = MistVideo.source.RTCIceServers;
         }
         thisWebRTCPlayer.peerConn = new RTCPeerConnection(opts);
+        thisWebRTCPlayer.MetaDataTrack = thisWebRTCPlayer.peerConn.createDataChannel("*",{protocol:"JSON"});
+
         thisWebRTCPlayer.peerConn.ontrack = function(ev) {
           video.srcObject = ev.streams[0];
           if (callback) { callback(); }
+        };
+        thisWebRTCPlayer.peerConn.ondatachannel = function(){
+          console.warn("ondatachannel",arguments);
         };
         thisWebRTCPlayer.peerConn.onconnectionstatechange = function(e){
           if (MistVideo.destroyed) { return; } //the player doesn't exist any more
@@ -368,6 +379,8 @@ p.prototype.build = function (MistVideo,callback) {
             }
           }
         };
+
+        MistUtil.event.send("webrtc_ready",null,video);
       });
     };
     
@@ -393,6 +406,7 @@ p.prototype.build = function (MistVideo,callback) {
     
     this.stop = function(){
       if (!this.isConnected) { throw "Not connected, cannot stop." }
+      n_
       this.signaling.send({type: "stop"});
     };
     this.seek = function(seekTime){
@@ -746,6 +760,105 @@ p.prototype.build = function (MistVideo,callback) {
       //correct timesync
       track.onload = correctSubtitleSync;
     }
+  };
+
+  me.api.metaTrackSocket = function(){
+    //console.warn("new metaTrackSocket");
+
+    this.origin = {};
+    this.CONNECTING = 0;
+    this.OPEN = 1;
+    this.CLOSING = 2;
+    this.CLOSED = 3;
+
+    this.readyState = 0;
+    //follow readystate of origin, except when self is asked to close, then pretend to close and remove event listeners.
+
+    this.listeners = [];
+    var me = this;
+
+    MistUtil.event.addListener(MistVideo.video,"webrtc_ready",function(){
+      me.init();
+    });
+    this.init = function(){
+      this.origin = MistVideo.player.webrtc && MistVideo.player.webrtc.MetaDataTrack ? MistVideo.player.webrtc.MetaDataTrack : {};
+
+      //console.warn("init",this.origin);
+      if ("readyState" in this.origin) {
+        //console.warn("origin readystate",this.origin.readyState);
+        function onopen() {
+          me.readyState = me.OPEN;
+          me.onopen();
+        }
+
+        this.origin.addEventListener("open",onopen);
+        this.origin.onmessage = function(e){
+          //console.warn("metadata message",e);
+        };
+        this.origin.addEventListener("close",function(){
+          me.readyState = me.CLOSED;
+          me.onclose();
+        });
+        if (this.origin.readyState == "open") { onopen(); }
+
+        return true;
+      }
+      else {
+        return false;
+      }
+    };
+
+    this.open = function(){
+      //should be open once webrtc is active
+
+      if (this.readyState == this.OPEN) return; //already open
+
+      switch (this.origin.readyState) {
+        case "connecting":  { this.readyState = this.CONNECTING; break; }
+        case "open":        { this.readyState = this.OPEN; break; }
+        case "closing":     { this.readyState = this.CLOSING; break; }
+        case "closed":      { this.readyState = this.CLOSED; break; }
+      }
+      
+      for (var i in this.listeners) {
+        this.origin.addEventListener.apply(this.origin,this.listeners[i]);
+      }
+    };
+    this.close = function(){
+      //don't actually close, but pretend
+      if (this.readyState >= this.CLOSING) return; //already closed
+      
+      this.readyState = this.CLOSED;
+
+      //remove listeners
+      for (var i in this.listeners) {
+        this.removeEventListener.apply(this,this.listeners[i]);
+      }
+    };
+    this.send = function(){
+      if (this.origin.readyState == "open") return this.origin.send.apply(this,arguments);
+      return false;
+    };
+    this.onopen = function(){};
+    this.onclose = function(){};
+    this.addEventListener = function(){
+      this.listeners.push(arguments);
+      return this.origin.addEventListener.apply(this.origin,arguments);
+    };
+    this.removeEventListener = function(name,func){
+      //remove them from the listeners array and the origin
+      for (var i = this.listeners.length-1; i >= 0; i--) {
+        if ((name == this.listeners[i][0]) && (func == this.listeners[i][1])) {
+          this.listeners.splice(i,1);
+          break;
+        }
+      }
+      return this.origin.removeEventListener.apply(this.origin,arguments);
+    };
+
+    this.init();
+
+    return this;
   };
   
   //loop

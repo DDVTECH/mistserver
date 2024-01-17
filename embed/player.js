@@ -677,7 +677,13 @@ function MistVideo(streamName,options) {
                 listeners: {},
                 init: function(){
                   var me = this;
-                  this.socket = new WebSocket(MistUtil.http.url.addParam(MistVideo.urlappend(json_source.url),{rate:1}));
+                  if (MistVideo.player.api.metaTrackSocket) {
+                    this.socket = new MistVideo.player.api.metaTrackSocket();
+                  }
+                  else {
+                    this.socket = new WebSocket(MistUtil.http.url.addParam(MistVideo.urlappend(json_source.url),{rate:1}));
+                  }
+
                   me.send_queue = [];
                   me.checktimer = null;
                   me.s = function(obj){
@@ -711,11 +717,16 @@ function MistVideo(streamName,options) {
                       if (!message) { MistVideo.log("Subtitle websocket received invalid message."); return; }
 
                       if (("time" in message) && ("track" in message) && ("data" in message)) {
+                        var pushed = false;
+                        if ("all" in me.subscriptions) {
+                          me.subscriptions.all.buffer.push(message);
+                          pushed = true;
+                        }
                         if (message.track in me.subscriptions) {
-                          //console.warn("received:",message.track,message.data);
-                          me.subscriptions[message.track].buffer.push(message);
-                          console.warn("received:",message.track,message.time*1e-3,"currentTime:",MistVideo.player.api.currentTime,"latency",Math.round(MistVideo.player.api.currentTime-message.time*1e-3),"bufferlength:",me.subscriptions[message.track].buffer.length,"timer:",!!me.checktimer);
-
+                          me.subscriptions[message.track].buffer.push(message); 
+                          pushed = true;
+                        }
+                        if (pushed) {
                           if (!me.checktimer) { 
                             me.check();
                           }
@@ -860,6 +871,10 @@ function MistVideo(streamName,options) {
                   this.listeners = {};
                 },
                 add: function (trackid,callback) {
+                  if ((typeof trackid == "function") && (!callback)) {
+                    callback = trackid;
+                    trackid = "all";
+                  }
                   if (typeof callback != "function") { return; }
 
                   if (!(trackid in this.subscriptions)) {
@@ -897,6 +912,9 @@ function MistVideo(streamName,options) {
                   }
                 }
               };
+              if (typeof options.subscribeToMetaTrack == "function") {
+                options.subscribeToMetaTrack = [["all",options.subscribeToMetaTrack]];
+              }
               if (options.subscribeToMetaTrack.length) {
                 if (typeof options.subscribeToMetaTrack[0] != "object") {
                   options.subscribeToMetaTrack = [options.subscribeToMetaTrack];

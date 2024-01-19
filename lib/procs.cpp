@@ -199,29 +199,31 @@ void Util::Procs::grim_reaper(void *n){
   VERYHIGH_MSG("Grim reaper start");
   while (thread_handler){
     {
-      tthread::lock_guard<tthread::mutex> guard(plistMutex);
-      int status;
-      pid_t ret = -1;
-      while (ret != 0){
-        ret = waitpid(-1, &status, WNOHANG);
-        if (ret <= 0){// ignore, would block otherwise
-          if (ret == 0 || errno != EINTR){break;}
-          continue;
+      if (plistMutex.try_lock()){
+        int status;
+        pid_t ret = -1;
+        while (ret != 0){
+          ret = waitpid(-1, &status, WNOHANG);
+          if (ret <= 0){// ignore, would block otherwise
+            if (ret == 0 || errno != EINTR){break;}
+            continue;
+          }
+          int exitcode;
+          if (WIFEXITED(status)){
+            exitcode = WEXITSTATUS(status);
+          }else if (WIFSIGNALED(status)){
+            exitcode = -WTERMSIG(status);
+          }else{// not possible
+            break;
+          }
+          if (plist.count(ret)){
+            HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
+            plist.erase(ret);
+          }else{
+            HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
+          }
         }
-        int exitcode;
-        if (WIFEXITED(status)){
-          exitcode = WEXITSTATUS(status);
-        }else if (WIFSIGNALED(status)){
-          exitcode = -WTERMSIG(status);
-        }else{// not possible
-          break;
-        }
-        if (plist.count(ret)){
-          HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
-          plist.erase(ret);
-        }else{
-          HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
-        }
+        plistMutex.unlock();
       }
     }
     Util::sleep(500);

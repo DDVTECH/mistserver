@@ -2,7 +2,6 @@
 #include <mist/langcodes.h> /*LTS*/
 #include <mist/stream.h>
 #include <mist/url.h>
-#include <mist/auth.h>
 #include <unistd.h>
 
 namespace Mist{
@@ -48,8 +47,8 @@ namespace Mist{
         if (audioId != INVALID_TRACK_ID){
           result << "," << Util::codecString(M.getCodec(audioId), M.getInit(audioId));
         }
-        result << "\"\r\nv~" << M.getWidth(it->first) << "x" << M.getHeight(it->first);
-        if (audioId != INVALID_TRACK_ID){result << "/a" << M.getCodec(audioId);}
+        result << "\"\r\n" << it->first;
+        if (audioId != INVALID_TRACK_ID){result << "_" << audioId;}
         result << "/index.m3u8" << tknStr << "\r\n";
       }else if (M.getCodec(it->first) == "subtitle"){
 
@@ -57,7 +56,7 @@ namespace Mist{
 
         result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << M.getLang(it->first)
                << "\",NAME=\"" << Encodings::ISO639::decode(M.getLang(it->first))
-               << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"s" << M.getLang(it->first) << "/index.m3u8" << tknStr << "\""
+               << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << it->first << "/index.m3u8" << tknStr << "\""
                << "\r\n";
       }
     }
@@ -68,7 +67,7 @@ namespace Mist{
         result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
         result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
         result << "\r\n";
-        result << "a" << M.getCodec(audioId) << "/index.m3u8" << tknStr << "\r\n";
+        result << audioId << "/index.m3u8" << tknStr << "\r\n";
       }else{
         // No compatible tracks at all
         return "";
@@ -106,7 +105,6 @@ namespace Mist{
     DTSC::Fragments fragments(M.fragments(timingTid));
     uint32_t firstFragment = fragments.getFirstValid();
     uint32_t endFragment = fragments.getEndValid();
-    std::string segCheck = config->getString("segcheck");
     for (int i = firstFragment; i < endFragment; i++){
       uint64_t duration = fragments.getDuration(i);
       size_t keyNumber = fragments.getFirstKey(i);
@@ -124,15 +122,8 @@ namespace Mist{
         }
       }
       char lineBuf[600];
-      if (urlPrefix.size()){
-        snprintf(lineBuf, 600, "%" PRIu64 "_%" PRIu64, startTime, startTime + duration);
-        std::string magicToken = Secure::md5(streamName + segCheck + lineBuf).substr(0, 8);
-        snprintf(lineBuf, 600, "%s#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 "_%s.%s%s\r\n", dateTime.c_str(), floatDur,
-            urlPrefix.c_str(), startTime, startTime + duration, magicToken.c_str(), "ts", tknStr.c_str());
-      }else{
-        snprintf(lineBuf, 600, "%s#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".%s%s\r\n", dateTime.c_str(), floatDur,
-            startTime, startTime + duration, "ts", tknStr.c_str());
-      }
+      snprintf(lineBuf, 600, "%s#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".%s%s\r\n", dateTime.c_str(), floatDur,
+          startTime, startTime + duration, "ts", tknStr.c_str());
       totalDuration += duration;
       durations.push_back(duration);
       lines.push_back(lineBuf);
@@ -175,16 +166,9 @@ namespace Mist{
     return result.str();
   }
 
-  void OutHLS::stats(bool force){
-    // Stop the session system from activating while in CDN mode
-    if (CDNMode){return;}
-    Output::stats(force);
-  }
-
   bool OutHLS::listenMode(){return !(config->getString("ip").size());}
 
   OutHLS::OutHLS(Socket::Connection &conn) : TSOutput(conn){
-    CDNMode = false;
     uaDelay = 0;
     realTime = 0;
     until = 0xFFFFFFFFFFFFFFFFull;
@@ -258,26 +242,19 @@ namespace Mist{
                                     "\"chunkpath\",\"help\":\"Alternate URL path to "
                                     "prepend to chunk paths, for serving through e.g. a CDN\"}"));
     capa["optional"]["chunkpath"]["name"] = "Prepend path for chunks";
-    capa["optional"]["chunkpath"]["help"] = "Chunks will be served from this path.";
+    capa["optional"]["chunkpath"]["help"] =
+        "Chunks will be served from this path.";
+    capa["optional"]["chunkpath"]["default"] = "";
     capa["optional"]["chunkpath"]["type"] = "str";
     capa["optional"]["chunkpath"]["option"] = "--chunkpath";
     capa["optional"]["chunkpath"]["short"] = "e";
     capa["optional"]["chunkpath"]["default"] = "";
-
-    cfg->addOption("segcheck",
-                   JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\":\"E\",\"long\":"
-                                    "\"segcheck\",\"help\":\"Secret value for segment checksums in CDN mode\"}"));
-    capa["optional"]["segcheck"]["name"] = "Segment secret";
-    capa["optional"]["segcheck"]["help"] = "Secret value to use for segment checksums in CDN mode";
-    capa["optional"]["segcheck"]["type"] = "str";
-    capa["optional"]["segcheck"]["option"] = "--segcheck";
-    capa["optional"]["segcheck"]["short"] = "E";
-    capa["optional"]["segcheck"]["default"] = "";
     cfg->addConnectorOptions(8081, capa);
   }
 
   void OutHLS::onHTTP(){
-    CDNMode = false;
+    initialize();
+
     if (tkn.size()){
       if (Comms::tknMode & 0x08){
         std::stringstream cookieHeader;
@@ -354,119 +331,61 @@ namespace Mist{
       }
     }
 
-    // If a chunkpath is set and this is not a playlist, enable CDN mode.
-    // CDN mode disables the session system and enables a small checksum in the segment filenames
-    if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u" && config->getOption("chunkpath")){CDNMode = true;}
-
     initialize();
     if (!keepGoing()){return;}
 
     if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
-
-      // Strip /hls/streamname/ from url
-      std::string url = H.url.substr(H.url.find('/', 5) + 1);
-
-      targetParams["audio"] = "none";
-      targetParams["video"] = "none";
+      std::string tmpStr = H.getUrl().substr(5 + streamName.size());
+      uint64_t from;
+      if (sscanf(tmpStr.c_str(), "/%zu_%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &audTrack, &from, &until) != 4){
+        if (sscanf(tmpStr.c_str(), "/%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &from, &until) != 3){
+          MEDIUM_MSG("Could not parse URL: %s", H.getUrl().c_str());
+          H.Clean();
+          H.setCORSHeaders();
+          H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
+          myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
+        return;
+        }
+        userSelect.clear();
+        userSelect[vidTrack].reload(streamName, vidTrack);
+        targetParams["video"] = JSON::Value((uint64_t)vidTrack).asString();
+        targetParams["audio"] = JSON::Value((uint64_t)vidTrack).asString();
+      }else{
+        userSelect.clear();
+        userSelect[vidTrack].reload(streamName, vidTrack);
+        userSelect[audTrack].reload(streamName, audTrack);
+        targetParams["video"] = JSON::Value((uint64_t)vidTrack).asString();
+        targetParams["audio"] = JSON::Value((uint64_t)audTrack).asString();
+      }
       targetParams["meta"] = "none";
       targetParams["subtitle"] = "none";
-      while (url.find('/') != std::string::npos){
-        std::string selector = url.substr(0, url.find('/'));
-        if (selector.size()){
-          if (selector[0] == 'a'){targetParams["audio"] = selector.substr(1);}
-          if (selector[0] == 'v'){targetParams["video"] = selector.substr(1);}
-          if (selector[0] == 's'){targetParams["subtitle"] = selector.substr(1);}
-          if (selector[0] >= '0' && selector[0] <= '9'){
-            if (selector.find('_') == std::string::npos){
-              // One track only
-              uint32_t track = atoll(selector.c_str());
-              targetParams["video"] = JSON::Value((uint64_t)track).asString();
-              targetParams["audio"] = JSON::Value((uint64_t)track).asString();
-            }else{
-              // Two tracks
-              size_t uscore = selector.find('_');
-              uint32_t trackA = atoll(selector.substr(0, uscore).c_str());
-              uint32_t trackB = atoll(selector.substr(uscore+1).c_str());
-              targetParams["video"] = JSON::Value((uint64_t)trackA).asString();
-              targetParams["audio"] = JSON::Value((uint64_t)trackB).asString();
-            }
-          }
-        }
-        url = url.substr(url.find('/') + 1);
-      }
-      selectDefaultTracks();
 
-      uint64_t from;
-      if (url.find(".ts") == std::string::npos){
-        MEDIUM_MSG("Could not parse URL: %s", H.getUrl().c_str());
-        H.Clean();
-        H.setCORSHeaders();
-        H.SetBody("The HLS URL wasn't understood (no .ts extension) - what did you want, exactly?\n");
-        myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
-        responded = true;
-        return;
-      }
-
-      // Strip extension and anything following it
-      url = url.substr(0, url.find(".ts"));
-
-      // Check if there is an underscore in the filename
-      if (url.find('_') == std::string::npos){
-        MEDIUM_MSG("Could not parse URL: %s", H.getUrl().c_str());
-        H.Clean();
-        H.setCORSHeaders();
-        H.SetBody("The HLS URL wasn't understood (no underscore between timestamps) - what did you want, exactly?\n");
-        myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
-        responded = true;
-        return;
-      }
-
-      std::string magicToken;
-      if (url.find('_') != url.rfind('_')){
-        //Two underscores, keep what's behind the second for verification
-        magicToken = url.substr(url.rfind('_') + 1);
-        url = url.substr(0, url.rfind('_'));
-      }
-      //One underscore left... parse the ints on either side
-      from = JSON::Value(url.substr(0, url.find('_'))).asInt();
-      until = JSON::Value(url.substr(url.find('_') + 1)).asInt();
-
-      if (CDNMode && magicToken != Secure::md5(streamName + config->getString("segcheck") + url).substr(0, 8)){
-        MEDIUM_MSG("Failed CDN checksum: %s", H.getUrl().c_str());
-        H.Clean();
-        H.setCORSHeaders();
-        H.SetBody("The HLS URL wasn't understood (CDN mode checksum failure) - what did you want, exactly?\n");
-        myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
-        responded = true;
-        return;
-      }
-
-      size_t mainTrack = getMainSelectedTrack();
-      if (mainTrack == INVALID_TRACK_ID){
+      std::set<size_t> vTrks = M.getValidTracks(true);
+      if (!vTrks.count(vidTrack)){
         H.Clean();
         H.setCORSHeaders();
         H.SetBody("Track not valid.\n");
         myConn.SendNow(H.BuildResponse("404", "Track not valid"));
-        WARN_MSG("Requested invalid track(s)");
-        responded = true;
+        WARN_MSG("Requested invalid track ID %zu", vidTrack);
         return;
       }
-
-      if (M.getLive() && from < M.getFirstms(mainTrack)){
+      if (M.getLive() && from < M.getFirstms(vidTrack)){
         H.Clean();
         H.setCORSHeaders();
         H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be "
                   "served.\n");
         myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
         WARN_MSG("Fragment @ %" PRIu64 " too old", from);
-        responded = true;
         return;
       }
 
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
       if (!(Comms::tknMode & 0x04) || config->getOption("chunkpath")){
-        H.SetHeader("Cache-Control", "public, max-age=" + JSON::Value(M.getDuration(mainTrack) / 1000).asString() + ", immutable");
+        H.SetHeader("Cache-Control",
+                    "public, max-age=" +
+                        JSON::Value(M.getDuration(getMainSelectedTrack()) / 1000).asString() +
+                        ", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");
       }else{
@@ -481,7 +400,7 @@ namespace Mist{
       H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
       responded = true;
       // we assume whole fragments - but timestamps may be altered at will
-      uint32_t fragIndice = M.getFragmentIndexForTime(mainTrack, from);
+      uint32_t fragIndice = M.getFragmentIndexForTime(vidTrack, from);
       contPAT = fragIndice; // PAT continuity counter
       contPMT = fragIndice; // PMT continuity counter
       contSDT = fragIndice; // SDT continuity counter
@@ -511,41 +430,8 @@ namespace Mist{
           return;
         }
       }else{
-        // Strip /hls/streamname/ from url
-        std::string url = H.url.substr(H.url.find('/', 5) + 1);
-
-        targetParams["audio"] = "none";
-        targetParams["video"] = "none";
-        targetParams["meta"] = "none";
-        targetParams["subtitle"] = "none";
-        while (url.find('/') != std::string::npos){
-          std::string selector = url.substr(0, url.find('/'));
-          if (selector.size()){
-            if (selector[0] == 'a'){targetParams["audio"] = selector.substr(1);}
-            if (selector[0] == 'v'){targetParams["video"] = selector.substr(1);}
-            if (selector[0] == 's'){targetParams["subtitle"] = selector.substr(1);}
-            if (selector[0] >= '0' && selector[0] <= '9'){
-              if (selector.find('_') == std::string::npos){
-                // One track only
-                uint32_t track = atoll(selector.c_str());
-                targetParams["video"] = JSON::Value((uint64_t)track).asString();
-                targetParams["audio"] = JSON::Value((uint64_t)track).asString();
-              }else{
-                // Two tracks
-                size_t uscore = selector.find('_');
-                uint32_t trackA = atoll(selector.substr(0, uscore).c_str());
-                uint32_t trackB = atoll(selector.substr(uscore+1).c_str());
-                targetParams["video"] = JSON::Value((uint64_t)trackA).asString();
-                targetParams["audio"] = JSON::Value((uint64_t)trackB).asString();
-              }
-            }
-          }
-          url = url.substr(url.find('/') + 1);
-        }
-        selectDefaultTracks();
-
-        size_t idx = getMainSelectedTrack();
-        if (idx == INVALID_TRACK_ID){
+        size_t idx = atoi(request.substr(0, request.find("/")).c_str());
+        if (!M.getValidTracks().count(idx)){
           H.SendResponse("404", "No corresponding track found", myConn);
           return;
         }

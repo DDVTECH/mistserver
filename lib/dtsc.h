@@ -532,6 +532,7 @@ namespace DTSC{
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
     void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true, bool autoBackOff = true);
     void streamInit(size_t trackCount = DEFAULT_TRACK_COUNT);
+    void resizeTrackList(size_t newTrackCount);
 
     std::string streamName;
 

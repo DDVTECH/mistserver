@@ -938,6 +938,10 @@ namespace DTSC{
       sBufShm(_streamName, DEFAULT_TRACK_COUNT, master, autoBackOff);
     }
     streamInit();
+    if (isMaster){
+      stream.setReady();
+      trackList.setReady();
+    }
   }
 
   /// Calls clear(), then initializes from given DTSH file in master mode.
@@ -969,12 +973,14 @@ namespace DTSC{
   void Meta::reInit(const std::string &_streamName, const DTSC::Scan &src){
     clear();
 
+    size_t tNum = src.getMember("tracks").getSize();
+
     if (_streamName == ""){
-      sBufMem();
+      sBufMem(tNum);
     }else{
-      sBufShm(_streamName, DEFAULT_TRACK_COUNT, true);
+      sBufShm(_streamName, tNum, true);
     }
-    streamInit();
+    streamInit(tNum);
 
     setVod(src.hasMember("vod") && src.getMember("vod").asInt());
     setLive(src.hasMember("live") && src.getMember("live").asInt());
@@ -985,7 +991,6 @@ namespace DTSC{
       inputLocalVars = JSON::fromString(src.getMember("inputLocalVars").asString());
     }
 
-    size_t tNum = src.getMember("tracks").getSize();
     for (int i = 0; i < tNum; i++){
       addTrackFrom(src.getMember("tracks").getIndice(i));
     }
@@ -1004,6 +1009,8 @@ namespace DTSC{
       }
       setBootMsOffset(Util::bootMS() - nowMs);
     }
+    stream.setReady();
+    trackList.setReady();
   }
 
   void Meta::addTrackFrom(const DTSC::Scan &trak){
@@ -1160,7 +1167,7 @@ namespace DTSC{
   }
 
   /// In master mode, creates and stores the fields for the "stream" child object.
-  /// In slave mode, simply class refresh().
+  /// In slave mode, simply calls refresh().
   /// Regardless, afterwards the internal RelAccXFieldData members are updated with their correct
   /// values.
   void Meta::streamInit(size_t trackCount){
@@ -1176,7 +1183,6 @@ namespace DTSC{
       stream.addField("utcoffset", RAX_64INT);
       stream.addField("minfragduration", RAX_64UINT);
       stream.setRCount(1);
-      stream.setReady();
       stream.addRecords(1);
 
       trackList = Util::RelAccX(stream.getPointer("tracks"), false);
@@ -1195,7 +1201,6 @@ namespace DTSC{
       trackList.addField("playready", RAX_STRING, 1024);
 
       trackList.setRCount(trackCount);
-      trackList.setReady();
     }else{
       refresh();
     }
@@ -1222,6 +1227,80 @@ namespace DTSC{
     trackIvecField = trackList.getFieldData("ivec");
     trackWidevineField = trackList.getFieldData("widevine");
     trackPlayreadyField = trackList.getFieldData("playready");
+  }
+
+  void Meta::resizeTrackList(size_t newTrackCount){
+    if (!stream.isReady()){return;}
+
+    INFO_MSG("Resizing metadata track list from %" PRIu32 " to %zu", trackList.getRCount(), newTrackCount);
+
+    // Calculate _current_ size and copy current to a new memory block "orig"
+    size_t pageSize = META_META_OFFSET + META_TRACK_OFFSET + META_META_RECORDSIZE + (trackList.getRCount() * META_TRACK_RECORDSIZE);
+    Util::ResizeablePointer orig;
+    orig.allocate(pageSize);
+    if (!orig.rsize()){
+      FAIL_MSG("Failed to re-allocate memory for main stream metadata");
+      return;
+    }
+    memcpy(orig, (isMemBuf ? streamMemBuf : streamPage.mapped), pageSize);
+
+    // Set current structure to require a reload
+    stream.setReload();
+
+    // Calculate _new_ size
+    size_t newPageSize = META_META_OFFSET + META_TRACK_OFFSET + META_META_RECORDSIZE + (newTrackCount * META_TRACK_RECORDSIZE);
+
+    // Free/delete old storage, allocate new storage
+    if (isMemBuf){
+      free(streamMemBuf);
+      streamMemBuf = (char *)malloc(newPageSize);
+      if (!streamMemBuf){
+        stream = Util::RelAccX();
+        FAIL_MSG("Failed to re-allocate memory for main metadata: %s", strerror(errno));
+        return;
+      }
+      memset(streamMemBuf, 0, newPageSize);
+      stream = Util::RelAccX(streamMemBuf, false);
+    }else{
+      streamPage.master = true;
+      std::string pageName = streamPage.name;
+      streamPage.init(pageName, newPageSize, true);
+      if (!streamPage.mapped){
+        FAIL_MSG("Failed to re-allocate shared memory for main metadata: %s", strerror(errno));
+        return;
+      }
+      streamPage.master = false;
+      stream = Util::RelAccX(streamPage.mapped, false);
+    }
+
+    // Initialize new storage with new track count
+    bool wasMaster = isMaster;
+    isMaster = true;
+    streamInit(newTrackCount);
+    isMaster = wasMaster;
+
+    // Copy over data from the "orig" copy we made earlier
+    Util::RelAccX origStream(orig, false);
+    if (origStream.isReady()){
+      // Copy base stream properties
+      stream.setInt("vod", origStream.getInt("vod"));
+      stream.setInt("live", origStream.getInt("live"));
+      stream.setString("source", origStream.getPointer("source"));
+      stream.setString("uuid", origStream.getPointer("uuid"));
+      stream.setInt("maxkeepaway", origStream.getInt("maxkeepaway"));
+      stream.setInt("resume", origStream.getInt("resume"));
+      stream.setInt("bufferwindow", origStream.getInt("bufferwindow"));
+      stream.setInt("bootmsoffset", origStream.getInt("bootmsoffset"));
+      stream.setInt("utcoffset", origStream.getInt("utcoffset"));
+      stream.setInt("minfragduration", origStream.getInt("minfragduration"));
+      // Copy tracks
+      Util::RelAccX origTracks(origStream.getPointer("tracks"), false);
+      if (origTracks.isReady()){trackList.flowFrom(origTracks);}
+    }
+
+    // Set ready so that access is now allowed
+    stream.setReady();
+    trackList.setReady();
   }
 
   /// Reads the "tracks" field from the "stream" child object, populating the "tracks" variable.
@@ -1772,6 +1851,12 @@ namespace DTSC{
         FAIL_MSG("Not adding track: stream is shutting down");
         return INVALID_TRACK_ID;
       }
+      reloadReplacedPagesIfNeeded();
+    }
+
+    // Resize track list if we're running out of tracks
+    if (trackList.getPresent() >= trackList.getRCount()){
+      resizeTrackList(trackList.getPresent() * 2);
     }
 
     size_t pageSize = TRACK_TRACK_OFFSET + TRACK_TRACK_RECORDSIZE +

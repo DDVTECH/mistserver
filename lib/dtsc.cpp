@@ -978,7 +978,7 @@ namespace DTSC{
     }else{
       sBufShm(_streamName, tNum, true);
     }
-    streamInit();
+    streamInit(tNum);
 
     setVod(src.hasMember("vod") && src.getMember("vod").asInt());
     setLive(src.hasMember("live") && src.getMember("live").asInt());
@@ -1007,10 +1007,8 @@ namespace DTSC{
       }
       setBootMsOffset(Util::bootMS() - lastMs);
     }
-    if (isMaster){
-      stream.setReady();
-      trackList.setReady();
-    }
+    stream.setReady();
+    trackList.setReady();
   }
 
   void Meta::addTrackFrom(const DTSC::Scan &trak){

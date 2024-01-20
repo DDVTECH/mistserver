@@ -490,7 +490,7 @@ void uploadThread(void * num){
             parseMultipart(mySeg, upper.getHeader("Content-Type"), upper.const_data());
           }else{
             ++statFailParse;
-            FAIL_MSG("Non-multipart response received - this version only works with multipart!");
+            FAIL_MSG("Non-multipart response (%s, %zu bytes) received - this version only works with multipart!", upper.getHeader("Content-Type").c_str(), upper.const_data().size());
           }
           mySeg.fullyRead = true;
           insertTurn = (insertTurn + 1) % PRESEG_COUNT;

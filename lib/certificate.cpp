@@ -7,12 +7,12 @@
 Certificate::Certificate(){
   mbedtls_pk_init(&key);
   mbedtls_x509_crt_init(&cert);
+  mbedtls_ctr_drbg_init(&rand_ctx);
 }
 
 int Certificate::init(const std::string &countryName, const std::string &organization,
                       const std::string &commonName){
 
-  mbedtls_ctr_drbg_context rand_ctx ={};
   mbedtls_entropy_context entropy_ctx ={};
   mbedtls_x509write_cert write_cert ={};
   mbedtls_rsa_context *rsa_ctx;
@@ -49,7 +49,6 @@ int Certificate::init(const std::string &countryName, const std::string &organiz
   }
 
   // initialize random number generator
-  mbedtls_ctr_drbg_init(&rand_ctx);
   mbedtls_entropy_init(&entropy_ctx);
   r = mbedtls_ctr_drbg_seed(&rand_ctx, mbedtls_entropy_func, &entropy_ctx,
                             (const unsigned char *)personalisation, strlen(personalisation));
@@ -205,6 +204,7 @@ error:
 Certificate::~Certificate(){
   mbedtls_pk_free(&key);
   mbedtls_x509_crt_free(&cert);
+  mbedtls_ctr_drbg_free(&rand_ctx);
 }
 
 /// Loads a single file into the certificate. Returns true on success.
@@ -216,7 +216,11 @@ bool Certificate::loadCert(const std::string & certFile){
 /// Loads a single key. Returns true on success.
 bool Certificate::loadKey(const std::string & keyFile){
   if (!keyFile.size()){return true;}
+#if MBEDTLS_VERSION_MAJOR > 2
+  return  mbedtls_pk_parse_keyfile(&key, keyFile.c_str(), NULL, mbedtls_ctr_drbg_random, &rand_ctx) == 0;
+#else
   return  mbedtls_pk_parse_keyfile(&key, keyFile.c_str(), 0) == 0;
+#endif
 }
 
 /// Calculates SHA256 fingerprint over the loaded certificate(s)

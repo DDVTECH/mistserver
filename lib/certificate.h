@@ -9,8 +9,12 @@
   communication. This certificate uses a 2048 bits RSA key.
 
  */
-
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR > 2
+#include <mbedtls/build_info.h>
+#else
 #include <mbedtls/config.h>
+#endif
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
@@ -32,4 +36,6 @@ public:
 public:
   mbedtls_x509_crt cert;
   mbedtls_pk_context key;       /* key context, stores private and public key. */
+private:
+  mbedtls_ctr_drbg_context rand_ctx;
 };

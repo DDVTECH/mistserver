@@ -1,8 +1,14 @@
 #pragma once
 
 #include <deque>
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR == 2
 #include <mbedtls/certs.h>
 #include <mbedtls/config.h>
+#else
+#include <mbedtls/build_info.h>
+//#include <mbedtls/pk.h>
+#endif
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/debug.h>
 #include <mbedtls/entropy.h>
@@ -40,7 +46,30 @@ private:
   mbedtls_ssl_config ssl_conf;
   mbedtls_ssl_cookie_ctx cookie_ctx;
   mbedtls_timing_delay_context timer_ctx;
-
+#if HAVE_UPSTREAM_MBEDTLS_SRTP
+  unsigned char master_secret[48];
+  unsigned char randbytes[64];
+  mbedtls_tls_prf_types tls_prf_type;
+#if MBEDTLS_VERSION_MAJOR > 2
+  static void dtlsExtractKeyData( void *user,
+                              mbedtls_ssl_key_export_type type,
+                              const unsigned char *ms,
+                              size_t,
+                              const unsigned char client_random[32],
+                              const unsigned char server_random[32],
+                              mbedtls_tls_prf_types tls_prf_type );
+#else
+  static int dtlsExtractKeyData( void *user,
+                              const unsigned char *ms,
+                              const unsigned char *,
+                              size_t,
+                              size_t,
+                              size_t,
+                              const unsigned char client_random[32],
+                              const unsigned char server_random[32],
+                              mbedtls_tls_prf_types tls_prf_type );
+#endif
+#endif
 public:
   int (*write_callback)(const uint8_t *data, int *nbytes);
   std::deque<uint8_t> buffer; /* Accessed from BIO callbback. We copy the bytes you pass into `parse()` into this

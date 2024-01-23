@@ -239,7 +239,11 @@ namespace Mist{
     }
 
     // Read key from cmdline option
+#if MBEDTLS_VERSION_MAJOR > 2
+    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), NULL, mbedtls_ctr_drbg_random, &ctr_drbg);
+#else
     ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0);
+#endif
     if (ret != 0){
       FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
       return;

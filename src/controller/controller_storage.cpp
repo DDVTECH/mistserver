@@ -280,9 +280,6 @@ namespace Controller{
             // Only print the error + config data if this is new data since the last write attempt
             if (tmp[cs.key()] != lastConfigWriteAttempt[cs.key()]){
               ERROR_MSG("Error writing config.%s to %s", cs.key().c_str(), cs->asStringRef().c_str());
-              std::cout << "**config." << cs.key() <<"**" << std::endl;
-              std::cout << tmp[cs.key()].toString() << std::endl;
-              std::cout << "**End config." << cs.key() << "**" << std::endl;
             }
           }else{
             // Log the successfully written data

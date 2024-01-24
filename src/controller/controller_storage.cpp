@@ -299,9 +299,6 @@ namespace Controller{
         // Only print the error + config data if this is new data since the last write attempt
         if (tmp != lastConfigWriteAttempt){
           ERROR_MSG("Error writing config to %s", Controller::conf.getString("configFile").c_str());
-          std::cout << "**Config**" << std::endl;
-          std::cout << mainConfig.toString() << std::endl;
-          std::cout << "**End config**" << std::endl;
         }
       }else{
         lastConfigWritten[""] = mainConfig;

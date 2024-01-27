@@ -9,6 +9,8 @@
 #include "util.h"
 #include "stream.h"
 #include "timing.h"
+#include "mp4_generic.h"
+#include "h264.h"
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -3130,6 +3132,13 @@ namespace DTSC{
         if (hasBFrames(*it)){
           bframes = true;
           trackJSON["bframes"] = 1;
+        }
+        if (getCodec(*it) == "H264"){
+          MP4::AVCC avccbox;
+          avccbox.setPayload(getInit(*it));
+          h264::spsUnit sps(avccbox.getSPS(), avccbox.getSPSLen());
+          trackJSON["h264_level"] = sps.level();
+          trackJSON["h264_profile"] = sps.profile();
         }
       }
     }

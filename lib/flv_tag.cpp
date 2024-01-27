@@ -32,7 +32,7 @@ std::string FLV::Error_Str = "";
 /// - The PreviousTagSize is not 0 bytes.
 ///
 /// Note that we see PreviousTagSize as part of the FLV header, not part of the tag header!
-bool FLV::check_header(char *header){
+bool FLV::check_header(const char *header){
   if (header[0] != 'F') return false;
   if (header[1] != 'L') return false;
   if (header[2] != 'V') return false;
@@ -264,6 +264,7 @@ FLV::Tag::Tag(){
   data = 0;
   isKeyframe = false;
   done = true;
+  justReadHeader = false;
   sofar = 0;
 }// empty constructor
 
@@ -273,6 +274,7 @@ FLV::Tag::Tag(){
 /// neccesary.
 FLV::Tag::Tag(const Tag &O){
   done = true;
+  justReadHeader = false;
   sofar = 0;
   len = O.len;
   data = 0;
@@ -292,6 +294,7 @@ FLV::Tag::Tag(const RTMPStream::Chunk &O){
   data = 0;
   isKeyframe = false;
   done = true;
+  justReadHeader = false;
   sofar = 0;
   ChunkLoader(O);
 }
@@ -472,7 +475,7 @@ bool FLV::Tag::DTSCAudioInit(const std::string & codec, unsigned int sampleRate,
   memcpy(data + 13, initData.c_str(), len - 17);
   data[12] = 0; // AAC sequence header
   // Contains: SoundFormat = AAC = 1010(4b), SoundRate (2b), SoundSize (1b), SoundType(1b) = 1010 0000
-  data[11] = 0xA0; 
+  data[11] = 0xA0;
   if (sampleRate >= 44100){
     data[11] |= 0x0C;
   }else if (sampleRate >= 22050){
@@ -613,86 +616,41 @@ bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk &O){
   return true;
 }
 
-/// Helper function for FLV::MemLoader.
-/// This function will try to read count bytes from data buffer D into buffer.
-/// This function should be called repeatedly until true.
-/// P and sofar are not the same value, because D may not start with the current tag.
-/// \param buffer The target buffer.
-/// \param count Amount of bytes to read.
-/// \param sofar Current amount read.
-/// \param D The location of the data buffer.
-/// \param S The size of the data buffer.
-/// \param P The current position in the data buffer. Will be updated to reflect new position.
-/// \return True if count bytes are read succesfully, false otherwise.
-bool FLV::Tag::MemReadUntil(char *buffer, unsigned int count, unsigned int &sofar, const char *D,
-                            unsigned int S, unsigned int &P){
-  if (sofar >= count){return true;}
-  int r = 0;
-  if (P + (count - sofar) > S){
-    r = S - P;
-  }else{
-    r = count - sofar;
-  }
-  memcpy(buffer + sofar, D + P, r);
-  P += r;
-  sofar += r;
-  if (sofar >= count){return true;}
-  return false;
-}// Tag::MemReadUntil
-
 /// Try to load a tag from a data buffer in memory.
-/// This is a stateful function - if fed incorrect data, it will most likely never return true
-/// again! While this function returns false, the Tag might not contain valid data. \param D The
-/// location of the data buffer. \param S The size of the data buffer. \param P The current position
-/// in the data buffer. Will be updated to reflect new position. \return True if a whole tag is
-/// succesfully read, false otherwise.
-bool FLV::Tag::MemLoader(const char *D, unsigned int S, unsigned int &P){
-  if (len < 15){len = 15;}
-  if (!checkBufferSize()){return false;}
-  if (done){
-    // read a header
-    if (MemReadUntil(data, 11, sofar, D, S, P)){
-      // if its a correct FLV header, throw away and read tag header
-      if (FLV::is_header(data)){
-        if (MemReadUntil(data, 13, sofar, D, S, P)){
-          if (FLV::check_header(data)){
-            sofar = 0;
-            memcpy(FLV::Header, data, 13);
-          }else{
-            FLV::Parse_Error = true;
-            Error_Str = "Invalid header received.";
-            return false;
-          }
-        }
-      }else{
-        // if a tag header, calculate length and read tag body
-        len = data[3] + 15;
-        len += (data[2] << 8);
-        len += (data[1] << 16);
-        if (!checkBufferSize()){return false;}
-        if (data[0] > 0x12){
-          data[0] += 32;
-          FLV::Parse_Error = true;
-          Error_Str = "Invalid Tag received (";
-          Error_Str += data[0];
-          Error_Str += ").";
-          return false;
-        }
-        done = false;
-      }
+/// \param bufferPtr The location of the data buffer.
+/// \param bufferLen The size of the data buffer.
+/// \param bufferOffset The current position in the data buffer. Will be updated to reflect new position.
+/// \return 0 if a tag was read, std::string::npos on parse error, or the amount of bytes needed to continue otherwise
+size_t FLV::Tag::MemLoader(const char *bufferPtr, size_t bufferLen, uint64_t &bufferOffset){
+  size_t eOff = 0; // Extra offset because of global header being present
+  if (bufferLen - bufferOffset < 3){return 3;}
+  if (FLV::is_header(bufferPtr+bufferOffset)){
+    if (bufferLen - bufferOffset < 13){return 13;}
+    if (!FLV::check_header(bufferPtr+bufferOffset)){
+      FLV::Parse_Error = true;
+      FLV::Error_Str = "global FLV header is not valid";
+      return std::string::npos;
     }
-  }else{
-    // read tag body
-    if (MemReadUntil(data, len, sofar, D, S, P)){
-      // calculate keyframeness, next time read header again, return true
-      isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
-      done = true;
-      sofar = 0;
-      return true;
-    }
+    eOff = 13;
   }
-  return false;
-}// Tag::MemLoader
+  if (bufferLen - bufferOffset < eOff+4){return eOff+4;}
+  if (bufferPtr[bufferOffset+eOff] > 0x12){
+    FAIL_MSG("Reading invalid tag type: %" PRIu8, (uint8_t)bufferPtr[bufferOffset+eOff]);
+    FLV::Parse_Error = true;
+    FLV::Error_Str = "unknown FLV tag type encountered";
+    return std::string::npos;
+  }
+  len = 15 + bufferPtr[bufferOffset+eOff+3] + (bufferPtr[bufferOffset+eOff+2] << 8) + (bufferPtr[bufferOffset+eOff+1] << 16);
+  if (!checkBufferSize()){
+    FLV::Error_Str = "could not allocate memory for next FLV tag";
+    return std::string::npos;
+  }
+  if (bufferLen - bufferOffset < len+eOff){return len+eOff;}
+  memcpy(data, bufferPtr+bufferOffset+eOff, len);
+  isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
+  bufferOffset += len+eOff;
+  return 0;
+}
 
 /// Helper function for FLV::FileLoader.
 /// This function will try to read count bytes from file f into buffer.
@@ -733,6 +691,7 @@ bool FLV::Tag::FileLoader(FILE *f){
     if (FileReadUntil(data, 11, sofar, f)){
       // if its a correct FLV header, throw away and read tag header
       if (FLV::is_header(data)){
+        justReadHeader = true;
         if (FileReadUntil(data, 13, sofar, f)){
           if (FLV::check_header(data)){
             sofar = 0;
@@ -770,6 +729,7 @@ bool FLV::Tag::FileLoader(FILE *f){
       // calculate keyframeness, next time read header again, return true
       isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
       done = true;
+      justReadHeader = false;
       sofar = 0;
       fcntl(fileno(f), F_SETFL, preflags);
       return true;
@@ -839,7 +799,7 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
     return;
   }
 
-  if (meta.getVod() && reTrack == INVALID_TRACK_ID){
+  if (reTrack == INVALID_TRACK_ID){
     reTrack = meta.trackIDToIndex(getTrackID(), getpid());
   }
 

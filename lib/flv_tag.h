@@ -21,7 +21,7 @@ namespace FLV{
   extern std::string Error_Str; ///< This variable is set if a problem is encountered while parsing the FLV.
 
   // functions
-  bool check_header(char *header); ///< Checks a FLV Header for validness.
+  bool check_header(const char *header); ///< Checks a FLV Header for validness.
   bool is_header(const char *header);    ///< Checks the first 3 bytes for the string "FLV".
 
   /// Helper function that can quickly skip through a file looking for a particular tag type
@@ -55,7 +55,7 @@ namespace FLV{
     bool DTSCMetaInit(const DTSC::Meta &M, std::set<size_t> &selTracks);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack, const std::map<std::string, std::string> &targetParams);
-    bool MemLoader(const char *D, unsigned int S, unsigned int &P);
+    size_t MemLoader(const char *bufferPtr, size_t bufferLen, uint64_t &bufferOffset);
     bool FileLoader(FILE *f);
     unsigned int getTrackID();
     char *getData();
@@ -64,12 +64,11 @@ namespace FLV{
   protected:
     int buf;            ///< Maximum length of buffer space.
     bool done;          ///< Body reading done?
+    bool justReadHeader; ///< Did we just read a global header and need more data?
     unsigned int sofar; ///< How many bytes are read sofar?
     void setLen();
     bool checkBufferSize();
     // loader helper functions
-    bool MemReadUntil(char *buffer, unsigned int count, unsigned int &sofar, const char *D,
-                      unsigned int S, unsigned int &P);
     bool FileReadUntil(char *buffer, unsigned int count, unsigned int &sofar, FILE *f);
   };
   // Tag

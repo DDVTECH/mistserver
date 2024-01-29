@@ -55,6 +55,16 @@ namespace Mist{
         return false;
       }
     }
+    // We call preRun early and, if successful, close the opened reader.
+    // This is to ensure we have udpMode/rawMode/standAlone all set properly before the first call to needsLock.
+    // The reader must be closed so that the angel process does not have a reader open.
+    // Ugly copy from input ts
+    if (config->getString("input") == "-"){
+      standAlone = false;
+      return true;
+    }
+    if (!preRun()){return false;}
+    inFile.close();
     return true;
   }
 

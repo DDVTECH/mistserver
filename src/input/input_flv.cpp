@@ -210,7 +210,7 @@ namespace Mist{
 
     thisTime = tmpTag.tagTime();
     if (!standAlone){lastBytePos = 0;}
-    thisPacket.genericFill(thisTime, tmpTag.offset(), thisIdx, tmpTag.getData(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe);
+    thisPacket.genericFill(thisTime, tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getData(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe);
 
     if (M.getCodec(idx) == "PCM" && M.getSize(idx) == 16){
       char *ptr = 0;

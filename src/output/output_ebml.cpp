@@ -48,7 +48,7 @@ namespace Mist{
       }
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
       initialize();
-      if (!M.getLive()){calcVodSizes();}
+      if (M && !M.getLive()){calcVodSizes();}
     }
   }
 
@@ -503,6 +503,7 @@ namespace Mist{
       return;
     }
     size_t idx = getMainSelectedTrack();
+    if (idx == INVALID_TRACK_ID){return;}
     double duration = M.getLastms(idx) - M.getFirstms(idx);
     // Calculate the segment size
     // Segment contains SeekHead, Info, Tracks, Cues (in that order)

@@ -18,6 +18,7 @@ namespace Mist{
       if (srtConn && *srtConn){return srtConn->getBinHost();}
       return Input::getConnectedBinHost();
     }
+    virtual void onCrash();
 
   protected:
     // Private Functions

@@ -160,6 +160,18 @@ namespace Mist{
 
   InputTSSRT::~InputTSSRT(){}
 
+  /// Cleans up any left-over data for the current stream
+  void InputTSSRT::onCrash() {
+    WARN_MSG("SRT input crashed. Cleaning.");
+    streamName = config->getString("streamname");
+    // Wipe pull semaphore
+    {
+      IPC::semaphore pullLock;
+      pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      pullLock.unlink();
+    }
+  }
+
   bool InputTSSRT::checkArguments(){
     if (config->getString("datatrack") == "json"){
       tsStream.setRawDataParser(TS::JSON);

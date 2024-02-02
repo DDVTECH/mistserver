@@ -35,10 +35,10 @@ namespace HTTP{
 #endif // ifdef SSL
 
 
-  inline HTTP::URL injectHeaders(const HTTP::URL& url, const std::string & method, HTTP::Downloader & downer) {
+  inline HTTP::URL injectHeaders(const HTTP::URL& url, const std::string & method, HTTP::Downloader & downer, const std::set<std::string> & addHeaders) {
 #ifdef SSL
     // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-    // Transform to: 
+    // Transform to:
     // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
     // header Date: ${Util::getDateString(()}
     // header Authorization: AWS ${url.user}:${signature}
@@ -46,7 +46,7 @@ namespace HTTP{
       std::string date = Util::getDateString();
       HTTP::URL newUrl = url;
       // remove "s3+" prefix
-      newUrl.protocol = newUrl.protocol.erase(0, 3); 
+      newUrl.protocol = newUrl.protocol.erase(0, 3);
       // Use user and pass to create signature and remove from HTTP request
       std::string accessKey(url.user), secret(url.pass);
       newUrl.user = "";
@@ -62,6 +62,14 @@ namespace HTTP{
       return newUrl;
     }
 #endif // ifdef SSL
+    if (addHeaders.size()){
+      for (std::set<std::string>::iterator it = addHeaders.begin(); it != addHeaders.end(); ++it){
+        size_t space = it->find(' ');
+        if (space != std::string::npos){
+          downer.setHeader(it->substr(0, space), it->substr(space+1));
+        }
+      }
+    }
     return url;
   }
 
@@ -193,7 +201,7 @@ namespace HTTP{
         }
         myURI.pass = envValue;
       }
-      myURI = injectHeaders(originalUrl, "", downer);
+      myURI = injectHeaders(originalUrl, "", downer, addHeaders);
       // Do not return, continue to HTTP case
     }
 #endif // ifdef SSL
@@ -204,7 +212,7 @@ namespace HTTP{
       downer.clearHeaders();
 
       // One set of headers specified for HEAD request
-      injectHeaders(originalUrl, "HEAD", downer);
+      injectHeaders(originalUrl, "HEAD", downer, addHeaders);
       // Send HEAD request to determine range request is supported, and get total length
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
@@ -227,7 +235,7 @@ namespace HTTP{
       }
 
       // Other set of headers specified for GET request
-      injectHeaders(originalUrl, "GET", downer);
+      injectHeaders(originalUrl, "GET", downer, addHeaders);
       // streaming mode when size is unknown
       if (!supportRangeRequest){
         MEDIUM_MSG("URI get without range request: %s, totalsize: %zu", myURI.getUrl().c_str(), totalSize);
@@ -270,7 +278,7 @@ namespace HTTP{
     if (stateType == HTTP::HTTP && supportRangeRequest){
       downer.clean();
       curPos = pos;
-      injectHeaders(originalUrl, "GET", downer);
+      injectHeaders(originalUrl, "GET", downer, addHeaders);
       if (!downer.getRangeNonBlocking(myURI, pos, 0)){
         FAIL_MSG("Error making range request");
         return false;

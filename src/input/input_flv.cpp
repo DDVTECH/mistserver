@@ -7,6 +7,7 @@
 #include <mist/defines.h>
 #include <mist/stream.h>
 #include <mist/util.h>
+#include <mist/encode.h>
 #include <string>
 #include <sys/stat.h>  //for stat
 #include <sys/types.h> //for stat
@@ -81,7 +82,33 @@ namespace Mist{
       inFile.open(0);
     }else{
       // open File
-      inFile.open(config->getString("input"));
+      std::string inputStr = config->getString("input");
+      size_t rPos = inputStr.rfind('?');
+      if (rPos != std::string::npos){
+        std::string suffix = inputStr.substr(rPos + 1);
+        if (suffix.find("addheader") != std::string::npos){
+          while (suffix.size()){
+            size_t ampersand = suffix.find('&');
+            size_t equals = suffix.find('=');
+            // Check if there's an equals sign
+            if (equals != std::string::npos && equals <  ampersand){
+              std::string var = suffix.substr(0, equals);
+              std::string val = suffix.substr(0, ampersand).substr(equals + 1);
+              if (var == "addheader"){
+                inFile.addHeaders.insert(Encodings::URL::decode(val));
+              }
+            }
+            // Cut off this variable
+            if (ampersand != std::string::npos){
+              suffix = suffix.substr(ampersand + 1);
+            }else{
+              suffix.clear();
+            }
+          }
+          inputStr = inputStr.substr(0, rPos);
+        }
+      }
+      inFile.open(inputStr);
       if (!inFile){
         Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
         return false;

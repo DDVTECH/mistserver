@@ -1053,21 +1053,23 @@ namespace Mist{
         userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
-      if (M.getVod() && !M.getLive() && Util::bootSecs() - statTimer > 1){
-        // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
-        if (statComm){
-          if (!statComm){
-            config->is_active = false;
-            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
-            return;
+      if (Util::bootSecs() - statTimer > 1){
+        if (capa["name"] != "DTSC"){
+          // Connect to stats for INPUT detection
+          if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+          if (statComm){
+            if (!statComm){
+              config->is_active = false;
+              Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
+              return;
+            }
+            uint64_t now = Util::bootSecs();
+            statComm.setNow(now);
+            statComm.setStream(streamName);
+            statComm.setTime(now - startTime);
+            statComm.setLastSecond(0);
+            connStats(statComm);
           }
-          uint64_t now = Util::bootSecs();
-          statComm.setNow(now);
-          statComm.setStream(streamName);
-          statComm.setTime(now - startTime);
-          statComm.setLastSecond(0);
-          connStats(statComm);
         }
 
         statTimer = Util::bootSecs();

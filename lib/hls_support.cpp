@@ -254,7 +254,7 @@ namespace HLS{
     result << "#EXT-X-TARGETDURATION:" << targetDurationMax << "\r\n";
   }
 
-  /// Appends result with encrytion / drm data
+  /// Appends result with encryption / drm data
   void addEncriptionTags(std::stringstream &result, const std::string &encryptMethod){
     // TODO: Add support for media encryption
     if (encryptMethod.size()){

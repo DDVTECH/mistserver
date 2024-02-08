@@ -154,7 +154,7 @@ namespace Socket{
     std::string getBoundAddress() const;
     int getSocket();        ///< Returns internal socket number.
     int getPureSocket();    ///< Returns non-piped internal socket number.
-    std::string getError(); ///< Returns a string describing the last error that occured.
+    std::string getError(); ///< Returns a string describing the last error that occurred.
     bool connected() const; ///< Returns the connected-state for this socket.
     bool isAddress(const std::string &addr);
     bool isLocal(); ///< Returns true if remote address is a local address.
@@ -191,7 +191,7 @@ namespace Socket{
   /// This class is for easily setting up listening socket, either TCP or Unix.
   class Server{
   private:
-    std::string errors; ///< Stores errors that may have occured.
+    std::string errors; ///< Stores errors that may have occurred.
     int sock;           ///< Internally saved socket number.
     bool IPv6bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv6 socket
     bool IPv4bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv4 socket

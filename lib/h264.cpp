@@ -566,7 +566,7 @@ namespace h264{
         << payload.size() << " bytes long" << std::endl;
     out << "  profile_idc: 0x" << std::setw(2) << std::setfill('0') << std::hex << (int)profileIdc
         << std::dec << " (" << (int)profileIdc << ") = " << profile() << std::endl;
-    out << "  contraints: " << (constraintSet0Flag ? "0 " : "") << (constraintSet1Flag ? "1 " : "")
+    out << "  constraints: " << (constraintSet0Flag ? "0 " : "") << (constraintSet1Flag ? "1 " : "")
         << (constraintSet2Flag ? "2 " : "") << (constraintSet3Flag ? "3 " : "")
         << (constraintSet4Flag ? "4 " : "") << (constraintSet5Flag ? "5" : "") << std::endl;
     out << "  level_idc: 0x" << std::setw(2) << std::setfill('0') << std::hex << (int)levelIdc

@@ -39587,7 +39587,7 @@
   };
   /**
    * Creates an object for sending to a web worker modifying properties that are TypedArrays
-   * into a new object with seperated properties for the buffer, byteOffset, and byteLength.
+   * into a new object with separated properties for the buffer, byteOffset, and byteLength.
    *
    * @param {Object} message
    *        Object of properties and values to send to the web worker
@@ -48859,7 +48859,7 @@
    * Handle all error conditions in one place and return an object
    * with all the information
    *
-   * @param {Error|null} error - if non-null signals an error occured with the XHR
+   * @param {Error|null} error - if non-null signals an error occurred with the XHR
    * @param {Object} request -  the XHR request that possibly generated the error
    */
 
@@ -52837,7 +52837,7 @@
 
       /**
        * Creates an object for sending to a web worker modifying properties that are TypedArrays
-       * into a new object with seperated properties for the buffer, byteOffset, and byteLength.
+       * into a new object with separated properties for the buffer, byteOffset, and byteLength.
        *
        * @param {Object} message
        *        Object of properties and values to send to the web worker

@@ -5974,11 +5974,11 @@ var UI = {
                   )
                 ).append(
                   $("<div>").append(
-                    "Data transfered: "+UI.format.bytes(stats.bytes)
+                    "Data transferred: "+UI.format.bytes(stats.bytes)
                   )
                 ).append(
                   $("<div>").append(
-                    "Media time transfered: "+UI.format.duration(stats.mediatime*1e-3)
+                    "Media time transferred: "+UI.format.duration(stats.mediatime*1e-3)
                   )
                 );
                 if ("pkt_retrans_count" in stats) {
@@ -6729,7 +6729,7 @@ var UI = {
                     saveas.target += append;
                   }
                 }
-                delete saveas.params; //these are now part of the target url and we don't need them seperately
+                delete saveas.params; //these are now part of the target url and we don't need them separately
                 delete saveas.custom_url_params;
                 
                 var obj = {};

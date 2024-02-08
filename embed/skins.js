@@ -1617,7 +1617,7 @@ MistSkins["default"] = {
             //gather what tracks we should use
             var usetracks = {};
             for (var i in selections) {
-              if ((i == "subtitle") || (selections[i].value == "")) { continue; } //subtitle tracks are handled seperately
+              if ((i == "subtitle") || (selections[i].value == "")) { continue; } //subtitle tracks are handled separately
               usetracks[i] = selections[i].value;
             }
             if (value != ""){ usetracks[type] = value; }
@@ -2709,7 +2709,7 @@ MistSkins["default"] = {
                   forcePriority: MistVideo.options.forcePriority,
                   setTracks: MistVideo.options.setTracks, //when the track selection is changed through the UI, the selected track is saved in the options, so this passes on the currently enforced tracks
                   controls: false,
-                  skin: "default" //TODO: right now the skin can't really be transfered because there are functions in there that won't be in the JSON. At some point we should fix this, probably by having the Mist backend include a custom skin definition with the player code.
+                  skin: "default" //TODO: right now the skin can't really be transferred because there are functions in there that won't be in the JSON. At some point we should fix this, probably by having the Mist backend include a custom skin definition with the player code.
                 },
                 stream: MistVideo.stream
               };

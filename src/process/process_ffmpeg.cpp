@@ -114,7 +114,7 @@ int main(int argc, char *argv[]){
     capa["optional"]["source_mask"]["default"] = "";
 
     capa["optional"]["target_mask"]["name"] = "Output track mask";
-    capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the ouput track(s)";
+    capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the output track(s)";
     capa["optional"]["target_mask"]["type"] = "select";
     capa["optional"]["target_mask"]["select"][0u][0u] = "";
     capa["optional"]["target_mask"]["select"][0u][1u] = "Keep original value";

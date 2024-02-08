@@ -359,9 +359,9 @@ p.prototype.build = function (MistVideo,callback) {
         }
         player.msgqueue.shift();
         if (player.msgqueue.length == 0) { player.msgqueue = false; }
-        MistVideo.log("The newly initialized source buffer was filled with data from a seperate message queue."+(player.msgqueue ? " "+player.msgqueue.length+" more message queue(s) remain." : ""));
+        MistVideo.log("The newly initialized source buffer was filled with data from a separate message queue."+(player.msgqueue ? " "+player.msgqueue.length+" more message queue(s) remain." : ""));
         if (do_do) {
-          MistVideo.log("The seperate message queue was empty; manually triggering any onupdateend functions");
+          MistVideo.log("The separate message queue was empty; manually triggering any onupdateend functions");
           player.sb.dispatchEvent(new Event("updateend"));
         }
       }
@@ -817,9 +817,9 @@ p.prototype.build = function (MistVideo,callback) {
           }
           else {
             //There is no active source buffer or we're preparing for a track switch.
-            //Any data is kept in a seperate buffer and won't be appended to the source buffer until it is reinitialised.
+            //Any data is kept in a separate buffer and won't be appended to the source buffer until it is reinitialised.
             if (!player.msgqueue) { player.msgqueue = [[]]; }
-            //There may be more than one seperate buffer (in case of rapid track switches), always append to the last of the buffers
+            //There may be more than one separate buffer (in case of rapid track switches), always append to the last of the buffers
             player.msgqueue[player.msgqueue.length-1].push(data);
           }
         }

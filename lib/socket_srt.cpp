@@ -277,7 +277,7 @@ namespace Socket{
         sock = -1;
         ERROR_MSG("Can not listen on Socket");
       }
-      INFO_MSG("Listener SRT socket sucess @ %s:%u", _host.c_str(), _port);
+      INFO_MSG("Listener SRT socket success @ %s:%u", _host.c_str(), _port);
       lastGood = Util::bootMS();
       return;
     }
@@ -309,7 +309,7 @@ namespace Socket{
         ERROR_MSG("Error during postconfigure socket");
         return;
       }
-      INFO_MSG("Rendezvous SRT socket sucess @ %s:%u", _host.c_str(), _port);
+      INFO_MSG("Rendezvous SRT socket success @ %s:%u", _host.c_str(), _port);
       lastGood = Util::bootMS();
       return;
     }

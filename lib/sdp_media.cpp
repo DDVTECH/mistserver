@@ -719,7 +719,7 @@ namespace SDP{
 
     size_t pos = str.find("=");
     if (pos == std::string::npos){
-      WARN_MSG("Cannot get `name` and `value` from string becuase it doesn't contain a `=` sign. "
+      WARN_MSG("Cannot get `name` and `value` from string because it doesn't contain a `=` sign. "
                "String is: `%s`. Returning the string as is.",
                str.c_str());
       value = str;

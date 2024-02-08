@@ -753,8 +753,8 @@ int Socket::Connection::getPureSocket(){
   return sSend;
 }
 
-/// Returns a string describing the last error that occured.
-/// Only reports errors if an error actually occured - returns the host address or empty string
+/// Returns a string describing the last error that occurred.
+/// Only reports errors if an error actually occurred - returns the host address or empty string
 /// otherwise.
 std::string Socket::Connection::getError(){
   return lastErr;

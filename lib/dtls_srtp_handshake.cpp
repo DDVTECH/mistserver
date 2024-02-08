@@ -225,7 +225,7 @@ int DTLSSRTPHandshake::parse(const uint8_t *data, size_t nbytes){
       break;
     }
     default:{
-      ERROR_MSG("A serious mbedtls error occured.");
+      ERROR_MSG("A serious mbedtls error occurred.");
       print_mbedtls_error(r);
       return -2;
     }

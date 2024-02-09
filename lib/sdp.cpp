@@ -596,14 +596,11 @@ namespace SDP{
             // dynamic type
             if (avp_type >= 96 && avp_type <= 127){
               HIGH_MSG("Dynamic payload type (%" PRIu64 ") detected", avp_type);
-              nope = false;
-              continue;
             }else{
-              FAIL_MSG("Payload type %" PRIu64 " not supported!", avp_type);
-              myMeta->removeTrack(tid);
-              tracks.erase(tid);
-              continue;
+              HIGH_MSG("Payload type %" PRIu64 " not recognized. Assuming it's dynamic", avp_type);
             }
+            nope = false;
+            continue;
           }
         }
         tConv[tid].setProperties(*myMeta, tid);

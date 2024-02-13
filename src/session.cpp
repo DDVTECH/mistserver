@@ -41,6 +41,10 @@ void handleSignal(int signum){
   }
 }
 
+uint64_t lastUrlCookieTime;
+std::string lastUrl;
+std::string lastCookie;
+
 const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 void userOnActive(Comms::Connections &connections, size_t idx){
@@ -50,6 +54,14 @@ void userOnActive(Comms::Connections &connections, size_t idx){
   std::string thisConnector = connections.getConnector(idx);
   std::string thisStreamName = connections.getStream(idx);
   const std::string& thisHost = connections.getHost(idx);
+
+  if (lastUpdate >= lastUrlCookieTime){
+    lastUrlCookieTime = lastUpdate;
+    if (connections.getURL(idx).size()){
+      lastUrl = connections.getURL(idx);
+      lastCookie = connections.getCookie(idx);
+    }
+  }
 
   if (connections.getLastSecond(idx) > lastSecond){lastSecond = connections.getLastSecond(idx);}
   // Save info on the latest active stream, protocol and host separately
@@ -274,12 +286,16 @@ int main(int argc, char **argv){
       currentConnections = 0;
       lastSecond = 0;
       now = Util::bootSecs();
+      lastUrlCookieTime = 0;
 
       // Loop through all connection entries to get a summary of statistics
       COMM_LOOP(connections, userOnActive(connections, id), userOnDisconnect(connections, id));
       if (currentConnections){
         globalTime++;
         lastSeen = now;
+        if (lastCookie.size()){
+          setenv("Cookie", lastCookie.c_str(), 1);
+        }
       }
 
 
@@ -352,7 +368,7 @@ int main(int argc, char **argv){
           INFO_MSG("Triggering USER_NEW for stream %s", thisStreamName.c_str());
           std::string payload = thisStreamName + "\n" + host + "\n" +
                                 thisToken + "\n" + thisProtocol +
-                                "\n" + thisReqUrl + "\n" + thisSessionId;
+                                "\n" + thisReqUrl + "\n" + thisSessionId + "\n" + lastUrl;
           if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
             INFO_MSG("USER_NEW rejected stream %s", thisStreamName.c_str());
             Util::logExitReason(ER_TRIGGER, "Session rejected by USER_NEW");

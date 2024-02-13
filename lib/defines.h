@@ -174,7 +174,7 @@ static inline void show_stackframe(){}
 #define DEFAULT_PAGE_TIMEOUT 15
 
 /// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
-#define META_META_OFFSET 153
+#define META_META_OFFSET 151
 #define META_META_RECORDSIZE 613
 
 #define META_TRACK_OFFSET 148

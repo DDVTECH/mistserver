@@ -441,6 +441,8 @@ namespace Comms{
     dataAccX.addField("pktcount", RAX_64UINT);
     dataAccX.addField("pktloss", RAX_64UINT);
     dataAccX.addField("pktretrans", RAX_64UINT);
+    dataAccX.addField("url", RAX_STRING, 256);
+    dataAccX.addField("cookie", RAX_STRING, 256);
   }
 
   void Connections::nullFields(){
@@ -456,6 +458,8 @@ namespace Comms{
     setPacketCount(0);
     setPacketLostCount(0);
     setPacketRetransmitCount(0);
+    setURL("");
+    setCookie("");
   }
 
   void Connections::fieldAccess(){
@@ -471,6 +475,8 @@ namespace Comms{
     pktcount = dataAccX.getFieldAccX("pktcount");
     pktloss = dataAccX.getFieldAccX("pktloss");
     pktretrans = dataAccX.getFieldAccX("pktretrans");
+    url = dataAccX.getFieldAccX("url");
+    cookie = dataAccX.getFieldAccX("cookie");
   }
 
   uint64_t Connections::getNow() const{return now.uint(index);}
@@ -584,6 +590,23 @@ namespace Comms{
     if (!master){return;}
     pktretrans.set(_retrans, idx);
   }
+
+  std::string Connections::getURL() const{return url.string(index);}
+  std::string Connections::getURL(size_t idx) const{return (master ? url.string(idx) : "");}
+  void Connections::setURL(std::string _stream){url.set(_stream, index);}
+  void Connections::setURL(std::string _stream, size_t idx){
+    if (!master){return;}
+    url.set(_stream, idx);
+  }
+
+  std::string Connections::getCookie() const{return cookie.string(index);}
+  std::string Connections::getCookie(size_t idx) const{return (master ? cookie.string(idx) : "");}
+  void Connections::setCookie(std::string _stream){cookie.set(_stream, index);}
+  void Connections::setCookie(std::string _stream, size_t idx){
+    if (!master){return;}
+    cookie.set(_stream, idx);
+  }
+
 
   /// \brief Generates a session ID which is unique per viewer
   /// \return generated session ID as string

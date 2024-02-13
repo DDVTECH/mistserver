@@ -29,6 +29,17 @@ namespace Mist{
     }
   }
 
+  void HTTPOutput::connStats(uint64_t now, Comms::Connections &statComm){
+    Output::connStats(now, statComm);
+    statComm.setURL(reqUrl);
+    char * cookie = getenv("Cookie");
+    if (cookie){
+      statComm.setCookie(cookie);
+    }else{
+      statComm.setCookie("");
+    }
+  }
+
   void HTTPOutput::init(Util::Config *cfg){
     Output::init(cfg);
     capa["deps"] = "HTTP";

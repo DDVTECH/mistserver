@@ -27,6 +27,7 @@ namespace Mist{
     bool parseRange(std::string header, uint64_t &byteStart, uint64_t &byteEnd);
 
   protected:
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
     std::string fwdHostStr; ///< Forwarded string IP, if non-empty
     std::string fwdHostBin; ///< Forwarded binary IP, if non-empty
     bool responded;

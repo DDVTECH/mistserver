@@ -441,8 +441,8 @@ namespace Comms{
     dataAccX.addField("pktcount", RAX_64UINT);
     dataAccX.addField("pktloss", RAX_64UINT);
     dataAccX.addField("pktretrans", RAX_64UINT);
-    dataAccX.addField("url", RAX_STRING, 256);
-    dataAccX.addField("cookie", RAX_STRING, 256);
+    dataAccX.addField("url", RAX_STRING, 512);
+    dataAccX.addField("cookie", RAX_STRING, 2048);
   }
 
   void Connections::nullFields(){

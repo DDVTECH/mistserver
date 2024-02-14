@@ -647,13 +647,23 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
       {
         std::string cookie;
         if (hasHeader("Cookie")){cookie = GetHeader("Cookie");}
-        if (hasHeader("Livepeer-Access-Key")){
-          if (cookie.size()){cookie += "; ";}
-          cookie += std::string("Livepeer-Access-Key=") + Encodings::URL::encode(GetHeader("Livepeer-Access-Key"));
-        }
-        if (hasHeader("Livepeer-Jwt")){
-          if (cookie.size()){cookie += "; ";}
-          cookie += std::string("Livepeer-Jwt=") + Encodings::URL::encode(GetHeader("Livepeer-Jwt"));
+        std::deque<std::string> hdrs;
+        hdrs.push_back("Livepeer-Access-Key");
+        hdrs.push_back("Livepeer-Jwt");
+        hdrs.push_back("Tx-Stream-Id");
+        hdrs.push_back("X-Forwarded-For");
+        hdrs.push_back("X-Forwarded-Proto");
+        hdrs.push_back("X-Tlive-Spanid");
+        hdrs.push_back("Host");
+        hdrs.push_back("Referer");
+        hdrs.push_back("Origin");
+        hdrs.push_back("User-Agent");
+        while (hdrs.size()){
+          if (hasHeader(hdrs.front())){
+            if (cookie.size()){cookie += "; ";}
+            cookie += hdrs.front() + std::string("=") + Encodings::URL::encode(GetHeader(hdrs.front()));
+          }
+          hdrs.pop_front();
         }
         if (cookie.size()){
           setenv("Cookie", cookie.c_str(), 1);

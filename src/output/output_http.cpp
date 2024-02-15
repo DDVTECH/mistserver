@@ -574,17 +574,14 @@ namespace Mist{
 
     //Play command, sets pause state off and optionally also seeks
     if (command["type"] == "play") {
+      bool wasPlaying = parseData;
       parseData = true;
       if (command.isMember("seek_time")){
         handleWebsocketSeek(command);
       }else{
-        if (!currentTime()){
+        if (!wasPlaying){
           command["seek_time"] = 0;
           handleWebsocketSeek(command);
-        }else{
-          parseData = true;
-          selectDefaultTracks();
-          firstTime = Util::bootMS() - (lastPacketTime / target_rate);
         }
       }
       return true;

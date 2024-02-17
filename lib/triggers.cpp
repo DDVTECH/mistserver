@@ -210,15 +210,15 @@ namespace Triggers{
     {
       const char * charset = "0123456789abcdef";
       std::string uuid = "00000000-0000-4000-D000-000000000000";
-      //Primitive seeding of the prng
-      srand(Util::mix(clock(), time(0), getpid()));
       for (size_t i = 0; i < uuid.size(); ++i){
+        uint32_t ranNum;
+        Util::getRandomBytes(&ranNum, 4);
         if (uuid[i] == 'D'){
-          uuid[i] = charset[8+rand()%4];
+          uuid[i] = charset[8+ranNum%4];
           continue;
         }
         if (uuid[i] != '0'){continue;}
-        uuid[i] = charset[rand()%16];
+        uuid[i] = charset[ranNum%16];
       }
       setenv("MIST_TUUID", uuid.c_str(), 1);
     }

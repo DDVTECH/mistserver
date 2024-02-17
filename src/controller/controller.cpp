@@ -369,7 +369,7 @@ int main_loop(int argc, char **argv){
     }
     setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
   }
-  
+
   Controller::readConfigFromDisk();
   Controller::writeConfig();
   if (!Controller::conf.is_active){return 0;}
@@ -485,9 +485,10 @@ int main_loop(int argc, char **argv){
 
   // Generate instanceId once per boot.
   if (Controller::instanceId == ""){
-    srand(Util::mix(clock(), time(0), getpid()));
     do{
-      Controller::instanceId += (char)(64 + rand() % 62);
+      uint32_t ranNum;
+      Util::getRandomBytes(&ranNum, 4);
+      Controller::instanceId += (char)(64 + ranNum % 62);
     }while (Controller::instanceId.size() < 16);
   }
 

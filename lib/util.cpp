@@ -189,7 +189,7 @@ namespace Util{
     }
     val = val.substr(startPos, length);
   }
-  
+
   /// \brief splits a string on commas and returns a list of substrings
   void splitString(std::string &src, char delim, std::deque<std::string> &result){
     result.clear();
@@ -298,7 +298,9 @@ namespace Util{
     std::string s;
     for (int i = 0; i < len; ++i)
     {
-      s.push_back(alphanum[rand() % (sizeof(alphanum) - 1)]);
+      uint32_t ranNum;
+      Util::getRandomBytes(&ranNum, 4);
+      s.push_back(alphanum[ranNum % (sizeof(alphanum) - 1)]);
     }
 
     return s;
@@ -317,6 +319,16 @@ namespace Util{
     }
     DONTEVEN_MSG("Waiting %" PRId64 " ms out of %" PRId64 " for iteration %zu/%zu", w, maxWait, currIter, maxIter);
     return w;
+  }
+
+  /// Secure random bytes generator
+  /// Uses /dev/urandom internally
+  void getRandomBytes(void * dest, size_t len){
+    static FILE * randSource = fopen("/dev/urandom", "rb");
+    if (fread((void *)dest, len, 1, randSource) != 1){
+      WARN_MSG("Reading random data failed - generating using rand() as backup");
+      for (size_t i = 0; i < len; ++i){((char*)dest)[i] = rand() % 255;}
+    }
   }
 
   /// 64-bits version of ftell
@@ -559,7 +571,7 @@ namespace Util{
           while (line.find('\n') != std::string::npos){line.erase(line.find('\n'));}
           dprintf(out, "INFO|%s|%d||%s|%s\n", progName, pid, Util::streamName, line.c_str());
           line.clear();
-        }      
+        }
       }else{Util::sleep(25);}
     }
     errStream.close();

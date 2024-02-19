@@ -4299,8 +4299,18 @@ var UI = {
         }
         
         var filetypes = [];
+        var $source_datalist = $("<datalist>").attr("id","source_datalist");
+        var $source_info = $("<div>").addClass("source_info");
+        var dynamic_capa_rate_limit = false;
+        var dynamic_capa_source = false;
         for (var i in mist.data.capabilities.inputs) {
-          filetypes.push(mist.data.capabilities.inputs[i].source_match);
+          for (var j in mist.data.capabilities.inputs[i].source_match) {
+            filetypes.push(mist.data.capabilities.inputs[i].source_match[j]);
+            
+            $source_datalist.append(
+              $("<option>").val(mist.data.capabilities.inputs[i].source_match[j])
+            );
+          }
         }
         var $inputoptions = $('<div>');
         
@@ -4591,6 +4601,7 @@ var UI = {
         ,
             'function': function(){
               var source = $(this).val();
+              var $source_field = $(this);
               $style.remove();
               $livestreamhint.html('');
               if (source == '') { return; }
@@ -4608,94 +4619,189 @@ var UI = {
                 ).append(
                   $('<span>').text('Please edit the stream source.').addClass('red')
                 );
+
+                $source_info.html("");
                 return;
               }
               var input = mist.data.capabilities.inputs[type];
-              $inputoptions.html(
-                $('<h3>').text(input.name+' Input options')
-              );
-              var build = mist.convertBuildOptions(input,saveas);
-              if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
-                build.push({
-                  label: 'Always on',
-                  type: 'checkbox',
-                  help: 'Keep this input available at all times, even when there are no active viewers.',
-                  pointer: {
-                    main: saveas,
-                    index: 'always_on'
-                  },
-                  value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
-                });
+
+              var t = $source_info.find("div");
+              if (t.length) {
+                t.removeClass("active");
+                t.filter("[data-source=\""+source+"\"]").addClass("active");
               }
-              $inputoptions.append(UI.buildUI(build));
-              if (input.name == 'Folder') {
-                $main.append($style);
-              }
-              else if (['Buffer','Buffer.exe','TS','TS.exe'].indexOf(input.name) > -1) {
-                var fields = [$("<br>"),$('<span>').text('Configure your source to push to:')];
-                switch (input.name) {
-                  case 'Buffer':
-                  case 'Buffer.exe':
-                    fields.push({
-                      label: 'RTMP full url',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTMP'],
-                      help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
-                    });
-                    fields.push({
-                      label: 'RTMP url',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTMPurl'],
-                      help: 'Use this RTMP url if your client also asks for a stream key'
-                    });
-                    fields.push({
-                      label: 'RTMP stream key',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTMPkey'],
-                      help: 'Use this key if your client asks for a stream key'
-                    });
-                    fields.push({
-                      label: 'SRT',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['TSSRT']
-                    });
-                    fields.push({
-                      label: 'RTSP',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTSP']
-                    });
-                    break;
-                  case 'TS':
-                  case 'TS.exe':
-                    if (source.charAt(0) == "/") {
-                      fields = [];
+              
+              function update_input_options(source) {
+                var input_options = $.extend({},input);
+                if (input.dynamic_capa) {
+                  input_options.desc = "Loading dynamic capabilities..";
+
+                  //the capabilities for this input can change depending on the source string
+                  if (!("dynamic_capa_results" in input) || (!(source in input.dynamic_capa_results))) {
+                    dynamic_capa_source = source;
+
+                    //we don't know the capabilities for this source string yet
+                    if (dynamic_capa_rate_limit) {
+                      //some other call is already in the waiting list, don't make a new one
+                      return;
+                    }
+                    dynamic_capa_rate_limit = setTimeout(function(){
+                      if (!("dynamic_capa_results" in input)) {
+                        input.dynamic_capa_results = {};
+                      }
+                      input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
+                      mist.send(function(d){
+                        dynamic_capa_rate_limit = false;
+                        input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
+                        update_input_options(dynamic_capa_source);
+                      },{capabilities:dynamic_capa_source});
+                    },1e3); //one second rate limit
+
+
+                  }
+                  else {
+                    //we know them, apply
+                    delete input_options.desc;
+                    if (input.dynamic_capa_results[source]) {
+                      input_options = input.dynamic_capa_results[source];
+                    }
+                  }
+                }
+                $inputoptions.html(
+                  $('<h3>').text(input.name+' Input options')
+                );                
+                var build = mist.convertBuildOptions(input_options,saveas);
+                if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
+                  build.push({
+                    label: 'Always on',
+                    type: 'checkbox',
+                    help: 'Keep this input available at all times, even when there are no active viewers.',
+                    pointer: {
+                      main: saveas,
+                      index: 'always_on'
+                    },
+                    value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
+                  });
+                }
+                $inputoptions.append(UI.buildUI(build));
+
+                $source_info.html("");
+                if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
+                  //this input can enumerate supported devices, and the source string matches the specified static prefix
+                  
+                  function display_sources() {
+                    //add to source info container
+                    $source_info.html(
+                      $("<p>").text("Possible sources for "+input.name+": (click to set)")
+                    );
+                    var sources = input.enumerated_sources[input.enum_static_prefix];
+                    for (var i in sources) {
+                      var v = sources[i].split(" ")[0];
+                      $source_info.append(
+                        $("<div>").attr("data-source",v).text(sources[i]).click(function(){
+                          var t = $(this).attr("data-source");
+                          $source_field.val(t).trigger("change");                          
+                        }).addClass(v == source ? "active":"")
+                      );
+                    }
+
+                  }
+
+                  function apply_enumerated_sources() {
+                    if ((!("enumerated_sources" in input)) || (!(input.enum_static_prefix in input.enumerated_sources))) {
+                      if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                      input.enumerated_sources[input.enum_static_prefix] = []; //"reserve" the space so we won't make duplicate requests
+                      setTimeout(function(){
+                        //remove the reserved space so that we can collect new values
+                        delete input.enumerated_sources[input.enum_static_prefix];
+                      },10e3);
+                      mist.send(function(d){
+                        //save
+                        if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                        input.enumerated_sources[input.enum_static_prefix] = d.enumerate_sources;
+                        
+                        display_sources();
+
+                      },{enumerate_sources:source});
                     }
                     else {
+                      display_sources();
+                    }
+                  }
+                  apply_enumerated_sources();
+                }
+
+                if (input.name == 'Folder') {
+                  $main.append($style);
+                }
+                else if (['Buffer','Buffer.exe','TS','TS.exe'].indexOf(input.name) > -1) {
+                  var fields = [$("<br>"),$('<span>').text('Configure your source to push to:')];
+                  switch (input.name) {
+                    case 'Buffer':
+                    case 'Buffer.exe':
                       fields.push({
-                        label: 'TS',
+                        label: 'RTMP full url',
                         type: 'span',
                         clipboard: true,
                         readonly: true,
-                        classes: ['TS']
+                        classes: ['RTMP'],
+                        help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
                       });
-                    }
-                    break;
+                      fields.push({
+                        label: 'RTMP url',
+                        type: 'span',
+                        clipboard: true,
+                        readonly: true,
+                        classes: ['RTMPurl'],
+                        help: 'Use this RTMP url if your client also asks for a stream key'
+                      });
+                      fields.push({
+                        label: 'RTMP stream key',
+                        type: 'span',
+                        clipboard: true,
+                        readonly: true,
+                        classes: ['RTMPkey'],
+                        help: 'Use this key if your client asks for a stream key'
+                      });
+                      fields.push({
+                        label: 'SRT',
+                        type: 'span',
+                        clipboard: true,
+                        readonly: true,
+                        classes: ['TSSRT']
+                      });
+                      fields.push({
+                        label: 'RTSP',
+                        type: 'span',
+                        clipboard: true,
+                        readonly: true,
+                        classes: ['RTSP']
+                      });
+                      break;
+                    case 'TS':
+                    case 'TS.exe':
+                      if (source.charAt(0) == "/") {
+                        fields = [];
+                      }
+                      else {
+                        fields.push({
+                          label: 'TS',
+                          type: 'span',
+                          clipboard: true,
+                          readonly: true,
+                          classes: ['TS']
+                        });
+                      }
+                      break;
+                  }
+                  $livestreamhint.html(UI.buildUI(fields));
+                  updateLiveStreamHint();
                 }
-                $livestreamhint.html(UI.buildUI(fields));
-                updateLiveStreamHint();
               }
+
+              update_input_options(source);
             }
-          },{
+          },$source_datalist,$source_info,{
             label: 'Stop sessions',
             type: 'checkbox',
             help: 'When saving these stream settings, kill this stream\'s current connections.',
@@ -4738,6 +4844,8 @@ var UI = {
           updateLiveStreamHint();
         });
         updateLiveStreamHint();
+
+        $main.find('[name="source"]').attr("list","source_datalist");
         
         break;
       case 'Preview':
@@ -6565,6 +6673,7 @@ var UI = {
                 );
                 return;
               }
+              if (!("friendly" in mist.data.capabilities.connectors[match])) { mist.data.capabilities.connectors[match].friendly = mist.data.capabilities.connectors[match].name; }
               $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
               push_parameters = {};
               //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
@@ -7738,6 +7847,10 @@ var mist = {
             if (("bandwidth" in data) && (!("bandwidth" in d))) {
               save.bandwidth = null;
             }
+            if (opts.sendData.capabilities && (opts.sendData.capabilities !== true)) {
+              //a specific type of capabilities was requested. Don't overwrite generic capability data
+              delete save.capabilities;
+            }
             
             $.extend(mist.data,save);
             
@@ -7977,6 +8090,9 @@ var mist = {
       }
       if ('placeholder' in ele) {
         obj.placeholder = ele.placeholder;
+      }
+      if ("datalist" in ele) {
+        obj.datalist = ele.datalist; 
       }
       if ("type" in ele) {
         switch (ele.type) {

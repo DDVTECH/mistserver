@@ -763,6 +763,33 @@ body:not(.helpme) .input_container .description {
 body:not(.helpme) .input_container .ih_balloon {
   display: none;
 }
+
+.source_info {
+  font-size: 0.9em;
+  column-width: 25em;
+  margin-left: 1em;
+}
+.source_info:not(:empty) {
+  margin-bottom: 1em;
+}
+.source_info > p {
+  margin: 0;
+}
+.source_info > div {
+  color: #777;
+  cursor: pointer;
+}
+.source_info > div:hover,
+.source_info > div.active {
+  color: inherit;
+}
+.source_info > div:before {
+  content: '☐ ';
+}
+.source_info > div.active:before {
+  content: '☑ ';
+}
+
 #popup {
   position: fixed;
   top: 5%;

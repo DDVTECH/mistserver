@@ -22,10 +22,25 @@
 #include <mbedtls/debug.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
+
+#if !HAVE_UPSTREAM_MBEDTLS_SRTP
 #include <mbedtls/net.h>
+#else
+#include <mbedtls/net_sockets.h>
+#endif
+
 #include <mbedtls/ssl.h>
 #include <mbedtls/ssl_cookie.h>
 #include <mbedtls/timing.h>
+#include <mbedtls/version.h>
+
+#if MBEDTLS_VERSION_MAJOR == 2
+#include <mbedtls/certs.h>
+#include <mbedtls/config.h>
+#else
+#include <mbedtls/build_info.h>
+#endif
+
 #endif
 
 #include "util.h"
@@ -270,5 +285,10 @@ namespace Socket{
 
     // dTLS-related public members
     std::string cipher, remote_key, local_key, remote_salt, local_salt;
+#if HAVE_UPSTREAM_MBEDTLS_SRTP
+    unsigned char master_secret[48];
+    unsigned char randbytes[64];
+    mbedtls_tls_prf_types tls_prf_type;
+#endif
   };
 }// namespace Socket

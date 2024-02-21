@@ -1663,6 +1663,23 @@ void Socket::UDPConnection::init(bool _nonblock, int _family){
 #endif
 }
 
+#if HAVE_UPSTREAM_MBEDTLS_SRTP
+#if MBEDTLS_VERSION_MAJOR > 2
+static void dtlsExtractKeyData( void *user, mbedtls_ssl_key_export_type type, const unsigned char *ms, size_t, const unsigned char client_random[32], const unsigned char server_random[32], mbedtls_tls_prf_types tls_prf_type){
+#else
+static int dtlsExtractKeyData( void *user, const unsigned char *ms, const unsigned char *, size_t, size_t, size_t, const unsigned char client_random[32], const unsigned char server_random[32], mbedtls_tls_prf_types tls_prf_type){
+#endif
+  Socket::UDPConnection *udpSock = static_cast<Socket::UDPConnection *>(user);
+  memcpy(udpSock->master_secret, ms, sizeof(udpSock->master_secret));
+  memcpy(udpSock->randbytes, client_random, 32);
+  memcpy(udpSock->randbytes + 32, server_random, 32);
+  udpSock->tls_prf_type = tls_prf_type;
+#if MBEDTLS_VERSION_MAJOR == 2
+  return 0;
+#endif
+}
+#endif
+
 void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key){
   hasDTLS = true;
   nextDTLSRead = 0;
@@ -1710,12 +1727,21 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
   //mbedtls_debug_set_threshold(10);
 
   // enable SRTP support (non-fatal on error)
+#if !HAVE_UPSTREAM_MBEDTLS_SRTP
   mbedtls_ssl_srtp_profile srtpPro[] ={MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80, MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32};
   r = mbedtls_ssl_conf_dtls_srtp_protection_profiles(&ssl_conf, srtpPro, sizeof(srtpPro) / sizeof(srtpPro[0]));
+#else
+  static mbedtls_ssl_srtp_profile srtpPro[] ={MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80, MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32, MBEDTLS_TLS_SRTP_UNSET};
+  r = mbedtls_ssl_conf_dtls_srtp_protection_profiles(&ssl_conf, srtpPro);
+#endif
   if (r){
     mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
     WARN_MSG("dTLS could not set SRTP profiles: %s", mbedtls_msg);
   }
+
+#if HAVE_UPSTREAM_MBEDTLS_SRTP && MBEDTLS_VERSION_MAJOR == 2
+  mbedtls_ssl_conf_export_keys_ext_cb(&ssl_conf, dtlsExtractKeyData, this);
+#endif
 
   /* cert certificate chain + key, so we can verify the client-hello signed data */
   r = mbedtls_ssl_conf_own_cert(&ssl_conf, cert, key);
@@ -1741,6 +1767,10 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
     FAIL_MSG("dTLS could not setup: %s", mbedtls_msg);
     return;
   }
+
+#if MBEDTLS_VERSION_MAJOR > 2
+   mbedtls_ssl_set_export_keys_cb(&ssl_ctx, dtlsExtractKeyData, this);
+#endif
 
   // set input/output callbacks
   mbedtls_ssl_set_bio(&ssl_ctx, (void *)this, dTLS_send, dTLS_recv, NULL);
@@ -2194,7 +2224,11 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
 /// Note: Only actually encrypts if initDTLS was called in the past.
 void Socket::UDPConnection::sendPaced(const char *sdata, size_t len, bool encrypt){
   if (hasDTLS && encrypt){
+#if MBEDTLS_VERSION_MAJOR > 2
+    if (!mbedtls_ssl_is_handshake_over(&ssl_ctx)){
+#else
     if (ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER){
+#endif
       WARN_MSG("Attempting to write encrypted data before handshake completed! Data was thrown away.");
       return;
     }
@@ -2622,12 +2656,18 @@ bool Socket::UDPConnection::onData(){
     nextDTLSRead = data;
     nextDTLSReadLen = data.size();
     // Complete dTLS handshake if needed
+#if MBEDTLS_VERSION_MAJOR > 2
+    if (!mbedtls_ssl_is_handshake_over(&ssl_ctx)){
+#else
     if (ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER){
+#endif
       do{
         r = mbedtls_ssl_handshake(&ssl_ctx);
         switch (r){
         case 0:{ // Handshake complete
           INFO_MSG("dTLS handshake complete!");
+
+#if !HAVE_UPSTREAM_MBEDTLS_SRTP
           int extrRes = 0;
           uint8_t keying_material[MBEDTLS_DTLS_SRTP_MAX_KEY_MATERIAL_LENGTH];
           size_t keying_material_len = sizeof(keying_material);
@@ -2654,6 +2694,40 @@ bool Socket::UDPConnection::onData(){
             return Receive();
           }
           }
+#else
+          uint8_t keying_material[MBEDTLS_TLS_SRTP_MAX_MKI_LENGTH] = {};
+          mbedtls_dtls_srtp_info info = {};
+          mbedtls_ssl_get_dtls_srtp_negotiation_result(&ssl_ctx, &info);
+
+          if (mbedtls_ssl_tls_prf(tls_prf_type, master_secret, sizeof(master_secret), "EXTRACTOR-dtls_srtp", randbytes,sizeof( randbytes ), keying_material, sizeof( keying_material )) != 0){
+            ERROR_MSG("mbedtls_ssl_tls_prf failed to create keying_material");
+            return Receive();
+          }
+#if MBEDTLS_VERSION_MAJOR > 2
+          mbedtls_ssl_srtp_profile chosen_profile = info.private_chosen_dtls_srtp_profile;
+#else
+          mbedtls_ssl_srtp_profile chosen_profile = info.chosen_dtls_srtp_profile;
+#endif
+          switch (chosen_profile){
+          case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80:{
+            cipher = "SRTP_AES128_CM_SHA1_80";
+            break;
+          }
+          case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32:{
+            cipher = "SRTP_AES128_CM_SHA1_32";
+            break;
+          }
+          case MBEDTLS_TLS_SRTP_UNSET: {
+            WARN_MSG("Wasn't able to negotiate the use of DTLS-SRTP");
+            return Receive();
+          }
+          default:{
+            WARN_MSG("Unhandled SRTP profile: %hu, cannot extract keying material.", chosen_profile);
+            return Receive();
+          }
+          }
+#endif
+
           remote_key.assign((char *)(&keying_material[0]) + 0, 16);
           local_key.assign((char *)(&keying_material[0]) + 16, 16);
           remote_salt.assign((char *)(&keying_material[0]) + 32, 14);

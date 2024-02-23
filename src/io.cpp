@@ -245,7 +245,7 @@ namespace Mist{
     uint64_t pageSize = tPages.getInt("size", pageIdx);
     INSANE_MSG("Current packet %" PRIu64 " on track %" PRIu32 " has an offset on page %s of %" PRIu64, packTime, packTrack, page.name.c_str(), pageOffset);
     // Do nothing when there is not enough free space on the page to add the packet.
-    static hasFailed = false;
+    static bool hasFailed = false;
     if (pageSize - pageOffset < packDataLen){
       if (!hasFailed){
         FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64 " (suppressing this message until next success)",

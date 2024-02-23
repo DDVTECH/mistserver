@@ -245,11 +245,16 @@ namespace Mist{
     uint64_t pageSize = tPages.getInt("size", pageIdx);
     INSANE_MSG("Current packet %" PRIu64 " on track %" PRIu32 " has an offset on page %s of %" PRIu64, packTime, packTrack, page.name.c_str(), pageOffset);
     // Do nothing when there is not enough free space on the page to add the packet.
+    static hasFailed = false;
     if (pageSize - pageOffset < packDataLen){
-      FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64,
+      if (!hasFailed){
+        FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64 " (suppressing this message until next success)",
                packTrack, currPagNum, packTime, packDataLen, pageSize, pageOffset);
+      }
+      hasFailed = true;
       return;
     }
+    hasFailed = false;
 
     // First generate only the payload on the correct destination
     // Leaves the 20 bytes inbetween empty to ensure the data is not accidentally read before it is
@@ -350,7 +355,7 @@ namespace Mist{
                                    size_t packDataSize, uint64_t packBytePos, bool isKeyframe){
     bufferLivePacket(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, meta);
   }
-  
+
   ///Buffers the given packet data into the given metadata structure.
   ///Uses class member variables livePage and curPageNum internally for bookkeeping.
   ///These member variables are not (and should not, in the future) be accessed anywhere else.
@@ -390,7 +395,7 @@ namespace Mist{
         WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, aMeta.getLastms(packTrack), packTime);
       }
     }
-    
+
     // Determine if we need to open the next page
     if (isKeyframe){
       updateTrackFromKeyframe(packTrack, packData, packDataSize, aMeta);

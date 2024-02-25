@@ -16,6 +16,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include "util.h"
+
 #ifdef __FreeBSD__
 #include <netinet/in.h>
 #endif

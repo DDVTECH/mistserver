@@ -585,53 +585,54 @@ void Util::Config::activate(){
 /// signal, and ignores all other signals.
 void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   switch (signum){
-  case SIGINT: // these three signals will set is_active to false.
-  case SIGHUP:
-  case SIGTERM:
-    if (serv_sock_pointer){serv_sock_pointer->close();}
-    if (stdin){fclose(stdin);}
+    case SIGINT: // these three signals will set is_active to false.
+    case SIGHUP:
+    case SIGTERM:
+      if (serv_sock_pointer){serv_sock_pointer->close();}
+      if (stdin){fclose(stdin);}
 #if DEBUG >= DLVL_DEVEL
-    static int ctr = 0;
-    if (!is_active && ++ctr > 4){BACKTRACE;}
+      //static int ctr = 0;
+      //if (!is_active && ++ctr > 4){BACKTRACE;}
 #endif
-    switch (sigInfo->si_code){
-    case SI_USER:
-    case SI_QUEUE:
-    case SI_TIMER:
-    case SI_ASYNCIO:
-    case SI_MESGQ:
-      logExitReason("signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
+      switch (sigInfo->si_code){
+        case SI_USER:
+        case SI_QUEUE:
+        case SI_TIMER:
+        case SI_ASYNCIO:
+        case SI_MESGQ:
+        default:
+          logExitReason("signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
+          break;
+        //default: logExitReason("signal %s (%d)", strsignal(signum), signum);
+      }
+      is_active = false;
+    default:
+      switch (sigInfo->si_code){
+        case SI_USER:
+        case SI_QUEUE:
+        case SI_TIMER:
+        case SI_ASYNCIO:
+        case SI_MESGQ:
+        default:
+          INFO_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
+          break;
+        //default: INFO_MSG("Received signal %s (%d)", strsignal(signum), signum); break;
+      }
       break;
-    default: logExitReason("signal %s (%d)", strsignal(signum), signum);
-    }
-    is_active = false;
-  default:
-    switch (sigInfo->si_code){
-    case SI_USER:
-    case SI_QUEUE:
-    case SI_TIMER:
-    case SI_ASYNCIO:
-    case SI_MESGQ:
-      INFO_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
+    case SIGCHLD:// when a child dies, reap it.
+      int status;
+      pid_t ret = -1;
+      while (ret != 0){
+        ret = waitpid(-1, &status, WNOHANG);
+        if (ret < 0 && errno != EINTR){break;}
+      }
+      HIGH_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
       break;
-    default: INFO_MSG("Received signal %s (%d)", strsignal(signum), signum); break;
-    }
-    break;
-  case SIGCHLD:{// when a child dies, reap it.
-    int status;
-    pid_t ret = -1;
-    while (ret != 0){
-      ret = waitpid(-1, &status, WNOHANG);
-      if (ret < 0 && errno != EINTR){break;}
-    }
-    HIGH_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
-    break;
-  }
-  case SIGPIPE:
-    // We ignore SIGPIPE to prevent messages triggering another SIGPIPE.
-    // Loops are bad, m'kay?
-    break;
-  case SIGFPE: break;
+    case SIGPIPE:
+      // We ignore SIGPIPE to prevent messages triggering another SIGPIPE.
+      // Loops are bad, m'kay?
+      break;
+    case SIGFPE: break;
   }
 }// signal_handler
 

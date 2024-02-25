@@ -260,7 +260,7 @@ namespace Comms{
 
   void Users::nullFields(){
     Comms::nullFields();
-    setTrack(0);
+    setTrack(INVALID_TRACK_ID);
     setKeyNum(0);
   }
 

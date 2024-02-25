@@ -119,6 +119,7 @@ namespace IPC{
         mySem = sem_open(name, oflag & (O_CREAT | O_EXCL), mode, value);
 #if defined(__APPLE__) || defined(__FreeBSD__)
         if (!(*this)){
+          WARN_MSG("Error opening semaphore %s: %s", name, strerror(errno));
           if (sem_unlink(name) == 0){
             INFO_MSG("Deleted in-use semaphore: %s", name);
             mySem = sem_open(name, oflag & (O_CREAT | O_EXCL), mode, value);

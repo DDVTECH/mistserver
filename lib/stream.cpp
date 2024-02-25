@@ -563,7 +563,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
 
   int pid = 0;
   if (forkFirst){
-    DONTEVEN_MSG("Forking");
+    HIGH_MSG("Forking %s", player_bin.c_str());
     pid = fork();
     if (pid == -1){
       FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
@@ -571,6 +571,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
       return false;
     }
     if (pid && overrides.count("singular")){
+      HIGH_MSG("Forked %s with PID %u", player_bin.c_str(), pid);
       Util::Procs::setHandler();
       Util::Procs::remember(pid);
     }

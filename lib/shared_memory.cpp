@@ -78,7 +78,7 @@ namespace IPC{
 
   // Calls to sem_open with flags other than O_CREAT or O_EXCL fails only in FreeBSD.
   // Anyway, no other flag is valid in any platform, so would be better to modify the calls instead of do this...
-  void semaphore::open(const char *name, int oflag, mode_t mode, unsigned int value, bool noWait){
+  void semaphore::open(const char *sname, int oflag, mode_t mode, unsigned int value, bool noWait){
     close();
     char *name = (char*)sname;
     if (strlen(sname) >= IPC_MAX_LEN) {

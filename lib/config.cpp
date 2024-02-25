@@ -619,7 +619,7 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
         //default: INFO_MSG("Received signal %s (%d)", strsignal(signum), signum); break;
       }
       break;
-    case SIGCHLD:// when a child dies, reap it.
+    case SIGCHLD:{// when a child dies, reap it.
       int status;
       pid_t ret = -1;
       while (ret != 0){
@@ -628,6 +628,7 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
       }
       HIGH_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
       break;
+    }
     case SIGPIPE:
       // We ignore SIGPIPE to prevent messages triggering another SIGPIPE.
       // Loops are bad, m'kay?

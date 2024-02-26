@@ -243,8 +243,8 @@ static inline void show_stackframe(){}
 #define SHM_SESSIONS_ITEM 165     // 4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync
 #define SHM_SESSIONS_SIZE 5248000 // 5MiB = almost 32k sessions
 
-#if defined(__APPLE__)
-#define IPC_MAX_LEN 30 // macos allows a maximum of 31, including terminating null
+#if defined(__APPLE__) || defined(__FreeBSD__)
+#define IPC_MAX_LEN 30 // MacOS and FreeBSD allow a maximum of 31, including terminating null
 #else
 #define IPC_MAX_LEN 250 // most other implementation a maximum of 251, including terminating null
 #endif

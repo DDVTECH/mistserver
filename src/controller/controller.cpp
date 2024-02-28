@@ -672,6 +672,16 @@ int main(int argc, char **argv){
       FAIL_MSG("Unable to spawn controller process!");
       return 2;
     }
+    // write pid in /var/run/mistserver.pid
+    std::string spidfile = "/var/run/mistserver.pid";
+    std::ofstream pfile(spidfile);
+    if (!pfile || !pfile.is_open()) {
+      Controller::Log("CONF", "Couldn't open pidfile " + spidfile + ": " + strerror(errno));
+    }
+    else {
+      pfile << std::to_string(pid) << std::endl;
+      pfile.close();
+    }
     // wait for the process to exit
     int status;
     while (waitpid(pid, &status, 0) != pid && errno == EINTR){

@@ -13,7 +13,7 @@ Makefile.in
 Makefile
 version.m4
 docs
-build
+build*
 nbproject
 autom4te.cache
 /Mist*

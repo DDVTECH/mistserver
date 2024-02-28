@@ -498,7 +498,7 @@ namespace Mist{
 
     if (globalWaitTime < waitTime){globalWaitTime = waitTime;}
 
-    reloadNext = Util::bootSecs() + waitTime;
+    reloadNext = Util::bootSecs() + waitTime * 2 + 1;
     return (count > 0);
   }
 
@@ -550,7 +550,7 @@ namespace Mist{
         totalBytes += fileSource.tellg();
     }
 
-    entry.timestamp = lastTimestamp + startTime;
+    entry.timestamp = lastTimestamp + startTime - waitTime * 2;
     lastTimestamp += duration;
     {
       tthread::lock_guard<tthread::mutex> guard(entryMutex);
@@ -1537,10 +1537,11 @@ namespace Mist{
 
         if (Util::bootSecs() < ntry.timestamp){
           VERYHIGH_MSG("Slowing down to realtime...");
-          while (Util::bootSecs() < ntry.timestamp){
+          while (Util::bootSecs() < ntry.timestamp && config->is_active){
             keepAlive();
             Util::wait(250);
           }
+          if (!config->is_active) return true;
         }
       }
     }

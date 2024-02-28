@@ -255,7 +255,7 @@ namespace Mist{
         static JSON::Value thisPack;
         thisPack.null();
         thisPack["trackid"] = srtTrack;
-        thisPack["bpos"] = srtSource.tellg();
+        thisPack["bpos"] = (uint64_t)srtSource.tellg();
         thisPack["data"] = data;
         thisPack["index"] = index;
         thisPack["time"] = timestamp;
@@ -353,7 +353,7 @@ namespace Mist{
         if (isSingular()){
           pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
           if (!pullLock){
-            FAIL_MSG("Could not open pull lock - aborting!");
+            FAIL_MSG("Could not open pull lock %s - aborting!", std::string("/MstPull_" + streamName).c_str());
             return 1;
           }
           // We wait at most 5 seconds for a lock
@@ -439,6 +439,7 @@ namespace Mist{
       struct sigaction sig_action;
       sig_action.sa_handler = SIG_DFL;
       sigemptyset(&sig_action.sa_mask);
+      sig_action.sa_flags = 0;
       sigaction(SIGCHLD, &sig_action, NULL);
       
       // wait for the process to exit
@@ -681,7 +682,7 @@ namespace Mist{
       }
       // Connect to stats for INPUT detection
       if (!internalOnly && !isBuffer){
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (!statComm && false){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
@@ -845,7 +846,7 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (!statComm && false){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           if (!statComm){
             config->is_active = false;
@@ -1008,7 +1009,7 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (!statComm && false){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;

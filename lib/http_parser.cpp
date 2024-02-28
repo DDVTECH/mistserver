@@ -666,8 +666,10 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           hdrs.pop_front();
         }
         if (cookie.size()){
+          WARN_MSG("Setting cookie env var: %s", cookie.c_str());
           setenv("Cookie", cookie.c_str(), 1);
         }else{
+          WARN_MSG("UNSetting cookie env var");
           unsetenv("Cookie");
         }
       }

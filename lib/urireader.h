@@ -69,6 +69,7 @@ namespace HTTP{
 
     std::string userAgentOverride;
     std::set<std::string> addHeaders;
+    uint64_t readTimeout; ///< Time in seconds before reading/opening will fail
 
     std::string getHost() const; ///< Gets hostname for connection, or [::] if local.
     std::string getBinHost() const; ///< Gets binary form hostname for connection, or [::] if local.
@@ -86,6 +87,7 @@ namespace HTTP{
     size_t bufPos; ///< Current read position in buffer
     int handle;    ///< Open file handle, if file-based.
     char *mapped;  ///< Memory-map of open file handle, if file-based.
+    uint64_t openTime; ///< Local bootMS time the URL was opened or last successfully read
     HTTP::URL originalUrl;
     bool supportRangeRequest;
     Util::ResizeablePointer rPtr;

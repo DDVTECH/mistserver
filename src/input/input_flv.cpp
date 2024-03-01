@@ -86,7 +86,7 @@ namespace Mist{
       size_t rPos = inputStr.rfind('?');
       if (rPos != std::string::npos){
         std::string suffix = inputStr.substr(rPos + 1);
-        if (suffix.find("addheader") != std::string::npos){
+        if (suffix.find("addheader") != std::string::npos || suffix.find("readtimeout") != std::string::npos){
           while (suffix.size()){
             size_t ampersand = suffix.find('&');
             size_t equals = suffix.find('=');
@@ -96,6 +96,9 @@ namespace Mist{
               std::string val = suffix.substr(0, ampersand).substr(equals + 1);
               if (var == "addheader"){
                 inFile.addHeaders.insert(Encodings::URL::decode(val));
+              }
+              if (var == "readtimeout"){
+                inFile.readTimeout = JSON::Value(val).asInt();
               }
             }
             // Cut off this variable

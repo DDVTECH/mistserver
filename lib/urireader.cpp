@@ -216,7 +216,7 @@ namespace HTTP{
       }
       stateType = HTTP;
 
-      while (openTime + readTimeout * 1000 > Util::bootMS()){
+      do{
         downer.clearHeaders();
 
         // One set of headers specified for HEAD request
@@ -260,7 +260,7 @@ namespace HTTP{
         }
         // Wait a second retry
         Util::sleep(1000);
-      }
+      } while (openTime + readTimeout * 1000 > Util::bootMS());
 
       if (!downer.getSocket()){
         FAIL_MSG("Could not open '%s': %s", myURI.getUrl().c_str(), downer.getStatusText().c_str());

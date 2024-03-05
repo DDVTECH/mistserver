@@ -644,7 +644,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
     if (seenHeaders){
       // If a cookie is found in the HTTP req, set it as a environment variable
       // in order to redirect it with triggers
-      {
+      if (!getenv("MIST_TRIGGER")){
         std::string cookie;
         if (hasHeader("Cookie")){cookie = GetHeader("Cookie");}
         std::deque<std::string> hdrs;

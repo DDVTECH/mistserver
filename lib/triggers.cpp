@@ -93,13 +93,7 @@ namespace Triggers{
       argv[0] = (char *)value.c_str();
       argv[1] = (char *)trigger.c_str();
       argv[2] = NULL;
-      setenv("MIST_TRIGGER", trigger.c_str(), 1);
-      setenv("MIST_TRIG_DEF", defaultResponse.c_str(), 1);
-      setenv("MIST_UUID", Util::UUID, 1);
       pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr); // start new process and return stdin file desc.
-      unsetenv("MIST_TRIGGER");
-      unsetenv("MIST_TRIG_DEF");
-      unsetenv("MIST_UUID");
       if (fdIn == -1 || fdOut == -1 || myProc == -1){
         FAIL_MSG("Could not execute trigger executable: %s", strerror(errno));
         submitTriggerStat(trigger, tStartMs, false);
@@ -256,6 +250,10 @@ namespace Triggers{
       if (isHandled){
         VERYHIGH_MSG("%s trigger handled by %s", type.c_str(), uri.c_str());
         if (dryRun){return true;}
+
+        setenv("MIST_TRIGGER", type.c_str(), 1);
+        setenv("MIST_TRIG_DEF", defaultResponse.c_str(), 1);
+        setenv("MIST_UUID", Util::UUID, 1);
         if (sync){
           response = handleTrigger(type, uri, payload, sync, defaultResponse); // do it.
           retVal &= Util::stringToBool(response);
@@ -263,6 +261,9 @@ namespace Triggers{
           std::string unused_response = handleTrigger(type, uri, payload, sync, defaultResponse); // do it.
           retVal &= Util::stringToBool(unused_response);
         }
+        unsetenv("MIST_TRIGGER");
+        unsetenv("MIST_TRIG_DEF");
+        unsetenv("MIST_UUID");
       }
     }
 

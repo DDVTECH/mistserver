@@ -68,3 +68,4 @@ aes_ctr128
 CMakeDoxyfile.in
 RelAccXSampler
 
+conf_cmake_freebsd.txt

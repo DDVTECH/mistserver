@@ -78,14 +78,20 @@ namespace IPC{
 
   // Calls to sem_open with flags other than O_CREAT or O_EXCL fails only in FreeBSD.
   // Anyway, no other flag is valid in any platform, so would be better to modify the calls instead of do this...
-  void semaphore::open(const char *sname, int oflag, mode_t mode, unsigned int value, bool noWait){
+  void semaphore::open(const char *sname, int oflag_, mode_t mode, unsigned int value, bool noWait){
     close();
-    char *name = (char*)sname;
-    if (strlen(sname) >= IPC_MAX_LEN) {
-      name = (char*)malloc(IPC_MAX_LEN + 1);
-      memcpy(name, sname, IPC_MAX_LEN);
-      name[IPC_MAX_LEN] = 0;
+    int oflag = oflag_ & (O_CREAT | O_EXCL);
+
+    // Sanitize sname
+    int addSlash = sname[0] != '/' ? 1 : 0;
+    int length = std::min((int)strlen(sname), IPC_MAX_LEN - addSlash);
+    char* name = (char*)malloc(length + 1);
+    if (addSlash) {
+      name[0] = '/';
     }
+    memcpy(name + addSlash, sname, length);
+    name[length] = 0;
+
     int timer = 0;
     while (!(*this) && timer++ < 10){
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -116,18 +122,18 @@ namespace IPC{
       }
 #else
       if (oflag & O_CREAT){
-        mySem = sem_open(name, oflag & (O_CREAT | O_EXCL), mode, value);
+        mySem = sem_open(name, oflag, mode, value);
 #if defined(__APPLE__) || defined(__FreeBSD__)
         if (!(*this)){
           WARN_MSG("Error opening semaphore %s: %s", name, strerror(errno));
           if (sem_unlink(name) == 0){
             INFO_MSG("Deleted in-use semaphore: %s", name);
-            mySem = sem_open(name, oflag & (O_CREAT | O_EXCL), mode, value);
+            mySem = sem_open(name, oflag, mode, value);
           }
         }
 #endif
       }else{
-        mySem = sem_open(name, oflag & (O_CREAT | O_EXCL));
+        mySem = sem_open(name, oflag);
       }
       if (!(*this)){
         if (errno == ENOENT && !noWait){
@@ -459,6 +465,7 @@ namespace IPC{
     master = master_;
     mapped = 0;
     if (name.size()){
+      name = "/" + name;
       INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(),
                  master ? "master" : "client", autoBackoff ? "with" : "without");
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -493,6 +500,7 @@ namespace IPC{
       mapped += 4;
 #else
       handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
+      //INFO_MSG("shm_open %s, handle=%d, errno=%s", name.c_str(), handle, strerror(errno));
       if (handle == -1){
         if (master){
           if (len > 1){ERROR_MSG("Overwriting old page for %s", name.c_str());}

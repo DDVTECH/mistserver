@@ -1474,9 +1474,8 @@ namespace DTSC{
     IPC::semaphore resizeLock;
 
     if (!isMemBuf){
-      std::string pageName = "/";
-      pageName += trackList.getPointer(trackPageField, source);
-      resizeLock.open(pageName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      const char * pageName = trackList.getPointer(trackPageField, source);
+      resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       resizeLock.wait();
     }
 
@@ -2219,9 +2218,8 @@ namespace DTSC{
     IPC::semaphore resizeLock;
 
     if (!isMemBuf){
-      std::string pageName = "/";
-      pageName += trackList.getPointer(trackPageField, trackIdx);
-      resizeLock.open(pageName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      const char * pageName = trackList.getPointer(trackPageField, trackIdx);
+      resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!resizeLock.tryWait()){
         MEDIUM_MSG("Metadata is busy, delaying deletion of key a bit");
         resizeLock.close();
@@ -2335,7 +2333,7 @@ namespace DTSC{
         // We need to delay playback at least by this amount to account for it.
         if ((uint64_t)jitter > maxJitter){
           if (jitter - maxJitter > 420){
-            INFO_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+            HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
           }else{
             HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
           }

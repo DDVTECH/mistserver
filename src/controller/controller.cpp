@@ -392,6 +392,7 @@ int main_loop(int argc, char **argv){
       fstatvfs(tmpCapa.handle, &shmd);
       shm_free = (shmd.f_bfree * shmd.f_frsize) / 1024;
       shm_total = (shmd.f_blocks * shmd.f_frsize) / 1024;
+      INFO_MSG("Free/Total Shared Memory: %" PRIu64 " / %" PRIu64 " MiB", shm_free / 1024, shm_total / 1024);
     }
 
     if (mem_free + mem_bufcache < 1024 * 1024){
@@ -673,13 +674,15 @@ int main(int argc, char **argv){
       return 2;
     }
     // write pid in /var/run/mistserver.pid
-    std::string spidfile = "/var/run/mistserver.pid";
-    std::ofstream pfile(spidfile);
+    const std::string spidfile = "/var/run/mistserver.pid";
+    std::ofstream pfile(spidfile.c_str());
+    char spid[6];
+    sprintf(spid, "%d", pid);
     if (!pfile || !pfile.is_open()) {
       Controller::Log("CONF", "Couldn't open pidfile " + spidfile + ": " + strerror(errno));
     }
     else {
-      pfile << std::to_string(pid) << std::endl;
+      pfile << spid << std::endl;
       pfile.close();
     }
     // wait for the process to exit

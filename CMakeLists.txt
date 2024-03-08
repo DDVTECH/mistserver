@@ -311,6 +311,13 @@ target_link_libraries(mist
   -lpthread 
   ${LIBRT}
 )
+#EXEC_PROGRAM(uname OUTPUT_VARIABLE SYSTEM_NAME)
+execute_process(COMMAND uname OUTPUT_VARIABLE SYSTEM_NAME OUTPUT_STRIP_TRAILING_WHITESPACE)
+IF(SYSTEM_NAME STREQUAL "FreeBSD" OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+  message("Detected FreeBSD")
+  target_link_libraries(mist -lexecinfo)
+endif()
+
 if (NOT NOSSL)
   find_library(MBEDTLS_LIB mbedtls)
   find_library(MBEDX509_LIB mbedx509)

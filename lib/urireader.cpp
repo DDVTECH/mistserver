@@ -261,18 +261,18 @@ namespace HTTP{
   }
 
   void URIReader::readAll(size_t (*dataCallback)(const char *data, size_t len)){
-    while (!isEOF()){readSome(dataCallback, 419430);}
+    while (!isEOF() && !downer.retriesExhausted()){readSome(dataCallback, 419430);}
   }
 
   /// Read all function, with use of callbacks
   void URIReader::readAll(Util::DataCallback &cb){
-    while (!isEOF()){readSome(1048576, cb);}
+    while (!isEOF() && !downer.retriesExhausted()){readSome(1048576, cb);}
   }
 
   /// Read all blocking function, which internally uses the Nonblocking function.
   void URIReader::readAll(char *&dataPtr, size_t &dataLen){
     if (getSize() != std::string::npos){allData.allocate(getSize());}
-    while (!isEOF()){
+    while (!isEOF() && !downer.retriesExhausted()){
       readSome(10046, *this);
       bufPos = allData.size();
     }
@@ -332,7 +332,7 @@ namespace HTTP{
       bufPos = 0;
     }
     // Read more data if needed
-    while (allData.size() < wantedLen + bufPos && *this && !downer.completed()){
+    while (allData.size() < wantedLen + bufPos && *this && !downer.completed() && !downer.retriesExhausted()){
       readSome(wantedLen - (allData.size() - bufPos), *this);
     }
     // Return wantedLen bytes if we have them

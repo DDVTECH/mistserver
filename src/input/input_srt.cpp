@@ -91,7 +91,7 @@ namespace Mist{
         static JSON::Value thisPack;
         thisPack.null();
         thisPack["trackid"] = 1;
-        thisPack["bpos"] = fileSource.tellg();
+        thisPack["bpos"] = (uint64_t)fileSource.tellg();
         thisPack["data"] = data;
         thisPack["index"] = index;
         thisPack["time"] = timestamp;

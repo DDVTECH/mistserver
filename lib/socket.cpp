@@ -1342,7 +1342,8 @@ Socket::Server::Server(int fromSock){
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false
 /// (blocking).
 Socket::Server::Server(int port, std::string hostname, bool nonblock){
-  if (!IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)){
+  // In FreeBSD IPv4 doesn't bind if IPv6 does.
+  if (!IPv4bind(port, hostname, nonblock) && !IPv6bind(port, hostname, nonblock)){
     FAIL_MSG("Could not create socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     sock = -1;
   }

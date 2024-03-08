@@ -1747,6 +1747,10 @@ namespace Mist{
     uint64_t now = Util::bootSecs();
     if (now <= lastStats && !force){return;}
 
+    // no quiero que MistProc inicie un MistSession
+    std::string protocol = getStatsName();
+    if (protocol.size() >= 7 && protocol.substr(0, 7) == "OUTPUT:"){return;}
+
     if (isRecording()){
       if(lastPushUpdate == 0){
         lastPushUpdate = now;

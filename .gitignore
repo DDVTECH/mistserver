@@ -13,7 +13,7 @@ Makefile.in
 Makefile
 version.m4
 docs
-build
+build*
 nbproject
 autom4te.cache
 /Mist*
@@ -68,3 +68,4 @@ aes_ctr128
 CMakeDoxyfile.in
 RelAccXSampler
 
+conf_cmake_freebsd.txt

@@ -49,6 +49,7 @@ namespace HTTP{
     uint32_t retryCount, dataTimeout;
     bool isProxied() const;
     const HTTP::URL &lastURL();
+    bool retriesExhausted() const{return (nbLoop < 2);}
 
   private:
     bool isComplete;

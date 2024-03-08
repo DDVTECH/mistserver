@@ -17,6 +17,10 @@
 #include <unistd.h>
 #include "util.h"
 
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
+
 #ifdef SSL
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/debug.h"

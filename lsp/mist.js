@@ -3482,14 +3482,14 @@ var UI = {
                   var v = 0;
                   if ((typeof mist.data.totals != 'undefined') && (typeof mist.data.totals[streamname] != 'undefined')) {
                     var data = mist.data.totals[streamname].all_protocols.clients;
-                    var v = 0;
+                    var v = data[data.length-1][1];
                     //get the average value
-                    if (data.length) {
-                      for (var i in data) {
-                        v += data[i][1];
-                      }
-                      v = Math.round(v / data.length);
-                    }
+//                    if (data.length) {
+//                      for (var i in data) {
+//                        v += data[i][1];
+//                      }
+//                      v = Math.round(v / data.length);
+//                    }
                   }
                   $viewers.html(UI.format.number(v));
                   if ((v == 0) && (stream.online == 1)) {
@@ -6861,16 +6861,16 @@ var mist = {
                   if (typeof overridetime == 'undefined') {
                     overridetime = time;
                   }
-                  
-                  for (var j in main.fields) {
-                    obj[main.fields[j]].push([time,0]);
+                  if (main.fields[0] != 'clients') {
+                    obj[main.fields[0]].push([time,0]);
                   }
                 }
                 
                 var obj = {};
-                for (var i in main.fields) {
-                  obj[main.fields[i]] = [];
-                }
+//                for (var i in main.fields) {
+//                  obj[main.fields[i]] = [];
+//                }
+                obj[main.fields[0]] = [];
                 var insert = 0;
                 var time;
                 
@@ -6919,7 +6919,7 @@ var mist = {
                     
                     for (var j in main.data[i]) { //j == field index
                       //write datapoint in format [timestamp,value]
-                      obj[main.fields[j]].push([time,main.data[i][j]]);
+                      obj[main.fields[0]].push([time,main.data[i][j]]);
                     }
                     
                     if (insert) {

@@ -355,7 +355,25 @@ namespace HTTP{
       // Note: this function returns true if the full read was completed only.
       // It's the reason this function returns void rather than bool.
       size_t prePos = cb.getDataCallbackPos();
-      downer.continueNonBlocking(cb);
+      if (downer.continueNonBlocking(cb)){
+        if (downer.getStatusCode() >= 400){
+          if (openTime + readTimeout * 1000 <= Util::bootMS()){
+            stateType = HTTP::Closed;
+            downer.getSocket().close();
+            downer.getSocket().Received().clear();
+            allData.truncate(0);
+            return;
+          }
+          WARN_MSG("Received error response code %" PRIu32 " (%s), retrying in a second...", downer.getStatusCode(), downer.getStatusText().c_str());
+          cb.dataCallbackFlush();
+          downer.getSocket().close();
+          downer.getSocket().Received().clear();
+          allData.truncate(0);
+          Util::sleep(1000);
+          downer.getNonBlocking(myURI);
+          return;
+        }
+      }
       if (prePos != cb.getDataCallbackPos()){openTime = Util::bootMS();}
       return;
     }

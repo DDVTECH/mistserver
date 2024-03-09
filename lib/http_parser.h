@@ -20,7 +20,7 @@ namespace HTTP{
   class Parser{
   public:
     Parser();
-    bool Read(Socket::Connection &conn, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool Read(Socket::Connection &conn, Util::DataCallback &cb = Util::defaultDataCallback, Util::DataCallback &error_cb = Util::defaultDataCallback);
     bool Read(std::string &strbuf);
     const std::string &GetHeader(const std::string &i) const;
     bool hasHeader(const std::string &i) const;
@@ -72,7 +72,7 @@ namespace HTTP{
     bool getChunks;
     bool possiblyComplete;
     unsigned int doingChunk;
-    bool parse(std::string &HTTPbuffer, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool parse(std::string &HTTPbuffer, Util::DataCallback &cb = Util::defaultDataCallback, Util::DataCallback &error_cb = Util::defaultDataCallback);
     std::string builder;
     std::string read_buffer;
     std::map<std::string, std::string> headers;

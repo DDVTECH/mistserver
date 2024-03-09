@@ -50,6 +50,7 @@ namespace HTTP{
     uint32_t retryCount, dataTimeout;
     bool isProxied() const;
     const HTTP::URL &lastURL();
+    std::string errorString;
 
   private:
     bool isComplete;

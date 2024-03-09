@@ -326,6 +326,7 @@ namespace HTTP{
   // continue handling a request, originally set up by the getNonBlocking() function
   // returns true if the request is complete
   bool Downloader::continueNonBlocking(Util::DataCallback &cb){
+    if (isComplete){return true;}
     while (true){
       if (!getSocket() && !isComplete){
         if (nbLoop < 2){
@@ -391,7 +392,8 @@ namespace HTTP{
       }
 
       //Attempt to parse the data we received
-      if (H.Read(getSocket(), cb)){
+      Util::StringDataCallback err_cb(errorString);
+      if (H.Read(getSocket(), cb, err_cb)){
         if (shouldContinue()){
           if (nbMaxRecursiveDepth == 0){
             FAIL_MSG("Maximum recursion depth reached");

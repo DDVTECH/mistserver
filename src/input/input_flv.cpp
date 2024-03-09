@@ -1,9 +1,8 @@
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <mist/defines.h>
 #include <mist/stream.h>
 #include <mist/util.h>
@@ -184,6 +183,12 @@ namespace Mist{
       needed = tmpTag.MemLoader(readBuffer, readBuffer.size(), readBufferOffset);
       if (needed == std::string::npos){
         // Tag read error
+        WARN_MSG("Invalid tag encountered with %zu bytes left to read", readBuffer.size() - readBufferOffset);
+        std::stringstream inval;
+        for (size_t i = readBufferOffset; i < readBuffer.size() && i < readBufferOffset + 64; ++i){
+          inval << std::hex << std::setw(2) << std::setfill('0') << readBuffer[i] << std::dec;
+        }
+        WARN_MSG("Invalid tag data hex: %s", inval.str().c_str());
         Util::logExitReason(ER_FORMAT_SPECIFIC, "FLV parser error: %s", FLV::Error_Str.c_str());
         return false;
       }
@@ -220,6 +225,12 @@ namespace Mist{
       needed = tmpTag.MemLoader(readBuffer, readBuffer.size(), readBufferOffset);
       if (needed == std::string::npos){
         // Tag read error
+        WARN_MSG("Invalid tag encountered with %zu bytes left to read", readBuffer.size() - readBufferOffset);
+        std::stringstream inval;
+        for (size_t i = readBufferOffset; i < readBuffer.size() && i < readBufferOffset + 64; ++i){
+          inval << std::hex << std::setw(2) << std::setfill('0') << (int)readBuffer[i] << std::dec;
+        }
+        WARN_MSG("Invalid tag data hex: %s", inval.str().c_str());
         Util::logExitReason(ER_FORMAT_SPECIFIC, "FLV parser error: %s", FLV::Error_Str.c_str());
         thisPacket.null();
         return;

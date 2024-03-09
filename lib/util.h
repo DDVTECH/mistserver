@@ -36,10 +36,24 @@ namespace Util{
       INFO_MSG("default callback, size: %zu", size);
     }
     virtual size_t getDataCallbackPos() const{return 0;}
+    virtual void dataCallbackFlush(){};
     virtual ~DataCallback(){};
   };
 
   extern Util::DataCallback defaultDataCallback;
+
+  /// Simplistic data callback that uses a passed string for storage
+  class StringDataCallback : public DataCallback{
+  private:
+    std::string & strRef;
+  public:
+    StringDataCallback(std::string & str) : strRef(str){};
+    virtual void dataCallback(const char *ptr, size_t size){strRef.append(ptr, size);}
+    virtual size_t getDataCallbackPos() const{return strRef.size();}
+    virtual void dataCallbackFlush(){strRef.clear();};
+    virtual ~StringDataCallback(){};
+  };
+
 
   // Forward declaration
   class FieldAccX;

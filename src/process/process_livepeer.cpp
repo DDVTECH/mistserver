@@ -668,12 +668,15 @@ int main(int argc, char *argv[]){
     capa["optional"]["leastlive"]["type"] = "boolean";
     capa["optional"]["leastlive"]["default"] = false;
 
+    capa["optional"]["min_viewers"]["name"] = "Minimum viewers";
+    capa["optional"]["min_viewers"]["help"] = "Transcode will only be active while this many viewers are watching the stream.";
+    capa["optional"]["min_viewers"]["type"] = "int";
+    capa["optional"]["min_viewers"]["default"] = 0;
 
     capa["optional"]["custom_url"]["name"] = "Custom API URL";
     capa["optional"]["custom_url"]["help"] = "Alternative API URL path";
     capa["optional"]["custom_url"]["type"] = "string";
     capa["optional"]["custom_url"]["default"] = "https://livepeer.live/api";
-
 
     capa["required"]["target_profiles"]["name"] = "Profiles";
     capa["required"]["target_profiles"]["type"] = "sublist";

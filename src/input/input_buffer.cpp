@@ -718,6 +718,29 @@ namespace Mist{
           if (inhibited){continue;}
         }
       }
+      if (tmp.isMember("min_viewers")){
+        IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 0, false, false);
+        if (!shmStreams){
+          WARN_MSG("Cannot access stream statistics - unable to apply min_viewers requirement! Starting process without knowing viewer count instead.");
+        }else{
+          Util::RelAccX rlxStreams(shmStreams.mapped, false);
+          if (!rlxStreams.isReady()){
+            WARN_MSG("Stream statistics not ready yet - looking again in a bit...");
+            continue;
+          }
+          uint64_t viewers = 0;
+          uint64_t startPos = rlxStreams.getDeleted();
+          uint64_t endPos = rlxStreams.getEndPos();
+          for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
+            std::string strm = rlxStreams.getPointer("stream", cPos);
+            if (strm == streamName){
+              viewers = rlxStreams.getInt("viewers", cPos);
+              break;
+            }
+          }
+          if (viewers < tmp["min_viewers"].asInt()){continue;}
+        }
+      }
       // Mark process as should-be-active
       newProcs.insert(key);
     }

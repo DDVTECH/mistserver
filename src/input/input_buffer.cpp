@@ -376,12 +376,12 @@ namespace Mist{
         uint64_t lastms = M.getLastms(i);
         // if not updated for an entire buffer duration, or last updated track and this track differ
         // by an entire buffer duration, erase the track.
-        if ((time - lastUp > (bufferTime / 1000) ||
+        if ((time - lastUp > (bufferTime * 4 / 1000) ||
              (compareLast && activeTypes.count(type) && (time - lastUp) > 5 &&
               ((compareLast < firstms && (firstms - compareLast) > bufferTime) ||
                (compareFirst > lastms && (compareFirst - lastms) > bufferTime))))){
           // erase this track
-          if ((time - lastUp) > (bufferTime / 1000)){
+          if ((time - lastUp) > (bufferTime * 4 / 1000)){
             WARN_MSG("Erasing %s track %zu (%s/%s) because not updated for %" PRIu64 "s (> %" PRIu64 "s)",
                      streamName.c_str(), i, type.c_str(), codec.c_str(), time - lastUp,
                      bufferTime / 1000);

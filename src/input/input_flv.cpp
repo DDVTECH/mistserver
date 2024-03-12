@@ -33,6 +33,8 @@ namespace Mist{
     readBufferOffset = 0;
     readPos = 0;
     totalBytes = 0;
+    lastModTime = 0;
+    liveOffset = 0;
   }
 
   void inputFLV::dataCallback(const char *ptr, size_t size){
@@ -255,8 +257,22 @@ namespace Mist{
       return;
     }
 
-    thisTime = tmpTag.tagTime();
-    if (!standAlone){lastBytePos = 0;}
+    thisTime = tmpTag.tagTime() + liveOffset;
+    if (!standAlone){
+      lastBytePos = 0;
+      if (lastModTime){
+        if (thisTime > lastModTime + 5000){
+          WARN_MSG("Timestamp jumped from %" PRIu64 " to %" PRIu64 "; compensating!", lastModTime, thisTime);
+          liveOffset -= (thisTime - lastModTime);
+          thisTime = lastModTime + 1;
+        } else if (thisTime + 5000 < lastModTime){
+          WARN_MSG("Timestamp jumped from %" PRIu64 " to %" PRIu64 "; compensating!", lastModTime, thisTime);
+          liveOffset += (lastModTime - thisTime);
+          thisTime = lastModTime + 1;
+        }
+      }
+      lastModTime = thisTime;
+    }
     thisPacket.genericFill(thisTime, tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getData(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe);
 
     if (M.getCodec(idx) == "PCM" && M.getSize(idx) == 16){

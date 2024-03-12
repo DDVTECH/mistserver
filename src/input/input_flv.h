@@ -24,6 +24,7 @@ namespace Mist{
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     FLV::Tag tmpTag;
     uint64_t lastModTime;
+    int64_t liveOffset;
 
     HTTP::URIReader inFile;
     Util::ResizeablePointer readBuffer;

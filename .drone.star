@@ -87,7 +87,7 @@ def docker_image_pipeline(arch, release, stripped, context):
             {
                 "name": "build",
                 "commands": [
-                    "docker buildx build --no-cache --progress=plain --target=mist "
+                    "docker buildx build --progress=plain --target=mist "
                     + "--build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --build-arg BUILD_VERSION={} --tag {} ".format(
                         release,
                         stripped,
@@ -182,50 +182,55 @@ def binaries_pipeline(context, platform):
     if platform["os"] == "linux":
         # openssl is the fastest in our load testing
         crypto_library = " -D SRTP_CRYPTO_LIBRARY=openssl "
-        steps.append({
-            "name": "libraries",
-            "commands": [
-                'apt -o DPkg::Lock::Timeout=60 install -y libnss3-dev libssl-dev pkg-config',
-            ],
-        })
+        steps.append(
+            {
+                "name": "libraries",
+                "commands": [
+                    "apt -o DPkg::Lock::Timeout=60 install -y libnss3-dev libssl-dev pkg-config",
+                ],
+            }
+        )
 
     if platform["os"] == "darwin":
         # difficult to get the other options compiling on darwin at the moment
         crypto_library = " -D SRTP_CRYPTO_LIBRARY=mbedtls "
 
-    steps.extend([
-        {
-            "name": "binaries",
-            "commands": [
-                'export CI_PATH="$(realpath ..)"',
-                "echo {} | tee BUILD_VERSION".format(version),
-                "meson setup -DLOAD_BALANCE=true -DDEBUG=3 -DNORIST=true -DNORIST=true -Dprefix=$CI_PATH --default-library static build " + crypto_library,
-                "cd build/",
-                "ninja && ninja install",
-            ],
-        },
-        {
-            "name": "compress",
-            "commands": [
-                'export CI_PATH="$(realpath ..)"',
-                "cd $CI_PATH/bin/",
-                "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
-                % (platform["os"], platform["arch"]),
-            ],
-        },
-        {
-            "name": "upload",
-            "commands": [
-                'scripts/upload_build.sh -d "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
-                % (platform["os"], platform["arch"]),
-            ],
-            "environment": get_environment(
-                "GCLOUD_KEY",
-                "GCLOUD_SECRET",
-                "GCLOUD_BUCKET",
-            ),
-        },
-    ])
+    steps.extend(
+        [
+            {
+                "name": "binaries",
+                "commands": [
+                    'export CI_PATH="$(realpath ..)"',
+                    "echo {} | tee BUILD_VERSION".format(version),
+                    "meson setup -DLOAD_BALANCE=true -DDEBUG=3 -DNORIST=true -DNORIST=true -Dprefix=$CI_PATH --default-library static build "
+                    + crypto_library,
+                    "cd build/",
+                    "ninja && ninja install",
+                ],
+            },
+            {
+                "name": "compress",
+                "commands": [
+                    'export CI_PATH="$(realpath ..)"',
+                    "cd $CI_PATH/bin/",
+                    "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
+                    % (platform["os"], platform["arch"]),
+                ],
+            },
+            {
+                "name": "upload",
+                "commands": [
+                    'scripts/upload_build.sh -d "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
+                    % (platform["os"], platform["arch"]),
+                ],
+                "environment": get_environment(
+                    "GCLOUD_KEY",
+                    "GCLOUD_SECRET",
+                    "GCLOUD_BUCKET",
+                ),
+            },
+        ]
+    )
 
     return {
         "kind": "pipeline",

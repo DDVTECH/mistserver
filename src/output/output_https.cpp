@@ -140,6 +140,7 @@ namespace Mist{
       Util::logExitReason(ER_EXEC_FAILURE, "Could not spawn MistOutHTTP process for SSL connection!");
       return 1;
     }
+    Util::Procs::forget(http_proc);
     Socket::Connection http(fd[0]);
     http.setBlocking(false);
     Socket::Buffer &http_buf = http.Received();
@@ -189,11 +190,6 @@ namespace Mist{
     }
     // close the HTTP process (close stdio, kill its PID)
     http.close();
-    uint16_t waiting = 0;
-    while (++waiting < 50){
-      if (!Util::Procs::isRunning(http_proc)){break;}
-      Util::sleep(100);
-    }
     return 0;
   }
 

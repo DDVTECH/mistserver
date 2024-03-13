@@ -135,7 +135,10 @@ namespace Mist{
     while (seekPos+seekLen > readPos + readBuffer.size() && config->is_active && inFile){
       size_t preSize = readBuffer.size();
       inFile.readSome(seekPos+seekLen - (readPos + readBuffer.size()), *this);
-      if (readBuffer.size() == preSize){Util::sleep(5);}
+      if (readBuffer.size() == preSize){
+        Util::sleep(5);
+        inputServeStats();
+      }
     }
     if (seekPos+seekLen > readPos + readBuffer.size()){
       Util::logExitReason(ER_READ_START_FAILURE, "Input file seek abort");

@@ -718,7 +718,7 @@ namespace Mist{
           if (inhibited){continue;}
         }
       }
-      if (tmp.isMember("min_viewers")){
+      if (tmp.isMember("min_viewers") && config->getString("input").find(".flv") != std::string::npos){
         IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 0, false, false);
         if (!shmStreams){
           WARN_MSG("Cannot access stream statistics - unable to apply min_viewers requirement! Starting process without knowing viewer count instead.");

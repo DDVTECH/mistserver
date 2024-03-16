@@ -734,7 +734,7 @@ namespace Mist{
           for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
             std::string strm = rlxStreams.getPointer("stream", cPos);
             if (strm == streamName){
-              viewers = rlxStreams.getInt("viewers", cPos);
+              viewers = rlxStreams.getInt("viewers", cPos) + rlxStreams.getInt("outputs", cPos);
               break;
             }
           }

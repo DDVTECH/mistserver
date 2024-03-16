@@ -181,6 +181,9 @@ namespace HTTP{
     size_t loop = 0;
     while (++loop <= retryCount){// loop while we are unsuccessful
       MEDIUM_MSG("Retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
+      char attemptNo[5];
+      snprintf(attemptNo, 5, "%zu", loop);
+      setHeader("X-Attempt", attemptNo);
       doRequest(link, "HEAD");
       if (!getSocket()){
         FAIL_MSG("Could not retrieve %s: %s", link.getUrl().c_str(), getSocket().getError().c_str());
@@ -424,6 +427,9 @@ namespace HTTP{
     while (++loop <= retryCount){// loop while we are unsuccessful
       MEDIUM_MSG("Posting to %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
       uint64_t prerequest = Util::getMicros();
+      char attemptNo[5];
+      snprintf(attemptNo, 5, "%zu", loop);
+      setHeader("X-Attempt", attemptNo);
       doRequest(link, "POST", 0, payloadLen);
       Socket::Connection & s = getSocket();
       if (payloadLen && payload){

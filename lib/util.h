@@ -22,6 +22,7 @@ namespace Util{
 
   void getRandomBytes(void * dest, size_t len);
   std::string getRandomAlphanumeric(size_t len);
+  std::string generateUUID();
 
   uint64_t ftell(FILE *stream);
   uint64_t fseek(FILE *stream, uint64_t offset, int whence);

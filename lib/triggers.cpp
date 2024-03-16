@@ -63,6 +63,9 @@ namespace Triggers{
       if (hrn.size()){
         DL.setHeader("X-Name", hrn);
       }
+      DL.setHeader("X-Trigger-UUID", getenv("MIST_TUUID"));
+      DL.setHeader("X-Trigger-UnixMillis", getenv("MIST_TIME"));
+      DL.setHeader("Date", getenv("MIST_DATE"));
       DL.setHeader("Content-Type", "text/plain");
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && (!sync || DL.isOk())){
@@ -203,6 +206,20 @@ namespace Triggers{
       WARN_MSG("No triggers for %s: list not ready", type.c_str());
       return false;
     }
+
+    {
+      std::string uuid = Util::generateUUID();
+      setenv("MIST_TUUID", uuid.c_str(), 1);
+    }
+
+    {
+      uint64_t currTime = Util::unixMS();
+      std::string time = JSON::Value(currTime).asString();
+      setenv("MIST_TIME", time.c_str(), 1);
+      std::string date = Util::getDateString(currTime / 1000);
+      setenv("MIST_DATE", date.c_str(), 1);
+    }
+
     size_t splitter = streamName.find_first_of("+ ");
     bool retVal = true;
 
@@ -254,6 +271,10 @@ namespace Triggers{
         }
       }
     }
+
+    unsetenv("MIST_TUUID");
+    unsetenv("MIST_TIME");
+    unsetenv("MIST_DATE");
 
     if (dryRun){
       return false;

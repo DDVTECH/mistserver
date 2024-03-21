@@ -54,7 +54,7 @@ namespace Mist{
     void checkProcesses(const JSON::Value &procs); // LTS
     std::map<std::string, pid_t> runningProcs;     // LTS
     std::map<std::string, uint32_t> procBoots;
-    std::map<std::string, uint32_t> procNextBoot;
+    std::map<std::string, uint64_t> procNextBoot;
 
     std::set<size_t> generatePids;
     std::map<size_t, size_t> sourcePids;

@@ -738,7 +738,6 @@ namespace Mist{
               break;
             }
           }
-          WARN_MSG("V=%" PRIu64 ", M=%" PRIu64 ", P=%zu for: %s", viewers, tmp["min_viewers"].asInt(), runningProcs.size(), key.c_str());
           if (viewers < tmp["min_viewers"].asInt() + runningProcs.size()){
             WARN_MSG("Removing delay for next boot: %s", key.c_str());
             procNextBoot.erase(key);

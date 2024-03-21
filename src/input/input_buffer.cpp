@@ -738,11 +738,14 @@ namespace Mist{
               break;
             }
           }
+          WARN_MSG("V=%" PRIu64 ", M=%" PRIu64 ", P=%zu for: %s", viewers, tmp["min_viewers"].asInt(), runningProcs.size(), key.c_str());
           if (viewers < tmp["min_viewers"].asInt() + runningProcs.size()){
+            WARN_MSG("Removing delay for next boot: %s", key.c_str());
             procNextBoot.erase(key);
             continue;
           }
           if (!procNextBoot.count(key)){
+            WARN_MSG("Setting next boot to 5s in the future for: %s", key.c_str());
             procNextBoot[key] = now + 5000;
 
           }
@@ -758,7 +761,7 @@ namespace Mist{
       for (it = runningProcs.begin(); it != runningProcs.end(); it++){
         if (!newProcs.count(it->first)){
           if (Util::Procs::isActive(it->second)){
-            INFO_MSG("Stopping process %d: %s", it->second, it->first.c_str());
+            WARN_MSG("Stopping process %d: %s", it->second, it->first.c_str());
             Util::Procs::Stop(it->second);
           }
           runningProcs.erase(it);
@@ -807,7 +810,7 @@ namespace Mist{
         }
         // Skip if we have a delayed start time
         if (procNextBoot[config] > now){
-          VERYHIGH_MSG("Delaying start of process `%s`, %lu ms remaining", args["process"].asString().c_str(), procNextBoot[config] - now);
+          WARN_MSG("Delaying start of process `%s`, %lu ms remaining", args["process"].asString().c_str(), procNextBoot[config] - now);
           newProcs.erase(newProcs.begin());
           continue;
         }
@@ -828,7 +831,7 @@ namespace Mist{
           argarr[4] = 0;
         }
         allProcsRunning = false;
-        INFO_MSG("Starting process: %s %s", argarr[0], argarr[1]);
+        WARN_MSG("Starting process: %s %s", argarr[0], argarr[1]);
         runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
         // Increment per-process boot counter
         procBoots[*newProcs.begin()]++;

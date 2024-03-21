@@ -738,7 +738,14 @@ namespace Mist{
               break;
             }
           }
-          if (viewers < tmp["min_viewers"].asInt() + runningProcs.size()){continue;}
+          if (viewers < tmp["min_viewers"].asInt() + runningProcs.size()){
+            procNextBoot.erase(key);
+            continue;
+          }
+          if (!procNextBoot.count(key)){
+            procNextBoot[key] = now + 5000;
+
+          }
         }
       }
       // Mark process as should-be-active

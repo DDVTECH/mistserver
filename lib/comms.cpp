@@ -1,13 +1,12 @@
 #include "auth.h"
-#include "bitfields.h"
 #include "comms.h"
 #include "defines.h"
-#include "encode.h"
 #include "stream.h"
 #include "procs.h"
 #include "timing.h"
 #include <fcntl.h>
 #include <string.h>
+#include <sstream>
 #include "config.h"
 
 namespace Comms{

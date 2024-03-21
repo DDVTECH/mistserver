@@ -2,6 +2,7 @@
 #include "sdp_media.h"
 #include <algorithm>
 #include <cstdarg>
+#include <sstream>
 
 namespace SDP{
 

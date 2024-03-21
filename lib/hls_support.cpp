@@ -2,6 +2,7 @@
 #include "langcodes.h" /*LTS*/
 #include "stream.h"
 #include <cstdlib>
+#include <sstream>
 #include <iomanip>
 
 namespace HLS{

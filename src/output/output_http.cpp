@@ -6,6 +6,7 @@
 #include <mist/util.h>
 #include <mist/url.h>
 #include <set>
+#include <sstream>
 #include <sys/stat.h>
 
 namespace Mist{

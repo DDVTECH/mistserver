@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <iomanip>
 #include <fstream>
+#include <sstream>
 
 #include "output.h" 
 #include <mist/bitfields.h>

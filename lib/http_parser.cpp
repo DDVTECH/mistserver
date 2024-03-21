@@ -11,6 +11,7 @@
 #include "json.h"
 #include <iomanip>
 #include <strings.h>
+#include <sstream>
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().

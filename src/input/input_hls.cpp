@@ -19,7 +19,6 @@
 #include <mist/ts_packet.h>
 #include <string>
 #include <sys/stat.h>
-#include <vector>
 
 #define SEM_TS_CLAIM "/MstTSIN%s"
 

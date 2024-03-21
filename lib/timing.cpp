@@ -7,7 +7,6 @@
 #include <sys/time.h> //for gettimeofday
 #include <sys/stat.h>
 #include <time.h>     //for time and nanosleep
-#include <sstream>
 #include <stdlib.h>
 
 // emulate clock_gettime() for OSX compatibility

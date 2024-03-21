@@ -7,8 +7,8 @@
 #define PACKAGE_VERSION "unknown"
 #endif
 
+#include <sys/wait.h>
 #include "json.h"
-#include <signal.h>
 #include <string>
 
 /// Contains utility code, not directly related to streaming media

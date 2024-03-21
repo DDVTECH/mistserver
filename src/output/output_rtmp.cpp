@@ -1,6 +1,7 @@
 #include "output_rtmp.h"
 #include <cstdlib>
 #include <cstring>
+#include <sstream>
 #include <mist/auth.h>
 #include <mist/bitfields.h>
 #include <mist/defines.h>

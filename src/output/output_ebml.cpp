@@ -2,6 +2,7 @@
 #include <mist/ebml_socketglue.h>
 #include <mist/opus.h>
 #include <mist/riff.h>
+#include <sstream>
 
 namespace Mist{
   OutEBML::OutEBML(Socket::Connection &conn) : HTTPOutput(conn){

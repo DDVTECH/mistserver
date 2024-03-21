@@ -1,5 +1,6 @@
 #include "analyser_dtsc.h"
 #include <iomanip>
+#include <sstream>
 #include <mist/h264.h>
 
 void AnalyserDTSC::init(Util::Config &conf){

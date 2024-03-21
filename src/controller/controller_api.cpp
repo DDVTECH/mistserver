@@ -7,6 +7,7 @@
 #include "controller_external_writers.h"
 #include <dirent.h> //for browse API call
 #include <fstream>
+#include <sstream>
 #include <mist/auth.h>
 #include <mist/bitfields.h>
 #include <mist/config.h>

@@ -1,13 +1,10 @@
 #pragma once
 #include "input.h"
-#include <fstream>
 #include <mist/dtsc.h>
 #include <mist/nal.h>
 #include <mist/ts_packet.h>
 #include <mist/ts_stream.h>
-#include <set>
 #include <string>
-#include <vector>
 //#include <stdint.h>
 #include <mist/http_parser.h>
 #include <mist/urireader.h>

@@ -8,6 +8,18 @@
 #include "tinythread.h"
 #include <signal.h>
 #include <string.h>
+#include "procs.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h> //for getMyExec
+#include <errno.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <iostream>
+#include <pwd.h>
+#include <stdarg.h> // for va_list
+#include <stdlib.h>
 
 #ifdef __CYGWIN__
 #include <windows.h>
@@ -21,21 +33,6 @@
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
-#include "procs.h"
-#include <dirent.h> //for getMyExec
-#include <errno.h>
-#include <fcntl.h>
-#include <fstream>
-#include <getopt.h>
-#include <iostream>
-#include <pwd.h>
-#include <signal.h>
-#include <string.h>
-#include <stdarg.h> // for va_list
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 bool Util::Config::is_active = false;
 bool Util::Config::is_restarting = false;

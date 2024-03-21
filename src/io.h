@@ -1,13 +1,11 @@
 #pragma once
 
-#include <deque>
 #include <map>
 #include <mist/comms.h>
 #include <mist/defines.h>
 #include <mist/dtsc.h>
 #include <mist/shared_memory.h>
 
-#include <mist/encryption.h> //LTS
 namespace Mist{
   ///\brief Class containing all basic input and output functions.
   class InOutBase{

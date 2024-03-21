@@ -5,6 +5,7 @@
 #include "controller_storage.h"
 #include <cstdio>
 #include <fstream>
+#include <sstream>
 #include <list>
 #include <mist/bitfields.h>
 #include <mist/config.h>

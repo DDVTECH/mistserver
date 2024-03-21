@@ -12,7 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <iomanip>
+#include <sstream>
 
 namespace DTSC{
   char Magic_Header[] = "DTSC";

@@ -12,6 +12,7 @@
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdio.h>
 #include <sys/stat.h> // stat
 #if defined(_WIN32)

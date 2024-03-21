@@ -1,11 +1,10 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <sstream>
 #include <mist/bitfields.h>
 #include <mist/defines.h>
 #include <mist/langcodes.h>

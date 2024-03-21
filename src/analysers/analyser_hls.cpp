@@ -1,12 +1,10 @@
 #include "analyser_hls.h"
-#include <cstdio>
 #include <cstdlib>
-#include <iostream>
+#include <sstream>
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/http_parser.h>
 #include <mist/timing.h>
-#include <string.h>
 
 void AnalyserHLS::init(Util::Config &conf){
   Analyser::init(conf);

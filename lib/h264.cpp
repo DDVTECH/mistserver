@@ -7,6 +7,7 @@
 #include "h264.h"
 #include <cmath>
 #include <cstring>
+#include <sstream>
 #include <iomanip>
 
 namespace h264{

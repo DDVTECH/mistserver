@@ -28,13 +28,9 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h> //for shm space check
 #include <sys/wait.h>
-#include <vector>
-/*LTS-START*/
-#include "controller_limits.h"
 #include "controller_updater.h"
 #include "controller_uplink.h"
 #include <mist/triggers.h>
-/*LTS-END*/
 
 #ifndef COMPILED_USERNAME
 #define COMPILED_USERNAME ""

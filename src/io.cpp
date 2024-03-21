@@ -1,5 +1,6 @@
 #include "io.h"
 #include <cstdlib>
+#include <sstream>
 #include <mist/auth.h>
 #include <mist/bitfields.h>
 #include <mist/encode.h>

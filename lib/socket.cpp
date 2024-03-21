@@ -5,7 +5,6 @@
 #include "defines.h"
 #include "socket.h"
 #include "timing.h"
-#include "json.h"
 #include <cstdlib>
 #include <ifaddrs.h>
 #include <netdb.h>
@@ -15,6 +14,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <fstream>
+#include <sys/select.h>
 
 #define BUFFER_BLOCKSIZE 4096 // set buffer blocksize to 4KiB
 
@@ -843,8 +843,8 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     }
     DONTEVEN_MSG("SSL connect");
     int ret = 0;
-    if ((ret = mbedtls_net_connect(server_fd, host.c_str(), JSON::Value(port).asString().c_str(),
-                                   MBEDTLS_NET_PROTO_TCP)) != 0){
+    std::string portStr = uint2string(port);
+    if ((ret = mbedtls_net_connect(server_fd, host.c_str(), portStr.c_str(), MBEDTLS_NET_PROTO_TCP)) != 0){
       char estr[200];
       mbedtls_strerror(ret, estr, 200);
       lastErr = estr;

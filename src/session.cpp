@@ -7,6 +7,7 @@
 #include <mist/triggers.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sstream>
 
 // Global counters
 uint64_t thisType = 0;

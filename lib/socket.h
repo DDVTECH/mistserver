@@ -5,9 +5,7 @@
 #pragma once
 #include <arpa/inet.h>
 #include <deque>
-#include <errno.h>
 #include <fcntl.h>
-#include <sstream>
 #include <stdio.h>
 #include <string.h>
 #include <string>

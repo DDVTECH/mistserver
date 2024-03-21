@@ -1,7 +1,8 @@
 #include "checksum.h" // for crc32
 #include "defines.h"
 #include "stun.h"
-#include "socket.h"
+#include <sstream>
+#include <socket.h>
 
 /* --------------------------------------- */
 

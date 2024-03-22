@@ -74,7 +74,11 @@ namespace Mist{
       H.setCORSHeaders();
       H.SetHeader("Error", msg);
       H.SetBody("Could not retrieve stream: " + msg);
-      H.SendResponse("404", "Error opening stream", myConn);
+      if (msg.find("allowed") != std::string::npos){
+        H.SendResponse("403", "Denied opening stream", myConn);
+      }else{
+        H.SendResponse("404", "Error opening stream", myConn);
+      }
       responded = true;
     }
     Output::onFail(msg, critical);

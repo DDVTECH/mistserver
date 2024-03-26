@@ -1,7 +1,8 @@
 [wrap-git]
 directory = libsrtp
 url = https://github.com/cisco/libsrtp.git
-revision = 1b6deccb216e3cd88bf7ce563b34557b3897c2dd
+revision = v2.6.0
+diff_files = libsrtp_cygwin_patch
 
 [provide]
 libsrtp2 = libsrtp2_dep

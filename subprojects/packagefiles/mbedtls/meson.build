@@ -106,7 +106,7 @@ libmbedtls = library('mbedtls',
 )
 
 mbedtls_dep = declare_dependency(
-    link_with: [libmbedtls],
+    link_with: [libmbedtls, libmbedx509, libmbedcrypto],
     include_directories: incl,
 )
 

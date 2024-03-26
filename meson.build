@@ -99,9 +99,9 @@ message('Building release @0@ for version @1@ @ debug level @2@'.format(release,
 # Set dependencies
 
 mist_deps = []
+ccpp = meson.get_compiler('cpp')
 
 if usessl
-  ccpp = meson.get_compiler('cpp')
   mbedtls = ccpp.find_library('mbedtls', required: false)
   mbedx509 = ccpp.find_library('mbedx509', required: false)
   mbedcrypto = ccpp.find_library('mbedcrypto', required: false)
@@ -141,9 +141,16 @@ if usessl
 
   endif
   mist_deps += [mbedtls, mbedx509, mbedcrypto]
-  mist_deps += dependency('libsrtp2', default_options: ['tests=disabled'], fallback: ['libsrtp2', 'libsrtp2_dep'])
+  mist_deps += dependency('libsrtp2', default_options: ['tests=disabled', 'crypto-library=mbedtls'], fallback: ['libsrtp2', 'libsrtp2_dep'])
 
-  usrsctp_dep = dependency('usrsctp', fallback: ['usrsctp', 'usrsctp_dep'])
+  usrsctp_dep = false
+  if not get_option('NOUSRSCTP') and host_machine.system() != 'cygwin'
+    usrsctp_dep = dependency('usrsctp', fallback: ['usrsctp', 'usrsctp_dep'])
+  endif
+  have_usrsctp = not get_option('NOUSRSCTP') and host_machine.system() != 'cygwin' and usrsctp_dep.found()
+  if have_usrsctp
+    option_defines += '-DWITH_DATACHANNELS'
+  endif
 endif
 
 libsrt = false
@@ -167,6 +174,12 @@ mist_deps += dependency('threads')
 # Add rt dependency when using shared memory
 if not get_option('NOSHM') and host_machine.system() != 'darwin'
   mist_deps += ccpp.find_library('rt', required : true)
+endif
+
+#
+if host_machine.system() == 'cygwin'
+  option_defines += ['-D_POSIX_C_SOURCE=200112L', '-D_GNU_SOURCE', '-D_TTHREAD_POSIX_', '-D_TTHREAD_PLATFORM_DEFINED_']
+  option_defines += '-D_GNU_SOURCE'
 endif
 
 # Set defines from active options

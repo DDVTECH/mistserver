@@ -13,7 +13,6 @@ headers = [
   'config.h',
   'defines.h',
   'dtsc.h',
-  'encryption.h',
   'flv_tag.h',
   'h264.h',
   'h265.h',
@@ -63,13 +62,14 @@ if have_srt
   headers += 'socket_srt.h'
 endif
 
-install_headers(headers, subdir: 'mist')
-
 extra_code = []
 
 if usessl
+  headers += 'encryption.h'
   extra_code += ['stun.cpp', 'certificate.cpp', 'encryption.cpp',]
 endif
+
+install_headers(headers, subdir: 'mist')
 
 libmist = library('mist',
   'adts.cpp',

@@ -1,5 +1,6 @@
 option('NOSHM', description: 'Disabled shared memory (falling back to shared temporary files)', type : 'boolean', value : false)
 option('NOSSL', description: 'Disable SSL/TLS support', type : 'boolean', value : false)
+option('NOUSRSCTP', description: 'Disable usrsctp (WebRTC data channels) support', type : 'boolean', value : false)
 option('NOUPDATE', description: 'Disable the updater', type : 'boolean', value : false)
 option('NOAUTH', description: 'Disable API authentication entirely (insecure!)', type : 'boolean', value : false)
 option('WITH_THREADNAMES', description: 'Enable fancy names for threads (not supported on all platforms)', type : 'boolean', value : false)

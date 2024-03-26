@@ -1605,6 +1605,7 @@ int Socket::Server::getSocket(){
 }
 
 
+#ifdef SSL
 static int dTLS_recv(void *s, unsigned char *buf, size_t len){
   return ((Socket::UDPConnection*)s)->dTLSRead(buf, len);
 }
@@ -1612,6 +1613,7 @@ static int dTLS_recv(void *s, unsigned char *buf, size_t len){
 static int dTLS_send(void *s, const unsigned char *buf, size_t len){
   return ((Socket::UDPConnection*)s)->dTLSWrite(buf, len);
 }
+#endif
 
 
 /// Create a new UDP Socket.
@@ -1680,6 +1682,7 @@ static int dtlsExtractKeyData( void *user, const unsigned char *ms, const unsign
 }
 #endif
 
+#ifdef SSL
 void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key){
   hasDTLS = true;
   nextDTLSRead = 0;
@@ -1825,6 +1828,7 @@ void Socket::UDPConnection::dTLSReset(){
     WARN_MSG("dTLS could not set transport ID: %s", mbedtls_msg);
   }
 }
+#endif //if SSL
 
 ///Checks if the UDP receive buffer is at least 1 mbyte, attempts to increase and warns user through log message on failure.
 void Socket::UDPConnection::checkRecvBuf(){
@@ -1913,7 +1917,9 @@ Socket::UDPConnection::~UDPConnection(){
     free(recvAddr);
     recvAddr = 0;
   }
+#ifdef SSL
   deinitDTLS();
+#endif
 }
 
 
@@ -2175,6 +2181,7 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
     }
     return;
   }
+#if !defined(__CYGWIN__) && !defined(_WIN32)
   if (hasReceiveData && recvAddr){
     msghdr mHdr;
     char msg_control[0x100];
@@ -2209,13 +2216,16 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
     }
     return;
   }else{
+#endif
     int r = sendto(sock, sdata, len, 0, dAddr, dAddrLen);
     if (r > 0){
       up += r;
     }else{
       FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
     }
+#if !defined(__CYGWIN__) && !defined(_WIN32)
   }
+#endif
 }
 
 /// Queues sdata, len for sending over this socket.
@@ -2223,6 +2233,7 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
 /// Warning: never call sendPaced for the same socket from a different thread!
 /// Note: Only actually encrypts if initDTLS was called in the past.
 void Socket::UDPConnection::sendPaced(const char *sdata, size_t len, bool encrypt){
+#ifdef SSL 
   if (hasDTLS && encrypt){
 #if MBEDTLS_VERSION_MAJOR > 2
     if (!mbedtls_ssl_is_handshake_over(&ssl_ctx)){
@@ -2235,6 +2246,7 @@ void Socket::UDPConnection::sendPaced(const char *sdata, size_t len, bool encryp
     int write = mbedtls_ssl_write(&ssl_ctx, (unsigned char*)sdata, len);
     if (write <= 0){WARN_MSG("Could not write DTLS packet!");}
   }else{
+#endif
     if (!paceQueue.size() && (!lastPace || Util::getMicros(lastPace) > 10000)){
       SendNow(sdata, len);
       lastPace = Util::getMicros();
@@ -2244,7 +2256,9 @@ void Socket::UDPConnection::sendPaced(const char *sdata, size_t len, bool encryp
       // Try to send a packet, if time allows
       //sendPaced(0);
     }
+#ifdef SSL
   }
+#endif
 }
 
 // Gets time in microseconds until next sendPaced call would send something
@@ -2621,6 +2635,7 @@ bool Socket::UDPConnection::Receive(){
     return false;
   }
   if (destAddr && destsize && destAddr_size >= destsize){memcpy(destAddr, &addr, destsize);}
+#if !defined(__CYGWIN__) && !defined(_WIN32)
   if (recvAddr){
     for ( struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mHdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&mHdr, cmsg)){
       if (cmsg->cmsg_level != IPPROTO_IP || cmsg->cmsg_type != IP_PKTINFO){continue;}
@@ -2633,6 +2648,7 @@ bool Socket::UDPConnection::Receive(){
       hasReceiveData = true;
     }
   }
+#endif
   data.append(0, r);
   down += r;
   //Handle UDP packets that are too large
@@ -2646,8 +2662,9 @@ bool Socket::UDPConnection::Receive(){
 bool Socket::UDPConnection::onData(){
   wasEncrypted = false;
   if (!data.size()){return false;}
-  uint8_t fb = 0;
   int r = data.size();
+#ifdef SSL
+  uint8_t fb = 0;
   if (r){fb = (uint8_t)data[0];}
   if (r && hasDTLS && fb > 19 && fb < 64){
     if (nextDTLSReadLen){
@@ -2761,6 +2778,7 @@ bool Socket::UDPConnection::onData(){
       return true;
     }
   }
+#endif
   return r > 0;
 }
 

@@ -8,6 +8,7 @@
 #include "mbedtls/sha1.h"
 #endif
 
+#ifdef SSL
 // Takes the data from a Sec-WebSocket-Key header, and returns the corresponding data for a Sec-WebSocket-Accept header
 static std::string calculateKeyAccept(std::string client_key){
   client_key += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -18,6 +19,7 @@ static std::string calculateKeyAccept(std::string client_key){
   mbedtls_sha1_finish(&ctx, outdata);
   return Encodings::Base64::encode(std::string((const char *)outdata, 20));
 }
+#endif
 
 namespace HTTP{
 
@@ -33,12 +35,9 @@ namespace HTTP{
     //Ensure our passed socket gets used by the downloader class
     d.setSocket(&C);
     
-    //Generate a random nonce based on the current process ID
-    //Note: This is not cryptographically secure, nor intended to be.
-    //It does make it possible to trace which stream came from which PID, if needed.
+    //Generate a random nonce
     char nonce[16];
-    unsigned int state = getpid();
-    for (size_t i = 0; i < 16; ++i){nonce[i] = rand_r(&state) % 255;}
+    Util::getRandomBytes(nonce, 16);
     std::string handshakeKey = Encodings::Base64::encode(std::string(nonce, 16));
 
     //Prepare the headers

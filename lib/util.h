@@ -20,6 +20,8 @@ namespace Util{
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 
+  void getRandomBytes(void * dest, size_t len);
+
   uint64_t ftell(FILE *stream);
   uint64_t fseek(FILE *stream, uint64_t offset, int whence);
 

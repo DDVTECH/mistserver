@@ -12,7 +12,10 @@
 #include <mist/websocket.h>
 #include <fstream>
 #include "output_webrtc_srtp.h"
-#include <usrsctp.h>
+
+#ifdef WITH_DATACHANNELS
+  #include <usrsctp.h>
+#endif
 
 #define NACK_BUFFER_SIZE 1024
 
@@ -206,11 +209,13 @@ namespace Mist{
     int64_t ntpClockDifference;
     bool syncedNTPClock;
 
+#ifdef WITH_DATACHANNELS
     bool sctpInited;
     bool sctpConnected;
     struct socket * sctp_sock;
     std::map<std::string, uint16_t> dataChannels;
     std::deque<std::string> queuedJSON;
+#endif
   };
 }// namespace Mist
 

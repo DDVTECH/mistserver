@@ -5,12 +5,15 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/dtsc.h>
-#include <mist/encryption.h>
 #include <mist/json.h>
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
 #include <mist/url.h>
 #include <set>
+
+#ifdef SSL
+#include <mist/encryption.h>
+#endif
 
 #include "../io.h"
 
@@ -110,7 +113,9 @@ namespace Mist{
     Comms::Users users;
     size_t connectedUsers;
 
+#ifdef SSL
     Encryption::AES aesCipher;
+#endif
 
     IPC::sharedPage streamStatus;
 

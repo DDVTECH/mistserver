@@ -1,6 +1,6 @@
 /// \file timing.cpp
 /// Utilities for handling time and timestamps.
-
+#define _XOPEN_SOURCE // Ensures strptime works in Cygwin
 #include "timing.h"
 #include <cstdio>
 #include <cstring>

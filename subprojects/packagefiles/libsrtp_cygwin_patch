@@ -1,0 +1,15 @@
+diff --git a/meson.build b/meson.build
+index 81a232e..1f15de9 100644
+--- a/meson.build
++++ b/meson.build
+@@ -43,6 +43,10 @@ foreach h : check_headers
+   endif
+ endforeach
+
++if (host_system == 'cygwin')
++  cdata.set('HAVE_MACHINE_TYPES_H', false)
++endif
++
+ check_functions = [
+   'sigaction',
+   'inet_aton',

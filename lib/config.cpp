@@ -927,7 +927,9 @@ void Util::getMyExec(std::deque<std::string> &execs){
   WIN32_FIND_DATA FindFileData;
   HANDLE hdl = FindFirstFile(path.c_str(), &FindFileData);
   while (hdl != INVALID_HANDLE_VALUE){
-    execs.push_back(FindFileData.cFileName);
+    if (!(FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)){
+      execs.push_back(FindFileData.cFileName);
+    }
     if (!FindNextFile(hdl, &FindFileData)){
       FindClose(hdl);
       hdl = INVALID_HANDLE_VALUE;

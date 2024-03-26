@@ -302,6 +302,16 @@ namespace Util{
     DONTEVEN_MSG("Waiting %" PRId64 " ms out of %" PRId64 " for iteration %zu/%zu", w, maxWait, currIter, maxIter);
     return w;
   }
+ 
+  /// Secure random bytes generator
+  /// Uses /dev/urandom internally
+  void getRandomBytes(void * dest, size_t len){
+    static FILE * randSource = fopen("/dev/urandom", "rb");
+    if (fread((void *)dest, len, 1, randSource) != 1){
+      WARN_MSG("Reading random data failed - generating using rand() as backup");
+      for (size_t i = 0; i < len; ++i){((char*)dest)[i] = rand() % 255;}
+    }
+  }
 
   /// 64-bits version of ftell
   uint64_t ftell(FILE *stream){
@@ -374,7 +384,12 @@ namespace Util{
 
   bool ResizeablePointer::allocate(uint32_t l){
     if (l > maxSize){
-      void *tmp = realloc(ptr, l);
+      void *tmp = 0;
+      if (!ptr){
+        tmp = malloc(l);
+      }else{
+        tmp = realloc(ptr, l);
+      }
       if (!tmp){
         FAIL_MSG("Could not allocate %" PRIu32 " bytes of memory", l);
         return false;

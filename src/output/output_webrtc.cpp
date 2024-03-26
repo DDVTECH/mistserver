@@ -36,6 +36,7 @@ namespace Mist{
   static void onRTPPacketizerHasDataCallback(void *socket, const char *data, size_t len, uint8_t channel);
   static void onRTPPacketizerHasRTCPDataCallback(void *socket, const char *data, size_t nbytes, uint8_t channel);
 
+#ifdef WITH_DATACHANNELS
   static int sctp_recv_cb(struct socket *s, union sctp_sockstore addr, void *data, size_t datalen, struct sctp_rcvinfo rcv, int flags, void *ulp_info){
     if (data) {
       if (!(flags & MSG_NOTIFICATION)){
@@ -61,6 +62,7 @@ namespace Mist{
     va_end(args);
     INFO_MSG("sctp: %s", msg);
   }
+#endif
 
   WebRTCSocket::WebRTCSocket(){
     udpSock = 0;
@@ -132,8 +134,10 @@ namespace Mist{
   /* ------------------------------------------------ */
 
   OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
+#ifdef WITH_DATACHANNELS
     sctpInited = false;
     sctpConnected = false;
+#endif
     noSignalling = false;
     totalPkts = 0;
     totalLoss = 0;
@@ -1170,6 +1174,7 @@ namespace Mist{
 
       if (wSock.udpSock->data.size() && wSock.udpSock->wasEncrypted){
         lastRecv = Util::bootMS();
+#ifdef WITH_DATACHANNELS
         if (packetLog.is_open()){
           packetLog << "[" << Util::bootMS() << "]" << "SCTP packet (" << wSock.udpSock->data.size() << "b): " << std::endl;
           char * buffer = usrsctp_dumppacket(wSock.udpSock->data, wSock.udpSock->data.size(), SCTP_DUMP_INBOUND);
@@ -1200,6 +1205,7 @@ namespace Mist{
         }
         usrsctp_conninput(this, wSock.udpSock->data, wSock.udpSock->data.size(), 0);
         //usrsctp_accept(sctp_sock, 0, 0);
+#endif
         continue;
       }
 
@@ -1636,6 +1642,7 @@ namespace Mist{
   }
 
   void OutWebRTC::onSCTP(const char * data, size_t len, uint16_t stream, uint32_t ppid){
+#ifdef WITH_DATACHANNELS
     if (!sctpConnected){
       // We have to call accept (at least) once, otherwise the SCTP library considers our socket not connected
       // Accept blocks if there is no peer, so we do this as soon as the first message is received, which means we have a peer.
@@ -1723,6 +1730,7 @@ namespace Mist{
         packetLog << std::dec << std::endl;
       }
     }
+#endif
   }
 
   void OutWebRTC::onDTSCConverterHasPacket(const DTSC::Packet &pkt){
@@ -1894,6 +1902,7 @@ namespace Mist{
 
 
     if (M.getType(thisIdx) == "meta"){
+#ifdef WITH_DATACHANNELS
       JSON::Value jPack;
       if (M.getCodec(thisIdx) == "JSON"){
         if (dataLen == 0 || (dataLen == 1 && dataPointer[0] == ' ')){return;}
@@ -1938,6 +1947,7 @@ namespace Mist{
           WARN_MSG("I don't have a data channel for %s data!", M.getCodec(thisIdx).c_str());
         }
       }
+#endif
       return;
     }
 

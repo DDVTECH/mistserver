@@ -1,5 +1,7 @@
 #include "input_hls.h"
+#ifdef SSL
 #include "mbedtls/aes.h"
+#endif
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>

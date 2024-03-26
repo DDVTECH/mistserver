@@ -1604,6 +1604,7 @@ namespace Mist{
         if (connectedUsers || isAlwaysOn()){activityCounter = Util::bootSecs();}
         if (thisTime >= lastBuffered){
           if (sourceIdx != idx){
+#ifdef SSL
             if (encryption.find(":") != std::string::npos || M.getEncryption(idx).find(":") != std::string::npos){
               if (encryption == ""){
                 encryption = M.getEncryption(idx);
@@ -1622,8 +1623,11 @@ namespace Mist{
                 thisPacket = encPacket;
               }
             }else{
+#endif
               thisPacket = DTSC::Packet(thisPacket, idx);
+#ifdef SSL
             }
+#endif
           }
           //Sanity check: are we matching the key's data size?
           if (thisPacket.getFlag("keyframe")){

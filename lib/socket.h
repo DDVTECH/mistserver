@@ -237,12 +237,14 @@ namespace Socket{
     bool hasDTLS; ///< True if dTLS is enabled
     void * nextDTLSRead;
     size_t nextDTLSReadLen;
+#ifdef SSL
     mbedtls_entropy_context entropy_ctx;
     mbedtls_ctr_drbg_context rand_ctx;
     mbedtls_ssl_context ssl_ctx;
     mbedtls_ssl_config ssl_conf;
     mbedtls_ssl_cookie_ctx cookie_ctx;
     mbedtls_timing_delay_context timer_ctx;
+#endif
 
   public:
     Util::ResizeablePointer data;
@@ -251,11 +253,13 @@ namespace Socket{
     ~UDPConnection();
     bool operator==(const UDPConnection& b) const;
     operator bool() const;
+#ifdef SSL
     void initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key);
     void deinitDTLS();
     int dTLSRead(unsigned char *buf, size_t len);
     int dTLSWrite(const unsigned char *buf, size_t len);
     void dTLSReset();
+#endif
     bool wasEncrypted;
     void close();
     int getSock();
@@ -281,12 +285,15 @@ namespace Socket{
     size_t timeToNextPace(uint64_t uTime = 0);
     void setSocketFamily(int AF_TYPE);
 
+
+#ifdef SSL
     // dTLS-related public members
     std::string cipher, remote_key, local_key, remote_salt, local_salt;
 #if HAVE_UPSTREAM_MBEDTLS_SRTP
     unsigned char master_secret[48];
     unsigned char randbytes[64];
     mbedtls_tls_prf_types tls_prf_type;
+#endif
 #endif
   };
 }// namespace Socket

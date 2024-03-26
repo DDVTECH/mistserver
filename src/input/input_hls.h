@@ -67,7 +67,9 @@ namespace Mist{
     Util::ResizeablePointer * currBuf;
     size_t encOffset;
     unsigned char tmpIvec[16];
+#ifdef SSL
     mbedtls_aes_context aes;
+#endif
     bool isOpen;
   };
 

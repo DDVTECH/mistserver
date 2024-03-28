@@ -319,6 +319,7 @@ int main(int argc, char *argv[]){
   if (config.getBool("json")){
 
     capa["name"] = "MKVExec";
+    capa["hrn"] = "Executable: Matroska In/Out";
     capa["desc"] = "Pipe MKV in, expect MKV out. You choose the executable in between yourself.";
     addGenericProcessOptions(capa);
 

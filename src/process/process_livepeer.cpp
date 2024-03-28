@@ -554,6 +554,7 @@ int main(int argc, char *argv[]){
   if (config.getBool("json")){
 
     capa["name"] = "Livepeer";
+    capa["hrn"] = "Encoder: Livepeer network encoding";
     capa["desc"] = "Use livepeer to transcode video.";
     addGenericProcessOptions(capa);
 

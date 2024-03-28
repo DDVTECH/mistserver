@@ -2212,7 +2212,9 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
     if (r > 0){
       up += r;
     }else{
-      FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+      if (errno != ENETUNREACH){
+        FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+      }
     }
     return;
   }else{
@@ -2221,7 +2223,9 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
     if (r > 0){
       up += r;
     }else{
-      FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+      if (errno != ENETUNREACH){
+        FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+      }
     }
 #if !defined(__CYGWIN__) && !defined(_WIN32)
   }

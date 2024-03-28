@@ -46,36 +46,30 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #define PRIu32 "lu"
 #endif
 
-#if !defined(__APPLE__) && !defined(__MACH__) && defined(__GNUC__)
-#include <errno.h>
+// Find program name best we can
+#if defined(__APPLE__) || defined(__MACH__)
+  #define MIST_PROG getprogname()
+#else
+  #if defined(__GNUC__)
+    #include <errno.h>
+    #define MIST_PROG program_invocation_short_name
+  #else
+    #define MIST_PROG "MistProcess"
+  #endif
+#endif
 
 #if DEBUG >= DLVL_DEVEL
-#define DEBUG_MSG(lvl, msg, ...)                                                                     \
-  if (Util::printDebugLevel >= lvl){\
-    fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, \
-            getpid(), __FILE__, __LINE__, Util::streamName, ##__VA_ARGS__);          \
+// Compiled at 4 or higher default? Include line numbers.
+#define DEBUG_MSG(lvl, msg, ...) if (Util::printDebugLevel >= lvl){\
+    fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|" msg "\n",\
+      DBG_LVL_LIST[lvl], MIST_PROG, getpid(), __FILE__, __LINE__, Util::streamName, ##__VA_ARGS__);\
   }
 #else
-#define DEBUG_MSG(lvl, msg, ...)                                                                   \
-  if (Util::printDebugLevel >= lvl){\
-    fprintf(stderr, "%s|%s|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name,    \
-            getpid(), Util::streamName, ##__VA_ARGS__);                            \
+// Under 4? Then don't include line numbers.
+#define DEBUG_MSG(lvl, msg, ...) if (Util::printDebugLevel >= lvl){\
+    fprintf(stderr, "%.8s|%.30s|%d||%.200s|" msg "\n",\
+      DBG_LVL_LIST[lvl], MIST_PROG, getpid(), Util::streamName, ##__VA_ARGS__);\
   }
-#endif
-#else
-#if DEBUG >= DLVL_DEVEL
-#define DEBUG_MSG(lvl, msg, ...)                                                                   \
-  if (Util::printDebugLevel >= lvl){\
-    fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], getprogname(),  getpid(), __FILE__, \
-            __LINE__, Util::streamName, ##__VA_ARGS__);                            \
-  }
-#else
-#define DEBUG_MSG(lvl, msg, ...)                                                                   \
-  if (Util::printDebugLevel >= lvl){\
-    fprintf(stderr, "%s|MistProcess|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(),                \
-            Util::streamName, ##__VA_ARGS__);                                      \
-  }
-#endif
 #endif
 
 #if defined(_WIN32) || defined(__CYGWIN__)

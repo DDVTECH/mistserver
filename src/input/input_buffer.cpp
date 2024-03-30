@@ -43,6 +43,10 @@ namespace Mist{
     option["help"] = "DVR buffer time in ms";
     option["value"].append(50000);
     config->addOption("bufferTime", option);
+    option["long"] = "idleTime";
+    option["short"] = "I";
+    option["help"] = "Max track idle time in ms";
+    config->addOption("idleTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] =
         "The target available buffer time for this live stream, in milliseconds. This is the time "
@@ -51,6 +55,12 @@ namespace Mist{
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000;
+
+    capa["optional"]["idleTime"]["name"] = "Track idle time (ms)";
+    capa["optional"]["idleTime"]["help"] = "Maximum tolerated duration a track will be allowed to be idle for before being deleted. If a track is idle for more than 5 seconds and its last timestamp differs from still-active tracks by at least this much, it will also be deleted.";
+    capa["optional"]["idleTime"]["option"] = "--idleTime";
+    capa["optional"]["idleTime"]["type"] = "uint";
+    capa["optional"]["idleTime"]["default"] = 50000;
     /*LTS-start*/
     option.null();
     option["arg"] = "integer";
@@ -137,6 +147,7 @@ namespace Mist{
         "that support push input to accept a push into MistServer, where you can accept incoming "
         "streams from everyone, based on a set password, and/or use hostname/IP whitelisting."; //shown in the settings page input description instead of capa["desc"]
     bufferTime = 50000;
+    idleTime = 50000;
     cutTime = 0;
     segmentSize = DEFAULT_FRAGMENT_DURATION;
     hasPush = false;
@@ -378,22 +389,22 @@ namespace Mist{
         uint64_t lastms = M.getLastms(i);
         // if not updated for an entire buffer duration, or last updated track and this track differ
         // by an entire buffer duration, erase the track.
-        if ((time - lastUp > (bufferTime / 1000) ||
+        if ((time - lastUp > (idleTime / 1000) ||
              (compareLast && activeTypes.count(type) && (time - lastUp) > 5 &&
-              ((compareLast < firstms && (firstms - compareLast) > bufferTime) ||
-               (compareFirst > lastms && (compareFirst - lastms) > bufferTime))))){
+              ((compareLast < firstms && (firstms - compareLast) > idleTime) ||
+               (compareFirst > lastms && (compareFirst - lastms) > idleTime))))){
           // erase this track
-          if ((time - lastUp) > (bufferTime / 1000)){
+          if ((time - lastUp) > (idleTime / 1000)){
             WARN_MSG("Erasing %s track %zu (%s/%s) because not updated for %" PRIu64 "s (> %" PRIu64 "s)",
                      streamName.c_str(), i, type.c_str(), codec.c_str(), time - lastUp,
-                     bufferTime / 1000);
+                     idleTime / 1000);
           }else{
             WARN_MSG("Erasing %s inactive track %zu (%s/%s) because it was inactive for 5+ seconds "
                      "and contains data (%" PRIu64 "s - %" PRIu64
                      "s), while active tracks are (%" PRIu64 "s - %" PRIu64
                      "s), which is more than %" PRIu64 "s seconds apart.",
                      streamName.c_str(), i, type.c_str(), codec.c_str(), firstms / 1000,
-                     lastms / 1000, compareFirst / 1000, compareLast / 1000, bufferTime / 1000);
+                     lastms / 1000, compareFirst / 1000, compareLast / 1000, idleTime / 1000);
           }
           meta.reloadReplacedPagesIfNeeded();
           removeTrack(i);
@@ -570,6 +581,14 @@ namespace Mist{
     if (bufferTime != tmpNum){
       DEVEL_MSG("Setting bufferTime from %" PRIu64 " to new value of %" PRIu64, bufferTime, tmpNum);
       bufferTime = tmpNum;
+    }
+
+    //Check if idleTime setting is correct
+    tmpNum = retrieveSetting(streamCfg, "idleTime", "idleTime");
+    if (tmpNum < 1000){tmpNum = 1000;}
+    if (idleTime != tmpNum){
+      DEVEL_MSG("Setting idleTime from %" PRIu64 " to new value of %" PRIu64, idleTime, tmpNum);
+      idleTime = tmpNum;
     }
 
     //Check if input timeout setting is correct

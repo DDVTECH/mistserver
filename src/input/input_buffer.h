@@ -1,5 +1,4 @@
 #include "input.h"
-#include <fstream>
 #include <mist/dtsc.h>
 #include <mist/shared_memory.h>
 
@@ -13,6 +12,7 @@ namespace Mist{
   private:
     void fillBufferDetails(JSON::Value &details) const;
     uint64_t bufferTime;
+    uint64_t idleTime;
     uint64_t cutTime;
     size_t segmentSize;  /*LTS*/
     uint64_t lastReTime; /*LTS*/

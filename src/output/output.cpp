@@ -2660,6 +2660,7 @@ namespace Mist{
         pStat["push_status_update"]["id"] = getpid();
         JSON::Value & pData = pStat["push_status_update"]["status"];
         pData["mediatime"] = currentTime();
+        pData["latency"] = endTime() - currentTime();
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
           pData["tracks"].append((uint64_t)it->first);
         }

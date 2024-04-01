@@ -285,7 +285,7 @@ namespace Controller{
         capabilities["processes"][(*it).substr(8)] =
             JSON::fromString(Util::Procs::getOutputOf((char **)conn_args));
         if (capabilities["processes"][(*it).substr(8)].size() < 1){
-          capabilities["processes"].removeMember((*it).substr(7));
+          capabilities["processes"].removeMember((*it).substr(8));
         }
       }
       if ((*it).substr(0, 6) == "MistIn" && (*it) != "MistInfo"){

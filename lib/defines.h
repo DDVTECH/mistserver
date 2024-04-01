@@ -52,7 +52,13 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #else
   #if defined(__GNUC__)
     #include <errno.h>
-    #define MIST_PROG program_invocation_short_name
+    #if defined(__CYGWIN__)
+      #include <cstring>
+      static const char * cygprogname = strrchr(program_invocation_short_name, '\\')?strrchr(program_invocation_short_name, '\\')+1:program_invocation_short_name;
+      #define MIST_PROG cygprogname
+    #else
+      #define MIST_PROG program_invocation_short_name
+    #endif
   #else
     #define MIST_PROG "MistProcess"
   #endif

@@ -305,13 +305,13 @@ bool Socket::getPeerName(int fd, std::string &host, uint32_t &port, sockaddr * t
   if (tmpaddr->sa_family == AF_INET6){
     host = inet_ntop(AF_INET6, &(((sockaddr_in6*)tmpaddr)->sin6_addr), addrconv, INET6_ADDRSTRLEN);
     if (host.substr(0, 7) == "::ffff:"){host = host.substr(7);}
-    port = ntohs(((sockaddr_in6 *)&tmpaddr)->sin6_port);
+    port = ntohs(((sockaddr_in6 *)tmpaddr)->sin6_port);
     HIGH_MSG("Peer IPv6 addr [%s:%" PRIu32 "]", host.c_str(), port);
     return true;
   }
   if (tmpaddr->sa_family == AF_INET){
     host = inet_ntop(AF_INET, &(((sockaddr_in *)tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-    port = ntohs(((sockaddr_in *)&tmpaddr)->sin_port);
+    port = ntohs(((sockaddr_in *)tmpaddr)->sin_port);
     HIGH_MSG("Peer IPv4 addr [%s:%" PRIu32 "]", host.c_str(), port);
     return true;
   }

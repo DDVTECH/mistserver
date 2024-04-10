@@ -1422,6 +1422,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
       fields.append("lastms");
       //fields.append("zerounix");
       fields.append("health");
+      fields.append("pid");
     }
   }
   // collect the data first
@@ -1520,6 +1521,20 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
             case STRMSTAT_READY: F = "Online"; break;
             case STRMSTAT_SHUTDOWN: F = "Shutting down"; break;
             default: F = "Invalid / Unknown"; break;
+          }
+        }else if (j->asStringRef() == "pid"){
+          F.shrink(0);
+          {
+            char pageName[NAME_BUFFER_SIZE];
+            snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_IPID, it->first.c_str());
+            IPC::sharedPage pidPage(pageName, 8, false, false);
+            if (pidPage){F.prepend(*(uint64_t*)(pidPage.mapped));}
+          }
+          {
+            char pageName[NAME_BUFFER_SIZE];
+            snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_PPID, it->first.c_str());
+            IPC::sharedPage pidPage(pageName, 8, false, false);
+            if (pidPage){F.prepend(*(uint64_t*)(pidPage.mapped));}
           }
         }
       }

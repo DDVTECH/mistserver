@@ -1,4 +1,5 @@
 $(function(){
+
   UI.elements = {
     menu: $('nav > .menu'),
     main: $('main'),
@@ -11,7 +12,7 @@ $(function(){
   };
   UI.buildMenu();
   UI.stored.getOpts();
-  
+
   //get stored login data
   try {
     if ('mistLogin' in sessionStorage) {
@@ -47,12 +48,14 @@ $(function(){
   });
 });
 
+var lastpage = [];
 $(window).on('hashchange', function(e) {
   var loc = decodeURIComponent(location.hash).substring(1).split('@');
   if (!loc[1]) { loc[1] = ''; }
   var tab = loc[1].split('&');
   if (tab[0] == '') { tab[0] = 'Overview'; }
-  UI.showTab(tab[0],tab[1]);
+  UI.showTab(tab[0],tab[1],lastpage);
+  if (lastpage[0] != tab[0] || lastpage[1] != tab[1]) lastpage = [tab[0],tab[1]];
 });
 
 var MistVideoObject = {};
@@ -82,26 +85,48 @@ var UI = {
     }
   },
   interval: {
+    list: {},
     clear: function(){
-      if (typeof this.opts == 'undefined') {
-        return;
+      for (var i in this.list) {
+        clearInterval(this.list[i].id);
       }
-      clearInterval(this.opts.id);
-      delete this.opts;
+      this.list = {};
     },
     set: function(callback,delay){
       if (this.opts) {
         log('[interval]','Set called on interval, but an interval is already active.');
       }
       
-      this.opts = {
+      var opts = {
         delay: delay,
-        callback: callback
+        callback: callback,
+        id: setInterval(callback,delay)
       };
-      this.opts.id = setInterval(callback,delay);
+      this.list[opts.id] = opts;
+      return opts.id;
     }
   },
-  returnTab: ['Overview'],
+  websockets: {
+    list: [],
+    clear: function(){
+      for (var i in this.list) {
+        this.list[i].close();
+      }
+      //they will remove themselves from the list in the onclose call, defined in websockets.create
+    },
+    create: function(url){
+      var ws = new WebSocket(url);
+      var me = this;
+      this.list.push(ws);
+      ws.addEventListener("close",function(){
+        //remove from list
+        for (var i = me.list.length - 1; i >=0; i--) {
+          if (me.list[i] == ws) { me.list.splice(i,1); }
+        }
+      })
+      return ws;
+    }
+  },
   countrylist: {'AF':'Afghanistan','AX':'&Aring;land Islands','AL':'Albania','DZ':'Algeria','AS':'American Samoa','AD':'Andorra',
     'AO':'Angola','AI':'Anguilla','AQ':'Antarctica','AG':'Antigua and Barbuda','AR':'Argentina','AM':'Armenia','AW':'Aruba',
     'AU':'Australia','AT':'Austria','AZ':'Azerbaijan','BS':'Bahamas','BH':'Bahrain','BD':'Bangladesh','BB':'Barbados',
@@ -182,11 +207,35 @@ var UI = {
       case "html5/application/vnd.apple.mpegurl;version=7":
         human = "HLS (CMAF)";
         break;
+      case "html5/application/sdp":
+        human = "SDP";
+        break;
       case 'html5/video/webm':
         human = 'WebM';
         break;
+      case 'html5/video/raw':
+        human = 'Raw';
+        break;
       case 'html5/video/mp4':
         human = 'MP4';
+        break;
+      case 'ws/video/mp4':
+        human = 'MP4 (websocket)';
+        break;
+      case 'ws/video/raw':
+        human = 'Raw (websocket)';
+        break;
+      case 'dtsc':
+        human = 'DTSC';
+        break;
+      case 'html5/audio/aac':
+        human = 'AAC';
+        break;
+      case 'html5/audio/flac':
+        human = 'FLAC';
+        break;
+      case 'html5/image/jpeg':
+        human = 'JPG';
         break;
       case 'dash/video/mp4':
         human = 'DASH';
@@ -226,8 +275,14 @@ var UI = {
       case 'rtsp':
         human = 'RTSP';
         break;
+      case 'srt':
+        human = 'SRT';
+        break;
       case 'webrtc':
-        human = "WebRTC";
+        human = "WebRTC (websocket)";
+        break;
+      case 'whep':
+        human = "WebRTC (WHEP)";
         break;
     }
     return human;
@@ -257,8 +312,10 @@ var UI = {
       },
       Protocols: {},
       Streams: {
+        keepParam: true, 
         hiddenmenu: {
           Edit: {},
+          Status: {},
           Preview: {},
           Embed: {}
         }
@@ -309,7 +366,12 @@ var UI = {
       else if (!('submenu' in button)) {
         $button.click(function(e){
           if ($(this).closest('.menu').hasClass('hide')) { return; }
-          UI.navto(j);
+          var other;
+          var $sub = $(this).closest('.hiddenmenu[data-param]');
+          if ($sub.length) {
+            other = $sub.attr("data-param");
+          }
+          UI.navto(j,other);
           e.stopPropagation();
         });
       }
@@ -334,6 +396,7 @@ var UI = {
         }
         else if ('hiddenmenu' in button) {
           var $sub = $('<span>').addClass('hiddenmenu');
+          if (button.keepParam) { $sub.attr("data-param",""); }
           $button.append($sub);
           for (var k in button.hiddenmenu) {
             $sub.append(createButton(k,button.hiddenmenu[k]));
@@ -369,6 +432,115 @@ var UI = {
     }
     else {
       throw 'Request capabilities first';
+    }
+  },
+  updateLiveStreamHint: function(streamname,source,$cont) {
+
+    //var streamname = $main.find('[name=name]').val();
+    if (!streamname) { return; }
+    var host = parseURL(mist.user.host);
+    //var source = $main.find('[name=source]').val();
+    var passw = source.match(/@.*/);
+    if (passw) { passw = passw[0].substring(1); }
+    var ip = source.replace(/(?:.+?):\/\//,'');
+      ip = ip.split('/');
+      ip = ip[0];
+      ip = ip.split(':');
+      ip = ip[0];
+      var custport = source.match(/:\d+/);
+      if (custport) { custport = custport[0]; }
+
+
+      var port = {};
+      var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe','TSSRT','TSSRT.exe'];
+      for (var i in trythese) {
+        if (trythese[i] in mist.data.capabilities.connectors) {
+          port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
+        }
+      }
+    var defport = {
+      RTMP: 1935,
+      'RTMP.exe': 1935,
+      RTSP: 554,
+      'RTSP.exe': 554,
+      TSSRT: -1,
+      'TSSRT.exe': -1,
+      TS: -1,
+      'TS.exe': -1
+    };
+    for (var protocol in port) {
+      for (var i in mist.data.config.protocols) {
+        var p = mist.data.config.protocols[i];
+        if (p.connector == protocol) {
+          if ('port' in p) {
+            port[protocol] = p.port;
+          }
+          break;
+        }
+      }
+      if (port[protocol] == defport[protocol]) { port[protocol] = ''; }
+      else { port[protocol] = ':'+port[protocol]; }
+    }
+    port.TS = "";
+    port["TS.exe"] = "";
+
+    $cont.find('.field').closest('label').hide();
+    for (var i in port) {
+      var str;
+      var useport = (custport ? custport : port[i]);
+      switch(i) {
+        case 'RTMP':
+        case 'RTMP.exe':
+          str = 'rtmp://'+host.host+useport+'/'+(passw ? passw : 'live')+'/';
+          var l = $cont.find('.field.RTMPurl').setval(str).closest('label');
+          if (l.length) l[0].style.display = "";
+          l = $cont.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label');
+          if (l.length) l[0].style.display = "";
+          str += (streamname == '' ? 'STREAMNAME' : streamname);
+          break;
+        case 'TSSRT':
+        case 'TSSRT.exe':
+          if (source.slice(0,6) == "srt://") { 
+            if (custport) {
+              var source_parsed = parseURL(source.replace());
+              if (source_parsed.host == "") {
+                //url is invalid, parser gets funky
+                source_parsed = parseURL(source.replace(/^srt:\/\//,"http://localhost"));
+                  source_parsed.host = source_parsed.host.replace(/^localhost/,"")
+                }
+              if ((source_parsed.host != "") && (!source_parsed.search || !source_parsed.searchParams || source_parsed.searchParams.get("mode") != "listener")) {
+                str = "Caller mode: you should push to the other side.";
+              }
+              else if (source_parsed.search && source_parsed.searchParams && (source_parsed.searchParams.get("mode") == "caller")) {
+                str = "Caller mode: you should probably add an address.";
+              }
+              else {
+                str = 'srt://'+host.host+custport;
+              }
+              //if adres -> caller of ?mode=caller, geen push url
+              //als ?mode=listener, wel push url
+            }
+            else {
+              str = "You must specify a port.";
+            }
+          }
+          else {
+            str = 'srt://'+host.host+useport+'?streamid='+(streamname == '' ? 'STREAMNAME' : streamname);
+          }
+          break;
+        case 'RTSP':
+        case 'RTSP.exe':
+          str = 'rtsp://'+host.host+useport+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
+          break;
+        case 'TS':
+        case 'TS.exe':
+          str = 'udp://'+(ip == '' ? host.host : ip)+useport+'/';
+          break;
+      }
+      var f = $cont.find('.field.'+i.replace('.exe',''));
+      if (f.length) {
+        f.setval(str).closest('label')[0].style.display = "";
+      }
     }
   },
   buildUI: function(elements){
@@ -926,7 +1098,9 @@ var UI = {
       if ('readonly' in e) {
         $field.attr('readonly','readonly');
         $field.click(function(){
-          $(this).select();
+          if (this.selectionStart == this.selectionEnd) { //nothing has been selected yet
+            $(this).select();
+          }
         });
       }
       if ('qrcode' in e) {
@@ -1450,7 +1624,7 @@ var UI = {
     return $c;
   },
   buildVheaderTable: function(opts){
-    var $table = $('<table>').css('margin','0.2em');
+    var $table = $('<table>');
     var $header = $('<tr>').addClass('header').append(
       $('<td>').addClass('vheader').attr('rowspan',opts.labels.length+1).append(
         $('<span>').text(opts.vheader)
@@ -2071,19 +2245,22 @@ var UI = {
     dateTime: function(secs,type) {
       return UI.format.date(secs,type)+', '+UI.format.time(secs,type);
     },
-    duration: function(seconds) {
+    duration: function(seconds,notimestamp) {
       //get the amounts
-      var multiplications = [1e-3,  1e3,   60,  60,   24,     7,     52,1e9];
-      var units =           ['ms','sec','min','hr','day','week','year'];
+      var multiplications = [1e-3,  1e3,   60,  60,   24, 1e99];
+      var units =           ['ms','sec','min','hr','day'];
       var amounts = {};
-      var left = seconds;
+      var minus = !!(seconds < 0);
+      var left = Math.abs(seconds);
       for (var i in units) {
-        left /= multiplications[i];
-        var amount = Math.round(left % multiplications[Number(i)+1]);
+        left = Math.round(left / multiplications[i]); //round needed for floating point annoyances
+        var amount = left % multiplications[Number(i)+1];
         amounts[units[i]] = amount;
+
         left -= amount;
       }
-      
+     
+
       //format it
       var unit; //if all amounts are 0, format as 00:00:00
       for (var i = units.length-1; i >= 0; i--) {
@@ -2095,26 +2272,51 @@ var UI = {
       }
       var $s = $('<span>');
       switch (unit) {
-        case 'year':
-          $s.append(UI.format.addUnit(amounts.year,'years, ')).append(UI.format.addUnit(amounts.week,'wks'));
-          break;
-        case 'week':
-          $s.append(UI.format.addUnit(amounts.week,'wks, ')).append(UI.format.addUnit(amounts.day,'days'));
-          break;
         case 'day':
-          $s.append(UI.format.addUnit(amounts.day,'days, ')).append(UI.format.addUnit(amounts.hr,'hrs'));
-          break;
+          if (notimestamp) {
+            $s.append(UI.format.addUnit(amounts.day,'days, ')).append(UI.format.addUnit(amounts.hr,'hrs'));
+            break;
+          }
+          else {
+            $s.append(UI.format.addUnit(amounts.day,'days, '));
+            //no break
+          }
         default:
-          $s.append(
-            [
-              ('0'+amounts.hr).slice(-2),
-              ('0'+amounts.min).slice(-2),
-              ('0'+amounts.sec).slice(-2)+(amounts.ms ? '.'+amounts.ms : '')
-            ].join(':')
-          );
+          if (notimestamp) {
+            switch (unit) {
+              case "hr": { 
+                $s.append(UI.format.addUnit(amounts.hr,'hrs, ')).append(UI.format.addUnit(amounts.min,'mins'));
+                break;
+              }
+              case "min": { 
+                $s.append(UI.format.addUnit(amounts.min,'mins, ')).append(UI.format.addUnit(amounts.sec,'s'));
+                break;
+              }
+              case "sec": {
+                var v = Math.round(amounts.sec*1000 + amounts.ms)/1000;
+                $s.append(UI.format.addUnit(v,'s'));
+                break;
+              }
+
+              case "ms": { 
+                $s.append(UI.format.addUnit(amounts.ms,'ms'));
+                break;
+              }
+            }
+          }
+          else {
+            $s.append(
+              [
+                ('0'+amounts.hr).slice(-2),
+                ('0'+amounts.min).slice(-2),
+                ('0'+amounts.sec).slice(-2)+(amounts.ms ? '.'+('00'+amounts.ms).slice(-3) : '')
+              ].join(':')
+            );
+          }
           break;
       }
-      return $s[0].innerHTML;
+      var out =  (minus ? "- " : "")+$s[0].innerHTML;
+      return out;
     },
     number: function(num) {
       if ((isNaN(Number(num))) || (num == 0)) { return num; }
@@ -2186,6 +2388,23 @@ var UI = {
         }
       }
       return UI.format.addUnit(UI.format.number(val),unit+(persec ? '/s' : ''));
+    },
+    bits: function(val,persec){
+      var suffix = ['b','Kib','Mib','Gib','Tib','Pib'];
+      if (val == 0) { 
+        unit = suffix[0];
+      }
+      else {
+        var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(1024));
+        if (exponent < 0) {
+          unit = suffix[0];
+        }
+        else {
+          val = val / Math.pow(1024,exponent);
+          unit = suffix[exponent];
+        }
+      }
+      return UI.format.addUnit(UI.format.number(val),unit+(persec ? 'ps' : ''));
     }
   },
   navto: function(tab,other){
@@ -2200,8 +2419,9 @@ var UI = {
       $(window).trigger('hashchange');
     }
   },
-  showTab: function(tab,other) {
+  showTab: function(tab,other,prev) {
     var $main = UI.elements.main;
+    if (typeof prev == "undefined") { prev = []; }
     
     if (mist.user.loggedin) {
       if (!('ui_settings' in mist.data)) {
@@ -2224,15 +2444,20 @@ var UI = {
       //only remove previous button highlight if the current tab is found in the menu
       UI.elements.menu.find('.button.active').removeClass('active');
       $currbut.addClass('active');
+      $submenu = $currbut.closest("[data-param]");
+      if ($submenu.length) {
+        $submenu.attr("data-param",other);
+      }
     }
     
     //unload any video's that might still be playing
-    if ((MistVideoObject) && (MistVideoObject.reference)) {
-      MistVideoObject.reference.unload();
+    if ((window.mv) && (mv.reference)) {
+      mv.reference.unload();
     }
     
     UI.interval.clear();
-    $main.html(
+    UI.websockets.clear();
+    $main.attr("data-tab",tab).html(
       $('<h2>').text(tab)
     );
     switch (tab) {
@@ -2670,7 +2895,7 @@ var UI = {
             },
             active_streams: true
           };
-          if (!('cabailities' in mist.data)) {
+          if (!('capabilities' in mist.data)) {
             request.capabilities = true;
           }
           mist.send(function(d){
@@ -3885,7 +4110,7 @@ var UI = {
                 //if there is a JPG output, add actual thumnails \o/
                 var thumbnails = false;
                 ///\todo activate this code when the backend is ready
-                /*
+                
                 if (UI.findOutput('JPG')) {
                   var jpgport = false;
                   //find the http port and make sure JPG is enabled
@@ -3906,7 +4131,7 @@ var UI = {
                     }
                   }
                 }
-                */
+                
                 
                 for (var i in select) {
                   var streamname = select[i];
@@ -3992,15 +4217,13 @@ var UI = {
                   $('<tr>').html(
                     $('<th>').text('Stream name').attr('data-sort-type','string').addClass('sorting-asc')
                   ).append(
+                    $('<th>')
+                  ).append(
                     $('<th>').text('Source').attr('data-sort-type','string')
                   ).append(
                     $('<th>').text('Status').attr('data-sort-type','int')
                   ).append(
                     $('<th>').css('text-align','right').text('Connections').attr('data-sort-type','int')
-                  ).append(
-                    $('<th>')
-                  ).append(
-                    $('<th>')
                   )
                 )
               ).append($tbody);
@@ -4035,7 +4258,7 @@ var UI = {
                   if ((v == 0) && (stream.online == 1)) {
                     stream.online = 2;
                   }
-                  var $buttons = $('<td>').css('text-align','right').css('white-space','nowrap');
+                  var $buttons = $('<td>').css('white-space','nowrap');
                   if ((!('ischild' in stream)) || (!stream.ischild)) {
                     $buttons.html(
                       $('<button>').text('Settings').click(function(){
@@ -4066,35 +4289,33 @@ var UI = {
                     $streamnamelabel.css('padding-left','1em');
                   }
                   var $online = UI.format.status(stream);
+                  var $status = $("<button>").text("Status").click(function(){
+                    UI.navto('Status',$(this).closest('tr').data('index'));
+                  });
                   var $preview = $('<button>').text('Preview').click(function(){
                     UI.navto('Preview',$(this).closest('tr').data('index'));
                   });
-                  var $embed = $('<button>').text('Embed').click(function(){
+                  var $embed = $('<button>').text('Embed').css("margin-right","1em").click(function(){
                     UI.navto('Embed',$(this).closest('tr').data('index'));
                   });
                   if (('filesfound' in allstreams[streamname]) || (stream.online < 0)) {
                     $online.html('');
-                    $preview = '';
                     $viewers.html('');
-                    $embed = '';
+                    $preview.css({opacity: 0, pointerEvents: "none"});
+                    $embed.css({opacity: 0, pointerEvents: "none"});
                   }
+                  $buttons.prepend($embed).prepend($status).prepend($preview);
                   $tbody.append(
                     $('<tr>').data('index',streamname).html(
                       $('<td>').html($streamnamelabel).attr('title',(stream.name == "..." ? "The results were truncated" : stream.name)).addClass('overflow_ellipsis')
+                    ).append(
+                      $buttons
                     ).append(
                       $('<td>').text(stream.source).attr('title',stream.source).addClass('description').addClass('overflow_ellipsis').css('max-width','20em')
                     ).append(
                       $('<td>').data('sort-value',stream.online).html($online)
                     ).append(
                       $viewers
-                    ).append(
-                      $('<td>').css('white-space','nowrap').html(
-                        $preview
-                      ).append(
-                        $embed
-                      )
-                    ).append(
-                      $buttons
                     )
                   );
                   i++;
@@ -4120,74 +4341,63 @@ var UI = {
               }
               
               
-              if (mist.data.LTS) {
-                //insert folder streams
-                var browserequests = 0;
-                var browsecomplete = 0;
-                for (var s in mist.data.streams) {
-                  var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
-                  if (!inputs_f) { break; }
-                  if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
-                    //this is a folder stream
-                    allstreams[s].source += '*';
-                    allstreams[s].filesfound = null;
-                    mist.send(function(d,opts){
-                      var s = opts.stream;
-                      var matches = 0;
-                      outer:
-                      for (var i in d.browse.files) {
-                        inner:
-                        for (var j in mist.data.capabilities.inputs) {
-                          if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
-                          if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
-                            var streamname = s+'+'+d.browse.files[i];
-                            allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
-                            allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
-                            
-                            matches++;
-                            if (matches >= 500) {
-                              //stop retrieving more file names TODO properly display when this happens
-                              allstreams[s+"+zzzzzzzzz"] = {
-                                ischild: true,
-                                name: "...",
-                                online: -1
-                              };
-                              break outer;
-                            }
+              //insert folder streams
+              var browserequests = 0;
+              var browsecomplete = 0;
+              for (var s in mist.data.streams) {
+                var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
+                if (!inputs_f) { break; }
+                if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
+                  //this is a folder stream
+                  allstreams[s].source += '*';
+                  allstreams[s].filesfound = null;
+                  mist.send(function(d,opts){
+                    var s = opts.stream;
+                    var matches = 0;
+                    outer:
+                    for (var i in d.browse.files) {
+                      inner:
+                      for (var j in mist.data.capabilities.inputs) {
+                        if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
+                        if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                          var streamname = s+'+'+d.browse.files[i];
+                          allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
+                          allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
+                          
+                          matches++;
+                          if (matches >= 500) {
+                            //stop retrieving more file names TODO properly display when this happens
+                            allstreams[s+"+zzzzzzzzz"] = {
+                              ischild: true,
+                              name: "...",
+                              online: -1
+                            };
+                            break outer;
                           }
                         }
                       }
-                      if (('files' in d.browse) && (d.browse.files.length)) {
-                        allstreams[s].filesfound = true;
-                      }
-                      else {
-                        mist.data.streams[s].filesfound = false;
-                      }
-                      browsecomplete++;
-                      if (browserequests == browsecomplete) {
-                        mist.send(function(){
-                          updateStreams();
-                        },{active_streams: true});
-                        
-                        UI.interval.set(function(){
-                          updateStreams();
-                        },5e3);
-                      }
-                    },{browse:mist.data.streams[s].source},{stream: s});
-                    browserequests++;
-                  }
-                }
-                if (browserequests == 0) {
-                  mist.send(function(){
-                    updateStreams();
-                  },{active_streams: true});
-                  
-                  UI.interval.set(function(){
-                    updateStreams();
-                  },5e3);
+                    }
+                    if (('files' in d.browse) && (d.browse.files.length)) {
+                      allstreams[s].filesfound = true;
+                    }
+                    else {
+                      mist.data.streams[s].filesfound = false;
+                    }
+                    browsecomplete++;
+                    if (browserequests == browsecomplete) {
+                      mist.send(function(){
+                        updateStreams();
+                      },{active_streams: true});
+                      
+                      UI.interval.set(function(){
+                        updateStreams();
+                      },5e3);
+                    }
+                  },{browse:mist.data.streams[s].source},{stream: s});
+                  browserequests++;
                 }
               }
-              else {
+              if (browserequests == 0) {
                 mist.send(function(){
                   updateStreams();
                 },{active_streams: true});
@@ -4196,81 +4406,80 @@ var UI = {
                   updateStreams();
                 },5e3);
               }
+
               break;
             }
           }
         }
-        if (mist.data.LTS) {
-          //browse into folder streams
-          var browserequests = 0;
-          var browsecomplete = 0;
-          var select = {};
-          var folders = [];
-          for (var s in mist.data.streams) {
-            var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
-            if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
-              //this is a folder stream
-              folders.push(s);
-              mist.send(function(d,opts){
-                var s = opts.stream;
-                var matches = 0;
-                outer:
-                for (var i in d.browse.files) {
-                  inner:
-                  for (var j in mist.data.capabilities.inputs) {
-                    if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
-                    if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
-                      select[s+'+'+d.browse.files[i]] = true;
-                      
-                      matches++;
-                      if (matches >= 500) {
-                        //stop retrieving more file names
-                        select[s+"+zzzzzzzzz"] = true;
-                        break outer;
-                      }
+
+        
+        //browse into folder streams
+        var browserequests = 0;
+        var browsecomplete = 0;
+        var select = {};
+        var folders = [];
+        for (var s in mist.data.streams) {
+          var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
+          if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
+            //this is a folder stream
+            folders.push(s);
+            mist.send(function(d,opts){
+              var s = opts.stream;
+              var matches = 0;
+              outer:
+              for (var i in d.browse.files) {
+                inner:
+                for (var j in mist.data.capabilities.inputs) {
+                  if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
+                  if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                    select[s+'+'+d.browse.files[i]] = true;
+
+                    matches++;
+                    if (matches >= 500) {
+                      //stop retrieving more file names
+                      select[s+"+zzzzzzzzz"] = true;
+                      break outer;
                     }
                   }
                 }
-                browsecomplete++;
-                if (browserequests == browsecomplete) {
-                  mist.send(function(){
-                    for (var i in mist.data.active_streams) {
-                      var split = mist.data.active_streams[i].split('+');
-                      if ((split.length > 1) && (split[0] in mist.data.streams)) {
-                        select[mist.data.active_streams[i]] = true;
-                        allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
-                      }
-                    }
-                    select = Object.keys(select);
-                    select = select.concat(Object.keys(mist.data.streams));
-                    select.sort();
-                    createPage(other,select,folders);
-                  },{active_streams: true});
-                }
-              },{browse:mist.data.streams[s].source},{stream: s});
-              browserequests++;
-            }
-          }
-          if (browserequests == 0) {
-            mist.send(function(){
-              //var select = [];
-              for (var i in mist.data.active_streams) {
-                var split = mist.data.active_streams[i].split('+');
-                if ((split.length > 1) && (split[0] in mist.data.streams)) {
-                  select[mist.data.active_streams[i]] = true;
-                  allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
-                }
               }
-              select = Object.keys(select);
-              if (mist.data.streams) { select = select.concat(Object.keys(mist.data.streams)); }
-              select.sort();
-              createPage(other,select);
-            },{active_streams: true});
+              browsecomplete++;
+              if (browserequests == browsecomplete) {
+                mist.send(function(){
+                  for (var i in mist.data.active_streams) {
+                    var split = mist.data.active_streams[i].split('+');
+                    if ((split.length > 1) && (split[0] in mist.data.streams)) {
+                      select[mist.data.active_streams[i]] = true;
+                      allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
+                    }
+                  }
+                  select = Object.keys(select);
+                  select = select.concat(Object.keys(mist.data.streams));
+                  select.sort();
+                  createPage(other,select,folders);
+                },{active_streams: true});
+              }
+            },{browse:mist.data.streams[s].source},{stream: s});
+            browserequests++;
           }
         }
-        else {
-          createPage(other,Object.keys(mist.data.streams));
+        if (browserequests == 0) {
+          mist.send(function(){
+            //var select = [];
+            for (var i in mist.data.active_streams) {
+              var split = mist.data.active_streams[i].split('+');
+              if ((split.length > 1) && (split[0] in mist.data.streams)) {
+                select[mist.data.active_streams[i]] = true;
+                allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
+              }
+            }
+            select = Object.keys(select);
+            if (mist.data.streams) { select = select.concat(Object.keys(mist.data.streams)); }
+            select.sort();
+            createPage(other,select);
+          },{active_streams: true});
         }
+
         break;
       case 'Edit':
         if (typeof mist.data.capabilities == 'undefined') {
@@ -4294,7 +4503,7 @@ var UI = {
         }
         else {
           //editing
-          var streamname = other;
+          var streamname = other.split("+")[0];
           var saveas = mist.data.streams[streamname];
           $main.find('h2').append(' "'+streamname+'"');
         }
@@ -4368,83 +4577,6 @@ var UI = {
         
         var $style = $('<style>').text('button.saveandpreview { display: none; }');
         var $livestreamhint = $('<span>');
-        function updateLiveStreamHint() {
-          var streamname = $main.find('[name=name]').val();
-          if (!streamname) { return; }
-          var host = parseURL(mist.user.host);
-          var source = $main.find('[name=source]').val();
-          var passw = source.match(/@.*/);
-          if (passw) { passw = passw[0].substring(1); }
-          var ip = source.replace(/(?:.+?):\/\//,'');
-          ip = ip.split('/');
-          ip = ip[0];
-          ip = ip.split(':');
-          ip = ip[0];
-          var custport = source.match(/:\d+/);
-          if (custport) { custport = custport[0]; }
-          
-          
-          var port = {};
-          var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe','TSSRT','TSSRT.exe'];
-          for (var i in trythese) {
-            if (trythese[i] in mist.data.capabilities.connectors) {
-              port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
-            }
-          }
-          var defport = {
-            RTMP: 1935,
-            'RTMP.exe': 1935,
-            RTSP: 554,
-            'RTSP.exe': 554,
-            TSSRT: -1,
-            'TSSRT.exe': -1,
-            TS: -1,
-            'TS.exe': -1
-          };
-          for (var protocol in port) {
-            for (var i in mist.data.config.protocols) {
-              var p = mist.data.config.protocols[i];
-              if (p.connector == protocol) {
-                if ('port' in p) {
-                  port[protocol] = p.port;
-                }
-                break;
-              }
-            }
-            if (port[protocol] == defport[protocol]) { port[protocol] = ''; }
-            else { port[protocol] = ':'+port[protocol]; }
-          }
-          port.TS = "";
-          port["TS.exe"] = "";
-          
-          $livestreamhint.find('.field').closest('label').hide();
-          for (var i in port) {
-            var str;
-            var useport = (custport ? custport : port[i]);
-            switch(i) {
-              case 'RTMP':
-              case 'RTMP.exe':
-                str = 'rtmp://'+host.host+useport+'/'+(passw ? passw : 'live')+'/';
-                $livestreamhint.find('.field.RTMPurl').setval(str).closest('label').show();
-                $livestreamhint.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label').show();
-                str += (streamname == '' ? 'STREAMNAME' : streamname);
-                break;
-              case 'TSSRT':
-              case 'TSSRT.exe':
-                str = 'srt://'+host.host+useport+'?streamname='+(streamname == '' ? 'STREAMNAME' : streamname);
-                break;
-              case 'RTSP':
-              case 'RTSP.exe':
-                str = 'rtsp://'+host.host+useport+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
-                break;
-              case 'TS':
-              case 'TS.exe':
-                str = 'udp://'+(ip == '' ? host.host : ip)+useport+'/';
-                break;
-            }
-            $livestreamhint.find('.field.'+i.replace('.exe','')).setval(str).closest('label').show();
-          }
-        }
         
         var $processes = $('<div>');
         var newproc = {};
@@ -4668,24 +4800,23 @@ var UI = {
                     }
                   }
                 }
-                $inputoptions.html(
-                  $('<h3>').text(input.name+' Input options')
-                );                
-                var build = mist.convertBuildOptions(input_options,saveas);
-                if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
-                  build.push({
-                    label: 'Always on',
-                    type: 'checkbox',
-                    help: 'Keep this input available at all times, even when there are no active viewers.',
-                    pointer: {
-                      main: saveas,
-                      index: 'always_on'
-                    },
-                    value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
-                  });
-                }
-                $inputoptions.append(UI.buildUI(build));
-
+		$inputoptions.html(
+		  $('<h3>').text(input.name+' Input options')
+		);                
+		var build = mist.convertBuildOptions(input_options,saveas);
+		if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
+		  build.push({
+		    label: 'Always on',
+		    type: 'checkbox',
+		    help: 'Keep this input available at all times, even when there are no active viewers.',
+		    pointer: {
+		      main: saveas,
+		      index: 'always_on'
+		    },
+		    value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
+		  });
+		}
+		$inputoptions.append(UI.buildUI(build));
                 $source_info.html("");
                 if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
                   //this input can enumerate supported devices, and the source string matches the specified static prefix
@@ -4731,58 +4862,59 @@ var UI = {
                   }
                   apply_enumerated_sources();
                 }
+              }
 
-                if (input.name == 'Folder') {
-                  $main.append($style);
-                }
-                else if (['Buffer','Buffer.exe','TS','TS.exe'].indexOf(input.name) > -1) {
-                  var fields = [$("<br>"),$('<span>').text('Configure your source to push to:')];
-                  switch (input.name) {
-                    case 'Buffer':
-                    case 'Buffer.exe':
-                      fields.push({
-                        label: 'RTMP full url',
-                        type: 'span',
-                        clipboard: true,
-                        readonly: true,
-                        classes: ['RTMP'],
-                        help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
-                      });
-                      fields.push({
-                        label: 'RTMP url',
-                        type: 'span',
-                        clipboard: true,
-                        readonly: true,
-                        classes: ['RTMPurl'],
-                        help: 'Use this RTMP url if your client also asks for a stream key'
-                      });
-                      fields.push({
-                        label: 'RTMP stream key',
-                        type: 'span',
-                        clipboard: true,
-                        readonly: true,
-                        classes: ['RTMPkey'],
-                        help: 'Use this key if your client asks for a stream key'
-                      });
-                      fields.push({
-                        label: 'SRT',
-                        type: 'span',
-                        clipboard: true,
-                        readonly: true,
-                        classes: ['TSSRT']
-                      });
-                      fields.push({
-                        label: 'RTSP',
-                        type: 'span',
-                        clipboard: true,
-                        readonly: true,
-                        classes: ['RTSP']
-                      });
-                      break;
-                    case 'TS':
-                    case 'TS.exe':
-                      if (source.charAt(0) == "/") {
-                        fields = [];
+              if (input.name == 'Folder') {
+                $main.append($style);
+              }
+              else if (['Buffer','Buffer.exe','TS','TS.exe','TSSRT','TSSRT.exe'].indexOf(input.name) > -1) {
+                var fields = [$("<br>"),$('<span>').text('Configure your source to push to:')];
+                switch (input.name) {
+                  case 'Buffer':
+                  case 'Buffer.exe':
+                    fields.push({
+                      label: 'RTMP full url',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMP'],
+                      help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
+                    });
+                    fields.push({
+                      label: 'RTMP url',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMPurl'],
+                      help: 'Use this RTMP url if your client also asks for a stream key'
+                    });
+                    fields.push({
+                      label: 'RTMP stream key',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMPkey'],
+                      help: 'Use this key if your client asks for a stream key'
+                    });
+                    fields.push({
+                      label: 'SRT',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['TSSRT']
+                    });
+                    fields.push({
+                      label: 'RTSP',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTSP']
+                    });
+                    break;
+                  case 'TS':
+                  case 'TS.exe':
+                    if ((source.charAt(0) == "/") || (source.slice(0,7) == "ts-exec")) {
+                      fields = [];
                       }
                       else {
                         fields.push({
@@ -4792,12 +4924,22 @@ var UI = {
                           readonly: true,
                           classes: ['TS']
                         });
-                      }
-                      break;
+                    }
+                    break;
+                  case 'TSSRT':
+                  case 'TSSRT.exe': {
+                    fields.push({
+                      label: 'SRT',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['TSSRT']
+                    });
+                    break;
                   }
-                  $livestreamhint.html(UI.buildUI(fields));
-                  updateLiveStreamHint();
                 }
+                $livestreamhint.html(UI.buildUI(fields));
+                UI.updateLiveStreamHint($main.find('[name=name]').val(),$main.find('[name=source]').val(),$livestreamhint);
               }
 
               update_input_options(source);
@@ -4842,17 +4984,93 @@ var UI = {
         ]));
         
         $main.find('[name=name]').keyup(function(){
-          updateLiveStreamHint();
+          UI.updateLiveStreamHint($(this).val(),$main.find('[name=source]').val(),$livestreamhint);
         });
-        updateLiveStreamHint();
-
+        UI.updateLiveStreamHint($main.find('[name=name]').val(),$main.find('[name=source]').val(),$livestreamhint);
         $main.find('[name="source"]').attr("list","source_datalist");
-        
+       
         break;
+      case 'Status': {
+        if (other == '') { UI.navto('Streams'); return; }
+
+        var $edit = '';
+        if (other.indexOf('+') == -1) {
+          $edit = $('<button>').text('Settings').addClass('settings').click(function(){
+            UI.navto('Edit',other);
+          });
+        }
+
+        var $dashboard = $("<div>").addClass("dashboard");
+
+        $main.html(
+          UI.modules.stream.bigbuttons(other,tab)
+        ).append(
+          $("<h2>").text('Status of "'+other+'"')
+        ).append(
+          $dashboard
+        );
+
+        var $findMist = UI.modules.stream.findMist(function(url,data){
+          //MistServer was found! build dashboard
+
+          $dashboard.append(UI.modules.stream.status(other));
+          $dashboard.append(UI.modules.stream.metadata(other));
+          $dashboard.append(
+            $("<section>").addClass("logcont").append(
+              UI.modules.stream.logs(other)
+            ).append(
+              UI.modules.stream.accesslogs(other)
+            )
+          );
+          $dashboard.append(UI.modules.stream.processes(other)); 
+          $dashboard.append(UI.modules.stream.triggers(other,"Status"));
+          $dashboard.append(UI.modules.stream.pushes(other));
+
+        });
+        $dashboard.append($findMist);
+        $dashboard.append(UI.modules.stream.actions("Status",other)); //the actions can be used even if the http host is unknown
+
+        break;
+      }
       case 'Preview':
         
-        if (other == '') { UI.navto('Streams'); }
-        
+        if (other == '') { UI.navto('Streams'); return; }
+       
+        var $dashboard = $('<div>').addClass("dashboard");
+        var $status = $("<div>");
+        $main.html(
+          UI.modules.stream.bigbuttons(other,tab)
+        ).append(
+          $('<h2>').text('Preview of "'+other+'"')
+        ).append($status).append($dashboard);
+
+        var $findMist = UI.modules.stream.findMist(function(url){
+          //MistServer was found and data contains player.js, jQuery should already have added it to the page
+          if (typeof mistplayers == "undefined") {
+            throw "Player.js was not applied properly.";
+          }
+
+          $status.replaceWith(UI.modules.stream.status(other,{tags:false,thumbnail:false}));
+
+          window.mv = {};
+          $preview = UI.modules.stream.preview(other,window.mv);
+          $dashboard.append($preview);
+          $dashboard.append(
+            UI.modules.stream.playercontrols(window.mv,$preview)
+          ).append(
+            UI.modules.stream.logs(other)
+          ).append(
+            UI.modules.stream.metadata(other)
+          );
+
+        });
+
+        $dashboard.append($findMist);
+
+
+        break;
+
+
         var parsed = parseURL(mist.user.host);
         var http_protocol = parsed.protocol;
         var http_host = parsed.host;
@@ -4883,22 +5101,8 @@ var UI = {
           'flex-shrink':1,
           'min-width':'auto'
         });
-        var $edit = '';
-        if (other.indexOf('+') == -1) {
-          $edit = $('<button>').text('Settings').addClass('settings').click(function(){
-            UI.navto('Edit',other);
-          });
-        }
         $main.html(
-          $('<div>').addClass('bigbuttons').append($edit).append(
-            $('<button>').text('Embed').addClass('embed').click(function(){
-              UI.navto('Embed',other);
-            })
-          ).append(
-            $('<button>').addClass('cancel').addClass('return').text('Return').click(function(){
-              UI.navto('Streams');
-            })
-          )
+          UI.modules.stream.bigbuttons(other,tab)
         ).append(
           $('<h2>').text('Preview of "'+other+'"')
         ).append($cont);
@@ -4946,7 +5150,7 @@ var UI = {
                     ]
                   }
                 },
-                {type:"decodingIssues", style: {"max-width":"30em","flex-flow":"column nowrap"}},
+                {type:"decodingIssues", style: {"max-width":"30em","flex-flow":"column nowrap","margin":"0.5em 0"}},
                 {
                   type: "container",
                   classes: ["mistvideo-column","mistvideo-devcontrols"],
@@ -5044,855 +5248,26 @@ var UI = {
         }
         loadplayer();
         
-        //load the meta information
-        var $trackinfo = $('<div>').append(
-          $('<h3>').text('Meta information')
-        );
-        var $tracktable = $('<span>').text('Loading..');
-        $trackinfo.append($tracktable);
-        var $processinfo = $("<div>").addClass("process_info");
-        $trackinfo.append($processinfo);
-        $cont.append($trackinfo);
-        function buildTrackinfo(info) {
-          var meta = info.meta;
-          if ((!meta) || (!meta.tracks)) { 
-            $tracktable.html('No meta information available.');
-            return;
-          }
-          
-          var build = [];
-          build.push({
-            label: 'Type',
-            type: 'span',
-            value: (meta.live ? 'Live' : 'Pre-recorded (VoD)')
-          });
-          if ('format' in meta) {
-            build.push({
-              label: 'Format',
-              type: 'span',
-              value: meta.format
-            });
-          }
-          if (meta.live) {
-            build.push({
-              label: 'Buffer window',
-              type: 'span',
-              value: UI.format.addUnit(meta.buffer_window,'ms')
-            });
-          }
-          var tables = {
-            audio: {
-              vheader: 'Audio',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index',""],
-              content: []
-            },
-            video: {
-              vheader: 'Video',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language','Track index','Has B-Frames'],
-              content: []
-            },
-            subtitle: {
-              vheader: 'Subtitles',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language','Track index',"","",""],
-              content: []
-            },
-            meta: {
-              vheader: 'Metadata',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate',"","","","",""],
-              content: []
-            }
-          }
-          var keys = Object.keys(meta.tracks);
-          keys.sort(function(a,b){
-            a = a.split('_').pop();
-            b = b.split('_').pop();
-            return a-b;
-          });
-          function peakoravg (track,key) {
-            if ("maxbps" in track) {
-              return UI.format.bytes(track[key],1);
-            }
-            else {
-              if (key == "maxbps") {
-                return UI.format.bytes(track.bps,1);
-              }
-              return "unknown";
-            }
-          }
-          var trackindex = {audio:1,video:1,subtitle:1};
-          for (var k in keys) {
-            var i = keys[k];
-            var track = meta.tracks[i];
-            switch (track.type) {
-              case 'audio':
-                tables.audio.content.push({
-                  header: 'Track '+i.split('_').pop(),
-                  body: [
-                    track.codec,
-                    UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
-                    peakoravg(track,"bps"),
-                    peakoravg(track,"maxbps"),
-                    track.channels,
-                    UI.format.addUnit(UI.format.number(track.rate),'Hz'),
-                    ('language' in track ? track.language : 'unknown'),
-                    (trackindex.audio),
-                    ""
-                  ]
-                });
-                trackindex.audio++;
-                break;
-              case 'video':
-                tables.video.content.push({
-                  header: 'Track '+i.split('_').pop(),
-                  body: [
-                    track.codec,
-                    UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
-                    peakoravg(track,"bps"),
-                    peakoravg(track,"maxbps"),
-                    UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
-                    UI.format.addUnit(UI.format.number(track.fpks/1000),'fps'),
-                    ('language' in track ? track.language : 'unknown'),
-                    (trackindex.video),
-                    ("bframes" in track ? "yes" : "no")
-                  ]
-                });
-                trackindex.video++
-                break;
-              case 'meta':
-              case 'subtitle':
-                if ((track.codec == "subtitle") || (track.type == "subtitle")) {
-                  tables.subtitle.content.push({
-                    header: 'Track '+i.split('_').pop(),
-                    body: [
-                      track.codec,
-                      UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
-                      peakoravg(track,"bps"),
-                      peakoravg(track,"maxbps"),
-                      ('language' in track ? track.language : 'unknown'),
-                      (trackindex.subtitle),
-                      "","",""
-                    ]
-                  });
-                  trackindex.subtitle++
-                  break;
-                }
-                else {
-                  tables.meta.content.push({
-                    header: 'Track '+i.split('_').pop(),
-                    body: [
-                      track.codec,
-                      UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
-                      peakoravg(track,"bps"),
-                      peakoravg(track,"maxbps"),
-                      "","","","",""
-                    ]
-                  });
-                  break;
-                }
-            }
-          }
-          var tracktypes = ['audio','video','subtitle','meta'];
-          var $c = $('<div>').css({
-            'display': 'flex',
-            'flex-flow': 'row wrap',
-            /*'justify-content': 'center',*/
-            'font-size': '0.9em'
-            /*'min-width': 'max-content'*/
-          });
-          for (var i in tracktypes) {
-            if (tables[tracktypes[i]].content.length) {
-              $c.append(UI.buildVheaderTable(tables[tracktypes[i]]).css('width','auto'));
-            }
-          }
-          build.push($('<span>').text('Tracks:'))
-          build.push($c);
-          $tracktable.html(UI.buildUI(build));
-        }
-        
-        if (escapedstream != ""){
-          $.ajax({
-            type: 'GET',
-            url: embedbase+'json_'+escapedstream+'.js',
-            success: function(d) {
-              buildTrackinfo(d);
-            },
-            error: function(){
-              $tracktable.html('Error while retrieving stream info.');
-            }
-          });
-          function updateProcessInfo() {
-            var req = {proc_list: other};
-            if (!mist.data.capabilities) { req.capabilities = true; }
-            mist.send(function(data){
-              if (data.proc_list) {
-                var $processes = $("<table>").css("width","auto");
-                var layout = {
-                  "Process type:": function(d){ return $("<b>").text(d.process); },
-                      "Source:": function(d){
-                        var $s = $("<span>").text(d.source);
-                        if (d.source_tracks && d.source_tracks.length) {
-                          $s.append(
-                            $("<span>").addClass("description").text(" track "+(d.source_tracks.slice(0,-2).concat(d.source_tracks.slice(-2).join(" and "))).join(", "))
-                          );
-                        } 
-                        return $s;
-                      },
-                      "Sink:": function(d){
-                        var $s = $("<span>").text(d.sink);
-                        if (d.sink_tracks && d.sink_tracks.length) {
-                          $s.append(
-                            $("<span>").addClass("description").text(" track "+(d.sink_tracks.slice(0,-2).concat(d.sink_tracks.slice(-2).join(" and "))).join(", "))
-                          );
-                        } 
-                        return $s;
-                      },
-                      "Active for:": function(d){
-                        var since = new Date().setSeconds(new Date().getSeconds() - d.active_seconds);
-                        return $("<span>").append(
-                          $("<span>").text(UI.format.duration(d.active_seconds))
-                        ).append(
-                          $("<span>").addClass("description").text(" since "+UI.format.time(since/1e3))
-                        ); 
-                      },
-                      "Pid:": function(d,i){ return i; },
-                      "Logs:": function(d){
-                        var $logs = $("<div>").text("None.");
-                        if (d.logs && d.logs.length) {
-                          $logs.html("").addClass("description").css({overflow: "auto", maxHeight: "6em", display: "flex", flexFlow: "column-reverse nowrap"});
-                          for (var i in d.logs) {
-                            var item = d.logs[i];
-                            $logs.prepend(
-                              $("<div>").append(
-                                UI.format.time(item[0])+' ['+item[1]+'] '+item[2]
-                              )
-                            );
-                          }
-                        }
-                        return $logs;
-                      },
-                      "Additional info:": function(d){
-                        var $t;
-                        if (d.ainfo && Object.keys(d.ainfo).length) {
-                          $t = $("<table>");
-                          for (var i in d.ainfo) {
-                            var legend = mist.data.capabilities.processes[d.process].ainfo[i];
-                            if (!legend) {
-                              legend = {
-                                name: i
-                              };
-                            }
-                            $t.append(
-                              $("<tr>").append(
-                                $("<th>").text(legend.name+":")
-                              ).append(
-                                $("<td>").html(d.ainfo[i]).append(legend.unit ? $("<span>").addClass("unit").text(legend.unit) : "")
-                              )
-                            );
-                          }
-                        }
-                        else { $t = $("<span>").addClass("description").text("N/A"); }
-                        return $t;
-                      }
-                };
-                $processinfo.html(
-                  $("<h4>").text("Stream processes")
-                ).append($processes);
-                for (var i in layout) {
-                  var $tr = $("<tr>");
-                  $processes.append($tr);
-                  $tr.append(
-                    $("<th>").text(i).css("vertical-align","top")
-                  );
-                  for (var j in data.proc_list) {
-                    $out = layout[i](data.proc_list[j],j);
-                    $tr.append($("<td>").html($out).css("vertical-align","top"));
-                  }
-                }
-              }
-            },req);
-          }
-          UI.interval.set(function(){
-            updateProcessInfo();
-          },5e3);
-          updateProcessInfo();
-        }
-        
+
+      
+                  
         break;
       case 'Embed':
-        if (other == '') { UI.navTo('Streams'); }
+        if (other == '') { UI.navto('Streams'); return; }
         
-        var $edit = '';
-        if (other.indexOf('+') == -1) {
-          $edit = $('<button>').addClass('settings').text('Settings').click(function(){
-            UI.navto('Edit',other);
-          });
-        }
         $main.html(
-          $('<div>').addClass('bigbuttons').append($edit).append(
-            $('<button>').text('Preview').addClass('preview').click(function(){
-              UI.navto('Preview',other);
-            })
-          ).append(
-            $('<button>').addClass('cancel').addClass('return').text('Return').click(function(){
-              UI.navto('Streams');
-            })
-          )
+          UI.modules.stream.bigbuttons(other,tab)
         ).append(
           $('<h2>').text('Embed "'+other+'"')
         );
         
         var $embedlinks = $('<span>');
-        $main.append($embedlinks);
-        
-        var escapedstream = encodeURIComponent(other);
-        var parsed = parseURL(mist.user.host);
-        var http_protocol = parsed.protocol;
-        var http_host = parsed.host;
-        var http_port = ':8080';
-        var https_port;
-        var puburls = {};
-        var embedbase = {
-          http: http_protocol+http_host+http_port+"/"
-        };
-        for (var i in mist.data.config.protocols) {
-          var protocol = mist.data.config.protocols[i];
-          if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            if (protocol.pubaddr) {
-              if (typeof protocol.pubaddr == "string") {
-                embedbase.http = protocol.pubaddr.replace(/\/$/,'')+"/";
-              }
-              else if (protocol.pubaddr.length) {
-                embedbase.http = protocol.pubaddr[0].replace(/\/$/,'')+"/";
-              }
-              puburls.http = protocol.pubaddr;
-            }
-            else {
-              http_port = (protocol.port ? ':'+protocol.port : ':8080');
-              embedbase.http = http_protocol+http_host+http_port+"/";
-            }
-          }
-          else if ((protocol.connector == 'HTTPS') || (protocol.connector == 'HTTPS.exe')) {
-            if (protocol.pubaddr && protocol.pubaddr.length) {
-              if (typeof protocol.pubaddr == "string") {
-                embedbase.https = protocol.pubaddr.replace(/\/$/,'')+"/";
-              }
-              else if (protocol.pubaddr.length) {
-                embedbase.https = protocol.pubaddr[0].replace(/\/$/,'')+"/";
-              }
-              puburls.https = protocol.pubaddr;
-            }
-            else {
-              https_port = (protocol.port ? ':'+protocol.port : ':4433');
-              embedbase.https = "https://"+http_host+https_port+"/";
-            }
-            
-          }
-        }
-        
-        
-        var otherbase = embedbase.http;
-        var other_split = {
-          http: embedbase.http
-        };
-        if ("https" in embedbase) {
-          other_split.https = embedbase.https;
-        }
-        if ((otherhost.host) || (otherhost.https)) {
-          otherbase = (otherhost.https && (https_port) ? 'https://' : 'http://')+(otherhost.host ? otherhost.host : parsed.host)+(otherhost.https && (https_port) ? https_port : http_port)+'/';
-          if (otherhost.host) {
-            if (!("http" in puburls)) {
-              other_split.http = parseURL(other_split.http,{hostname:otherhost.host}).full;
-            }
-            if (("https" in other_split) && (!("https" in puburls))) {
-              other_split.https = parseURL(other_split.https,{hostname:otherhost.host}).full;
-            }
-          }
-          otherbase = (otherhost.https ? other_split.https : other_split.http);
-        }
-        var done = false;
-        var defaultembedoptions = {
-          forcePlayer: '',
-          forceType: '',
-          controls: true,
-          autoplay: true,
-          loop: false,
-          muted: false,
-          fillSpace: false,
-          poster: '',
-          urlappend: '',
-          setTracks: {}
-        };
-        var embedoptions = $.extend({},defaultembedoptions);
-        var stored = UI.stored.getOpts();
-        if ('embedoptions' in stored) {
-          embedoptions = $.extend(embedoptions,stored.embedoptions,true);
-          if (typeof embedoptions.setTracks != 'object') {
-            embedoptions.setTracks = {};
-          }
-        }
-        var custom = {};
-        switch (embedoptions.controls) {
-          case 'stock':
-            custom.controls = 'stock';
-            break;
-          case true:
-            custom.controls = 1;
-            break;
-          case false:
-            custom.controls = 0;
-            break;
-        }
-        
-        
-        function embedhtml() {
-          function randomstring(length){
-            var s = '';
-            function randomchar() {
-              var n= Math.floor(Math.random()*62);
-              if (n < 10) { return n; } //1-10
-              if (n < 36) { return String.fromCharCode(n+55); } //A-Z
-              return String.fromCharCode(n+61); //a-z
-            }
-            while (length--) { s += randomchar(); }
-            return s;
-          }
-          function maybequotes(val) {
-            switch (typeof val) {
-              case 'string':
-                if ($.isNumeric(val)) {
-                  return val;
-                }
-                return '"'+val+'"';
-              case 'object':
-                return JSON.stringify(val);
-              default:
-                return val;
-            }
-            if (typeof val == 'string') {
-              return 
-            }
-          }
-          if (done) { 
-            UI.stored.saveOpt('embedoptions',embedoptions); 
-          }
-          
-          var target = other+'_'+randomstring(12);
-          
-          var options = ['target: document.getElementById("'+target+'")'];
-          for (var i in embedoptions) {
-            if (i == "prioritize_type") {
-              if ((embedoptions[i]) && (embedoptions[i] != "")) {
-                options.push("forcePriority: "+JSON.stringify({source:[["type",[embedoptions[i]]]]}));
-              }
-              continue;
-            }
-            if (i == "monitor_action") {
-              if ((embedoptions[i]) && (embedoptions[i] != "")) {
-                if (embedoptions[i] == "nextCombo") {
-                  options.push("monitor: {\n"+
-                  "          action: function(){\n"+
-                  '            this.MistVideo.log("Switching to nextCombo because of poor playback in "+this.MistVideo.source.type+" ("+Math.round(this.vars.score*1000)/10+"%)");'+"\n"+
-                  "            this.MistVideo.nextCombo();\n"+
-                  "          }\n"+
-                  "        }");
-                }
-              }
-              continue;
-            }
-            if ((embedoptions[i] != defaultembedoptions[i]) && (embedoptions[i] != null) && ((typeof embedoptions[i] != 'object') || (JSON.stringify(embedoptions[i]) != JSON.stringify(defaultembedoptions[i])))) {
-              options.push(i+': '+maybequotes(embedoptions[i]));
-            }
-          }
-          
-          var output = [];
-          output.push('<div class="mistvideo" id="'+target+'">');
-          output.push('  <noscript>');
-          output.push('    <a href="'+(otherhost.https ? other_split.https : other_split.http)+escapedstream+'.html'+'" target="_blank">');
-          output.push('      Click here to play this video');
-          output.push('    </a>');
-          output.push('  </noscript>');
-          output.push('  <script>');
-          output.push('    var a = function(){');
-          output.push('      mistPlay("'+other+'",{');
-          output.push('        '+options.join(",\n        "));
-          output.push('      });');
-          output.push('    };');
-          output.push('    if (!window.mistplayers) {');
-          output.push('      var p = document.createElement("script");');
-          if (("https" in embedbase) && (parseURL(embedbase.http).protocol != "https://")) {
-            output.push('      if (location.protocol == "https:") { p.src = "'+other_split.https+'player.js" } ');
-            output.push('      else { p.src = "'+other_split.http+'player.js" } ');
-          }
-          else {
-            output.push('      p.src = "'+otherbase+'player.js"');
-          }
-          output.push('      document.head.appendChild(p);');
-          output.push('      p.onload = a;');
-          output.push('    }');
-          output.push('    else { a(); }');
-          output.push('  </script>');
-          output.push('</div>');
-          
-          return output.join("\n");
-        }
-        
-        var $protocolurls = $('<span>').text('Loading..');
-        var emhtml = embedhtml(embedoptions);
-        var $setTracks = $('<div>').text('Loading..').css('display','flex').css('flex-flow','column nowrap');
-        
-        
-        var $usehttps = '';
-        if ('https' in embedbase) {
-          $usehttps = UI.buildUI([{
-            label: 'Use HTTPS',
-            type: 'checkbox',
-            'function': function(){
-              if ($(this).getval() != otherhost.https) {
-                otherhost.https = $(this).getval();
-                UI.navto('Embed',other);
-              }
-            },
-            value: otherhost.https
-          }]).find('label');
-          
-        }
-        $embedlinks.append(
-          $('<span>').addClass('input_container').append(
-            $('<label>').addClass('UIelement').append(
-              $('<span>').addClass('label').text('Use a different host:')
-            ).append(
-              $('<span>').addClass('field_container').append(
-                $('<input>').attr('type','text').addClass('field').val((otherhost.host ? otherhost.host : parsed.host))
-              ).append(
-                $('<span>').addClass('unit').append(
-                  $('<button>').text('Apply').click(function(){
-                    otherhost.host = $(this).closest('label').find('input').val();
-                    UI.navto('Embed',other);
-                  })
-                )
-              )
-            )
-          ).append($usehttps)
-        ).append(UI.buildUI([
-          $('<h3>').text('Urls'),
-          {
-            label: 'Stream info json',
-            type: 'str',
-            value: otherbase+'json_'+escapedstream+'.js',
-            readonly: true,
-            clipboard: true,
-            help: 'Information about this stream as a json page.'
-          },{
-            label: 'Stream info script',
-            type: 'str',
-            value: otherbase+'info_'+escapedstream+'.js',
-            readonly: true,
-            clipboard: true,
-            help: 'This script loads information about this stream into a mistvideo javascript object.'
-          },{
-            label: 'HTML page',
-            type: 'str',
-            value: otherbase+escapedstream+'.html',
-            readonly: true,
-            qrcode: true,
-            clipboard: true,
-            help: 'A basic html containing the embedded stream.'
-          },$('<h3>').text('Embed code'),{
-            label: 'Embed code',
-            type: 'textarea',
-            value: emhtml,
-            rows: emhtml.split("\n").length+3,
-            readonly: true,
-            classes: ['embed_code'],
-            clipboard: true,
-            help: 'Include this code on your webpage to embed the stream. The options below can be used to configure how your content is displayed.'
-          },$('<h4>').text('Embed code options (optional)').css('margin-top',0),{
-            type: 'help',
-            help: 'Use these controls to customise what this embedded video will look like.<br>Not all players have all of these options.'
-          },{
-            label: 'Prioritize type',
-            type: 'select',
-            select: [['','Automatic']],
-            pointer: {
-              main: embedoptions,
-              index: 'prioritize_type'
-            },
-            classes: ['prioritize_type'],
-            'function': function(){
-              if (!done) { return; }
-              embedoptions.prioritize_type = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'Try to use this source type first, but full back to something else if it is not available.'
-          },{
-            label: 'Force type',
-            type: 'select',
-            select: [['','Automatic']],
-            pointer: {
-              main: embedoptions,
-              index: 'forceType'
-            },
-            classes: ['forceType'],
-            'function': function(){
-              if (!done) { return; }
-              embedoptions.forceType = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'Only use this particular source.'
-          },{
-            label: 'Force player',
-            type: 'select',
-            select: [['','Automatic']],
-            pointer: {
-              main: embedoptions,
-              index: 'forcePlayer'
-            },
-            classes: ['forcePlayer'],
-            'function': function(){
-              if (!done) { return; }
-              embedoptions.forcePlayer = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'Only use this particular player.'
-          },{
-            label: 'Controls',
-            type: 'select',
-            select: [['1','MistServer Controls'],['stock','Player controls'],['0','None']],
-            pointer: {
-              main: custom,
-              index: 'controls'
-            },
-            'function': function(){
-              embedoptions.controls = ($(this).getval() == 1 );
-              switch ($(this).getval()) {
-                case 0:
-                  embedoptions.controls = false;
-                  break;
-                case 1:
-                  embedoptions.controls = true;
-                  break;
-                case 'stock':
-                  embedoptions.controls = 'stock';
-                  break;
-              }
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'The type of controls that should be shown.'
-          },{
-            label: 'Autoplay',
-            type: 'checkbox',
-            pointer: {
-              main: embedoptions,
-              index: 'autoplay'
-            },
-            'function': function(){
-              embedoptions.autoplay = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'Whether or not the video should play as the page is loaded.'
-          },{
-            label: 'Loop',
-            type: 'checkbox',
-            pointer: {
-              main: embedoptions,
-              index: 'loop'
-            },
-            'function': function(){
-              embedoptions.loop = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'If the video should restart when the end is reached.'
-          },{
-            label: 'Start muted',
-            type: 'checkbox',
-            pointer: {
-              main: embedoptions,
-              index: 'muted'
-            },
-            'function': function(){
-              embedoptions.muted = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'If the video should restart when the end is reached.'
-          },{
-            label: 'Fill available space',
-            type: 'checkbox',
-            pointer: {
-              main: embedoptions,
-              index: 'fillSpace'
-            },
-            'function': function(){
-              embedoptions.fillSpace = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'The video will fit the available space in its container, even if the video stream has a smaller resolution.'
-          },{
-            label: 'Poster',
-            type: 'str',
-            pointer: {
-              main: embedoptions,
-              index: 'poster'
-            },
-            'function': function(){
-              embedoptions.poster = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'URL to an image that is displayed when the video is not playing.'
-          },{
-            label: 'Video URL addition',
-            type: 'str',
-            pointer: {
-              main: embedoptions,
-              index: 'urlappend'
-            },
-            help: 'The embed script will append this string to the video url, useful for sending through params.',
-            classes: ['embed_code_forceprotocol'],
-            'function': function(){
-              embedoptions.urlappend = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            }
-          },{
-            label: 'Preselect tracks',
-            type: 'DOMfield',
-            DOMfield: $setTracks,
-            help: 'Pre-select these tracks.'
-          },{
-            label: 'Monitoring action',
-            type: 'select',
-            select: [['','Ask the viewer what to do'],['nextCombo','Try the next source / player combination']],
-            pointer: {
-              main: embedoptions,
-              index: 'monitor_action'
-            },
-            'function': function(){
-              embedoptions.monitor_action = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'What the player should do when playback is poor.'
-          },$('<h3>').text('Protocol stream urls'),$protocolurls
-        ]));
-        
-        $.ajax({
-          type: 'GET',
-          url: otherbase+'json_'+escapedstream+'.js?inclzero=1',
-          success: function(d) {
-            
-            var build = [];
-            var $s_forceType = $embedlinks.find('.field.forceType');
-            var $s_prioritizeType = $embedlinks.find('.field.prioritize_type');
-            for (var i in d.source) {
-              var source = d.source[i];
-              var human = UI.humanMime(source.type);
-              
-              build.push({
-                label: (human ? human+' <span class=description>('+source.type+')</span>' : UI.format.capital(source.type)),
-                type: 'str',
-                value: source.url,
-                readonly: true,
-                qrcode: true,
-                clipboard: true
-              });
-              var human = UI.humanMime(source.type);
-              if ($s_forceType.children("option[value=\""+source.type+"\"]").length == 0) {
-                $s_forceType.append(
-                  $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
-                );
-                $s_prioritizeType.append(
-                  $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
-                );
-              }
-            }
-            $s_forceType.val(embedoptions.forceType);
-            $s_prioritizeType.val(embedoptions.prioritize_type);
-            $protocolurls.html(UI.buildUI(build));
-            
-            $setTracks.html('');
-            var tracks = {};
-            if (d.meta) { 
-              for (var i in d.meta.tracks) {
-                var t = d.meta.tracks[i];
-                if (t.codec == "subtitle") {
-                  t.type = "subtitle";
-                }
-                if ((t.type != 'audio') && (t.type != 'video') && (t.type != "subtitle")) { continue; }
+        $main.append(
+          UI.modules.stream.findMist(function(url){
+            $main.append(UI.modules.stream.embedurls(other,url,this.getUrls()));
+          },false,true) //force full url search
+        );
 
-                if (!(t.type in tracks)) {
-                  if (t.type == "subtitle") {
-                    tracks[t.type] = [];
-                  }
-                  else {
-                    tracks[t.type] = [[(''),"Autoselect "+t.type]];
-                  }
-                }
-                tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+(t.type == "subtitle" ? 1 : 0))]);
-              }
-            }
-            if (Object.keys(tracks).length) {
-              $setTracks.closest('label').show();
-              var trackarray = ["audio","video","subtitle"];
-              for (var n in trackarray) {
-                var i = trackarray[n];
-                if (!tracks[i] || !tracks[i].length) { continue; }
-                var $select = $('<select>').attr('data-type',i).css('flex-grow','1').change(function(){
-                  if ($(this).val() == '') {
-                    delete embedoptions.setTracks[$(this).attr('data-type')];
-                  }
-                  else {
-                    embedoptions.setTracks[$(this).attr('data-type')] = $(this).val();
-                  }
-                  $('.embed_code').setval(embedhtml(embedoptions));
-                });
-                $setTracks.append($select);
-                if (i == "subtitle") {
-                  tracks[i].unshift(["","No "+i]);
-                }
-                else {
-                  tracks[i].push([-1,'No '+i]);
-                }
-                for (var j in tracks[i]) {
-                  $select.append(
-                    $('<option>').val(tracks[i][j][0]).text(tracks[i][j][1])
-                  );
-                }
-                if (i in embedoptions.setTracks) {
-                  $select.val(embedoptions.setTracks[i]);
-                  if ($select.val() == null) {
-                    $select.val('');
-                    delete embedoptions.setTracks[i];
-                    $('.embed_code').setval(embedhtml(embedoptions));
-                  }
-                }
-              }
-            }
-            else {
-              $setTracks.closest('label').hide();
-            }
-            
-            done = true;
-          },
-          error: function(){
-            $protocolurls.html('Error while retrieving stream info.');
-            $setTracks.closest('label').hide();
-            embedoptions.setTracks = {};
-          }
-        });
-        
-        var script = document.createElement('script');
-        script.src = embedbase.http+'player.js';
-        document.head.appendChild(script);
-        script.onload = function(){
-          var $s_forcePlayer = $embedlinks.find('.field.forcePlayer');
-          for (var i in mistplayers) {
-            $s_forcePlayer.append(
-              $('<option>').text(mistplayers[i].name).val(i)
-            );
-          }
-          
-          document.head.removeChild(this);
-        };
-        script.onerror = function(){
-          document.head.removeChild(this);
-        };
         break;
       case 'Push':
         var $c = $('<div>').text('Loading..'); //will contain everything
@@ -6045,7 +5420,7 @@ var UI = {
               );
               $buttons.append(
                 $('<button>').text('Stop pushes').click(function(){
-                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(push_settings.wait != 0 ? "\n\nRetrying is enabled. You'll probably want to set that to 0." : ''))) {
+                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(push_settings.wait != 0 ? "\n\nRetrying is enabled. That means the push will just restart. You'll probably want to set that to 0." : ''))) {
                     var $button = $(this);
                     $button.text('Stopping pushes..');
                     //also stop the matching pushes
@@ -6066,8 +5441,7 @@ var UI = {
                       $button.text('Stop pushes');
                       checkgone(pushIds);
                     },{
-                      push_stop: pushIds,
-                      push_settings: {wait: 0}
+                      push_stop: pushIds
                     });
                   }
                 })
@@ -6327,9 +5701,9 @@ var UI = {
       case 'Start Push':
         
         if (!('capabilities' in mist.data) || !('variable_list' in mist.data) || !('external_writer_list' in mist.data)) {
-          $main.append('Loading Mist capabilities..');
+          $main.append('Loading MistServer capabilities..');
           mist.send(function(){
-            UI.navto('Start Push',other);
+            UI.showTab('Start Push',other,prev);
           },{capabilities:true,variable_list:true,external_writer_list:true});
           return;
         }
@@ -6564,108 +5938,110 @@ var UI = {
             }],saveas));
             $autopush.find(".activewhen").trigger("change");
           }
-          var build = [{
-            label: 'Stream name',
-            type: 'str',
-            help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:\
-                    <ul>\
-                      <li><i>a</i>: the stream configured as <i>a</i></li>\
-                      <li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li>\
-                      <li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li>\
-                    </ul>',
-            pointer: {
-              main: saveas,
-              index: 'stream'
-            },
-            validate: ['required',function(val,me){
-              var shouldbestream = val.split('+');
-              shouldbestream = shouldbestream[0];
-              if (shouldbestream in mist.data.streams) {
-                return false;
-              }
-              return {
-                msg: "'"+shouldbestream+"' is not a stream name.",
-                classes: ['orange'],
-                "break": false
-              };
-            }],
-            datalist: allthestreams
-          },{
-            label: 'Target',
-            type: 'str',
-            help: 'Where the stream will be pushed to.<br>\
-                  Valid push formats:\
-                  <ul>\
-                    <li>'+prot_match.join('</li><li>')+'</li>\
-                  </ul>\
-                  Valid file formats:\
-                   <ul>\
-                    <li>'+file_match.join('</li><li>')+'</li>\
-                  </ul>\
-                  '+(writer_protocols.length ? 'Additionally, the following protocols (from generic writers) may be used in combination with any of the above file formats:<ul><li>'+writer_protocols.join("</li><li>")+'</li></ul>' : "")+'\
-                  Valid text replacements:\
-                  <ul>\
-                    <li>$stream - inserts the stream name used to push to MistServer</li>\
-                    <li>$day - inserts the current day number</li><li>$month - inserts the current month number</li>\
-                    <li>$year - inserts the current year number</li><li>$hour - inserts the hour timestamp when stream was received</li>\
-                    <li>$minute - inserts the minute timestamp the stream was received</li>\
-                    <li>$seconds - inserts the seconds timestamp when the stream was received</li>\
-                    <li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>\
-                  </ul>',
-            pointer: {
-              main: saveas,
-              index: 'target'
-            },
-            validate: ['required',function(val,me){
-              for (var i in prot_match) {
-                if (mist.inputMatch(prot_match[i],val)) {
+          var build = [
+            {
+              label: 'Stream name',
+              type: 'str',
+              help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:\
+              <ul>\
+              <li><i>a</i>: the stream configured as <i>a</i></li>\
+              <li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li>\
+              <li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li>\
+              </ul>',
+              pointer: {
+                main: saveas,
+                index: 'stream'
+              },
+              validate: ['required',function(val,me){
+                var shouldbestream = val.split('+');
+                shouldbestream = shouldbestream[0];
+                if (shouldbestream in mist.data.streams) {
                   return false;
                 }
-              }
-              for (var i in file_match) {
-                if (mist.inputMatch(file_match[i],val)) {
-                  return false;
-                }
-                for (var j in writer_protocols) {
-                  if (mist.inputMatch(writer_protocols[j]+file_match[i].slice(1),val)) {
+                return {
+                  msg: "'"+shouldbestream+"' is not a stream name.",
+                  classes: ['orange'],
+                  "break": false
+                };
+              }],
+              datalist: allthestreams,
+              value: prev[1] != "" ? prev[1] : "" //if we came here from a page where other exists (like the Status tab) prefill it, it's probably a stream
+            },{
+              label: 'Target',
+              type: 'str',
+              help: 'Where the stream will be pushed to.<br>\
+              Valid push formats:\
+              <ul>\
+              <li>'+prot_match.join('</li><li>')+'</li>\
+              </ul>\
+              Valid file formats:\
+              <ul>\
+              <li>'+file_match.join('</li><li>')+'</li>\
+              </ul>\
+              '+(writer_protocols.length ? 'Additionally, the following protocols (from generic writers) may be used in combination with any of the above file formats:<ul><li>'+writer_protocols.join("</li><li>")+'</li></ul>' : "")+'\
+              Valid text replacements:\
+              <ul>\
+              <li>$stream - inserts the stream name used to push to MistServer</li>\
+              <li>$day - inserts the current day number</li><li>$month - inserts the current month number</li>\
+              <li>$year - inserts the current year number</li><li>$hour - inserts the hour timestamp when stream was received</li>\
+              <li>$minute - inserts the minute timestamp the stream was received</li>\
+              <li>$seconds - inserts the seconds timestamp when the stream was received</li>\
+              <li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>\
+              </ul>',
+              pointer: {
+                main: saveas,
+                index: 'target'
+              },
+              validate: ['required',function(val,me){
+                for (var i in prot_match) {
+                  if (mist.inputMatch(prot_match[i],val)) {
                     return false;
                   }
                 }
-              }
+                for (var i in file_match) {
+                  if (mist.inputMatch(file_match[i],val)) {
+                    return false;
+                  }
+                  for (var j in writer_protocols) {
+                    if (mist.inputMatch(writer_protocols[j]+file_match[i].slice(1),val)) {
+                      return false;
+                    }
+                  }
+                }
 
-              return {
-                msg: 'Does not match a valid target.<br>Valid push formats:\
+                return {
+                  msg: 'Does not match a valid target.<br>Valid push formats:\
                   <ul>\
-                    <li>'+prot_match.join('</li><li>')+'</li>\
+                  <li>'+prot_match.join('</li><li>')+'</li>\
                   </ul>\
                   Valid file formats:\
-                   <ul>\
-                    <li>'+file_match.join('</li><li>')+'</li>\
+                  <ul>\
+                  <li>'+file_match.join('</li><li>')+'</li>\
                   </ul>\
                   '+(writer_protocols.length ? 'Additionally, the following protocols may be used in combination with any of the above file formats:<ul><li>'+writer_protocols.join("</li><li>")+'</li></ul>' : ""),
-                classes: ['red']
-              }
-            }],
-            "function": function(){
-              //find what kind of target this is
-              var match = false;
-              var val = $(this).getval();
-              for (connector in connector2target_match) {
-                for (var i in connector2target_match[connector]) {
-                  if (mist.inputMatch(connector2target_match[connector][i],val)) {
-                    match = connector;
-                    break;
-                  }
-                  if (connector2target_match[connector][i][0] == "/") {
-                    for (var j in writer_protocols) {
-                      if (mist.inputMatch(writer_protocols[j]+connector2target_match[connector][i].slice(1),val)) {
-                        match = connector;
-                        break;
+                  classes: ['red']
+                }
+              }],
+              "function": function(){
+                //find what kind of target this is
+                var match = false;
+                var val = $(this).getval();
+                for (connector in connector2target_match) {
+                  for (var i in connector2target_match[connector]) {
+                    if (mist.inputMatch(connector2target_match[connector][i],val)) {
+                      match = connector;
+                      break;
+                    }
+                    if (connector2target_match[connector][i][0] == "/") {
+                      for (var j in writer_protocols) {
+                        if (mist.inputMatch(writer_protocols[j]+connector2target_match[connector][i].slice(1),val)) {
+                          match = connector;
+                          break;
+                        }
                       }
                     }
                   }
                 }
-              }
               if (!match) {
                 $additional_params.html(
                   $("<h4>").addClass("red").text("Unrecognized target.")
@@ -6675,7 +6051,7 @@ var UI = {
                 return;
               }
               if (!("friendly" in mist.data.capabilities.connectors[match])) { mist.data.capabilities.connectors[match].friendly = mist.data.capabilities.connectors[match].name; }
-              $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
+                $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
               push_parameters = $.extend({},mist.data.capabilities.connectors[match].push_parameters);
               full_list_of_push_parameters = {};
               function processPushParam(param,key) {
@@ -6697,50 +6073,51 @@ var UI = {
                   full_list_of_push_parameters[key] = param;
                 }
               }
-              for (var i in mist.data.capabilities.connectors[match].push_parameters) {
-                processPushParam(mist.data.capabilities.connectors[match].push_parameters[i],i);
-              }
-
-              var capa = {
-                desc: mist.data.capabilities.connectors[match].desc.replace("over HTTP",""),
-                optional: push_parameters,
-                sort: "sort"
-              };
-              var capaform = mist.convertBuildOptions(capa,saveas.params);
-
-              //find left over url params that are not covered by this connector's capabilities
-              var custom_params = [];
-              for (var i in params) {
-                var p = params[i].split("=");
-                var name = p[0];
-                if (!(name in full_list_of_push_parameters)) {
-                  custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
+                for (var i in mist.data.capabilities.connectors[match].push_parameters) {
+                  processPushParam(mist.data.capabilities.connectors[match].push_parameters[i],i);
                 }
-              }
-              
-              capaform.push($("<br>"));
-              capaform.push({
-                type: "inputlist",
-                label: "Custom url parameters",
-                value: custom_params,
-                classes: ["custom_url_parameters"],
-                input: {
-                  type: "str",
-                  placeholder: "name=value",
-                  prefix: ""
-                },
-                help: "Any custom url parameters not covered by the parameters configurable above.",
-                pointer: {
-                  main: saveas,
-                  index: "custom_url_params"
-                }
-              });
 
-              $additional_params.append(UI.buildUI(capaform)); 
-            }
-          },
-          $autopush,
-          $additional_params];
+                var capa = {
+                  desc: mist.data.capabilities.connectors[match].desc.replace("over HTTP",""),
+                  optional: push_parameters,
+                  sort: "sort"
+                };
+                var capaform = mist.convertBuildOptions(capa,saveas.params);
+
+                //find left over url params that are not covered by this connector's capabilities
+                var custom_params = [];
+                for (var i in params) {
+                  var p = params[i].split("=");
+                  var name = p[0];
+                  if (!(name in push_parameters)) {
+                    custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
+                  }
+                }
+
+                capaform.push($("<br>"));
+                capaform.push({
+                  type: "inputlist",
+                  label: "Custom url parameters",
+                  value: custom_params,
+                  classes: ["custom_url_parameters"],
+                  input: {
+                    type: "str",
+                    placeholder: "name=value",
+                    prefix: ""
+                  },
+                  help: "Any custom url parameters not covered by the parameters configurable above.",
+                  pointer: {
+                    main: saveas,
+                    index: "custom_url_params"
+                  }
+                });
+
+                $additional_params.append(UI.buildUI(capaform)); 
+              }
+            },
+            $autopush,
+            $additional_params
+          ];
           
           
           
@@ -6784,7 +6161,12 @@ var UI = {
               type: 'cancel',
               label: 'Cancel',
               'function': function(){
-                UI.navto('Push');
+                if (prev[0] && prev[0] != tab) {
+                  UI.navto(prev[0],prev[1]);
+                }
+                else {
+                  UI.navto("Push");
+                }
               }
             },{
               type: 'save',
@@ -6865,7 +6247,12 @@ var UI = {
                 }
                 
                 mist.send(function(){
-                  UI.navto('Push');
+                  if (prev[0] && prev[0] != tab) {
+                    UI.navto(prev[0],prev[1]);
+                  }
+                  else {
+                    UI.navto("Push");
+                  }
                 },obj);
               }
             }]
@@ -7014,7 +6401,7 @@ var UI = {
         }
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
-            UI.navto(tab,other);
+            UI.showTab(tab,other,prev);
           },{capabilities: true});
           $main.append('Loading..');
           return;
@@ -7139,7 +6526,8 @@ var UI = {
           },
           help: 'For triggers that can apply to specific streams, this value decides what streams they are triggered for. (none checked = always triggered)',
           type: 'checklist',
-          checklist: Object.keys(mist.data.streams)
+          checklist: Object.keys(mist.data.streams),
+          value: (prev[1] != "" ? [prev[1]] : [])
         },$('<br>'),{
           label: 'Handler (URL or executable)',
           help: 'This can be either an HTTP URL or a full path to an executable.',
@@ -7181,7 +6569,12 @@ var UI = {
               type: 'cancel',
               label: 'Cancel',
               'function': function(){
-                UI.navto('Triggers');
+                if (prev[0] && prev[0] != tab) {
+                  UI.navto(prev[0],prev[1]);
+                }
+                else {
+                  UI.navto("Triggers");
+                }
               }
             },{
               type: 'save',
@@ -7208,7 +6601,12 @@ var UI = {
                 mist.data.config.triggers[saveas.triggeron].push(newtrigger);
                 
                 mist.send(function(){
-                  UI.navto('Triggers');
+                  if (prev[0] && prev[0] != tab) {
+                    UI.navto(prev[0],prev[1]);
+                  }
+                  else {
+                    UI.navto("Triggers");
+                  }
                 },{config: mist.data.config});
               }
             }
@@ -7529,7 +6927,7 @@ var UI = {
       case 'Server Stats':
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
-            UI.navto(tab);
+            UI.showTab(tab);
           },{capabilities: true});
           $main.append('Loading..');
           return;
@@ -7757,6 +7155,2772 @@ var UI = {
         return false;
       }
     });
+  },
+  dynamic: function(options,id){
+    //required:
+    //options.values = initial values
+    //options.update = func(values), this -> element
+    //options.create = func(), returns element
+    //options.getEntries = func(data), convert input data to {id:child_data, ..} shape
+    //options.add = func(id), -> this -> ele, returns child element, should have update func,
+    //            = {create:()=>{},update:()=>{}}: pass dynamic creation options
+    
+    options = Object.assign({},options); //prevent overwriting if create returns either a dynamic object or a normal element            
+
+    var ele = options.create(id);
+    if (!ele) { return; }
+    ele.raw = "";
+    if (!options.getEntry) {
+      options.getEntry = function(d,id){
+        return (id in d ? d[id] : false);
+      }
+    }
+    if (!options.getEntries) {
+      options.getEntries = function(d) {
+        return d;
+      }
+    }
+    if (ele.update) {
+      //it's most likely a nested dynamic element
+      options.update = ele.update;
+    }
+    if (!options.update) {
+      options.update = function(){};
+    }
+    if (typeof options.add == "object") {
+      var addoptions = options.add;
+      options.add = function(id){
+        return UI.dynamic(addoptions,id);
+      }
+    }
+
+    if (options.add) {
+
+      ele._children = {};
+      ele.add = function(id) {
+        var child = options.add.call(ele,id);
+        if (!child) { return; }
+        child.remove = function(){
+          var child = this;
+          if (child instanceof jQuery) { child = child[0]; }
+          if (child.parentNode) {
+            child.parentNode.removeChild(child);
+          }
+          delete ele._children[id];
+        };
+
+        child.id = id;
+        ele._children[id] = child;
+        if (child.customAdd) {
+          child.customAdd(ele);
+        }
+        else {
+          ele.append(child);
+        }
+      }
+    }
+
+    ele.update = function(values,allValues) {
+      var entries = options.getEntries(values,ele.id);
+      var raw = JSON.stringify(entries);
+      if (this.raw == raw) {
+        return;
+      }
+      this.values = entries;
+      this.values_orig = values;
+
+
+      if (options.add) {
+        for (var id in entries) {
+          if (!(id in this._children)) {
+            this.add(id);
+          }
+          if (id in this._children) {
+            this._children[id].update.call(this._children[id],entries[id],entries);
+          }
+        }
+        for (var i in this._children) {
+          if (!(i in entries)) {
+            this._children[i].remove();
+          }
+        }
+      }
+
+      options.update.call(ele,entries,allValues);
+      this.raw = raw;
+    }
+
+    if (options.values) ele.update.call(ele,options.values);
+    
+    return ele;
+    
+  },
+  
+  modules: {
+    stream: {
+      bigbuttons: function(streamname,currenttab){
+        var $cont = $('<div>').addClass('bigbuttons');
+
+        //wildcards streams don't have their own settings, but the edit page can deal with that nowadays
+        $cont.append(
+          $('<button>').text('Settings').addClass('settings').click(function(){
+            UI.navto('Edit',streamname);
+          })
+        );
+
+        //if this is not a wildcard stream, and is a folder input, only the status page is sensible
+        //hardcoded to not require a capabilities call for these stupid buttons
+        var isFolderStream = false;
+        if (streamname.indexOf("+") < 0) {
+          var config = mist.data.streams[streamname];
+          if (config.source && (config.source.match(/^\/.+\/$/) || config.source.match(/^folder:.+$/))) {
+            isFolderStream = true;
+          }
+        }
+          
+
+
+        if (currenttab != "Status") {
+          $cont.append(
+            $('<button>').text('Status').attr('data-icon','🚥').click(function(){
+              UI.navto('Status',streamname);
+            })
+          );
+        }
+        if ((currenttab != "Preview") && !isFolderStream) {
+          $cont.append(
+            $('<button>').text('Preview').addClass('preview').click(function(){
+              UI.navto('Preview',streamname);
+            })
+          );
+        }
+        if ((currenttab != "Embed") && !isFolderStream) {
+          $cont.append(
+            $('<button>').text('Embed').addClass('embed').click(function(){
+              UI.navto('Embed',streamname);
+            })
+          );
+        }
+
+        $cont.append(
+          $('<button>').addClass('cancel').addClass('return').text('Return').click(function(){
+            UI.navto('Streams');
+          })
+        );
+
+        return $cont;
+      },
+      findMist: function(on_success_callback,url_rewriter,fullsearch){
+        var cont = $("<div>").addClass("findMist").hide();
+
+        //find http output for info json
+        //return an array with possible urls, try first url first
+        function findHTTP(callback){
+          var result = { HTTP: [], HTTPS: [] };
+          var http = result.HTTP;
+          var https = result.HTTPS;
+
+          if (UI.sockets.http_host) {
+            if (fullsearch) { 
+              http.push(UI.sockets.http_host);
+              https.push(UI.sockets.http_host);
+            }
+            else return callback([UI.sockets.http_host]); 
+          }
+
+          if (!mist.data.capabilities) {
+            // Request capabilities first
+            mist.send(function(){
+              findHTTP(callback);
+            },{capabilities:true});
+            return;
+          }
+
+
+
+          var stored = mist.stored.get();
+          if ("HTTPurl" in stored) {
+            if (stored.HTTPurl.slice(0,5) == "https") https.push(stored.HTTPurl);
+            else http.push(stored.HTTPurl);
+          }
+
+          //scan http(s) protocol config
+          for (var i in mist.data.config.protocols) {
+            var connector = mist.data.config.protocols[i];
+            var name = connector.connector;
+            name = (""+name).replace(".exe","");
+            switch (connector.connector) {
+              case "HTTP": 
+              case "HTTPS": {
+                //pubadr
+                if (connector.pubaddr) {
+                  for (var j in connector.pubaddr) {
+                    var protocol = connector.pubaddr[j].split(":")[0].toUpperCase();
+                    result[protocol].push(connector.pubaddr[j]);
+                  }
+                }
+                //port
+                var port = connector.port;
+                if (!port) { //retrieve default port
+                  if (connector.connector in mist.data.capabilities.connectors) {
+                    port = mist.data.capabilities.connectors[connector.connector].optional.port['default'];
+                  }
+                }
+                if (port) {
+                  result[connector.connector].push(parseURL(mist.user.host,{port:port,pathname:'',protocol:name.toLowerCase()+":"}).full)
+                }
+
+                break;
+              }
+            }
+          }
+
+            
+          if (!http.length) { 
+            http.push(parseURL(mist.user.host,{port:8080,pathname:''}).full); 
+          }
+          if (!https.length) {
+            https = http;
+          }
+
+          function makeUnique(ret) {
+            var unique = [];
+            for (var i = 0; i < ret.length; i++) {
+              if (ret.indexOf(ret[i]) == i) { unique.push(ret[i]); }
+            }
+            return unique;
+          }
+
+          http = makeUnique(http);
+          https = makeUnique(https);
+
+          cont.urls = result;
+
+          return callback(location.protocol == "https:" ? https : http);
+        }
+
+        function retrieveInfo(urls,attempt) {
+          if (attempt >= urls.length) { return on_fail(); }
+          try {
+            if (!url_rewriter) {
+              url_rewriter = function(hosturl){
+                return hosturl + "player.js";
+              };
+            }
+            url = url_rewriter(urls[attempt]);
+            if (url.slice(0,4) == "http") {
+              $.ajax({
+                type: "GET",
+                url: url,
+                success: function(d){
+                  cont.hide();
+                  on_success(urls[attempt],d);
+                },
+                error: function(){
+                  retrieveInfo(urls,attempt+1);
+                }
+              });
+            }
+            else if (url.slice(0,2) == "ws") {
+              var ws = UI.websockets.create(url); //UI.websockets.create ensures websockets are closed when we navigate away
+              ws.onopen = function(){
+                ws.onerror = function(){};
+                cont.hide();
+                on_success(urls[attempt],ws);
+              };
+              ws.onerror = function(e){
+                retrieveInfo(urls,attempt+1);
+              };
+            }
+            else {
+              throw "I'm not sure how to contact MistServer with this protocol. (at "+url+")";
+            }
+          }
+          catch (e) { on_fail(urls); }
+        }
+        function on_fail(urls) {
+          if ((urls.length == 1) && (urls[0] == UI.sockets.http_host)) { 
+            //reset the saved url and try searching again
+            UI.sockets.http_host = null;
+            findHTTP(function(result){
+              urls = result;
+              retrieveInfo(result,0);
+            });
+          }
+
+          //if request fails, allow user to enter url and save
+          var save= {};
+          cont.show().html(
+            $("<p>").text("Could not locate the MistHTTP output url. Where can it be reached?")
+          ).append(
+            $("<div>").addClass("description").append(
+              $("<p>").text("Attempts:")
+            ).append(
+              $("<ul>").html("<li>"+(urls.join("</li><li>"))+"</li>")
+            )
+          ).append(
+            UI.buildUI([{
+              label: "MistServer HTTP endpoint",
+              type: "datalist",
+              datalist: urls,
+              help: "Please specify the url at which MistServer's HTTP endpoint can be reached.",
+              pointer: { main: save, index: "url" }
+            },{
+              type: "buttons",
+              buttons: [{
+                type: "save",
+                label: "Connect",
+                "function": function(){
+                  urls.unshift(save.url);
+                  retrieveInfo(urls,0);
+                }
+              }]
+            }])
+          );
+
+        }
+
+
+        function on_success(url,handler) {
+          //this was the correct url, save
+          
+          if (url != UI.sockets.http_host) {
+            UI.sockets.http_host = url;
+            mist.stored.set("HTTPUrl",url);
+          }
+
+          on_success_callback.call(cont,url,handler);
+          
+        }
+
+        findHTTP(function(result){
+          retrieveInfo(result,0);
+        });
+
+        cont.getUrls = function(kind){
+          return cont.urls;
+        }
+
+        return cont;
+      },
+      livestreamhint: function(streamname){
+        var $cont = $("<div>").addClass("livestreamhint");
+
+        var settings = mist.data.streams[streamname.split("+")[0]];
+        if (settings.source && (settings.source.slice(0,1) != "/") && (!settings.source.match(/-exec:/))) {
+          var type = null;
+          for (var i in mist.data.capabilities.inputs) {
+            if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
+            if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,settings.source)) {
+              type = i;
+              break;
+            }
+          }
+          if (type) {
+            var input = mist.data.capabilities.inputs[type];
+            var fields = [$('<span>').text('Configure your source to push to:')];
+            switch (input.name) {
+              case 'Buffer':
+              case 'Buffer.exe':
+                fields.push({
+                  label: 'RTMP full url',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['RTMP'],
+                  help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
+                });
+                fields.push({
+                  label: 'RTMP url',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['RTMPurl'],
+                  help: 'Use this RTMP url if your client also asks for a stream key'
+                });
+                fields.push({
+                  label: 'RTMP stream key',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['RTMPkey'],
+                  help: 'Use this key if your client asks for a stream key'
+                });
+                fields.push({
+                  label: 'SRT',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['TSSRT']
+                });
+                fields.push({
+                  label: 'RTSP',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['RTSP']
+                });
+                break;
+              case 'TS':
+              case 'TS.exe':
+                if (settings.source.charAt(0) == "/") {
+                  fields = [];
+                }
+                else {
+                  fields.push({
+                    label: 'TS',
+                    type: 'span',
+                    clipboard: true,
+                    readonly: true,
+                    classes: ['TS']
+                  });
+                }
+                break;
+              case 'TSSRT':
+              case 'TSSRT.exe': {
+                fields.push({
+                  label: 'SRT',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['TSSRT']
+                });
+                break;
+              }
+              default: {
+                fields = [];
+              }
+            }
+            if (fields.length) {
+              $cont.html(UI.buildUI(fields));
+              UI.updateLiveStreamHint(streamname,settings.source,$cont);
+            }
+          }
+        }
+        else { 
+          return false;
+        }
+
+        return $cont;
+      }, 
+      status: function(streamname,options){
+        var defaultoptions = {
+          livestreamhint: true,
+          status: true,
+          stats: true,
+          tags: true,
+          thumbnail: true
+        };
+        if (!options) {
+          options = {};
+        }
+        options = Object.assign(defaultoptions,options);
+
+        var activestream = {
+          mode: 0,
+          cont: $("<div>").addClass("activestream"),
+          status: options.status ? $("<div>").attr("data-streamstatus",0).text("Offline") : false,
+          viewers: options.stats ? $("<span>").attr("beforeifnotempty","Viewers: ") : false,
+          inputs: options.stats ? $("<span>").attr("beforeifnotempty","Inputs: ") : false,
+          outputs: options.stats? $("<span>").attr("beforeifnotempty","Outputs: ") : false,
+          tags: options.tags ? {
+            cont: $("<div>").attr("beforeifnotempty","Tags: "),
+            children: {},
+            ele: function(tag){
+              var $ele = $("<span>").addClass("tag").text(tag).append(
+                $("<button>").text("🗙").attr("title","Remove tag").click(function(){
+                  var $me = $(this);
+                  var untag = {};
+                  untag[streamname] = tag;
+                  $me.parent().text("Removing..");
+                  mist.send(function(){
+                    //done
+                    $me.parent().remove();
+                  },{
+                    untag_stream: untag
+                  });
+                })
+              );
+              this.children[tag] = $ele;
+              return $ele;
+            },
+            update: function(d){
+              var tags = d == "" ? [] : d.split(" ");
+              var seen = {};
+              //add new tags to element
+              for (var i in tags) {
+                var t = tags[i];
+                seen[t] = 1;
+                if (!(t in this.children)) {
+                  this.cont.append(this.ele(t));
+                }
+              }
+              //remove tags that are not in the new data
+              for (var i in this.children) {
+                if (!(i in seen)) { 
+                  this.children[i].remove();
+                  delete this.children[i];
+                }
+              }
+            }
+          } : false,
+          addtag: options.tags ? $("<div>").html(
+            $("<input>").attr("placeholder","Tag name").on("keydown",function(e){
+              switch (e.key) {
+                case " ": {
+                  e.preventDefault();
+                  break;
+                }
+                case "Enter": {
+                  $(this).parent().find("button").click();
+                  break;
+                }
+              }
+            })
+          ).append(
+            $("<button>").text("Add tag").click(function(){
+              var addtag = {};
+              var $me = $(this);
+              var $input = $me.parent().find("input");
+              addtag[streamname] = $input.val();
+              $me.text("Adding..")
+              mist.send(function(){
+                $me.text("Add tag");
+                $input.val("");
+              },{
+                tag_stream: addtag
+              })
+            })
+          ) : false,
+          livestreamhint: options.livestreamhint ? UI.modules.stream.livestreamhint(streamname) : false
+        };
+
+        activestream.cont.html(
+          activestream.status
+        ).append(
+          activestream.viewers
+        ).append(activestream.inputs).append(activestream.outputs).append(activestream.tags ? activestream.tags.cont : false)
+        .append(activestream.addtag).append(
+          options.thumbnail ? UI.modules.stream.thumbnail(streamname) : false
+        ).append(activestream.livestreamhint);
+
+        UI.sockets.ws.active_streams.subscribe(function(type,data){
+          if (type == "stream") {
+            if (data[0] == streamname) {
+
+              var s = ["Offline","Initializing","Booting","Waiting for data","Ready","Shutting down","Invalid state"];
+              if (options.status) activestream.status.attr("data-streamstatus",data[1]).text(s[data[1]]);
+              if (options.stats) {
+                activestream.viewers.text(data[2]);
+                activestream.inputs.text(data[3] > 0 ? data[3] : "");
+                activestream.outputs.text(data[4] > 0 ? data[4] : "");
+              }
+              if (options.tags) activestream.tags.update(data[5]);
+
+              if (activestream.livestreamhint) {
+                if (data[1] == 0) { activestream.livestreamhint.show(); }
+                else { activestream.livestreamhint.hide(); }
+              }
+
+            }
+          }
+        });
+
+        return $("<section>").addClass("activestream").append(
+          activestream.cont
+        );
+      },
+      actions: function(currenttab,streamname){
+        return $("<section>").addClass("actions").addClass("bigbuttons").html(
+          $("<button>").text("Stop all sessions").attr("data-icon","✋").attr("title","Disconnect sessions for this stream. Disconnecting a session will kill any currently open connections (viewers, pushes and possibly the input). If the USER_NEW trigger is in use, it will be triggered again by any reconnecting connections.").click(function(){
+            if (confirm("Are you sure you want to disconnect all sessions (viewers, pushes and possibly the input) from this stream?")) { 
+              mist.send(function(){
+                //done
+              },{stop_sessions:streamname});
+            }
+          })
+        ).append(
+          $("<button>").text("Invalidate sessions").attr("data-icon","🔐").attr("title","Invalidate all the currently active sessions for this stream. This has the effect of re-triggering the USER_NEW trigger, allowing you to selectively close some of the existing connections after they have been previously allowed. If you don't have a USER_NEW trigger configured, this will not have any effect.").click(function(){
+            if (confirm("Are you sure you want to invalidate all sessions for the stream '"+streamname+"'?\nThis will re-trigger the USER_NEW trigger.")) { 
+              mist.send(function(){
+                //done
+              },{invalidate_sessions:streamname});
+            }
+          })
+        ).append(
+          $("<button>").text("Nuke stream").attr("data-icon","☢️").attr("title","Shut down a running stream completely and/or clean up any potentially left over stream data in memory. It attempts a clean shutdown of the running stream first, followed by a forced shut down, and then follows up by checking for left over data in memory and cleaning that up if any is found.").click(function(){
+            if (confirm("Are you sure you want to completely shut down the stream '"+streamname+"'?\nAll viewers will be disconnected.")) {
+              mist.send(function(){
+                UI.showTab(currenttab,streamname);
+              },{nuke_stream:streamname});
+            }
+          })
+        );
+      },
+      thumbnail: function(streamname){
+        if (!UI.findOutput("JPG")) { return; }
+
+        var jpg = $("<img>");
+
+        UI.sockets.ws.info_json.subscribe(function(data){
+          if (!data.source) return;
+          for (var i in data.source) {
+            if (data.source[i].type == "html5/image/jpeg") {
+              jpg.attr("src",data.source[i].url);
+              break;
+            }
+          }
+        },streamname);
+        
+        return $("<section>").addClass("thumbnail").html(
+          jpg
+        );
+      },
+      metadata: function(streamname,options){
+        var defaultoptions = {
+          tracktable: true,
+          tracktiming: true
+        };
+        if (!options) {
+          options = {};
+        }
+        options = Object.assign(defaultoptions,options);
+
+        var $meta = $("<div>").addClass("meta").text("Loading..");
+
+        var $main = UI.dynamic({
+          create: function(){
+            var cont = $("<span>");
+
+            cont.main = UI.dynamic({
+              create: function(){
+                var main = $("<div>").addClass("main");
+                main.type = $("<span>");
+                main.html(
+                  $("<label>").append($("<span>").text("Type:")).append(main.type)
+                );
+                main.buffer = $("<span>");
+                main.append(
+                  $("<label>").attr("data-liveonly","").append($("<span>").text("Buffer window:")).append(main.buffer)
+                );
+                main.jitter = $("<span>");
+                main.append(
+                  $("<label>").attr("data-liveonly","").append($("<span>").text("Jitter:")).append(main.jitter)
+                );
+                if (options.tracktiming) {
+                  main.timing = UI.dynamic({
+                    create: function(){
+                      var graph = $("<div>").addClass("tracktiming");
+
+                      graph.box = $("<div>").addClass("boxcont");
+                      graph.box.label = $("<span>").addClass("center");
+                      graph.box.left = $("<span>").addClass("left");
+                      graph.box.right = $("<span>").addClass("right");
+                      graph.box.append(
+                        $("<div>").addClass("box")
+                      ).append(graph.box.label).append(graph.box.left).append(graph.box.right);
+
+                      graph.append(graph.box);
+
+                      graph.bounds = null;
+                      graph.mstopos = function(value){
+                        if (!this.bounds) { return 25; }
+
+                        var pos = (value - this.bounds.firstms.min) / (this.bounds.lastms.max - this.bounds.firstms.min) * 100;
+
+                        return pos;
+                      };
+                      graph.mstosize = function(value){
+                        if (!this.bounds) { return 10; }
+                        return value / (this.bounds.lastms.max - this.bounds.firstms.min) * 100
+                      };
+
+                      return graph;
+                    },
+                    add: {
+                      create: function(id){
+                        var row = $("<div>").addClass("track").attr("data-track",id);
+                        row.label = $("<label>");
+                        row.box = $("<div>").addClass("box");
+                        row.jitter = $("<div>").addClass("jitter");
+                        row.box.append(row.jitter);
+                        row.left = $("<span>").addClass("left").attr("beforeifnotempty","-");
+                        ;
+                        row.right = $("<span>").addClass("right").attr("beforeifnotempty","+");
+                        row.box.append(row.left);
+                        row.box.append(row.right);
+                        row.append(row.box).append(row.label);
+                        return row;
+                      },
+                      update: function(values){
+                        if (values.type != this.raw_type) {
+                          this.attr("data-type",values.type);
+                        }
+                        if (values.type != this.raw_tracktype) {
+                          this.attr("title",UI.format.capital(values.type));
+                          this.raw_tracktype = values.type;
+                        }
+                        if (this.label.raw != values.idx+values.type+values.codec) {
+                          this.label.text("Track "+values.idx+" ("+values.codec+")");
+                          this.label.raw = values.idx+values.type+values.codec;
+                          this.css("order",values.idx);
+                        }
+                        if (this.jitter.raw != values.jitter) {
+                          this.jitter.attr("title","Jitter: "+values.jitter+"ms");
+                          this.jitter.raw = values.jitter;
+                        }
+
+                        //always update: not just dependent on itself but also on the bounds
+                        
+                        var lastmsindex = "nowms" in values ? "nowms" : "lastms";
+
+                        var from = main.timing.bounds.firstms.max;
+                        var to = main.timing.bounds.lastms.min;
+
+                        this.box.css("left",main.timing.mstopos(values.firstms)+"%");
+                        this.box.css("right",(100-main.timing.mstopos(values[lastmsindex]))+"%");
+                        if (from >= to) {
+                          //there is a gap
+                          if (values.firstms > to) {
+                            this.left.html(UI.format.duration((from - values.firstms)*1e-3,true))
+                          }
+                          else {
+                            this.left.html(UI.format.duration((to - values.firstms)*1e-3,true))
+                          }
+                          if (values.lastms > from) {
+                            this.right.html(UI.format.duration((values[lastmsindex] - from)*1e-3,true));
+                          }
+                          else {
+                            this.right.html(UI.format.duration((values[lastmsindex] - to)*1e-3,true));
+                          }
+                        }
+                        else {
+                          this.left.html(UI.format.duration((from - values.firstms)*1e-3,true));
+                          this.right.html(UI.format.duration((values[lastmsindex] - to)*1e-3,true));
+
+                        }
+
+                        //the jitter box is a child of the track box, so the width should be the percentage of the box width, which is lastms - firstms
+                        this.jitter.width((values.jitter / (values[lastmsindex] - values.firstms) * 100)+"%");
+                      }
+                    },
+                    getEntries: function(values){
+                      var out = {};
+
+                      //remove metadata tracks if applicable
+                      var skipmeta = !main.includemeta.is(":checked");
+                      for (var i in values) {
+                        if (skipmeta && (values[i].type == "meta")) { continue; }
+                        out[i] = values[i];
+                      }
+
+                      //find minimum and maximum values of first and lastms
+                      var bounds = {
+                        firstms: {
+                          min: 1e9,
+                          max: -1e9
+                        },
+                        lastms: {
+                          min: 1e9,
+                          max: -1e9
+                        }
+                      };
+                      
+                      for (var i in out) {
+                        var lastmsindex = "nowms" in out[i] ? "nowms" : "lastms";
+                        bounds.firstms.min = Math.min(bounds.firstms.min,out[i].firstms);
+                        bounds.firstms.max = Math.max(bounds.firstms.max,out[i].firstms);
+                        bounds.lastms.min = Math.min(bounds.lastms.min,out[i][lastmsindex]);
+                        bounds.lastms.max = Math.max(bounds.lastms.max,out[i][lastmsindex]);
+                      }
+                      main.timing.bounds = bounds;
+                      for (var i in out) {
+                        out[i].bounds = bounds; //ensure track updates when bounds update
+                      }
+
+                      return out;
+                    },
+                    update: function(values){
+                      //the track rows have already been updated, now it's time for the box
+                      //the box should be drawn from the maximum firstms to the minimum lastms
+                      var from = main.timing.bounds.firstms.max;
+                      var to = main.timing.bounds.lastms.min;
+
+                      this.box.label.html(UI.format.duration(Math.abs(from - to)*1e-3,true));
+                      this.box[0].style.setProperty("--ntracks",Object.keys(values).length);
+
+                      if (from < to) {
+                        //normal
+                        this.box.css("margin-left",main.timing.mstopos(from)+"%");
+                        this.box.css("margin-right",(100-main.timing.mstopos(to))+"%");
+                        this.box.left.html(UI.format.duration(from*1e-3));
+                        this.box.right.html(UI.format.duration(to*1e-3));
+                        this.box.removeClass("gap");
+                      }
+                      else {
+                        //gap!
+                        this.box.css("margin-left",main.timing.mstopos(to)+"%");
+                        this.box.css("margin-right",(100-main.timing.mstopos(from))+"%");
+                        this.box.left.html(UI.format.duration(to*1e-3));
+                        this.box.right.html(UI.format.duration(from*1e-3));
+                        this.box.addClass("gap");
+                      }
+
+                      if (this.box.width() < 40) {
+                        this.box.addClass("toosmall");
+                      }
+                      else {
+                        this.box.removeClass("toosmall");
+                      }
+                    }
+                  });
+                  main.includemeta = $("<input>").attr("type","checkbox").click(function(){
+                    cont.main.timing.update(cont.main.timing.values_orig);
+                  });
+                  main.append(
+                    $("<label>").append(
+                      $("<span>").text("Include metadata in graph:")
+                    ).append(
+                      main.includemeta
+                    )
+                  ).append(
+                    $("<label>").append($("<span>").text("Track timing:"))
+                  ).append(main.timing);
+                }
+                if (options.tracktable) {
+                  main.tracks = UI.dynamic({
+                    create: function(){
+                      return $("<div>").addClass("tracks");
+                    },
+                    getEntries: function(tracks){
+                      //sort into types
+                      var out = {
+                        audio: {},
+                        video: {},
+                        subtitle: {},
+                        meta: {}
+                      };
+                      if (tracks) {
+                        var sorted = Object.keys(tracks).sort(function(a,b){
+                          return tracks[a].idx - tracks[b].idx;
+                        });
+
+                        for (var i in sorted) {
+                          var track = tracks[sorted[i]];
+                          var type = track.codec == "subtitle" ? "subtitle" : track.type;
+                          out[type][sorted[i]] = track;
+                          track.nth = Object.values(out[type]).length;
+                        }
+                      }
+                      return out;
+                    },
+                    add: function(id){
+                      var tt = UI.dynamic({
+                        create: function(id){
+                          var table = $("<table>").css("width","auto");
+                          table.rows = [];
+                          var headers = {
+                            audio: {
+                              vheader: 'Audio',
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index']
+                            },
+                            video: {
+                              vheader: 'Video',
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Size','Framerate','Language','Track index','Has B-Frames']
+                            },
+                            subtitle: {
+                              vheader: 'Subtitles',
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Language']
+                            },
+                            meta: {
+                              vheader: 'Metadata',
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate']
+                            }
+                          };
+                          table.headers = headers[id].labels;
+                          table.header = $("<tr>").addClass("header").append(
+                            $("<td>").addClass("vheader").attr("rowspan",headers[id].labels.length+1).html($("<span>").text(headers[id].vheader))
+                          ).append($("<td>"));
+                          var tbody = $("<tbody>").append(table.header);
+                          for (var i in headers[id].labels) {
+                            var tr = $("<tr>").attr("data-label",headers[id].labels[i]).append($("<td>").text(headers[id].labels[i]+":"));
+                            table.rows.push(tr);
+                            tbody.append(tr);
+                          }
+
+                          table.append(tbody);
+                          return table;
+                        },
+                        add: {
+                          create: function(id,parent){
+                            var header = $("<td>");
+                            var tds = [];
+                            for (var i in tt.headers) {
+                              tds.push($("<td>"));
+                            }
+
+                            return {
+                              header: header,
+                              cells: tds,
+                              customAdd: function(table){
+                                table.header.append(this.header);
+                                for (var i in this.cells) {
+                                  table.rows[i].append(this.cells[i]);
+                                }
+                              }
+                            };
+                          },
+                          update: function(track){
+                            function getValues(track) {
+                              function peakoravg (track,key) {
+                                if ("maxbps" in track) {
+                                  return UI.format.bits(track[key]*8,1);
+                                }
+                                else {
+                                  if (key == "maxbps") {
+                                    return UI.format.bits(track.bps*8,1);
+                                  }
+                                  return "unknown";
+                                }
+                              }
+                              function displayDuration(track){
+                                if ((track.firstms == 0) && (track.lastms == 0)) {
+                                  return "« No data »";
+                                }
+                                var lastmsindex = "lastms";
+                                if ("nowms" in track) {
+                                  lastmsindex = "nowms";
+                                }
+                                var out;
+                                out = UI.format.duration((track.lastms-track.firstms)/1000);
+                                out += '<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track[lastmsindex]/1000)+'</span>';
+                                return out;
+                              }
+                              var type = track.codec == "subtitle" ? "subtitle" : track.type;
+                              switch (type) {
+                                case 'audio':
+                                  return {
+                                    header: 'Track '+track.idx,
+                                    body: [
+                                      track.codec,
+                                      displayDuration(track),
+                                      UI.format.addUnit(UI.format.number(track.jitter),"ms"),
+                                      peakoravg(track,"bps"),
+                                      peakoravg(track,"maxbps"),
+                                      track.channels,
+                                      UI.format.addUnit(UI.format.number(track.rate),'Hz'),
+                                      ('language' in track ? track.language : 'unknown'),
+                                      track.nth
+                                    ]
+                                  };
+                                  break;
+                                case 'video':
+                                  return {
+                                    header: 'Track '+track.idx,
+                                    body: [
+                                      track.codec,
+                                      displayDuration(track),
+                                      UI.format.addUnit(UI.format.number(track.jitter),"ms"),
+                                      peakoravg(track,"bps"),
+                                      peakoravg(track,"maxbps"),
+                                      UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
+                                      (track.fpks == 0 ? "variable" : UI.format.addUnit(UI.format.number(track.fpks/1000),'fps')),
+                                      ('language' in track ? track.language : 'unknown'),
+                                      track.nth,
+                                      ("bframes" in track ? "yes" : "no")
+                                    ]
+                                  }
+                                  break;
+                                case 'subtitle':
+                                  return {
+                                    header: 'Track '+track.idx,
+                                    body: [
+                                      track.codec,
+                                      displayDuration(track),
+                                      UI.format.addUnit(UI.format.number(track.jitter),"ms"),
+                                      peakoravg(track,"bps"),
+                                      peakoravg(track,"maxbps"),
+                                      ('language' in track ? track.language : 'unknown'),
+                                      (track.nth)
+                                    ]
+                                  }
+                                  break;
+                                case "meta":
+                                  return {
+                                    header: 'Track '+track.idx,
+                                    body: [
+                                      track.codec,
+                                      displayDuration(track),
+                                      UI.format.addUnit(UI.format.number(track.jitter),"ms"),
+                                      peakoravg(track,"bps"),
+                                      peakoravg(track,"maxbps")
+                                    ]
+                                  }
+                                  break;
+                              }
+                            }
+                            var values = getValues(track);
+
+                            if (this.header.raw != values.header) {  
+                              this.header.text(values.header);
+                              this.header.raw = values.header;
+                            }
+                            for (var i in this.cells) {
+                              if (this.cells[i].raw != values.body[i]) {
+                                this.cells[i].html(values.body[i]);
+                                this.cells[i].raw = values.body[i];
+                              }
+                            }
+
+                          }
+                        },
+                        update: function(){ 
+                          if (Object.values(this._children).length) {
+                            this.show();
+                          }
+                          else {
+                            this.hide();
+                          }
+                        }
+                      },id);
+                      return tt;
+                    },
+                    update: function(){}
+                  });
+                  main.append(
+                    $("<label>").append($("<span>").text("Track metadata:"))
+                  ).append(main.tracks);
+                }
+
+                return main;
+
+              },
+              update: function(d){
+                var main = this;
+                if (main.type.raw != d.type) {
+                  main.type.text(d.type == "live" ? "Live" : "Video on demand");
+                  main.type.raw = d.type;
+                }
+                if (d.meta) {
+                  if (main.buffer.raw != d.meta.buffer_window) {
+                    main.buffer.html(d.meta.buffer_window ? UI.format.addUnit(UI.format.number(d.meta.buffer_window*1e-3),"s") : "N/A");
+                    main.buffer.raw = d.meta.buffer_window;
+                  }
+                  if (main.jitter.raw != d.meta.jitter) {
+                    main.jitter.html(d.meta.jitter ? UI.format.addUnit(UI.format.number(d.meta.jitter),"ms") : "N/A");
+                    main.jitter.raw = d.meta.jitter;
+                  }
+                  main.tracks.update(d.meta.tracks);
+                  main.timing.update(d.meta.tracks);
+                }
+              }
+            });
+            cont.audio = $("<table>").hide();
+            cont.video = $("<table>").hide();
+            cont.subtitle  = $("<table>").hide();
+            cont.metadata = $("<table>").hide();
+
+
+            return cont.append(cont.main).append(cont.audio).append(cont.video).append(cont.subtitle).append(cont.metadata);
+          },
+          update: function(info){
+            this.main.update(info);
+            if (this.raw_type != info.type) {
+              this.attr("data-type",info.type);
+              this.raw_type = info.type;
+            }
+          }
+        });
+
+        function ondata(data) {
+          if ($main.freeze) { return; }
+
+          if (data.error && (!$meta.rawdata || $meta.rawdata.type == "live")) {
+            $meta.html("").attr("onempty",data.error+".");
+          }
+          else {
+            if (($meta.rawdata && ($meta.rawdata.type == "live")) || !data.error) {
+              $meta.rawdata = data;
+            }
+            if (!$main.parent().length) {
+              //the interface doesn't show this yet
+              $meta.html(
+                $("<div>").append(
+                  $("<button>").text("Open raw json").click(function(){
+                    var tab = window.open(null, "Stream info json for "+streamname);
+                    tab.document.write(
+                      "<html><head><title>Raw stream metadata for '"+streamname+"'</title><meta http-equiv=\"content-type\" content=\"application/json; charset=utf-8\"></head><body><code><pre>"+JSON.stringify($meta.rawdata,null,2)+"</pre></code></body></html>"
+                    ); 
+                    tab.document.close(); // to finish loading the page
+                  })
+                ).append(
+                  $("<button>").text("Freeze").attr("title","Pauze updating the stream metadata information below").click(function(){
+                    if ($(this).text() == "Freeze") {
+                      $(this).text("Frozen").css("background","#bbb");
+                      $main.freeze = true;
+                    }
+                    else {
+                      $(this).text("Freeze")[0].style.background = "";
+                      $main.freeze = false;
+                    }
+                  })
+                )
+              ).append($main);
+            }
+
+            function buildTrackinfo(info) {
+              if ($main.freeze) { return; } 
+
+              var meta = info.meta;
+              /*if ((!meta) || (!meta.tracks)) { 
+                $main.html('No meta information available.');
+                return;
+              }*/
+              $main.update(info);
+            }
+            buildTrackinfo(data);
+          }
+
+        }
+
+        var firsttime = true;
+        UI.sockets.ws.info_json.subscribe(function(d){
+          ondata(d);
+
+          if (firsttime && !d.error) { //activate the interval after the first message without error entry
+            firsttime = false;
+            if (d.type == "live") {
+              //the websocket will not update values that change often, like firstms, lastms, etc
+              //hax
+              //this will. ugly but meh.
+              UI.interval.set(function(){
+                $.ajax({
+                  type: "GET",
+                  url: UI.sockets.http_host + "json_"+streamname+".js",
+                  success: ondata
+                });
+              },5e3);
+            }
+
+          }
+        },streamname);
+
+
+        return $("<section>").addClass("meta").append(
+          $("<h3>").text("Stream metadata")
+        ).append(
+          $meta
+        );
+      },
+      processes: function(streamname){
+        var $cont = $("<div>").attr("onempty","None.").addClass("processes");
+        
+        var layout = {
+          "Process type:": function(d){ return $("<b>").text(d.process); },
+          "Source:": function(d){
+            var $s = $("<span>").text(d.source);
+            if (d.source_tracks && d.source_tracks.length) {
+              $s.append(
+                $("<span>").addClass("description").text(" track "+(d.source_tracks.slice(0,-2).concat(d.source_tracks.slice(-2).join(" and "))).join(", "))
+              );
+            } 
+            return $s;
+          },
+          "Sink:": function(d){
+            var $s = $("<span>").text(d.sink);
+            if (d.sink_tracks && d.sink_tracks.length) {
+              $s.append(
+                $("<span>").addClass("description").text(" track "+(d.sink_tracks.slice(0,-2).concat(d.sink_tracks.slice(-2).join(" and "))).join(", "))
+              );
+            } 
+            return $s;
+          },
+          "Active for:": function(d){
+            var since = new Date().setSeconds(new Date().getSeconds() - d.active_seconds);
+            return $("<span>").append(
+              $("<span>").text(UI.format.duration(d.active_seconds))
+            ).append(
+              $("<span>").addClass("description").text(" since "+UI.format.time(since/1e3))
+            ); 
+          },
+          "Pid:": function(d,i){ return i; },
+          "Logs:": function(d){
+            var $logs = $("<div>").text("None.");
+            if (d.logs && d.logs.length) {
+              $logs.html("").addClass("description").addClass("logs").css({maxHeight: "6em", display: "flex", flexFlow: "column-reverse nowrap"});
+              for (var i in d.logs) {
+                var item = d.logs[i];
+                $logs.prepend(
+                  $("<div>").append(
+                    UI.format.time(item[0])+' ['+item[1]+'] '+item[2]
+                  )
+                );
+              }
+            }
+            return $logs;
+          },
+          "Additional info:": function(d){
+            var $t;
+            if (("ainfo" in d) && d.ainfo && Object.keys(d.ainfo).length) {
+              $t = $("<table>");
+              var capa = false;
+              if (d.process in mist.data.capabilities.processes){
+                capa = mist.data.capabilities.processes[d.process];
+              }
+              if (d.process+".exe" in mist.data.capabilities.processes){
+                capa = mist.data.capabilities.processes[d.process+".exe"];
+              }
+              for (var i in d.ainfo) {
+                var legend = false;
+                if (capa && capa.ainfo && capa.ainfo[i]) {
+                  legend = capa.ainfo[i];
+                }
+                if (!legend) {
+                  legend = {
+                    name: i
+                  };
+                }
+                $t.append(
+                  $("<tr>").append(
+                    $("<th>").text(legend.name+":")
+                  ).append(
+                    $("<td>").html(d.ainfo[i]).append(legend.unit ? $("<span>").addClass("unit").text(legend.unit) : "")
+                  )
+                );
+              }
+            }
+            else { $t = $("<span>").addClass("description").text("N/A"); }
+            return $t;
+          }
+        };
+        var $processes = UI.dynamic({
+          create: function(){
+            var $table = $("<table>");
+            $table.rows = {};
+            for (var i in layout) {
+              var row = $("<tr>").append($("<th>").text(i).css("vertical-align","top"));
+              $table.append(row);
+              $table.rows[i] = row;
+            }
+            return $table;
+          },
+          add: {
+            create: function(){
+              var $cont = $("<div>").hide(); //dummy
+              $cont.remove = function(){
+                for (var i in this.children) {
+                  this.children[i].remove();
+                }
+              };
+              return $cont;
+            },
+            add: {
+              create: function(i){
+                return $("<td>").css("vertical-align","top");
+              },
+              update: function(d){
+                this.html(d);
+              }
+            },
+            getEntries: function(d,id){
+              var out = {};
+              for (var i in layout) {
+                var v = layout[i](d,id);
+                if (typeof v == "object") {
+                  v = v.prop('outerHTML'); //unjQuerify the result so that raw (which jsons it) changes and isnt just '{"0":{},"length":1}'
+                }
+                out[i] = v;
+              }
+              return out;
+            },
+            update: function(d){
+              //move children to table rows
+              for (var i in this._children) {
+                if (!this._children[i].moved) {
+                  $processes.rows[i].append(this._children[i]);
+                  this._children[i].moved = true;
+                }
+              }
+
+              return;
+            }
+          },
+          update: function(d){
+            if (Object.keys(d).length) {
+              if (!$processes.parent().length) {
+                $processes.find("tr").first().addClass("header");
+                $cont.append($processes);
+              }
+            }
+            else {
+              $processes.remove();
+            }
+          }
+        });
+
+        //the process stats update every 5 seconds internally
+        UI.sockets.http.api.subscribe(function(d){
+          if (d.proc_list) {
+            $processes.update(d.proc_list);       
+          }
+        },{proc_list:streamname});
+        
+
+        return $("<section>").addClass("processes").append(
+          $("<h3>").text("Processes")
+        ).append(
+          $cont
+        );
+      },
+      triggers: function(streamname,tab){
+        var $triggers = $("<div>").attr("onempty","None.").addClass("triggers");
+
+        if (mist.data.config.triggers && Object.keys(mist.data.config.triggers).length) {
+          var $table = $("<table>").append(
+            $("<tbody>").append(
+              $("<tr>").addClass("header type").append(
+                $("<th>").text("Trigger name:")
+              )
+            ).append(
+              $("<tr>").addClass("streams").append(
+                $("<th>").text("Applies to:")
+              )
+            ).append(
+              $("<tr>").addClass("handler").append(
+                $("<th>").text("Handler:")
+              )
+            ).append(
+              $("<tr>").addClass("blocking").append(
+                $("<th>").text("Blocking:")
+              )
+            ).append(
+              $("<tr>").addClass("response").append(
+                $("<th>").text("Default response:")
+              )
+            ).append(
+              $("<tr>").addClass("actions").append(
+                $("<th>").text("Actions:")
+              )
+            )
+          );
+          $triggers.append($table);
+
+          var count = 0;
+          for (var trigger_type in mist.data.config.triggers) {
+            var list = mist.data.config.triggers[trigger_type];
+            for (var i in list) {
+              var trigger = list[i];
+              if (trigger.streams.length) { // there are streams specified
+                if (trigger.streams.indexOf(streamname) < 0) { //this stream is not in the list
+                  if (trigger.streams.indexOf(streamname.split("+")[0]) < 0) { //the wildcard root is not in the list
+                    continue;
+                  }
+                }
+              }
+              count++;
+              var $trs = $table.find("tr");
+              for (var n = 0; n < $trs.length; n++) {
+                var $td = $("<td>");
+                switch (n) {
+                  case 0: {
+                    $td.append(
+                      $("<b>").text(trigger_type)
+                    );
+                    break;
+                  }
+                  case 1: {
+                    $td.text(trigger.streams.length ? trigger.streams.join(", ") : "All streams");
+                    break;
+                  }
+                  case 2: {
+                    $td.text(trigger.handler);
+                    break;
+                  }
+                  case 3: {
+                    $td.text(trigger.sync ? "Blocking" : "Non-blocking");
+                    break;
+                  }
+                  case 4: {
+                    $td.text(trigger['default'] ? trigger['default'] : "true");
+                    break;
+                  }
+                  case 5: {
+                    $td.addClass("buttons").attr("data-index",i).attr("data-type",trigger_type).append(
+                      $("<button>").text("Edit").click(function(){
+                        var $t = $(this).closest(".buttons");
+                        UI.navto("Edit Trigger",$t.attr("data-type")+","+$t.attr("data-index"));
+                      })
+                    ).append(
+                      trigger.streams.length > 1 
+                      ? $("<button>").text("Remove from stream").click(function(){
+                        var $t = $(this).closest(".buttons");
+                        var type = $t.attr("data-type");
+                        var streams = mist.data.config.triggers[type][$t.attr("data-index")].streams;
+                        var i = streams.indexOf(streamname);
+                        if (i >= 0) {
+                          streams.splice(i,1);
+                        }
+                        else {
+                          i = streams.indexOf(streamname.split("+")[0]);
+                          if (i >= 0) { //should always be the case
+                            streams.splice(i,1);
+                          }
+                        }
+                        mist.send(function(){
+                          UI.navto(tab,streamname);
+                        },{config:mist.data.config});
+                      })
+                      : $("<button>").text("Remove").click(function(){
+                        var $t = $(this).closest(".buttons");
+                        var type = $t.attr("data-type");
+                        if (confirm('Are you sure you want to delete this '+type+' trigger?')) {
+                          mist.data.config.triggers[type].splice($t.attr("data-index"),1);
+                          if (mist.data.config.triggers[type].length == 0) {
+                            delete mist.data.config.triggers[type];
+                          }
+
+                          mist.send(function(d){
+                            UI.navto(tab,streamname);
+                          },{config:mist.data.config});
+                        }
+                      })
+                    );
+                    break;
+                  }
+                }
+                $trs.eq(n).append($td);
+              }
+
+            }
+          }
+          if (count == 0) {
+            $table.remove();
+          }
+
+        }
+
+        return $("<section>").addClass("triggers").append(
+          $("<h3>").text("Triggers")
+        ).append(
+          $("<button>").text("Add a trigger").click(function(){
+            UI.navto("Edit Trigger");
+          })
+        ).append(
+          $triggers
+        );;
+      },
+      pushes: function(streamname){
+        var $pushes = $("<div>").addClass("pushes");
+
+        $pushes.html("Loading..");
+
+        
+        mist.send(function(d){
+          $pushes.html("");
+
+
+          function buildPushCont(type,values) {
+            function printPrettyComparison(a,b,c){
+              var str = "";
+              str += "$"+a+" ";
+              switch (Number(b)) {
+                case 0:  { str += "is true";  break; }
+                case 1:  { str += "is false"; break; }
+                case 2:  { str += "== "+c; break; }
+                case 3:  { str += "!= "+c; break; }
+                case 10: { str += "> (numerical) " +c; break; }
+                case 11: { str += ">= (numerical) "+c; break; }
+                case 12: { str += "< (numerical) " +c; break; }
+                case 13: { str += "<= (numerical) "+c; break; }
+                case 20: { str += "> (lexical) " +c; break; }
+                case 21: { str += ">= (lexical) "+c; break; }
+                case 22: { str += "< (lexical) " +c; break; }
+                case 23: { str += "<= (lexical) "+c; break; }
+                default: { str += "comparison operator unknown"; break; }
+              }
+              return str;
+            }
+
+            var layout = {
+              Target: function(push){
+                if (type == "Automatic") {
+                  return push[2];
+                }
+                if ((push.length >= 4) && (push[2] != push[3])) {
+                  return push[2]+$('<span>').html('&#187').addClass('unit').css('margin','0 0.5em').prop('outerHTML')+push[3];
+                }
+                return push[2];
+              },
+              Conditions: false,
+              Statistics: false,
+              Actions: $("<div>").addClass("buttons")
+            };
+            if (type == "Automatic") {
+              layout.Conditions = function(push){
+                var $conditions = $("<div>"); //temporary container
+                if (push[3]) {
+                  $conditions.append(
+                    $('<span>').text('schedule on '+(new Date(push[3]*1e3)).toLocaleString())
+                  );
+                }
+                if ((push.length >= 5) && (push[4])) {
+                  $conditions.append(
+                    $('<span>').text("complete on "+(new Date(push[4]*1e3)).toLocaleString())
+                  );
+                }
+                if ((push.length >= 8) && (push[5])) {
+                  $conditions.append(
+                    $('<span>').text("starts if "+printPrettyComparison(push[5],push[6],push[7]))
+                  );
+                }
+                if ((push.length >= 11) && (push[8])) {
+                  $conditions.append(
+                    $('<span>').text("stops if "+printPrettyComparison(push[8],push[9],push[10]))
+                  );
+                }
+                return $conditions.children().length ? $conditions.children() : "";
+              }
+            }
+            else {
+              layout.Statistics = {
+                create: function(){
+                  return $("<div>").addClass("statistics"); 
+                },
+                add: {
+                  create: function(id){
+                    var labels = {
+                      active_seconds: "Active for: ",
+                      bytes: "Data transfered: ",
+                      mediatime: "Media time transfered: ",
+                      pkt_retrans_count: "Packets retransmitted: ",
+                      pkt_loss_count: "Packets lost: ",
+                      tracks: "Tracks: "
+                    };
+                    if (id in labels) {
+                      return $("<div>").attr("beforeifnotempty",labels[id]);
+                    }
+                  },
+                  update: function(val,allValues){
+                    var me = this;
+                    var formatting = {
+                      active_seconds: UI.format.duration,
+                      bytes: UI.format.bytes,
+                      mediatime: function(v){ return UI.format.duration(v*1e-3) },
+                      tracks: function(v){ return v.join(", "); },
+                      pkt_retrans_count: function(v){
+                        return UI.format.number(v || 0);
+                      },
+                      pkt_loss_count: function(v){
+                        return UI.format.number(v || 0)+" ("+UI.format.addUnit(UI.format.number(allValues.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")";
+                      }
+                    };
+
+                    if (this.id in formatting) {
+                      this.html(formatting[this.id](val));
+                    }
+                  }
+                }
+              }
+            }
+            layout.Actions.append(
+              $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
+                var push = $(this).closest("table").data("values")[$(this).closest("td").attr("data-pushid")];
+                if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
+                  $(this).html(
+                    $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
+                  );
+                  if (type == 'Automatic') {
+                    var a = push.slice(1);
+                    var me = this;
+                    mist.send(function(d){
+                      $(me).text("Done.");
+                      $table.update(d.push_auto_list);
+                      //use the reply to update the automatic pushes list
+                    },{push_auto_remove:[a]});
+                  }
+                  else {
+                    mist.send(function(d){ 
+                      //done
+                    },{'push_stop':[push[0]]});
+                  }
+                };
+              })
+            );
+            if (type == 'Automatic') {
+              layout.Actions.prepend(
+                $("<button>").text("Edit").click(function(){
+                  UI.navto("Start Push","auto_"+($(this).closest("td").attr("data-pushid")));
+                })
+              );
+            }
+
+
+
+            var $cont = $("<div>").attr("onempty","None.");
+            var $table;
+            if (type == "Automatic"){
+              $table = UI.dynamic({
+                create: function(){
+                  var $table = $("<table>");
+                  var $header = $("<tr>");
+                  $table.append(
+                    $("<thead>").append($header)
+                  );
+                  for (var i in layout) {
+                    if (!layout[i]) continue;
+                    var cell = $("<td>").addClass("header").text(i).attr("data-column",i);
+                    $header.append(cell);
+                  }
+                  return $table;
+                },
+                add: {
+                  create: function(id){
+                    var $tr = $("<tr>");
+                    $tr._children = {};
+                    for (var i in layout) {
+                      if (!layout[i]) continue;
+                      var $td = $("<td>").attr("data-pushid",id).attr("data-column",i);
+                      $tr._children[i] = $td;
+                      $tr.append($td);
+                      if (layout[i] instanceof jQuery) {
+                        $td.html(layout[i].clone(true));
+                      }
+                      else if (typeof layout[i] == "object") {
+                        $td.dynamic = UI.dynamic(layout[i]);
+                        $td.html($td.dynamic);
+                      }
+                    }
+                    return $tr;
+                  },
+                  update: function(push){
+                    for (var i in layout) {
+                      if (typeof layout[i] == "function") {
+                        var newvalue = layout[i](push);
+                        if (newvalue != this._children[i].raw) {
+                          this._children[i].html(newvalue);
+                          this._children[i].raw = newvalue;
+                        }
+                      }
+                    }
+                  }
+                },
+                update: function(values){
+                  var $table = this;
+                  $table.data("values",values);
+                  if (Object.keys(values).length) {
+                    if (!$table.parent().length) {
+                      $cont.append($table);
+                    }
+
+                    //hide conditions column if empty
+                    var showConditions = false;
+                    for (var i in $table.children) {
+                      var $row = $table.children[i];
+                      if ($row._children.Conditions.raw != "") {
+                        showConditions = true;
+                        break;
+                      }
+                    }
+                    if (showConditions) { $table.removeClass("hideConditioins"); }
+                    else { $table.addClass("hideConditions"); }
+                  }
+                  else if ($table[0].parentNode) {
+                    $table[0].parentNode.removeChild($table[0]);
+                  }
+
+                },
+                values: values,
+                getEntries: function(d){
+                  var out = {};
+                  var streamnameisbase = false;
+                  if (streamname.split("+").length == 1) {
+                    streamnameisbase = true;
+                  }
+                  for (var i in d) {
+                    var values = d[i];
+                    values.unshift(Number(i));
+                    //filter out other streams
+                    if ((values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
+                      out[values[0]] = values;
+                    }
+                  }
+                  return out;
+                }
+
+              });
+            }
+            else {
+              $table = UI.dynamic({
+                create: function(){
+                  var $table = $("<table>");
+                  $table.rows = {};
+                  for (var i in layout) {
+                    if (!layout[i]) continue;
+                    var row = $("<tr>").addClass(i).append($("<th>").text(i+":"));
+                    $table.append(row);
+                    $table.rows[i] = row;
+                  }
+                  $table.rows.Target.addClass("header");
+                  return $table;
+                },
+                add: {
+                  create: function(id){ 
+                    var $tr = $("<tr>").text(id); //dummy parent
+                    $tr.children = {};
+                    for (var i in layout) {
+                      if (!layout[i]) continue;
+                      var $td = $("<td>").attr("data-pushid",id);
+                      $tr.children[i] = $td;
+                      $tr.append($td);
+                      if (layout[i] instanceof jQuery) {
+                        $td.html(layout[i].clone(true));
+                      }
+                      else if (typeof layout[i] == "object") {
+                        $td.dynamic = UI.dynamic(layout[i]);
+                        $td.html($td.dynamic);
+                      }
+                    }
+                    //if the push is removed, remove the children (who are not in this dummy parent but in the main table)
+                    var oldremove = $tr.remove;
+                    $tr.remove = function(){
+                      for (var i in $tr.children) {
+                        $tr.children[i].remove();
+                      }
+                      return oldremove.apply(this,arguments);
+                    };
+                    return $tr;
+                  },
+                  update: function(push){
+                    for (var i in layout) {
+                      if (typeof layout[i] == "function") {
+                        var newvalue = layout[i](push);
+                        if (newvalue != this.children[i].raw) {
+                          this.children[i].html(newvalue);
+                          this.children[i].raw = newvalue;
+                        }
+                      }
+                      else if ((i == "Statistics") && (layout[i])) {
+                        if (push.length >= 5) {
+                          var v = {};
+                          if (push.length >= 6) {
+                            v = push[5];
+                          }
+                          v.logs = push[4];
+                          this.children[i].dynamic.update(v);
+                        }
+                      }
+                    }
+                  }
+                },
+                update: function(values){
+                  var $table = this;
+                  $table.data("values",values);
+                  if (Object.keys(values).length) {
+                    if (!$table.parent().length) {
+                      $cont.append($table);
+                    }
+                    for (var i in this.children) {
+                      if (!this.children[i].moved) {
+                        for (var j in this.children[i].children) {
+                          $table.rows[j].append(this.children[i].children[j]); //move the table cells into the correct rows
+                        }
+                        this.children[i].moved = true;
+                        this.children[i][0].parentNode.removeChild(this.children[i][0]); //remove the tr dummy element from the table, but don't trigger the removal of the cells
+                      }
+                    }
+                  }
+                  else if ($table[0].parentNode) {
+                    $table[0].parentNode.removeChild($table[0]);
+                  }
+                },
+                values: values,
+                getEntries: function(d){
+                  var out = {};
+                  var streamnameisbase = false;
+                  if (streamname.split("+").length == 1) {
+                    streamnameisbase = true;
+                  }
+                  for (var i in d) {
+                    var values = d[i];
+                    //filter out other streams
+                    if ((values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
+                      out[values[0]] = values;
+                    }
+                  }
+                  return out;
+                }
+              });
+            }
+            $cont.update = function(){ return $table.update.apply($table,arguments); }
+            return $cont;
+          }
+          
+          $pushes.append($("<h4>").text("Automatic pushes"));
+          $pushes.append($("<button>").text("Add an automatic push").click(function(){
+            UI.navto("Start Push","auto");
+          }));
+          //add auto pushes
+          $pushes.append(buildPushCont("Automatic",d.push_auto_list));
+
+
+          $pushes.append($("<h4>").text("Active pushes"));
+          $pushes.append($("<button>").text("Start a push").click(function(){
+            UI.navto("Start Push");
+          }));
+          //add active pushes
+          var pushes_container = buildPushCont("Manual",d.push_list);
+          $pushes.append(pushes_container);
+
+          UI.sockets.http.api.subscribe(function(d){
+            pushes_container.update(d.push_list);
+          },{push_list:1});
+
+
+
+        },{push_auto_list:1,push_list:1});
+
+
+        
+        return $("<section>").addClass("pushes").append(
+          $("<h3>").text("Pushes and recordings")
+        ).append(
+          $pushes
+        );
+      },
+      logs: function(streamname){
+        var $logs = $("<div>").attr("onempty","None.").addClass("logs");
+
+        var tab = false;
+
+        UI.sockets.ws.active_streams.subscribe(function(type,data){
+          if (type == "log") {
+            var scroll = ($logs[0].scrollTop >= $logs[0].scrollHeight - $logs[0].clientHeight); //scroll to bottom unless scrolled elsewhere
+
+            if (data[3] != "" && data[3] != streamname.split("+")[0]) { //filter out messages about other streams
+              return;
+            }
+            if (data[1] == "ACCS") { return; } //the access log has its own container
+
+            var $msg = $("<div>").attr("data-debuglevel",data[1]).html(
+              $("<span>").addClass("description").text(UI.format.dateTime(data[0]))
+            ).append(
+              $("<span>").text(data[3]) //stream, if any
+            ).append(
+              $("<span>").text(data[1]+":") //debug level
+            ).append(
+              $("<span>").text(data[2]) //message
+            );
+            $logs.append($msg);
+
+            if (scroll) $logs[0].scrollTop = $logs[0].scrollHeight; 
+
+            if (tab) {
+              try {
+              var scroll = (tab.document.scrollingElement.scrollTop >= tab.document.scrollingElement.scrollHeight - tab.document.scrollingElement.clientHeight);
+              tab.document.write($msg[0].outerHTML);
+              if (scroll) tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+              }
+              catch (e) {}
+            }
+
+          }
+        });
+        
+        return $("<section>").addClass("logs").append(
+          $("<h3>").text("MistServer logs")
+        ).append(
+          $("<button>").text("Open raw").click(function(){
+            tab = window.open("", "MistServer logs for "+streamname);
+            tab.document.write(
+              "<html><head><title>MistServer logs for '"+streamname+"'</title><meta http-equiv=\"content-type\" content=\"application/json; charset=utf-8\"><style>body{padding-left:2em;text-indent:-2em;}body>*>*:not(:last-child):not(:empty){padding-right:.5em;}.description{font-size:.9em;color:#777}</style></head><body>"
+            );
+            tab.document.write($logs[0].innerHTML);
+            tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+          })
+        ).append(
+          $logs
+        );
+      },
+      accesslogs: function(streamname){
+        var $accesslogs = $("<div>").attr("onempty","None.").addClass("accesslogs");
+
+        var tab = false;
+
+        UI.sockets.ws.active_streams.subscribe(function(type,data){
+          if (type == "access") {
+            var scroll = ($accesslogs[0].scrollTop >= $accesslogs[0].scrollHeight - $accesslogs[0].clientHeight); //scroll to bottom unless scrolled elsewhere
+
+            if (data[2] != "" && data[2] != streamname.split("+")[0]) { //filter out messages about other streams
+              return;
+            }
+
+
+            //  [UNIX_TIMESTAMP, "session identifier", "stream name", "connector name", "hostname", SECONDS_ACTIVE, BYTES_UP_TOTAL, BYTES_DOWN_TOTAL, "tags"]
+
+
+            var $msg = $("<div>").html(
+              $("<span>").addClass("description").text(UI.format.dateTime(data[0]))
+            ).append(
+              $("<span>").attr("beforeifnotempty","Token: ").attr("title",data[1]).css("max-width","10em").text(data[1]) //session identifier
+            ).append(
+              $("<span>").attr("beforeifnotempty","Connector: ").text(data[3]) //connector name
+            ).append(
+              $("<span>").attr("beforeifnotempty","Hostname: ").text(data[4]) //host name
+            ).append(
+              $("<span>").attr("beforeifnotempty","Connected for: ").html(UI.format.duration(data[5])) //seconds active
+            ).append(
+              $("<span>").html("↑"+UI.format.bytes(data[6])) //bytes up
+            ).append(
+              $("<span>").html("↓"+UI.format.bytes(data[7])) //bytes down
+            ).append(
+              $("<span>").attr("beforeifnotempty","Tags: ").text(data[8]) //tags
+            );
+            $accesslogs.append($msg);
+
+            if (scroll) $accesslogs[0].scrollTop = $accesslogs[0].scrollHeight; 
+
+            if (tab) {
+              try {
+              var scroll = (tab.document.scrollingElement.scrollTop >= tab.document.scrollingElement.scrollHeight - tab.document.scrollingElement.clientHeight);
+              tab.document.write($msg[0].outerHTML);
+              if (scroll) tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+              }
+              catch (e) {}
+            }
+
+          }
+        });
+
+        return $("<section>").addClass("accesslogs").append(
+          $("<h3>").text("Access logs")
+        ).append(
+          $("<button>").text("Open raw").click(function(){
+            tab = window.open("", "MistServer access logs for "+streamname);
+            tab.document.write(
+              "<html><head><title>MistServer access logs for '"+streamname+"'</title><meta http-equiv=\"content-type\" content=\"application/json; charset=utf-8\"><style>body{padding-left:2em;text-indent:-2em;}body>*>*:not(:last-child):not(:empty){padding-right:.5em;}.description{font-size:.9em;color:#777}[beforeifnotempty]:not(:empty):before{content:attr(beforeifnotempty);color:#777}</style></head><body>"
+            );
+            tab.document.write($accesslogs[0].innerHTML);
+            tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+          })
+        ).append(
+          $accesslogs
+        );
+      },
+      preview: function(streamname,MistVideoObject){
+        var $preview_cont = $('<section>').addClass("preview");
+        if (!MistVideoObject) {
+          window.mv = {};
+          MistVideoObject = mv;
+        }
+
+        UI.sockets.http.player(function(){
+          mistPlay(streamname,{
+            target: $preview_cont[0],
+            host: UI.sockets.http_host,
+            skin: "dev",
+            loop: true,
+            MistVideoObject: MistVideoObject
+          });
+
+        },function(e){
+          $preciew_cont.html(e);
+        });
+
+        return $preview_cont;
+      },
+      playercontrols: function(MistVideoObject,$video){
+        var $controls = $("<section>").addClass("controls").addClass("mistvideo").html(
+          $("<h3>").text("MistPlayer")
+        ).append(
+          $("<p>").text("Waiting for player..")
+        );
+
+        if (!$video) { $video = $(".dashboard"); }
+
+        if (!$("link#devcss").length) {
+          document.head.appendChild(
+            $("<link>").attr("rel","stylesheet").attr("type","text/css").attr("href",UI.sockets.http_host+"skins/dev.css").attr("id","devcss")[0]
+          );
+        }
+
+        function init() {
+          var MistVideo = MistVideoObject.reference;
+
+          function buildBlueprint(obj) {
+            return MistVideo.UI.buildStructure.call(MistVideo.UI,obj); 
+          }
+          
+          var name = buildBlueprint({
+            "if": function(){
+              return (this.playerName && this.source)
+            },
+            then: {
+              type: "container",
+              classes: ["mistvideo-description"],
+              style: { display: "block" },
+              children: [
+                {type: "playername", style: { display: "inline" }},
+                {type: "text", text: "is playing", style: {margin: "0 0.2em"}},
+                {type: "mimetype"}
+              ]
+            }
+          });
+          var controls = buildBlueprint({
+            type: "container",
+            classes: ["mistvideo-column","mistvideo-devcontrols"],
+            children: [
+              {
+
+                type: "text",
+                text: "Player control"
+              },{
+                type: "container",
+                classes: ["mistvideo-devbuttons"],
+                style: {"flex-wrap": "wrap"},
+                children: [
+                  {
+                    "if": function(){ return !!(this.player && this.player.api); },
+                    then: {
+                      type: "button",
+                      title: "Reload the video source",
+                      label: "Reload video",
+                      onclick: function(){
+                        this.player.api.load();
+                      }
+                    }
+                  },{
+                    type: "button",
+                    title: "Build MistVideo again",
+                    label: "Reload player",
+                    onclick: function(){
+                      this.reload();
+                    }
+                  },{
+                    type: "button",
+                    title: "Switch to the next available player and source combination",
+                    label: "Try next combination",
+                    onclick: function(){
+                      this.nextCombo();
+                    }
+                  }
+                ]
+              },
+              {type:"forcePlayer"},
+              {type:"forceType"},
+              {type:"forceSource"}
+            ]
+          });
+          var statistics = buildBlueprint({type:"decodingIssues", style: {"max-width":"30em","flex-flow":"column nowrap"}});
+          var logs = buildBlueprint({type:"log"});
+          var rawlogs = $("<button>").text("Open raw").css({display:"block",marginTop:"0.333em"}).click(function(){
+            var streamname = MistVideo.stream;
+            tab = window.open("", "Player logs for "+streamname);
+            tab.document.write(
+              "<html><head><title>Player logs for '"+streamname+"'</title><meta http-equiv=\"content-type\" content=\"application/json; charset=utf-8\"><style>.timestamp{color:#777;font-size:0.9em;}</style></head><body>"
+            );
+            tab.document.write(logs.lastChild.outerHTML);
+            tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+          });
+          logs.insertBefore(rawlogs[0],logs.children[0]);
+
+          $controls.html(
+            $("<div>").append(
+              $("<div>").append(
+                $("<h3>").addClass("title").text("MistPlayer")
+              ).append(name)
+            ).append(controls).append(statistics)
+          ).append(logs);
+        }
+
+        if (MistVideoObject && MistVideoObject.reference && MistVideoObject.reference.skin) {
+          init();
+        }
+        $video[0].addEventListener("initialized",function(){ init(); });
+        $video[0].addEventListener("initializedFailed",function(){ init(); });
+
+        return $controls;
+      },
+      embedurls: function(streamname,misthost,urls){
+        var cont = $("<section>").addClass("embedurls");
+
+        var $datalist = $("<datalist>").attr("id","urlhints");
+        var allurls = urls.HTTPS.concat(urls.HTTP);
+        for (var i in allurls) {
+          $datalist.append(
+            $("<option>").val(allurls[i])
+          );
+        }
+
+        var otherbase = otherhost.host ? otherhost.host : (allurls.length ? allurls[0] : misthost);
+
+        cont.append(
+          $('<span>').addClass('input_container').append(
+            $('<label>').addClass('UIelement').append(
+              $('<span>').addClass('label').text('Use base URL:')
+            ).append(
+              $('<span>').addClass('field_container').append(
+                $('<input>').attr('type','text').addClass('field').val(otherbase).attr("list","urlhints")
+              ).append(
+                $datalist
+              ).append(
+                $('<span>').addClass('unit').append(
+                  $('<button>').text('Apply').click(function(){
+                    otherhost.host = $(this).closest('label').find('input').val();
+                    if (otherhost.host.slice(-1) != "/") { otherhost.host += "/"; }
+                    UI.navto('Embed',streamname);
+                  })
+                )
+              )
+            )
+          )
+        );
+
+        var escapedstream = encodeURIComponent(streamname);
+        var done = false;
+        var defaultembedoptions = {
+          forcePlayer: '',
+          forceType: '',
+          controls: true,
+          autoplay: true,
+          loop: false,
+          muted: false,
+          fillSpace: false,
+          poster: '',
+          urlappend: '',
+          setTracks: {}
+        };
+        var embedoptions = $.extend({},defaultembedoptions);
+        var stored = UI.stored.getOpts();
+        if ('embedoptions' in stored) {
+          embedoptions = $.extend(embedoptions,stored.embedoptions,true);
+          if (typeof embedoptions.setTracks != 'object') {
+            embedoptions.setTracks = {};
+          }
+        }
+        var custom = {};
+        switch (embedoptions.controls) {
+          case 'stock':
+            custom.controls = 'stock';
+            break;
+          case true:
+            custom.controls = 1;
+            break;
+          case false:
+            custom.controls = 0;
+            break;
+        }
+        
+        
+        function embedhtml() {
+          function randomstring(length){
+            var s = '';
+            function randomchar() {
+              var n= Math.floor(Math.random()*62);
+              if (n < 10) { return n; } //1-10
+              if (n < 36) { return String.fromCharCode(n+55); } //A-Z
+              return String.fromCharCode(n+61); //a-z
+            }
+            while (length--) { s += randomchar(); }
+            return s;
+          }
+          function maybequotes(val) {
+            switch (typeof val) {
+              case 'string':
+                if ($.isNumeric(val)) {
+                  return val;
+                }
+                return '"'+val+'"';
+              case 'object':
+                return JSON.stringify(val);
+              default:
+                return val;
+            }
+            if (typeof val == 'string') {
+              return 
+            }
+          }
+          if (done) { 
+            UI.stored.saveOpt('embedoptions',embedoptions); 
+          }
+          
+          var target = streamname+'_'+randomstring(12);
+          
+          var options = ['target: document.getElementById("'+target+'")'];
+          for (var i in embedoptions) {
+            if (i == "prioritize_type") {
+              if ((embedoptions[i]) && (embedoptions[i] != "")) {
+                options.push("forcePriority: "+JSON.stringify({source:[["type",[embedoptions[i]]]]}));
+              }
+              continue;
+            }
+            if (i == "monitor_action") {
+              if ((embedoptions[i]) && (embedoptions[i] != "")) {
+                if (embedoptions[i] == "nextCombo") {
+                  options.push("monitor: {\n"+
+                  "          action: function(){\n"+
+                  '            this.MistVideo.log("Switching to nextCombo because of poor playback in "+this.MistVideo.source.type+" ("+Math.round(this.vars.score*1000)/10+"%)");'+"\n"+
+                  "            this.MistVideo.nextCombo();\n"+
+                  "          }\n"+
+                  "        }");
+                }
+              }
+              continue;
+            }
+            if ((embedoptions[i] != defaultembedoptions[i]) && (embedoptions[i] != null) && ((typeof embedoptions[i] != 'object') || (JSON.stringify(embedoptions[i]) != JSON.stringify(defaultembedoptions[i])))) {
+              options.push(i+': '+maybequotes(embedoptions[i]));
+            }
+          }
+          
+          var output = [];
+          output.push('<div class="mistvideo" id="'+target+'">');
+          output.push('  <noscript>');
+          output.push('    <a href="'+otherbase+escapedstream+'.html'+'" target="_blank">');
+          output.push('      Click here to play this video');
+          output.push('    </a>');
+          output.push('  </noscript>');
+          output.push('  <script>');
+          output.push('    var a = function(){');
+          output.push('      mistPlay("'+streamname+'",{');
+          output.push('        '+options.join(",\n        "));
+          output.push('      });');
+          output.push('    };');
+          output.push('    if (!window.mistplayers) {');
+          output.push('      var p = document.createElement("script");');
+
+          if (urls.HTTPS.length) {
+            output.push('      if (location.protocol == "https:") { p.src = "'+(parseURL(otherbase).protocol == "https://" ? otherbase : urls.HTTPS[0])+'player.js" } ');
+            output.push('      else { p.src = "'+((parseURL(otherbase).protocol == "http://" ? otherbase : urls.HTTP[0]))+'player.js" } ');
+          }
+          else {
+            output.push('      p.src = "'+otherbase+'player.js"');
+          }
+
+          //output.push('      p.src = "'+otherbase+'player.js"');
+          output.push('      document.head.appendChild(p);');
+          output.push('      p.onload = a;');
+          output.push('    }');
+          output.push('    else { a(); }');
+          output.push('  </script>');
+          output.push('</div>');
+          
+          return output.join("\n");
+        }
+
+        var emhtml = embedhtml(embedoptions);
+        var $setTracks = $('<div>').text('Loading..').css('display','flex').css('flex-flow','column nowrap');
+        var $protocolurls = $('<span>').text('Loading..').css("word-break","break-all");
+        if (mistplayers) {
+          var forcePlayerOptions = [['','Automatic']];
+          for (var i in mistplayers) {
+            forcePlayerOptions.push([i,mistplayers[i].name]);
+          }
+        }
+
+        cont.append(UI.buildUI([
+          $('<h3>').text('Urls'),
+          {
+            label: 'Stream info json',
+            type: 'str',
+            value: otherbase+'json_'+escapedstream+'.js',
+            readonly: true,
+            clipboard: true,
+            help: 'Information about this stream as a json page.'
+          },{
+            label: 'Stream info script',
+            type: 'str',
+            value: otherbase+'info_'+escapedstream+'.js',
+            readonly: true,
+            clipboard: true,
+            help: 'This script loads information about this stream into a mistvideo javascript object.'
+          },{
+            label: 'HTML page',
+            type: 'str',
+            value: otherbase+escapedstream+'.html',
+            readonly: true,
+            qrcode: true,
+            clipboard: true,
+            help: 'A basic html containing the embedded stream.'
+          },$('<h3>').text('Embed code'),{
+            label: 'Embed code',
+            type: 'textarea',
+            value: emhtml,
+            rows: emhtml.split("\n").length+3,
+            readonly: true,
+            classes: ['embed_code'],
+            clipboard: true,
+            help: 'Include this code on your webpage to embed the stream. The options below can be used to configure how your content is displayed.'
+          },$('<h4>').text('Embed code options (optional)').css('margin-top',0),{
+            type: 'help',
+            help: 'Use these controls to customise what this embedded video will look like.<br>Not all players have all of these options.'
+          },{
+            label: 'Prioritize type',
+            type: 'select',
+            select: [['','Automatic']],
+            pointer: {
+              main: embedoptions,
+              index: 'prioritize_type'
+            },
+            classes: ['prioritize_type'],
+            'function': function(){
+              if (!done) { return; }
+              embedoptions.prioritize_type = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Try to use this source type first, but full back to something else if it is not available.'
+          },{
+            label: 'Force type',
+            type: 'select',
+            select: [['','Automatic']],
+            pointer: {
+              main: embedoptions,
+              index: 'forceType'
+            },
+            classes: ['forceType'],
+            'function': function(){
+              if (!done) { return; }
+              embedoptions.forceType = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Only use this particular source.'
+          },{
+            label: 'Force player',
+            type: 'select',
+            select: forcePlayerOptions,
+            pointer: {
+              main: embedoptions,
+              index: 'forcePlayer'
+            },
+            classes: ['forcePlayer'],
+            'function': function(){
+              if (!done) { return; }
+              embedoptions.forcePlayer = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Only use this particular player.'
+          },{
+            label: 'Controls',
+            type: 'select',
+            select: [['1','MistServer Controls'],['stock','Player controls'],['0','None']],
+            pointer: {
+              main: custom,
+              index: 'controls'
+            },
+            'function': function(){
+              embedoptions.controls = ($(this).getval() == 1 );
+              switch ($(this).getval()) {
+                case 0:
+                  embedoptions.controls = false;
+                  break;
+                case 1:
+                  embedoptions.controls = true;
+                  break;
+                case 'stock':
+                  embedoptions.controls = 'stock';
+                  break;
+              }
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'The type of controls that should be shown.'
+          },{
+            label: 'Autoplay',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'autoplay'
+            },
+            'function': function(){
+              embedoptions.autoplay = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Whether or not the video should play as the page is loaded.'
+          },{
+            label: 'Loop',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'loop'
+            },
+            'function': function(){
+              embedoptions.loop = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'If the video should restart when the end is reached.'
+          },{
+            label: 'Start muted',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'muted'
+            },
+            'function': function(){
+              embedoptions.muted = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'If the video should restart when the end is reached.'
+          },{
+            label: 'Fill available space',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'fillSpace'
+            },
+            'function': function(){
+              embedoptions.fillSpace = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'The video will fit the available space in its container, even if the video stream has a smaller resolution.'
+          },{
+            label: 'Poster',
+            type: 'str',
+            pointer: {
+              main: embedoptions,
+              index: 'poster'
+            },
+            'function': function(){
+              embedoptions.poster = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'URL to an image that is displayed when the video is not playing.'
+          },{
+            label: 'Video URL addition',
+            type: 'str',
+            pointer: {
+              main: embedoptions,
+              index: 'urlappend'
+            },
+            help: 'The embed script will append this string to the video url, useful for sending through params.',
+            classes: ['embed_code_forceprotocol'],
+            'function': function(){
+              embedoptions.urlappend = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            }
+          },{
+            label: 'Preselect tracks',
+            type: 'DOMfield',
+            DOMfield: $setTracks,
+            help: 'Pre-select these tracks.'
+          },{
+            label: 'Monitoring action',
+            type: 'select',
+            select: [['','Ask the viewer what to do'],['nextCombo','Try the next source / player combination']],
+            pointer: {
+              main: embedoptions,
+              index: 'monitor_action'
+            },
+            'function': function(){
+              embedoptions.monitor_action = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'What the player should do when playback is poor.'
+          },$('<h3>').text('Protocol stream urls'),$protocolurls
+        ]));
+
+        function displaySources(d,overwritebase) {
+          var build = [];
+          var $s_forceType = cont.find('.field.forceType');
+          var $s_prioritizeType = cont.find('.field.prioritize_type');
+
+          if (overwritebase) {
+            overwritebase = overwritebase.replace(parseURL(overwritebase).protocol,"");
+            build.push(
+              $("<div>").addClass("orange").html("Warning: the provided base URL <a href=\""+otherbase+"\">"+otherbase+"</a> could not be reached. These links are my best guess but will probably not work properly.").css({margin:"0.5em 0",width:"45em","word-break":"normal"})
+            );
+          }
+
+          for (var i in d.source) {
+            var source = d.source[i];
+            var human = UI.humanMime(source.type);
+
+            var url = source.url;
+            if (overwritebase) {
+              url = parseURL(source.url).protocol + overwritebase + source.relurl;
+            }
+
+
+            //filter out the session token
+            var tkn = url.match(/[\?\&]tkn=\d+\&?/);
+            if (tkn) {
+              tkn = tkn[0];
+              url = url.replace(tkn,(tkn[0] == "?") && (tkn.slice(-1) == "&") ? "?" : (tkn.slice(-1) == "&" ? "&" : ""));
+            }
+            
+
+            build.push({
+              label: (human ? human+' <span class=description>('+source.type+')</span>' : UI.format.capital(source.type)),
+              type: 'str',
+              value: url,
+              readonly: true,
+              qrcode: true,
+              clipboard: true
+            });
+            var human = UI.humanMime(source.type);
+            if ($s_forceType.children("option[value=\""+source.type+"\"]").length == 0) {
+              $s_forceType.append(
+                $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
+              );
+              $s_prioritizeType.append(
+                $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
+              );
+            }
+          }
+          $s_forceType.val(embedoptions.forceType);
+          $s_prioritizeType.val(embedoptions.prioritize_type);
+          $protocolurls.html(UI.buildUI(build));   
+          done = true;
+        }
+        function displayTracks(msg) {
+          var tracks = {};
+          for (var i in msg.meta.tracks) {
+            var t = msg.meta.tracks[i];
+            if (t.codec == "subtitle") {
+              t.type = "subtitle";
+            }
+            if ((t.type != 'audio') && (t.type != 'video') && (t.type != "subtitle")) { continue; }
+
+            if (!(t.type in tracks)) {
+              if (t.type == "subtitle") {
+                tracks[t.type] = [];
+              }
+              else {
+                tracks[t.type] = [[(''),"Autoselect "+t.type]];
+              }
+            }
+            tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+(t.type == "subtitle" ? 1 : 0))]);
+          }
+          $setTracks.html('');
+
+          if (Object.keys(tracks).length) {
+            $setTracks.closest('label').show();
+            var trackarray = ["audio","video","subtitle"];
+            for (var n in trackarray) {
+              var i = trackarray[n];
+              if (!tracks[i] || !tracks[i].length) { continue; }
+              var $select = $('<select>').attr('data-type',i).css('flex-grow','1').change(function(){
+                if ($(this).val() == '') {
+                  delete embedoptions.setTracks[$(this).attr('data-type')];
+                }
+                else {
+                  embedoptions.setTracks[$(this).attr('data-type')] = $(this).val();
+                }
+                $('.embed_code').setval(embedhtml(embedoptions));
+              });
+              $setTracks.append($select);
+              if (i == "subtitle") {
+                tracks[i].unshift(["","No "+i]);
+              }
+              else {
+                tracks[i].push([-1,'No '+i]);
+              }
+              for (var j in tracks[i]) {
+                $select.append(
+                  $('<option>').val(tracks[i][j][0]).text(tracks[i][j][1])
+                );
+              }
+              if (i in embedoptions.setTracks) {
+                $select.val(embedoptions.setTracks[i]);
+                if ($select.val() == null) {
+                  $select.val('');
+                  delete embedoptions.setTracks[i];
+                  $('.embed_code').setval(embedhtml(embedoptions));
+                }
+              }
+            }
+          }
+          else {
+            $setTracks.closest('label').hide();
+          }
+        }
+
+        function connect2info(baseurl) {
+          UI.sockets.ws.info_json.subscribe(function(msg){
+            if (msg.type == "error") {
+              if (baseurl == otherbase) {
+                //using otherbase, the info websocket could not be reached. Try again with misthost.
+                connect2info(misthost);
+              }
+              else {
+                throw msg;
+              }
+              return;
+            }
+
+            if ("source" in msg) {
+              if (!done || msg.source.length) displaySources(msg,baseurl == otherbase ? false : otherbase);
+            }
+            if (("meta" in msg) && ("tracks" in msg.meta)) {
+              displayTracks(msg);
+            }
+
+          },streamname,baseurl.replace(/^http/,"ws")+ "json_" + encodeURIComponent(streamname) + ".js",false,"?inclzero=1");
+
+        }
+        connect2info(otherbase);
+
+
+        return cont;
+      }
+    }
+  },
+  sockets: {
+    http_host: null,
+    http: {
+      api: {
+        command: {},
+        listeners: [],
+        interval: false,
+        get: function(){
+          var me = this;
+          mist.send(function(d){
+            for (var i in me.listeners) {
+              me.listeners[i](d);
+            }
+          },me.command);
+        }, 
+        init: function(){
+          var me = this;
+          me.get();
+          me.interval = UI.interval.set(function(){
+            me.get();
+          },5e3);
+        },
+        subscribe: function(callback,command){
+          this.command = Object.assign(this.command,command);
+          this.listeners.push(callback);
+          if (!this.interval || !(this.interval in UI.interval.list)) {
+            this.init();
+          }
+        }
+      },
+      player: function(callback,errorCallback){
+        if (!mistPlay) {
+          if (!UI.sockets.http_host) {
+            errorCallback("Could not find player.js: MistServer host unknown");
+          }
+          var url = UI.sockets.http_host+"player.js";
+          $.ajax({
+            type: "GET",
+            url: url,
+            success: function(d){
+              callback();
+            },
+            error: function(){
+              errorCallback("Error while retrieving player.js from "+url);
+            }
+          });
+        }
+        else { callback(); }
+      }
+    },
+    ws: {
+      info_json: {
+        children: {},
+        init: function(url){
+          var ws = UI.websockets.create(url);
+          this.children[url] = {
+            ws: false,
+            listeners: []
+          };
+          this.children[url].ws = ws;
+          var me = this;
+          ws.onmessage = function(d){
+            var data = JSON.parse(d.data);
+            if (url in me.children) {
+              for (var i in me.children[url].listeners) {
+                me.children[url].listeners[i](data);
+              }
+            }
+          }
+          ws.onerror = function(e){
+            if (url in me.children) {
+              for (var i in me.children[url].listeners) {
+                me.children[url].listeners[i](e);
+              }
+            }
+          };
+          ws.cleanup = function(){
+            //remove self from info_json.children[url]
+            delete me.children[url];
+            ws.onclose = function(){}; //remove onclose triggering nother remove of what could be a new instance
+            ws.onmessage = function(){};
+          }
+          var close = ws.close;
+          ws.close = function(){
+            //to prevent race conditions, overwrite the websocket close function to remove itself from the list before closing is complete
+            ws.cleanup();
+            return close.apply(this,arguments);
+          };
+          ws.onclose = function(){
+            ws.cleanup();
+          };
+        },
+        subscribe: function(callback,streamname,url,params){
+          if (!callback) { throw "Callback function not specified."; }
+          if (!streamname && !url) { throw "Stream name not specified."; }
+          if (!params) { params = ""; }
+          if (!url) {
+            url = UI.sockets.http_host.replace(/^http/,"ws") + "json_" + encodeURIComponent(streamname) + ".js"+params;  
+          }
+
+          if (!(url in this.children) || (this.children[url].ws.readyState > 1)) {
+            this.init(url); 
+          }
+          this.children[url].listeners.push(callback);
+        }
+      },
+      active_streams: {
+        ws: false,
+        listeners: [],
+        init: function(){
+          var url = parseURL(mist.user.host);
+          url = parseURL(mist.user.host,{pathname:url.pathname.replace(/\/api$/,"")+"/ws",search:"?logs=100&accs=100&streams=1"});
+          var apiWs = UI.websockets.create(url.full.replace(/^http/,"ws"));
+          this.ws = apiWs;
+          var me = this;
+          apiWs.authState = 0;
+          apiWs.onmessage = function(d){
+            var da = JSON.parse(d.data);
+            var type = da[0];
+            var data = da[1];
+
+            if (type == "auth") {
+              if (data === true) { this.authState = 2; }
+              else if (data === false) {
+                this.send(JSON.stringify(["auth",{
+                  password: MD5(mist.user.password+mist.user.authstring),
+                  username: mist.user.name
+                }]));
+                this.authState = 1;
+              }
+              else if (typeof data == "object") {
+                if ("challenge" in data) {
+                  this.send(JSON.stringify(["auth",{
+                    password: MD5(mist.user.password+data.challenge),
+                    username: mist.user.name
+                  }]));
+                  this.authState = 1;
+                }
+                else if (("status" in data) && (data.status == "OK")) {
+                  this.authState = 2;
+                }
+              }
+              return;
+            }
+
+            for (var i in me.listeners){
+              me.listeners[i](type,data);
+            }
+          }
+          apiWs.onclose = function(){
+            me.listeners = [];
+            me.ws = false;
+          };
+        },
+        subscribe: function(callback){
+          if (!this.ws || (this.ws.readyState > 1)) { this.init(); }
+          this.listeners.push(callback);
+        }
+      }
+    }
   }
 };
 
@@ -7830,8 +9994,9 @@ var mist = {
         
         UI.navto('Login');
       },
-      success: function(d){
+      success: function(d,textstatus,request){
         log('Receive',$.extend(true,{},d),'as reply to',opts.sendData);
+        mist.lastrequest = request; //store request so that we can read headers of it elsewhere (Status for example to look for X-Mst-Path)
         delete mist.user.loggedin;
         switch (d.authorize.status) {
           case 'OK':
@@ -8571,8 +10736,20 @@ $.fn.setval = function(val){
   return $(this);
 }
 function parseURL(url,set) {
-  var a = document.createElement('a');
-  a.href = url;
+  var a;
+  if ("URL" in window && (typeof window.URL == "function")) {
+    try {
+      a = new URL(url);
+    }
+    catch (e) {
+      a = document.createElement('a');
+      a.href = url;
+    }
+  }
+  else {
+    a = document.createElement('a');
+    a.href = url;
+  }
   if (set) {
     for (var i in set) {
       a[i] = set[i];
@@ -8582,7 +10759,10 @@ function parseURL(url,set) {
     full: a.href,
     protocol: a.protocol+'//',
     host: a.hostname,
-    port: (a.port ? ':'+a.port : '')
+    port: (a.port ? ':'+a.port : ''),
+    pathname: a.pathname ? a.pathname : null,
+    search: a.search ? a.search.replace(/^\?/,"") : null,
+    searchParams : a.search ? a.searchParams : null
   };
 }
 function triggerRewrite(trigger) {

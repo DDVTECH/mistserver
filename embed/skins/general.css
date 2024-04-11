@@ -20,7 +20,7 @@
   overflow: hidden;
   outline: none;
 }
-svg.icon.loading {
+.mistvideo svg.icon.loading {
   z-index: -1; /* don't use display: none because of transition for [data-loading=stalled] */
   position: absolute;
   top: 0;
@@ -30,24 +30,24 @@ svg.icon.loading {
   margin: auto;
   opacity: 0;
 }
-[data-loading] {
+.mistvideo [data-loading] {
   position: relative;
 }
 
 /*wait before showing icon when stalled*/
-[data-loading="stalled"] svg.icon.loading {
+.mistvideo [data-loading="stalled"] svg.icon.loading {
   transition: opacity 0s 3s;
 }
-[data-loading] svg.icon.loading {
+.mistvideo [data-loading] svg.icon.loading {
   z-index: 2;
   opacity: 1;
 }
-[data-loading-css] .mistvideo-controls {
+.mistvideo [data-loading-css] .mistvideo-controls {
   display: none;
 }
-[data-hidecursor],
-[data-hidecursor] .mistvideo-pointer,
-[data-hidecursor] *
+.mistvideo [data-hidecursor],
+.mistvideo [data-hidecursor] .mistvideo-pointer,
+.mistvideo [data-hidecursor] *
 { cursor: none }
 .mistvideo-error {
   display: none;
@@ -81,8 +81,8 @@ svg.icon.loading {
   opacity: 0.5;
   cursor: pointer;
 }
-button:hover { opacity: 1; }
-select {
+.mistvideo button:hover { opacity: 1; }
+.mistvideo select {
   background-color: transparent;
   color: $stroke;
   border: none;
@@ -91,7 +91,7 @@ select {
   cursor: pointer;
   -ms-background-color: red;
 }
-select > option {
+.mistvideo select > option {
   background-color: $background;
 }
 
@@ -115,15 +115,15 @@ select > option {
   background-color: #111 !important;
   z-index: 999;
 }
-video {
+.mistvideo video {
   display: block;
   flex-shrink: 0;
 }
-table { color: inherit; font-size: inherit; font-style: inherit; }
-audio:not([controls]) { display: block !important; }
+.mistvideo table { color: inherit; font-size: inherit; font-style: inherit; }
+.mistvideo audio:not([controls]) { display: block !important; }
 .mistvideo-padding { padding: 5px 10px; }
 .mistvideo-pointer { cursor: pointer; }
-.description { 
+.msitvideo .description { 
   color: $semiFill;
   font-size: 0.9em;
 }
@@ -178,7 +178,7 @@ audio:not([controls]) { display: block !important; }
   margin-right: 1em;
 }
 
-a {
+.mistvideo a {
   color: $accent;
 }
 .mistvideo-log .logs {
@@ -210,20 +210,20 @@ a {
 
 @keyframes mistvideo-appear { from { opacity: 0; } to { opacity: 1; } }
 
-svg.icon {
+.mistvideo svg.icon {
   display: block;
   stroke-width: $strokeWidth;
   fill: none;
   stroke: none;
 }
-svg.icon.fill, svg.icon .fill { fill: $fill; }
-svg.icon.semiFill, svg.icon .semiFill { fill: $semiFill; }
-svg.icon.stroke, svg.icon .stroke { stroke: $stroke; vector-effect: non-scaling-stroke; }
-svg.icon.off .toggle.fill,
-svg.icon.off .toggle.semiFill,
-svg.icon.off .toggle .fill,
-svg.icon.off .toggle .semiFill { fill: none; }
-svg.icon.spin, svg.icon .spin {
+.mistvideo svg.icon.fill, svg.icon .fill { fill: $fill; }
+.mistvideo svg.icon.semiFill, svg.icon .semiFill { fill: $semiFill; }
+.mistvideo svg.icon.stroke, svg.icon .stroke { stroke: $stroke; vector-effect: non-scaling-stroke; }
+.mistvideo svg.icon.off .toggle.fill,
+.mistvideo svg.icon.off .toggle.semiFill,
+.mistvideo svg.icon.off .toggle .fill,
+.mistvideo svg.icon.off .toggle .semiFill { fill: none; }
+.mistvideo svg.icon.spin, svg.icon .spin {
   animation: mistvideo-spin 1.5s infinite linear;
   transform-origin: 50% 50%;
 }

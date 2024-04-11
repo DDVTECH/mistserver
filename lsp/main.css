@@ -146,6 +146,9 @@ nav .hiddenmenu .button {
 nav .hiddenmenu .button.active {
   display: block;
 }
+nav .hiddenmenu:has(.button.active) .button {
+  display: block;
+}
 nav .arrowdown > .plain::after,
 nav .arrowdown > .highlighted::after {
   content: '';
@@ -823,9 +826,7 @@ body:not(.helpme) .input_container .ih_balloon {
 
 .bigbuttons {
   display: flex;
-  flex-flow: row nowrap;
-  width: 40.25em;
-  justify-content: space-around;
+  flex-flow: row wrap;
 }
 .bigbuttons button {
   width: 10em;
@@ -843,6 +844,14 @@ body:not(.helpme) .input_container .ih_balloon {
   background-position: center;
   background-repeat: no-repeat;
 }
+.bigbuttons button[data-icon]:before {
+  content: attr(data-icon);
+  font-size: 5em;
+  line-height: 1.6em;
+  text-align: center;
+  filter: sepia(1) saturate(2) hue-rotate(173deg) grayscale(0.3) brightness(0.92);
+}
+
 button.settings:before {
   background-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+PHN2ZyB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOmNjPSJodHRwOi8vY3JlYXRpdmVjb21tb25zLm9yZy9ucyMiIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2ZXJzaW9uPSIxLjEiIGlkPSJzdmczNDA1IiB2aWV3Qm94PSIwIDAgNjQgNjQiIGhlaWdodD0iNjQiIHdpZHRoPSI2NCI+IDxkZWZzIGlkPSJkZWZzMzQwNyIgLz4gPG1ldGFkYXRhIGlkPSJtZXRhZGF0YTM0MTAiPiA8cmRmOlJERj4gPGNjOldvcmsgcmRmOmFib3V0PSIiPiA8ZGM6Zm9ybWF0PmltYWdlL3N2Zyt4bWw8L2RjOmZvcm1hdD4gPGRjOnR5cGUgcmRmOnJlc291cmNlPSJodHRwOi8vcHVybC5vcmcvZGMvZGNtaXR5cGUvU3RpbGxJbWFnZSIgLz4gPGRjOnRpdGxlPjwvZGM6dGl0bGU+IDwvY2M6V29yaz4gPC9yZGY6UkRGPiA8L21ldGFkYXRhPiA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTg4Ljc0MjMxLC01MDcuNjY1MzgpIiBpZD0ibGF5ZXIxIj4gPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTM1OS43Nzc5OCwtNTkuMjQ2OTM4KSIgaWQ9ImczMzc3Ij4gPHBhdGggc3R5bGU9ImZpbGw6IzhjYjNkMTtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIgZD0ibSA1NTIuOTg4MjcsNTc5LjY0OTIzIGMgMi41MzkwNiwyLjQ5MDIzIDQuOTMxNjMsNC44NTM1MiA3LjMzODg3LDcuMjAyMTUgMS41NDc4NSwxLjUwMzkxIDMuMTY4OTQsMS41MDg3OSA0LjcxMTkxLDAuMDI5MyAwLjk4MTQ0LC0wLjk0NzI3IDEuOTY3NzgsLTEuODk5NDEgMi45MzQ1NywtMi44NjYyMSAxLjM2MjMxLC0xLjM2NzE5IDEuMzYyMzEsLTMuMDA3ODIgLTAuMDI0NCwtNC4zNzAxMiAtMi41NDM5NCwtMi41IC01LjExMjMsLTQuOTg1MzUgLTcuNzM0MzcsLTcuNTM5MDYgNS4zOTU1MSwtMS45MjM4NCAxMC4yNjM2NywtMS4xNzY3NiAxNC4zMjYxNywyLjUxOTUzIDMuMTk4MjQsMi45MDUyNyA0Ljg2MzI3LDYuNjMwODYgMy45Njk3MiwxMS4wNjQ0NSAtMC4xNjYwMSwwLjg0NDczIDAuNDEwMTcsMS4yMTA5MyAwLjg4Mzc5LDEuNjc0ODEgOS4wMzgwOSw4LjgxODM2IDE4LjA3MTI5LDE3LjYzNjcxIDI3LjExOTE0LDI2LjQ0NTMxIDIuMjIxNjgsMi4xNjMwOSAyLjk2Mzg3LDQuODA0NjkgMS45Mzg0OCw3LjYwNzQzIC0xLjAwMDk4LDIuNzE5NzIgLTIuOTU4OTgsNC42NDM1NSAtNi4xNTIzNSw1LjE4NTUzIC0yLjgwMjczLDAuNDczNjQgLTUuMDU4NTgsLTAuMzQ2NjcgLTYuOTc3NTMsLTIuMjExOTEgLTguOTA2MjUsLTguNjQ3NDYgLTE3LjgwNzYxLC0xNy4zMDk1NiAtMjYuNjUwMzksLTI2LjAyMDUgLTEuMDU0NjgsLTEuMDM1MTYgLTIuMDc1MiwtMS41MDg4IC0zLjU3NDIyLC0xLjQ0MDQ0IC01LjYwNTQ2LDAuMjYzNjggLTEwLjc3NjM2LC0zLjkwNjI1IC0xMi4yOTk4LC04LjY5NjI5IC0wLjg5ODQ0LC0yLjgxNzM4IC0wLjk3MTY5LC01LjYxNTIzIDAuMTkwNDIsLTguNTgzOTgiIGlkPSJwYXRoNDIwNyIgLz4gPHBhdGggc3R5bGU9ImZpbGw6IzhjYjNkMTtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIgZD0ibSA1ODguOTA2MjQsNTkyLjkwNjA2IGMgLTIuMzkyNTksLTIuMzQzNzUgLTIuMzkyNTksLTIuMzQzNzUgLTAuMDQ4OSwtNC42Mjg5IDQuMTA2NDUsLTQuMDAzOTEgOC4yMTc3OCwtOC4wMDI5MyAxMi4zMDk1OCwtMTIuMDE2NTkgMC40ODM0LC0wLjQ3ODUzIDEuNTAzOTEsLTAuOTQ3MjggMC42MzQ3NiwtMS43ODcxMiAtMC45MTMwOSwtMC44ODg2NyAtMS40NDUzMSwwLjExNzEzIC0xLjk3NzU0LDAuNjI5ODggLTQuNTcwMzEsNC40MzM2IC05LjE3NDgsOC44Mzc5IC0xMy42NDc0NiwxMy4zNTkzNyAtMS4wNTQ2OSwxLjA2OTM0IC0xLjM4NjcxLDAuMzIyMjggLTIuMDcwMzEsLTAuMjA5OTUgLTAuODY0MjUsLTAuNjc4NzEgLTAuODQ5NiwtMS4xMTgxNyAtMC4wMjkzLC0xLjg5OTQyIDQuNjc3NzIsLTQuNDcyNjUgOS4yNzI0NSwtOS4wMjgzMiAxMy45MjU3NywtMTMuNTMwMjYgMi4xMzM3OSwtMi4wNjU0NCA0LjY4MjYxLC0yLjEzODY4IDcuMDQxMDEsLTEuMjMwNDggMi4zNTg0LDAuOTEzMDkgMy44NzY5NywzLjM5ODQ0IDMuODc2OTcsNS43MTc3OCAwLjAwNSwyLjA1NTY2IC0wLjc0NzA4LDMuNjY2OTggLTIuMTg3NSw1LjA2ODM2IC00LjQwOTE5LDQuMjkxOTggLTguODA4Niw4LjU5Mzc1IC0xMy4yMjc1NSwxMi44ODU3MyAtMC4zODA4NSwwLjM3MTExIC0wLjc0NzA2LDEuMTA4NDEgLTEuMzg2NzEsMC42ODg0OCAtMC42ODM2LC0wLjQ1NDEgLTEuMjg5MDcsLTEuMDk4NjIgLTEuNzM4MjksLTEuNzc3MzQgLTAuMjAwMTksLTAuMzA3NjIgMC40Mzk0NiwtMC42MzQ3NyAwLjcyNzU1LC0wLjkxMzA5IDQuNTUwNzcsLTQuNDUzMTIgOS4xMTEzMiwtOC44OTY0OCAxMy42NjY5OCwtMTMuMzM5ODQgMC4zMDI3NCwtMC4yOTc4NiAwLjY3ODcyLC0wLjU2MTUzIDAuODQ5NjIsLTAuOTE3OTcgMC4xMzY3MSwtMC4zMDI3NCAwLjI0OTAyLC0wLjcyMjY2IC0wLjE5NTMyLC0xLjA0OTgxIC0wLjM4MDg2LC0wLjI3ODMxIC0wLjcwMzEyLC0wLjI1ODc5IC0xLjAyNTQsLTAuMDI0NCAtMC4zNzU5NywwLjI3MzQzIC0wLjczMjQxLDAuNTgxMDYgLTEuMDY0NDUsMC45MDMzMiAtNC43OTAwMyw0LjY2MzA5IC05LjU3MDMxLDkuMzMxMDUgLTE0LjQzMzU4LDE0LjA3MjI2IiBpZD0icGF0aDQyMDkiIC8+IDxwYXRoIHN0eWxlPSJmaWxsOiM4Y2IzZDE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiIGQ9Im0gNTcxLjE1MjMzLDYwNC45MTc3OSBjIDEuMDkzNzUsMC45NzY1NiAyLjE1MzMyLDEuOTE4OTQgMy4yMTI4OCwyLjg2NjIxIC0wLjk2MTkxLDAuOTEzMDggLTIuMDE2NiwxLjc1NzgyIC0yLjg2NjIsMi43NTg3OSAtMS4wOTM3NCwxLjI5Mzk0IC0yLjE5NzI3LDIuNTQ4ODMgLTMuNjI3OTMsMy40OTYwOSAtMS45MDkxOCwxLjI2OTUzIC0yLjQ4MDQ2LDMuMjEyODggLTIuNzU4NzksNS4yNzgzMiAtMC4wNDg5LDAuMzg1NzQgLTAuMDkyOCwwLjcyNzU0IC0wLjQxNTA0LDAuOTMyNjEgLTMuMzU5MzcsMi4xNDM1NyAtNi43MzgyOCw0LjI2MjcgLTEwLjA3ODEyLDYuNDM1NTYgLTAuMzk1NTEsMC4yNTM4OSAtMC40MjQ4LC0wLjAzNDEgLTAuNTc2MTgsLTAuMTUxMzcgLTIuNDAyMzMsLTEuNzgyMjQgLTIuMzgyODEsLTIuMDYwNTUgLTAuNzI3NTMsLTQuNTYwNTUgMS40OTQxMywtMi4yNTU4NiAzLjI1MTk1LC00LjM1MDU4IDQuNDQ4MjMsLTYuNzg3MTEgMC42NjQwNywtMS4zNDc2NSAxLjkzMzYsLTEuNjExMzMgMy4yNDcwOCwtMS42ODk0NSAxLjEwODQsLTAuMDY4NCAxLjkxODk1LC0wLjUyNzM1IDIuNjc1NzksLTEuMjc5MyAyLjQ5NTExLC0yLjQ4MDQ2IDUuMDM0MTcsLTQuOTI2NzYgNy40NjU4MSwtNy4yOTk4IiBpZD0icGF0aDQyMTEiIC8+IDxwYXRoIHN0eWxlPSJmaWxsOiM4Y2IzZDE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiIGQ9Im0gNjA1LjM2NjIsNjE5LjUwMjc1IGMgLTAuMjgzMjEsMi4zNjMyOCAtMS44MTY0MSwzLjgyMzI0IC00LjA1NzYyLDMuOTIwODkgLTIuMDc1MTksMC4wODc5IC00LjQwOTE4LC0yLjE2Nzk2IC00LjIyMzYzLC00LjA2MjUgMC4yMzkyNSwtMi4zNzc5MyAxLjY0MDYzLC00LjAyMzQ0IDQuMjgyMjMsLTMuOTc0NiAyLjMxOTMzLDAuMDM5IDMuOTU1MDcsMS44Nzk4OCAzLjk5OTAyLDQuMTE2MjEiIGlkPSJwYXRoNDIxMyIgLz4gPC9nPiA8L2c+PC9zdmc+DQo=');
 }
@@ -855,6 +864,510 @@ button.embed:before {
 button.return:before {
   background-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+PHN2ZyB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOmNjPSJodHRwOi8vY3JlYXRpdmVjb21tb25zLm9yZy9ucyMiIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGlkPSJzdmczOTM3IiB2ZXJzaW9uPSIxLjEiPiA8ZGVmcyBpZD0iZGVmczM5MzkiIC8+IDxtZXRhZGF0YSBpZD0ibWV0YWRhdGEzOTQyIj4gPHJkZjpSREY+IDxjYzpXb3JrIHJkZjphYm91dD0iIj4gPGRjOmZvcm1hdD5pbWFnZS9zdmcreG1sPC9kYzpmb3JtYXQ+IDxkYzp0eXBlIHJkZjpyZXNvdXJjZT0iaHR0cDovL3B1cmwub3JnL2RjL2RjbWl0eXBlL1N0aWxsSW1hZ2UiIC8+IDxkYzp0aXRsZT48L2RjOnRpdGxlPiA8L2NjOldvcms+IDwvcmRmOlJERj4gPC9tZXRhZGF0YT4gPHBhdGggaWQ9InBhdGg0NDk1IiBkPSJtIDMwLjQzNzQ5OSw4IGEgMjQsMjQgMCAwIDAgLTE2Ljk1ODMzMyw3LjA0MTY2NyBsIDYuMDI5MTY3LDYuMDI5MTY3IEEgMTUuNDY2NjY2LDE1LjQ2NjY2NiAwIDAgMSAzMC40Mzc0OTksMTYuNTMzMzM0IDE1LjQ2NjY2NiwxNS40NjY2NjYgMCAwIDEgNDUuOTA0MTY1LDMyIDE1LjQ2NjY2NiwxNS40NjY2NjYgMCAwIDEgMzAuNDM3NDk5LDQ3LjQ2NjY2NiAxNS40NjY2NjYsMTUuNDY2NjY2IDAgMCAxIDE5LjUwODMzMyw0Mi45MjkxNjYgbCAzLjkyMDgzMywtMy45MjA4MzMgLTEzLjg2NjY2NSwwIDAsMTMuODY2NjY1IDMuOTE2NjY1LC0zLjkxNjY2NSBBIDI0LDI0IDAgMCAwIDMwLjQzNzQ5OSw1NiBhIDI0LDI0IDAgMCAwIDI0LC0yNCAyNCwyNCAwIDAgMCAtMjQsLTI0IHoiIHN0eWxlPSJvcGFjaXR5OjE7ZmlsbDojOGRiM2QxO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lO3N0cm9rZS13aWR0aDoxLjU7c3Ryb2tlLW1pdGVybGltaXQ6NDtzdHJva2UtZGFzaGFycmF5Om5vbmU7c3Ryb2tlLWRhc2hvZmZzZXQ6MDtzdHJva2Utb3BhY2l0eToxIiAvPjwvc3ZnPg==');
 }
+
+[onempty]:empty:before {
+  content: attr(onempty);
+}
+[afterifnotempty]:not(:empty):after { content: attr(afterifnotempty); }
+[beforeifnotempty]:not(:empty):before { content: attr(beforeifnotempty); }
+
+main[data-tab="Status"] .dashboard,
+main[data-tab="Preview"] .dashboard {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  grid-auto-rows: minmax(7em,max-content);
+  grid-gap: 1.5em;
+  grid-auto-flow: row dense;
+}
+main[data-tab="Status"] .dashboard > section,
+main[data-tab="Preview"] .dashboard > section {
+  min-height: 0;
+  min-width: 0;
+}
+main[data-tab="Status"] .dashboard > section.actions,
+main[data-tab="Status"] .dashboard > section.meta,
+main[data-tab="Status"] .dashboard > section.pushes,
+main[data-tab="Status"] .dashboard > section.triggers,
+main[data-tab="Status"] .dashboard > section.processes,
+main[data-tab="Preview"] .dashboard > section.meta,
+main[data-tab="Preview"] .dashboard > section.pushes,
+main[data-tab="Preview"] .dashboard > section.triggers,
+main[data-tab="Preview"] .dashboard > section.processes,
+.dashboard > section.preview {
+  grid-column: 1 / -1;
+}
+main[data-tab="Status"] .dashboard > section.activestream,
+main[data-tab="Status"] .dashboard section.logs,
+main[data-tab="Status"] .dashboard section.accesslogs,
+main[data-tab="Preview"] .dashboard > section.activestream,
+main[data-tab="Preview"] .dashboard section.logs,
+main[data-tab="Preview"] .dashboard section.accesslogs,
+.dashboard > section.controls {
+  grid-column: span 2;
+}
+main[data-tab="Status"] .dashboard > section.pushes,
+main[data-tab="Preview"] .dashboard > section.pushes {
+  grid-row: span 2;
+}
+main[data-tab="Status"] .dashboard > section.logcont,
+main[data-tab="Preview"] .dashboard > section.logcont {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-template-columns: subgrid;
+  grid-column: span 4;
+}
+main[data-tab="Status"] .dashboard > section.logcont *,
+main[data-tab="Preview"] .dashboard > section.logs * {
+  min-width: 0;
+}
+main[data-tab="Status"] .dashboard > section.logs,
+main[data-tab="Status"] .dashboard > section.accesslogs {
+  grid-row-end: -1;
+}
+main[data-tab="Status"] .dashboard > section.activestream {
+  order: -1;
+}
+main[data-tab="Preview"] .dashboard section.logs {
+  align-self: end;
+}
+
+@media only screen and (max-width:1150px) {
+  main[data-tab="Status"] .dashboard,
+  main[data-tab="Preview"] .dashboard {
+    display: grid;
+    grid-template-columns: repeat(2,1fr);
+  }
+  main[data-tab="Status"] .dashboard > section.actions {
+    grid-column: span 1 / auto;
+    justify-content: initial;
+  }
+  main[data-tab="Status"] .dashboard > section.logcont {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+}
+/*
+main[data-tab="Status"] .dashboard > section:has([onempty]):not(:has([onempty]:not(:empty))),
+main[data-tab="Status"] .dashboard section.logcont > section:has([onempty]):not(:has([onempty]:not(:empty)))
+{
+  /*section has (at least one) onempty section, but it does not have an onempty section that is not empty*//*
+  grid-column: span 1;
+  grid-row: span 1;
+}
+
+/*if logcont is empty, make it span 2 columns*//*
+main[data-tab="Status"] .dashboard > section.logcont:has([onempty]):not(:has([onempty]:not(:empty))) {
+  grid-column: span 2;
+}
+*/
+
+.dashboard section.meta .main {
+  display: flex;
+  flex-flow: column nowrap;
+}
+.dashboard > section.meta .main > label {
+  display: flex;
+  flex-flow: row wrap;
+  width: 15em;
+  justify-content: space-between;
+}
+.dashboard > section.meta .main > label input[type="checkbox"] {
+  width: 1.5em;
+  height: 1.5em;
+}
+.dashboard .tracktiming {
+  position: relative;
+  text-align: center;
+  padding: 2em 5em;
+  display: grid;
+  grid-gap: 0.5em 0;
+  grid-template-rows: 1fr;
+}
+.dashboard .tracktiming > * {
+  height: 1.5em;
+  line-height: 1.5em;
+  position: relative;
+}
+/*main[data-tab="Status"] .dashboard > section.meta .main .tracktiming * { outline: 1px solid blue; }*/
+.dashboard .tracktiming .boxcont {
+  --ntracks: 2;
+  min-width: 0;
+  white-space: nowrap;
+}
+.dashboard .tracktiming > div span {
+  font-size: 0.8em;
+  color: #777;
+}
+.dashboard .tracktiming .boxcont span.center {
+  margin-right: -100%;
+  margin-left: -100%;
+  /* centers text, even in case of overflow */
+  display: inline-block;
+}
+.dashboard .tracktiming .boxcont.toosmall span.center {
+  transform: translateY(-100%);
+}
+.dashboard .tracktiming .boxcont .left {
+  position: absolute;
+  white-space: nowrap;
+  right: 100%;
+  border-right: 1px solid black;
+  transform: translateX(1px);
+}
+.dashboard .tracktiming .boxcont .right {
+  position: absolute;
+  white-space: nowrap;
+  left: 100%;
+  border-left: 1px solid black;
+  transform: translateX(-1px);
+}
+.dashboard [data-type="vod"] .tracktiming .boxcont .box {
+  display: none;
+}
+.dashboard .tracktiming .boxcont .box {
+  width: 100%;
+  height: calc(2em * var(--ntracks) + 0.25em);
+  top: 100%;
+}
+.dashboard .tracktiming .box {
+  position: absolute;
+  border: 1px solid black;
+  background-color: #060a;
+  top: 0; bottom: 0;
+  box-sizing: border-box;
+}
+.dashboard .tracktiming .gap .box {
+  background-color: #d006;
+}
+.dashboard .tracktiming .track[data-type="video"] .box { background-color: #8cb3cf; } 
+.dashboard .tracktiming .track[data-type="audio"] .box { background-color: #b5d3e2; } 
+.dashboard .tracktiming .track[data-type="meta"] .box { background-color: #dae9f1; }
+.dashboard .tracktiming > * > label {
+  /*color: white;*/
+  font-weight: bold;
+  /*mix-blend-mode: difference;*/
+  position: relative; /*puts it on top*/
+}
+.dashboard .tracktiming .left,
+.dashboard .tracktiming .right,
+.dashboard .tracktiming .jitter {
+  position: absolute;
+  right: 100%;
+  height: 100%;
+  padding: 0 0.25em;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.dashboard .tracktiming .jitter {
+  padding: 0;
+}
+.dashboard .tracktiming .right {
+  left: 100%; right: auto;
+}
+.dashboard .tracktiming .jitter {
+  right: 0;
+  width: 0;
+  background: #fffa;
+}
+
+.dashboard > section.meta .main .tracks {
+  display: flex;
+  flex-flow: wrap;
+  font-size: 0.9em;
+  align-items: flex-start;
+}
+.dashboard .meta table {
+  margin: 0.5em 0.5em 0 0;
+}
+
+section.activestream [data-streamstatus]:before {
+  content: '';
+  display: inline-block;
+  width: 1.2em;
+  aspect-ratio: 1 / 1;
+  margin-right: 0.25em;
+  margin-top: -0.25em;
+  border-radius: 100%;
+  vertical-align: middle;
+  --color: darkorange;
+  background: radial-gradient(circle 1em at 0 0, #fff3, var(--color));
+  box-sizing: border-box;
+  border: 1.5px solid var(--color);
+}
+section.activestream [data-streamstatus="4"]:before { 
+  --color: green;
+}
+
+section.activestream [data-streamstatus="6"]:before { 
+  --color: red;
+}
+section.activestream [data-streamstatus="0"]:before { 
+  --color: gray;
+}
+section.activestream div.activestream .tag {
+  border: 1px solid #bbb;
+  margin: 0.1em;
+  padding: 0.2em;
+  display: inline-block;
+  font-size: 0.8em;
+  color: #777;
+}
+section.activestream div.activestream .tag button {
+  font-size: 1em;
+  color: darkred;
+  padding: 0;
+  margin: 0.2em 0.2em 0.2em 0.5em;
+  width: 1.2em;
+  height: 1.2em;
+  line-height: 1em;
+}
+section.activestream div.activestream .thumbnail {
+  max-width: 15em;
+  max-height: 15em;
+  position: relative;
+  overflow: hidden;
+  transition: max-width 0.5s;
+}
+section.activestream div.activestream .thumbnail:has(img[src]):after {
+  content: "Thumbnail";
+  color: #fff;
+  background: #000a;
+  text-align: center;
+  padding: 0.5em;
+  position: absolute;
+  bottom: 0; right: 0; left: 0;
+  opacity: 1;
+  transition: opacity 0.5s 1s;
+  margin: 0.5em 0;
+}
+section.activestream div.activestream .thumbnail:hover {
+  max-width: 100%;
+  max-height: 100%;
+  transition: max-width 0.5s 1s;
+}
+
+section.activestream div.activestream .thumbnail:has(img[src]):hover:after {
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+section.activestream div.activestream .thumbnail img[src] {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0.5em 0;
+  display: block;
+}
+section.activestream div.activestream > span:has(+ span:not(:empty)):after,
+section.activestream div.accesslogs span:has(+ span:not(:empty)):after {
+  content: ', ';
+}
+section.activestream div.activestream .input_container span:after {
+  content: none !important;
+}
+section.activestream div.activestream .input_container label .label {
+  flex-basis: 9em;
+}
+section.activestream div.activestream .input_container label .field_container {
+  flex-basis: 20em;
+  width: auto;
+  min-width: 0;
+  flex-grow: 1
+}
+section.activestream div.activestream .input_container .UIelement {
+  align-items: center;
+}
+section.activestream div.activestream .input_container label .help_container { display: none; }
+
+main[data-tab="Preview"] section.activestream { margin: 0.5em 0; }
+main[data-tab="Preview"] section.activestream div.activestream > div:first-child { 
+  display: inline-block;
+  margin-right: 1em;
+}
+main[data-tab="Preview"] section.activestream .livestreamhint {
+  max-width: 40em;
+}
+
+main[data-tab="Status"] section.logs > div.logs,
+main[data-tab="Status"] section.accesslogs > div.accesslogs,
+main[data-tab="Preview"] section.logs > div.logs,
+main[data-tab="Preview"] section.accesslogs > div.accesslogs,
+section.processes table div.logs {
+  padding-left: 2em;
+  text-indent: -2em;
+  text-align: left;
+  max-height: 15em;
+  overflow: hidden auto;
+  font-size: 0.9em;
+}
+main[data-tab="Status"] section.logs > div.logs > * > *:not(:last-child):not(:empty),
+main[data-tab="Preview"] section.logs > div.logs > * > *:not(:last-child):not(:empty),
+main[data-tab="Status"] section.accesslogs > div.accesslogs > * > *:not(:last-child):not(:empty),
+main[data-tab="Preview"] section.accesslogs > div.accesslogs > * > *:not(:last-child):not(:empty) {
+  padding-right: 0.5em;
+}
+main[data-tab="Status"] section.logs > div.logs > * > *:nth-child(2):not(:empty):before,
+main[data-tab="Preview"] section.logs > div.logs > * > *:nth-child(2):not(:empty):before {
+  content: '[';
+  opacity: 0.5;
+}
+main[data-tab="Status"] section.logs > div.logs > * > *:nth-child(2):not(:empty):after,
+main[data-tab="Preview"] section.logs > div.logs > * > *:nth-child(2):not(:empty):after {
+  content: ']';
+  opacity: 0.5;
+}
+div.logs > [data-debuglevel="WARN"],
+div.logs > [data-debuglevel="ERROR"],
+div.logs > [data-debuglevel="FAIL"] {
+  font-weight: bold;
+  color: darkorange;
+}
+div.logs > [data-debuglevel="ERROR"] {
+  color: red;
+}
+div.logs > [data-debuglevel="FAIL"] > * {
+  color: white;
+  background: darkred;
+  outline: 2px solid darkred;
+}
+main[data-tab="Status"] div.accesslogs > * > *[title],
+main[data-tab="Preview"] div.accesslogs > * > *[title] {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: inline-block;
+  min-width: 0;
+  vertical-align: bottom;
+  text-indent: initial;
+}
+main[data-tab="Status"] div.accesslogs > * > *:before {
+  opacity: 0.5;
+}
+.dashboard section.controls.mistvideo {
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+}
+.dashboard section.controls .draggable-icon { display: none; }
+.dashboard section.controls .mistvideo-log,
+.dashboard section.controls .mistvideo-devcontrols .mistvideo-text,
+.dashboard section.controls .mistvideo-decodingIssues:before {
+  color: #2584c4; 
+  text-shadow: 0.1em 0.1em 0.1em #b5d3e2;
+}
+.dashboard section.controls .mistvideo-log {
+  font-size: 1.2em;
+  margin-bottom: 0;
+}
+.dashboard section.controls.mistvideo .mistvideo-log button {
+  font-size: 0.6667em;
+}
+.dashboard section.controls .mistvideo-log .logs {
+  max-height: 12.5em;
+  box-sizing: border-box;
+}
+.dashboard section.controls .mistvideo-log > * {
+  color: #000;
+  text-shadow: none;
+  text-transform: none;
+}
+.dashboard section.controls .mistvideo-log {
+  order: 100;
+}
+.dashboard section.controls .mistvideo-log { 
+  text-transform: lowercase;
+}
+.dashboard section.controls .mistvideo-log:before {
+  content: "Player ";
+}
+.dashboard section.controls .mistvideo-log:first-letter{ 
+  text-transform: uppercase;
+}
+.dashboard section.controls .mistvideo-log .entry {
+  font-size: 0.85em;
+}
+.dashboard section.controls .mistvideo-log .entry .timestamp {
+  color: #777;
+  font-size: 0.9em;
+}
+.dashboard section.controls .mistvideo-log .entry .timestamp:before,
+.dashboard section.controls .mistvideo-log .entry .timestamp:after {
+  content: none;
+}
+.dashboard section.controls .mistvideo-log .entry .message {
+  padding-left: 0.5em;
+} 
+
+.dashboard section.controls .mistvideo-decodingIssues {
+  margin: 0.5em 0;
+  order: 99;
+}
+.dashboard section.controls .mistvideo-decodingIssues:before {
+  content: "Player statistics";
+}
+.dashboard section.controls .mistvideo-decodingIssues .mistvideo-description {
+  font-size: inherit;
+}
+.dashboard section.controls.mistvideo button {
+  font-size: 0.9em;
+}
+
+main[data-tab="Status"] div.pushes > div,
+main[data-tab="Status"] div.triggers {
+  display: flex;
+  flex-flow: row wrap;
+  margin: 0.5em 0 0.25em;
+}
+main[data-tab="Status"] div.pushes > div:before,
+main[data-tab="Status"] div.triggers:before,
+main[data-tab="Status"] div.processes:before {
+  margin: -0.5em 0 0;*/
+  display: block;
+}
+main[data-tab="Status"] div.pushes [data-column="Conditions"]:not(.header) {
+  opacity: 0.8;
+  display: flex;
+  flex-flow: column nowrap;
+}
+main[data-tab="Status"] div.pushes table.hideConditions [data-column="Conditions"] {
+  display: none;
+}
+main[data-tab="Status"] div.processes {
+  margin: 0.5em 0 0.25em;
+}
+
+main[data-tab="Status"] div.processes table,
+main[data-tab="Status"] div.triggers table,
+main[data-tab="Status"] div.pushes table {
+  width: auto;
+  font-size: 0.9em;
+}
+main[data-tab="Status"] div.processes td, main[data-tab="Status"] div.processes th,
+main[data-tab="Status"] div.triggers td, main[data-tab="Status"] div.triggers th,
+main[data-tab="Status"] div.pushes td, main[data-tab="Status"] div.pushes th {
+  vertical-align: top;
+}
+main[data-tab="Status"] div.pushes tr:not(:has(td:not(:empty))) {
+  display: none;
+}
+main[data-tab="Status"] div.triggers .handler td,
+main[data-tab="Status"] div.pushes .Target td {
+  word-break: break-all;
+  max-width: 25vh;
+}
+main[data-tab="Status"] div.pushes .Statistics td {
+  max-width: 25vh;
+}
+main[data-tab="Status"] div.pushes .Statistics .logs {
+  text-align: left;
+  text-indent: -2em;
+  padding-left: 2em;
+}
+.dashboard > section.meta [data-type="vod"] [data-liveonly],
+.dashboard > section.meta [data-type="vod"] tr[data-label="Jitter"] {
+  display: none;
+}
+ 
+
 
 .preview_icons {
   display: flex;
@@ -936,12 +1449,12 @@ button.return:before {
   max-width: 28em;
   font-size: 0.5em;
 }
-.mistvideo * {
-  min-width: initial;
-}
-.mistvideo h3 {
+.mistvideo.mistvideo-placeholder h3 {
   color: inherit;
   text-shadow: none;
+}
+.mistvideo * {
+  min-width: initial;
 }
 .mistvideo table {
   color: inherit;
@@ -955,7 +1468,7 @@ button.return:before {
 .mistvideo table td {
   padding: 0;
 }
-.mistvideo button {
+div.mistvideo button {
   background-image: none;
 }
 .mistvideo .text {

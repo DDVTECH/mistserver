@@ -93,7 +93,7 @@
 }
 .mistvideo-main { align-items: center; }
 
-svg.icon.timeout {
+.mistvideo svg.icon.timeout {
   display: inline-block;
   height: 1em;
   width: 1em;
@@ -232,14 +232,14 @@ svg.icon.timeout {
 .mistvideo-chromecast {
   display: flex;
 }
-google-cast-launcher {
+.mistvideo google-cast-launcher {
   width: 24px;
   height: 24px;
 
   --connected-color: $fill;
   --disconnected-color: $semiFill;
 }
-google-cast-launcher.active {
+.mistvideo google-cast-launcher.active {
   --connected-color: $accent;
   --disconnected-color: $fill;
 }

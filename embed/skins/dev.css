@@ -74,17 +74,17 @@
 .mistvideo-decodingIssues label .value {
   font-size: 0.8em;
 }
-svg.icon.graph {
+.mistvideo svg.icon.graph {
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
   width: 6em;
 }
-select {
+.mistvideo select {
   border-radius: 0;
 }
-input[type="checkbox"] {
+.mistvideo input[type="checkbox"] {
   margin: 0;
   margin-right: 0.2em;
   border: 1px solid $semiFill;
@@ -99,7 +99,7 @@ input[type="checkbox"] {
   position: relative;
   cursor: pointer;
 }
-input[type="checkbox"]:checked:after {
+.mistvideo input[type="checkbox"]:checked:after {
   content: "\2713";
   position: absolute;
   bottom: -0.2em;

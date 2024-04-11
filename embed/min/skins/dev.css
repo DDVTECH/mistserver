@@ -2,32 +2,32 @@
 .mistvideo-controls{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
 .mistvideo.novideo{overflow:visible}
 .mistvideo-video{overflow:hidden;outline:0}
-svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
-[data-loading]{position:relative}
-[data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
-[data-loading] svg.icon.loading{z-index:2;opacity:1}
-[data-loading-css] .mistvideo-controls{display:none}
-[data-hidecursor],[data-hidecursor] *,[data-hidecursor] .mistvideo-pointer{cursor:none}
+.mistvideo svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
+.mistvideo [data-loading]{position:relative}
+.mistvideo [data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
+.mistvideo [data-loading] svg.icon.loading{z-index:2;opacity:1}
+.mistvideo [data-loading-css] .mistvideo-controls{display:none}
+.mistvideo [data-hidecursor],.mistvideo [data-hidecursor] *,.mistvideo [data-hidecursor] .mistvideo-pointer{cursor:none}
 .mistvideo-error{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background-color:$background;align-items:center;justify-content:center;text-align:center;z-index:2;cursor:default;min-height:fit-content;min-width:fit-content;height:100%}
 .mistvideo-error.show{display:flex}
 .mistvideo-error .message{max-width:80%}
 .mistvideo-error .message .details table{text-align:left}
 .mistvideo-controls button,.mistvideo-error button,.mistvideo-video:not(.video-js) button{color:$stroke;border:1px solid $semiFill;background-color:$background;margin:.25em;padding:.5em 1em;opacity:.5;cursor:pointer}
-button:hover{opacity:1}
-select{background-color:transparent;color:$stroke;border:none;margin:0 .5em;font-size:inherit;cursor:pointer;-ms-background-color:red}
-select>option{background-color:$background}
+.mistvideo button:hover{opacity:1}
+.mistvideo select{background-color:transparent;color:$stroke;border:none;margin:0 .5em;font-size:inherit;cursor:pointer;-ms-background-color:red}
+.mistvideo select>option{background-color:$background}
 .browser-edge select,.browser-safari select{border:1px solid $semiFill;border-top:none;border-left:none;margin-top:2px}
 @keyframes mistvideo-spin{
 0%{transform:rotate(0)}
 100%{transform:rotate(360deg)}
 }
 [data-fullscreen]{position:fixed;top:0;left:0;right:0;bottom:0;width:100%!important;height:100%!important;background-color:#111!important;z-index:999}
-video{display:block;flex-shrink:0}
-table{color:inherit;font-size:inherit;font-style:inherit}
-audio:not([controls]){display:block!important}
+.mistvideo video{display:block;flex-shrink:0}
+.mistvideo table{color:inherit;font-size:inherit;font-style:inherit}
+.mistvideo audio:not([controls]){display:block!important}
 .mistvideo-padding{padding:5px 10px}
 .mistvideo-pointer{cursor:pointer}
-.description{color:$semiFill;font-size:.9em}
+.msitvideo .description{color:$semiFill;font-size:.9em}
 .mistvideo-container{display:flex;flex-wrap:nowrap}
 .mistvideo-container.mistvideo{display:inline-flex;max-width:100%}
 .mistvideo-container.mistvideo-row{flex-direction:row}
@@ -45,7 +45,7 @@ audio:not([controls]){display:block!important}
 .mistvideo-tooltip .triangle{border:10px solid $background;position:absolute}
 .mistvideo-tracks label{display:block}
 .mistvideo-tracks label>span{margin-right:1em}
-a{color:$accent}
+.mistvideo a{color:$accent}
 .mistvideo-log .logs{-webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text}
 .mistvideo-placeholder{max-width:100%;max-height:100%}
 .mistvideo-topright{position:absolute;top:0;right:0}
@@ -55,12 +55,12 @@ a{color:$accent}
 from{opacity:0}
 to{opacity:1}
 }
-svg.icon{display:block;stroke-width:$strokeWidth;fill:none;stroke:none}
-svg.icon .fill,svg.icon.fill{fill:$fill}
-svg.icon .semiFill,svg.icon.semiFill{fill:$semiFill}
-svg.icon .stroke,svg.icon.stroke{stroke:$stroke;vector-effect:non-scaling-stroke}
-svg.icon.off .toggle .fill,svg.icon.off .toggle .semiFill,svg.icon.off .toggle.fill,svg.icon.off .toggle.semiFill{fill:none}
-svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
+.mistvideo svg.icon{display:block;stroke-width:$strokeWidth;fill:none;stroke:none}
+.mistvideo svg.icon.fill,svg.icon .fill{fill:$fill}
+.mistvideo svg.icon.semiFill,svg.icon .semiFill{fill:$semiFill}
+.mistvideo svg.icon.stroke,svg.icon .stroke{stroke:$stroke;vector-effect:non-scaling-stroke}
+.mistvideo svg.icon.off .toggle .fill,.mistvideo svg.icon.off .toggle .semiFill,.mistvideo svg.icon.off .toggle.fill,.mistvideo svg.icon.off .toggle.semiFill{fill:none}
+.mistvideo svg.icon.spin,svg.icon .spin{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
 .vjs-text-track-display{pointer-events:none}
 .vjs-controls-disabled .vjs-control-bar,.vjs-error .vjs-control-bar,.vjs-error-display,.vjs-hidden,.vjs-using-native-controls .vjs-control-bar{display:none!important}
 .vjs-controls-disabled .vjs-big-play-button,.vjs-controls-disabled .vjs-loading-spinner,.vjs-error .vjs-big-play-button,.vjs-has-started .vjs-big-play-button,.vjs-using-native-controls .vjs-big-play-button{display:none}
@@ -84,7 +84,7 @@ svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;trans
 .mistvideo-play[data-state=playing] svg.play{display:none}
 .mistvideo-play[data-state=paused] svg.pause{display:none}
 .mistvideo-main{align-items:center}
-svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right:.25em;vertical-align:top}
+.mistvideo svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right:.25em;vertical-align:top}
 .mist.largeplay,.mist.muted{position:absolute;opacity:.5}
 .mist.largeplay{top:50%;left:0;right:0;margin:auto;transform:translateY(-50%)}
 .mist.muted{top:0;right:0;margin:1%;max-height:20%;width:auto}
@@ -112,8 +112,8 @@ svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right
 .browser-ie .mist.icon.loading{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
 .browser-ie .mist.icon.loading .spin{animation:none}
 .mistvideo-chromecast{display:flex}
-google-cast-launcher{width:24px;height:24px;--connected-color:$fill;--disconnected-color:$semiFill}
-google-cast-launcher.active{--connected-color:$accent;--disconnected-color:$fill}
+.mistvideo google-cast-launcher{width:24px;height:24px;--connected-color:$fill;--disconnected-color:$semiFill}
+.mistvideo google-cast-launcher.active{--connected-color:$accent;--disconnected-color:$fill}
 .mistvideo.casting .mistvideo-slideshow_mode{display:none}
 .mistvideo-log{margin:.5em 0}
 .mistvideo-log .logs{max-height:10em;min-height:5em;width:100%;padding:.2em 0;padding-right:1em;overflow-y:auto;overflow-x:hidden;font-size:.9em}
@@ -136,8 +136,8 @@ google-cast-launcher.active{--connected-color:$accent;--disconnected-color:$fill
 .mistvideo-decodingIssues label{position:relative}
 .mistvideo-decodingIssues label .mistvideo-description{font-size:.9em}
 .mistvideo-decodingIssues label .value{font-size:.8em}
-svg.icon.graph{position:absolute;right:0;top:0;bottom:0;width:6em}
-select{border-radius:0}
-input[type=checkbox]{margin:0;margin-right:.2em;border:1px solid $semiFill;border-radius:0;-webkit-appearance:none;-moz-appearance:none;-ms-appearance:none;appearance:none;width:.8em;height:.8em;color:inherit;position:relative;cursor:pointer}
-input[type=checkbox]:checked:after{content:"\2713";position:absolute;bottom:-.2em;left:0;font-size:1.2em}
+.mistvideo svg.icon.graph{position:absolute;right:0;top:0;bottom:0;width:6em}
+.mistvideo select{border-radius:0}
+.mistvideo input[type=checkbox]{margin:0;margin-right:.2em;border:1px solid $semiFill;border-radius:0;-webkit-appearance:none;-moz-appearance:none;-ms-appearance:none;appearance:none;width:.8em;height:.8em;color:inherit;position:relative;cursor:pointer}
+.mistvideo input[type=checkbox]:checked:after{content:"\2713";position:absolute;bottom:-.2em;left:0;font-size:1.2em}
 .mistvideo.casting .mistvideo-displayCombo,.mistvideo.casting .mistvideo-forcePlayer,.mistvideo.casting .mistvideo-forceType{display:none!important}

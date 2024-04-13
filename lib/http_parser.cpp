@@ -651,6 +651,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb, Util::
             hdrs.push_back("User-Agent");
             while (hdrs.size()){
               if (hasHeader(hdrs.front())){
+                WARN_MSG("Request contained %s header: %s", hdrs.front().c_str(), GetHeader(hdrs.front()).c_str());
                 if (cookie.size()){cookie += "; ";}
                 cookie += hdrs.front() + std::string("=") + Encodings::URL::encode(GetHeader(hdrs.front()));
               }

@@ -70,7 +70,7 @@ namespace Triggers{
       if (getenv("Cookie")){
         cookie = std::string(getenv("Cookie"));
         if (cookie != ""){
-          HIGH_MSG("Adding cookie header: '%s'", cookie.c_str());
+          WARN_MSG("Adding cookie header to %s trigger: '%s'", trigger.c_str(), cookie.c_str());
           DL.setHeader("Cookie", cookie);
         }
       }

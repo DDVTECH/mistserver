@@ -19,9 +19,6 @@ namespace Mist{
     static bool listenMode();
     void requestHandler();
     bool onFinish();
-#ifdef SSL
-    static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
-#endif
 
   protected:
     std::string streamOut; ///< When pushing out, the output stream name
@@ -55,15 +52,6 @@ namespace Mist{
     void sendLoopedAudio(uint64_t untilTimestamp);
     // Gets the next ADTS frame in AAC file. Loops if EOF reached
     void calcNextFrameInfo();
-
-#ifdef SSL
-    // TLS-related
-    static mbedtls_entropy_context entropy;
-    static mbedtls_ctr_drbg_context ctr_drbg;
-    static mbedtls_ssl_config sslConf;
-    static mbedtls_x509_crt srvcert;
-    static mbedtls_pk_context pkey;
-#endif
   };
 }// namespace Mist
 

@@ -830,51 +830,6 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
   fprintf((FILE *)ctx, "%s:%04d: %s", file, line, str);
   fflush((FILE *)ctx);
 }
-
-/// Takes a just-accepted socketed and SSL-ifies it.
-bool Socket::Connection::sslAccept(mbedtls_ssl_config * sslConf, mbedtls_ctr_drbg_context * dbgCtx){
-  int ret;
-  server_fd = new mbedtls_net_context;
-  mbedtls_net_init(server_fd);
-  server_fd->fd = getSocket();
-
-  ssl = new mbedtls_ssl_context;
-  mbedtls_ssl_init(ssl);
-  if ((ret = mbedtls_ctr_drbg_reseed(dbgCtx, (const unsigned char *)"child", 5)) != 0){
-    FAIL_MSG("Could not reseed");
-    close();
-    return false;
-  }
-
-  // Set up the SSL connection
-  if ((ret = mbedtls_ssl_setup(ssl, sslConf)) != 0){
-    FAIL_MSG("Could not set up SSL connection");
-    close();
-    return false;
-  }
-
-  // Inform mbedtls how we'd like to use the connection (uses default bio handlers)
-  // We tell it to use non-blocking IO here
-  mbedtls_net_set_nonblock(server_fd);
-  Blocking = false;
-  mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
-  // do the SSL handshake
-  while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
-    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
-      char error_buf[200];
-      mbedtls_strerror(ret, error_buf, 200);
-      WARN_MSG("Could not handshake, SSL error: %s (%d)", error_buf, ret);
-      close();
-      return false;
-    }else{
-      Util::sleep(20);
-    }
-  }
-  sslConnected = true;
-  HIGH_MSG("Started SSL connection handler");
-  return true;
-}
-
 #endif
 
 /// Create a new TCP Socket. This socket will (try to) connect to the given host/port right away.

@@ -20,19 +20,7 @@ const char * trackType(char ID){
 
 
 namespace Mist{
-#ifdef SSL
-  bool sslEnabled = false;
-  mbedtls_entropy_context OutRTMP::entropy;
-  mbedtls_ctr_drbg_context OutRTMP::ctr_drbg;
-  mbedtls_ssl_config OutRTMP::sslConf;
-  mbedtls_x509_crt OutRTMP::srvcert;
-  mbedtls_pk_context OutRTMP::pkey;
-#endif
-
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
-#ifdef SSL
-    if (sslEnabled){myConn.sslAccept(&sslConf, &ctr_drbg);}
-#endif
     lastSilence = 0;
     hasSilence = false;
     lastAudioInserted = 0;
@@ -73,74 +61,6 @@ namespace Mist{
       setBlocking(false);
     }
   }
-
-#ifdef SSL
-  /// Listens for HTTPS requests, accepting them and connecting them to a HTTP socket
-  void OutRTMP::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
-    // No cert or key? Non-SSL mode.
-    if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2){
-      INFO_MSG("No cert or key set, regular RTMP mode");
-      Output::listener(conf, callback);
-      return;
-    }
-
-    INFO_MSG("Cert and key set, RTMPS mode");
-    sslEnabled = true;
-
-    // Declare and set up all required mbedtls structures
-    int ret;
-    mbedtls_ssl_config_init(&sslConf);
-    mbedtls_entropy_init(&entropy);
-    mbedtls_pk_init(&pkey);
-    mbedtls_x509_crt_init(&srvcert);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
-    // seed the rng
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                     (const unsigned char *)APPNAME, strlen(APPNAME))) != 0){
-      FAIL_MSG("Could not seed the random number generator!");
-    }
-
-    // Read certificate chain(s) from cmdline option(s)
-    JSON::Value certs = config->getOption("cert", true);
-    jsonForEach(certs, it){
-      if (it->asStringRef().size()){// Ignore empty entries (default is empty)
-        ret = mbedtls_x509_crt_parse_file(&srvcert, it->asStringRef().c_str());
-        if (ret != 0){
-          WARN_MSG("Could not load any certificates from file: %s", it->asStringRef().c_str());
-        }
-      }
-    }
-
-    // Read key from cmdline option
-    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0);
-    if (ret != 0){
-      FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
-      return;
-    }
-
-    if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
-                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
-      FAIL_MSG("SSL config defaults failed");
-      return;
-    }
-    mbedtls_ssl_conf_rng(&sslConf, mbedtls_ctr_drbg_random, &ctr_drbg);
-    mbedtls_ssl_conf_ca_chain(&sslConf, srvcert.next, NULL);
-    if ((ret = mbedtls_ssl_conf_own_cert(&sslConf, &srvcert, &pkey)) != 0){
-      FAIL_MSG("SSL config own certificate failed");
-      return;
-    }
-
-    Output::listener(conf, callback);
-
-    // Free all the mbedtls structures
-    mbedtls_x509_crt_free(&srvcert);
-    mbedtls_pk_free(&pkey);
-    mbedtls_ssl_config_free(&sslConf);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-  }
-#endif
 
   void OutRTMP::startPushOut(const char *args){
 
@@ -393,22 +313,6 @@ namespace Mist{
     capa["optional"]["logfile"]["short"] = "L";
     capa["optional"]["logfile"]["default"] = false;
     capa["optional"]["logfile"]["type"] = "string";
-
-#ifdef SSL
-    capa["optional"]["cert"]["name"] = "Certificate";
-    capa["optional"]["cert"]["help"] = "(Root) certificate(s) file(s) to append to chain";
-    capa["optional"]["cert"]["option"] = "--cert";
-    capa["optional"]["cert"]["short"] = "C";
-    capa["optional"]["cert"]["default"] = "";
-    capa["optional"]["cert"]["type"] = "str";
-    capa["optional"]["key"]["name"] = "Key";
-    capa["optional"]["key"]["help"] = "Private key for SSL";
-    capa["optional"]["key"]["option"] = "--key";
-    capa["optional"]["key"]["short"] = "k";
-    capa["optional"]["key"]["default"] = "";
-    capa["optional"]["key"]["type"] = "str";
-#endif
-
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
     config->addStandardPushCapabilities(capa);

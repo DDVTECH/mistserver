@@ -131,9 +131,6 @@ namespace Socket{
     void open(std::string hostname, int port, bool nonblock, bool with_ssl = false); // Open TCP connection.
     void open(std::string adres, bool nonblock = false); // Open Unix connection.
     void open(int write, int read);                      // Open from two existing file descriptors.
-#ifdef SSL
-    bool sslAccept(mbedtls_ssl_config * sslConf, mbedtls_ctr_drbg_context * dbgCtx);
-#endif
     void close();                                        ///< Close connection.
     void drop();                                         ///< Close connection without shutdown.
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).

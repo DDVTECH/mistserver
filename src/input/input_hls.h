@@ -2,12 +2,7 @@
 #include "input.h"
 #include <mist/dtsc.h>
 #include <mist/nal.h>
-#include <mist/ts_packet.h>
-#include <mist/ts_stream.h>
-#include <string>
-//#include <stdint.h>
-#include <mist/http_parser.h>
-#include <mist/urireader.h>
+#include <mist/segmentreader.h>
 
 #define BUFFERTIME 10
 
@@ -21,6 +16,7 @@ namespace Mist{
   struct playListEntries{
     std::string filename;
     std::string relative_filename;
+    std::string mapName;
     uint64_t startAtByte; ///< Byte position inside filename where to start reading
     uint64_t stopAtByte; ///< Byte position inside filename where to stop sending
     uint64_t bytePos;
@@ -61,37 +57,12 @@ namespace Mist{
     return a.filename < b.filename || (a.filename == b.filename && a.startAtByte < b.startAtByte);
   }
 
+  inline bool operator== (const playListEntries a, const playListEntries b){
+    return a.filename == b.filename && a.startAtByte == b.startAtByte;
+  }
+
   /// Keeps the segment entry list by playlist ID
   extern std::map<uint32_t, std::deque<playListEntries> > listEntries;
-
-  class SegmentDownloader: public Util::DataCallback{
-  public:
-    SegmentDownloader();
-    HTTP::URIReader segDL;
-    char *packetPtr;
-    bool loadSegment(const playListEntries &entry);
-    bool readNext();
-    virtual void dataCallback(const char *ptr, size_t size);
-    virtual size_t getDataCallbackPos() const;
-    void close();
-    bool atEnd() const;
-
-  private:
-    uint64_t startAtByte;
-    uint64_t stopAtByte;
-    bool encrypted;
-    bool buffered;
-    size_t offset;
-    bool firstPacket;
-    Util::ResizeablePointer outData;
-    Util::ResizeablePointer * currBuf;
-    size_t encOffset;
-    unsigned char tmpIvec[16];
-#ifdef SSL
-    mbedtls_aes_context aes;
-#endif
-    bool isOpen;
-  };
 
   class Playlist{
   public:
@@ -99,7 +70,7 @@ namespace Mist{
     bool isUrl() const;
     bool reload();
     void addEntry(const std::string & absolute_filename, const std::string &filename, float duration, uint64_t &bpos,
-                  const std::string &key, const std::string &keyIV, uint64_t startByte, uint64_t lenByte);
+                  const std::string &key, const std::string &keyIV, const std::string mapName, uint64_t startByte, uint64_t lenByte);
 
     std::string uri; // link to the current playlistfile
     HTTP::URL root;
@@ -118,6 +89,7 @@ namespace Mist{
     uint64_t nextUTC; ///< If non-zero, the UTC timestamp of the next segment on this playlist
     char keyAES[16];
     std::map<std::string, std::string> keys;
+    std::map<std::string, std::string> maps;
     uint64_t firstIndex; //< the index of the first segment in the playlist
     uint64_t lastSegment;
     std::map<size_t, bool> tracks;
@@ -138,7 +110,7 @@ namespace Mist{
     uint64_t nUTC; ///< Next packet timestamp in UTC unix time millis
     int64_t streamOffset; ///< bootMsOffset we need to set once we have parsed the header
     unsigned int startTime;
-    SegmentDownloader segDowner;
+    SegmentReader segDowner;
     int version;
     int targetDuration;
     bool endPlaylist;
@@ -154,11 +126,6 @@ namespace Mist{
 
     size_t currentIndex;
     std::string currentFile;
-
-    TS::Stream tsStream; ///< Used for parsing the incoming ts stream
-
-    Socket::Connection conn;
-    TS::Packet tsBuf;
 
     // Used to map packetId of packets in pidMapping
     int pidCounter;
@@ -181,8 +148,6 @@ namespace Mist{
     bool readExistingHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
-    FILE *inFile;
-    FILE *tsFile;
 
     bool readIndex();
     bool initPlaylist(const std::string &uri, bool fullInit = true);

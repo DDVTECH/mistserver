@@ -42,6 +42,9 @@ namespace Mist{
     streamType parser;
     TS::Stream tsStream;
     std::deque<MP4::TrackHeader> mp4Headers;
+    std::deque<size_t> mp4PackNo;
+    size_t mp4PacksLeft;
+    uint64_t lastMoof;
 
 
 #ifdef SSL

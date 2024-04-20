@@ -1,21 +1,5 @@
 #include "input_hls.h"
-#include <cerrno>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <mist/bitfields.h>
 #include <mist/defines.h>
-#include <mist/flv_tag.h>
-#include <mist/http_parser.h>
-#include <mist/mp4_generic.h>
-#include <mist/stream.h>
-#include <mist/timing.h>
-#include <mist/tinythread.h>
-#include <mist/ts_packet.h>
-#include <string>
-#include <sys/stat.h>
 
 #define SEM_TS_CLAIM "/MstTSIN%s"
 
@@ -217,7 +201,7 @@ namespace Mist{
     }
 
     pls.reload();
-    playlistMapping[plsTotalCount] = pls;
+    playlistMapping[pls.id] = pls;
     plsInitCount++;
     if (initOnly){
       return;
@@ -272,14 +256,6 @@ namespace Mist{
     for (size_t i = 0; i < key.size() && i < (len << 1); ++i){
       char c = key[i];
       newKey[i >> 1] |= ((c & 15) + (((c & 64) >> 6) | ((c & 64) >> 3))) << ((~i & 1) << 2);
-    }
-  }
-
-  void flipKey(char *d){
-    for (size_t i = 0; i < 8; i++){
-      char tmp = d[i];
-      d[i] = d[15 - i];
-      d[15 - i] = tmp;
     }
   }
 
@@ -411,8 +387,8 @@ namespace Mist{
         if (key == "MAP"){
           size_t mapLen = 0, mapOffset = 0;
           size_t tmpPos = val.find("BYTERANGE=\"");
-          size_t tmpPos2 = val.substr(tmpPos).find('"');
           if (tmpPos != std::string::npos){
+            size_t tmpPos2 = val.substr(tmpPos).find('"');
             mapRange = val.substr(tmpPos + 11, tmpPos2 - tmpPos - 11);
 
             size_t atSign = mapRange.find('@');
@@ -427,8 +403,8 @@ namespace Mist{
           }
 
           tmpPos = val.find("URI=\"");
-          tmpPos2 = val.substr(tmpPos + 5).find('"');
           if (tmpPos != std::string::npos){
+            size_t tmpPos2 = val.substr(tmpPos + 5).find('"');
             mapUri = val.substr(tmpPos + 5, tmpPos2);
           }
 
@@ -450,12 +426,13 @@ namespace Mist{
                 mapPLen = 0;
               }
             }
+            if (!mapLen){mapLen = mapPLen;}
             if (mapLen < mapPLen){mapPLen = mapLen;}
             if (!mapPLen){
               FAIL_MSG("Could not retrieve map from '%s'", root.link(mapUri).getUrl().c_str());
               continue;
             }
-            maps.insert(std::pair<std::string, std::string>(keyUri, std::string(mapPtr, mapPLen)));
+            maps.insert(std::pair<std::string, std::string>(mapUri+mapRange, std::string(mapPtr, mapPLen)));
           }
           continue;
         }
@@ -665,9 +642,6 @@ namespace Mist{
 
   }
 
-  InputHLS::~InputHLS(){
-  }
-
   bool InputHLS::checkArguments(){
     config->is_active = true;
     if (config->getString("input") == "-"){
@@ -751,6 +725,9 @@ namespace Mist{
         if (thisEntry.size() >= 11){
           newEntry.startAtByte = thisEntry[9u].asInt();
           newEntry.stopAtByte = thisEntry[10u].asInt();
+          if (thisEntry.size() >= 12){
+            newEntry.mapName = thisEntry[11u].asStringRef();
+          }
         }
         newList.push_back(newEntry);
       }
@@ -904,9 +881,12 @@ namespace Mist{
         thisEntries.append(entryIt->wait);
         thisEntries.append(entryIt->ivec);
         thisEntries.append(entryIt->keyAES);
-        if (entryIt->startAtByte || entryIt->stopAtByte){
+        if (entryIt->startAtByte || entryIt->stopAtByte || entryIt->mapName.size()){
           thisEntries.append(entryIt->startAtByte);
           thisEntries.append(entryIt->stopAtByte);
+          if (entryIt->mapName.size()){
+            thisEntries.append(entryIt->mapName);
+          }
         }
         thisPlaylist.append(thisEntries);
       }
@@ -1166,7 +1146,6 @@ namespace Mist{
     }
   }
 
-  // Note: bpos is overloaded here for playlist entry!
   void InputHLS::seek(uint64_t seekTime, size_t idx){
     if (idx == INVALID_TRACK_ID){return;}
     plsTimeOffset.clear();
@@ -1174,10 +1153,10 @@ namespace Mist{
     plsInterval.clear();
     segDowner.reset();
     uint64_t trackId = M.getID(idx);
+    currentPlaylist = getMappedTrackPlaylist(trackId);
 
     unsigned long plistEntry = 0;
-
-    DTSC::Keys keys(M.keys(idx));
+    DTSC::Keys keys = M.getKeys(idx);
     for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); i++){
       if (keys.getTime(i) > seekTime){
         VERYHIGH_MSG("Found elapsed key with a time of %" PRIu64 " ms. Using playlist index %zu to match requested time %lu", keys.getTime(i), plistEntry, seekTime);
@@ -1191,9 +1170,8 @@ namespace Mist{
       plistEntry = keys.getBpos(i) - 1 - playlistMapping[currentPlaylist].firstIndex;
       INSANE_MSG("Found valid key with a time of %" PRIu64 " ms at playlist index %zu while seeking", keys.getTime(i), plistEntry);
     }
-
     currentIndex = plistEntry;
-    currentPlaylist = getMappedTrackPlaylist(trackId);
+
     VERYHIGH_MSG("Seeking to index %zu on playlist %" PRIu64, currentIndex, currentPlaylist);
 
     {// Lock mutex for listEntries

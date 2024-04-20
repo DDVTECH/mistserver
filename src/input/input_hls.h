@@ -100,7 +100,7 @@ namespace Mist{
   class InputHLS : public Input{
   public:
     InputHLS(Util::Config *cfg);
-    ~InputHLS();
+    ~InputHLS(){}
     bool needsLock(){return !config->getBool("realtime");}
     bool openStreamSource();
     bool callback();

@@ -69,6 +69,8 @@ namespace MP4{
     co64Box.clear();
     stscBox.clear();
     stssBox.clear();
+    trexBox.clear();
+    trexPtr = 0;
     stco64 = false;
     trafMode = false;
     trackId = 0;
@@ -92,6 +94,11 @@ namespace MP4{
 
     trafMode = false;
     trafs.clear();
+  }
+
+  void TrackHeader::read(TREX &_trexBox){
+    trexBox.copyFrom(_trexBox);
+    if (trexBox.isType("trex")){trexPtr = &trexBox;}
   }
 
   void TrackHeader::read(TRAK &trakBox){
@@ -428,7 +435,7 @@ namespace MP4{
           // Okay, our index is inside this TRUN!
           // Let's pull the TFHD box into this as well...
           TFHD tfhd = ((TRAF)(*t)).getChild<TFHD>();
-          trunSampleInformation si = r->getSampleInformation(index - skipped, &tfhd);
+          trunSampleInformation si = r->getSampleInformation(index - skipped, &tfhd, trexPtr);
           if (byteOffset){
             size_t offset = 0;
             if (tfhd.getDefaultBaseIsMoof()){
@@ -438,7 +445,7 @@ namespace MP4{
               offset += r->getDataOffset();
               size_t target = index - skipped;
               for (size_t i = 0; i < target; ++i){
-                offset += r->getSampleInformation(i, &tfhd).sampleSize;
+                offset += r->getSampleInformation(i, &tfhd, trexPtr).sampleSize;
               }
             }else{
               FAIL_MSG("Unimplemented: trun box does not contain a data offset!");
@@ -458,7 +465,7 @@ namespace MP4{
             while (timeSample < index){
               // Most common case: timeSample is in the current TRUN box
               if (timeSample >= skipped && timeSample < skipped + count){
-                trunSampleInformation i = r->getSampleInformation(timeSample - skipped, &tfhd);
+                trunSampleInformation i = r->getSampleInformation(timeSample - skipped, &tfhd, trexPtr);
                 increaseTime(i.sampleDuration);
                 continue;
               }
@@ -475,7 +482,7 @@ namespace MP4{
                 break;
               }
               // Cool, now we know it's valid, increase the time accordingly.
-              trunSampleInformation i = runIt->getSampleInformation(timeSample - locSkipped, &tfhd);
+              trunSampleInformation i = runIt->getSampleInformation(timeSample - locSkipped, &tfhd, trexPtr);
               increaseTime(i.sampleDuration);
             }
             *time = (timeTotal * 1000) / timeScale;

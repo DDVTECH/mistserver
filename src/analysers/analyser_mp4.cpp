@@ -97,6 +97,10 @@ bool AnalyserMP4::parsePacket(){
         // Regardless of support, we now put it in our track header array (after all, even unsupported tracks can be analysed!)
         hdrs[tHdr.trackId].read(*trakIt);
       }
+      std::deque<MP4::TREX> trex = ((MP4::MOOV*)&mp4Data)->getChild<MP4::MVEX>().getChildren<MP4::TREX>();
+      for (std::deque<MP4::TREX>::iterator trexIt = trex.begin(); trexIt != trex.end(); trexIt++){
+        hdrs[trexIt->getTrackID()].read(*trexIt);
+      }
       // If we stored an mdat earlier, we can now analyse and then wipe it
       if (mdat.size()){
         MP4::Box mdatBox(mdat, false);

@@ -31,6 +31,8 @@ namespace MP4{
     /// Reads (new) track header information for processing
     void read(TRAK &trakBox);
     /// Reads (new) track header information for processing
+    void read(TREX &trexBox);
+    /// Reads (new) track header information for processing
     void read(TRAF &trafBox);
 
     /// Signal that we're going to be reading the next moof box now.
@@ -87,6 +89,8 @@ namespace MP4{
     STTS sttsBox; ///< packet durations
     CTTS cttsBox; ///< packet time offsets (optional)
     STSC stscBox; ///< packet count per chunk
+    TREX trexBox; ///< packet count per chunk
+    TREX * trexPtr; ///< Either 0 or pointer to trexBox member
     std::deque<TRAF> trafs; ///< Current traf boxes, if any
     bool stco64; // 64 bit chunk offsets?
     bool hasOffsets; ///< Are time offsets present?

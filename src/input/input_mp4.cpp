@@ -130,6 +130,12 @@ namespace Mist{
           trackHeaders.push_back(MP4::TrackHeader());
           trackHeaders.rbegin()->read(*trakIt);
         }
+        std::deque<MP4::TREX> trex = ((MP4::MOOV*)&moovBox)->getChild<MP4::MVEX>().getChildren<MP4::TREX>();
+        for (std::deque<MP4::TREX>::iterator trexIt = trex.begin(); trexIt != trex.end(); trexIt++){
+          for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); it++){
+            if (it->trackId == trexIt->getTrackID()){it->read(*trexIt);}
+          }
+        }
         hasMoov = true;
       }
       activityCounter = Util::bootSecs();

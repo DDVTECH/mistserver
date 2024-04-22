@@ -69,6 +69,23 @@ namespace MP4{
     std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class TREX : public fullBox{
+  public:
+    TREX(unsigned int trackId = 0);
+    void setTrackID(uint32_t newTrackID);
+    uint32_t getTrackID();
+    void setDefaultSampleDescriptionIndex(uint32_t newDefaultSampleDescriptionIndex);
+    uint32_t getDefaultSampleDescriptionIndex();
+    void setDefaultSampleDuration(uint32_t newDefaultSampleDuration);
+    uint32_t getDefaultSampleDuration();
+    void setDefaultSampleSize(uint32_t newDefaultSampleSize);
+    uint32_t getDefaultSampleSize();
+    void setDefaultSampleFlags(uint32_t newDefaultSampleFlags);
+    uint32_t getDefaultSampleFlags();
+    std::string toPrettyString(uint32_t indent = 0);
+  };
+
+
   struct trunSampleInformation {
     uint32_t sampleDuration;
     uint32_t sampleSize;
@@ -106,7 +123,7 @@ namespace MP4{
     uint32_t getFirstSampleFlags() const;
     uint32_t getSampleInformationCount() const;
     void setSampleInformation(trunSampleInformation newSample, uint32_t no);
-    trunSampleInformation getSampleInformation(uint32_t no, TFHD * tfhd = 0) const;
+    trunSampleInformation getSampleInformation(uint32_t no, TFHD * tfhd = 0, TREX * trex = 0) const;
     std::string toPrettyString(uint32_t indent = 0) const;
   };
 
@@ -310,22 +327,6 @@ namespace MP4{
   class MVEX : public containerBox{
   public:
     MVEX();
-  };
-
-  class TREX : public fullBox{
-  public:
-    TREX(unsigned int trackId = 0);
-    void setTrackID(uint32_t newTrackID);
-    uint32_t getTrackID();
-    void setDefaultSampleDescriptionIndex(uint32_t newDefaultSampleDescriptionIndex);
-    uint32_t getDefaultSampleDescriptionIndex();
-    void setDefaultSampleDuration(uint32_t newDefaultSampleDuration);
-    uint32_t getDefaultSampleDuration();
-    void setDefaultSampleSize(uint32_t newDefaultSampleSize);
-    uint32_t getDefaultSampleSize();
-    void setDefaultSampleFlags(uint32_t newDefaultSampleFlags);
-    uint32_t getDefaultSampleFlags();
-    std::string toPrettyString(uint32_t indent = 0);
   };
 
   class MFRA : public containerBox{

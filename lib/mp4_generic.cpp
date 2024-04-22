@@ -125,7 +125,7 @@ namespace MP4{
     if (getSampleInformationCount() < no + 1){setInt32(no + 1, 4);}
   }
 
-  trunSampleInformation TRUN::getSampleInformation(uint32_t no, TFHD * tfhd) const{
+  trunSampleInformation TRUN::getSampleInformation(uint32_t no, TFHD * tfhd, TREX * trex) const{
     trunSampleInformation ret;
     ret.sampleDuration = 0;
     ret.sampleSize = 0;
@@ -148,22 +148,34 @@ namespace MP4{
     if (flags & trunsampleDuration){
       ret.sampleDuration = getInt32(offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
-    }else if (tfhd){
+    }else if (tfhd && (tfhd->getFlags() & tfhdSampleDura)){
       ret.sampleDuration = tfhd->getDefaultSampleDuration();
+    }else if (trex){
+      ret.sampleDuration = trex->getDefaultSampleDuration();
+    }else{
+      WARN_MSG("Could not get sample duration from TRUN, TFHD or TREX box(es)!");
     }
     if (flags & trunsampleSize){
       ret.sampleSize = getInt32(offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
-    }else if (tfhd){
+    }else if (tfhd && (tfhd->getFlags() & tfhdSampleSize)){
       ret.sampleSize = tfhd->getDefaultSampleSize();
+    }else if (trex){
+      ret.sampleSize = trex->getDefaultSampleSize();
+    }else{
+      WARN_MSG("Could not get sample size from TRUN, TFHD or TREX box(es)!");
     }
     if (flags & trunsampleFlags){
       ret.sampleFlags = getInt32(offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
     }else if ((flags & trunfirstSampleFlags) && !no){
       ret.sampleFlags = getFirstSampleFlags();
-    }else if (tfhd){
+    }else if (tfhd && (tfhd->getFlags() & tfhdSampleFlag)){
       ret.sampleFlags = tfhd->getDefaultSampleFlags();
+    }else if (trex){
+      ret.sampleFlags = trex->getDefaultSampleFlags();
+    }else{
+      WARN_MSG("Could not get sample flags from TRUN, TFHD or TREX box(es)!");
     }
     if (flags & trunsampleOffsets){
       ret.sampleOffset = getInt32(offset + no * sampInfoSize + innerOffset);

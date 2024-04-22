@@ -200,6 +200,12 @@ namespace Mist{
               mp4Headers.rbegin()->read(*trakIt);
               mp4PacksLeft += mp4Headers.rbegin()->size();
             }
+            std::deque<MP4::TREX> trex = ((MP4::MOOV*)&moovBox)->getChild<MP4::MVEX>().getChildren<MP4::TREX>();
+            for (std::deque<MP4::TREX>::iterator trexIt = trex.begin(); trexIt != trex.end(); trexIt++){
+              for (std::deque<MP4::TrackHeader>::iterator it = mp4Headers.begin(); it != mp4Headers.end(); ++it){
+                if (it->trackId == trexIt->getTrackID()){it->read(*trexIt);}
+              }
+            }
             MEDIUM_MSG("Read moov box");
           }
           if (boxType == "moof"){
@@ -261,6 +267,12 @@ namespace Mist{
           mp4PackNo.push_back(0);
           mp4Headers.rbegin()->read(*trakIt);
           mp4PacksLeft += mp4Headers.rbegin()->size();
+        }
+        std::deque<MP4::TREX> trex = ((MP4::MOOV*)&moovBox)->getChild<MP4::MVEX>().getChildren<MP4::TREX>();
+        for (std::deque<MP4::TREX>::iterator trexIt = trex.begin(); trexIt != trex.end(); trexIt++){
+          for (std::deque<MP4::TrackHeader>::iterator it = mp4Headers.begin(); it != mp4Headers.end(); ++it){
+            if (it->trackId == trexIt->getTrackID()){it->read(*trexIt);}
+          }
         }
         MEDIUM_MSG("Read moov box");
       }

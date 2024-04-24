@@ -418,12 +418,19 @@ namespace Controller{
     trgs["CONN_CLOSE"]["response"] = "ignored";
     trgs["CONN_CLOSE"]["response_action"] = "None.";
 
-    trgs["CONN_PLAY"]["when"] = "Before a connection first starts playback";
+    trgs["CONN_PLAY"]["when"] = "Before a connection first starts playback, right after connecting to the stream";
     trgs["CONN_PLAY"]["stream_specific"] = true;
     trgs["CONN_PLAY"]["payload"] = "stream name (string)\nconnection address (string)\nconnector "
                                    "(string)\nrequest url (string)";
     trgs["CONN_PLAY"]["response"] = "always";
     trgs["CONN_PLAY"]["response_action"] = "If false, rejects the playback attempt.";
+
+    trgs["PLAY_REWRITE"]["when"] = "Before a connection first starts playback, right before connecting to the stream";
+    trgs["PLAY_REWRITE"]["stream_specific"] = true;
+    trgs["PLAY_REWRITE"]["payload"] = "stream name (string)\nconnection address (string)\nconnector (string)\nrequest url (string)";
+    trgs["PLAY_REWRITE"]["response"] = "always";
+    trgs["PLAY_REWRITE"]["response_action"] = "Output is connected to the returned stream name instead of the requested stream name.";
+
 
     trgs["USER_NEW"]["when"] = "Every time a new session is added to the session cache";
     trgs["USER_NEW"]["stream_specific"] = true;

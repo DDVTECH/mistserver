@@ -232,6 +232,20 @@ namespace Mist{
   void Output::initialize(){
     MEDIUM_MSG("initialize");
     if (isInitialized){return;}
+    if (!isPushing() && Triggers::shouldTrigger("PLAY_REWRITE", streamName)){
+      std::string payload = streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
+      std::string newStreamName = streamName;
+      Triggers::doTrigger("PLAY_REWRITE", payload, streamName, false, newStreamName);
+      Util::sanitizeName(newStreamName);
+      if (streamName != newStreamName){
+        if (!newStreamName.size()){
+          Util::logExitReason(ER_TRIGGER, "playback rejected by PLAY_REWRITE trigger");
+        }
+        INFO_MSG("Rewriting playback request from '%s' to '%s'", streamName.c_str(), newStreamName.c_str());
+        streamName = newStreamName;
+        Util::setStreamName(streamName);
+      }
+    }
     if (streamName.size() < 1){
       return; // abort - no stream to initialize...
     }
@@ -242,15 +256,12 @@ namespace Mist{
       return;
     }
     sought = false;
-    /*LTS-START*/
     if (Triggers::shouldTrigger("CONN_PLAY", streamName)){
-      std::string payload =
-          streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
+      std::string payload = streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
       if (!Triggers::doTrigger("CONN_PLAY", payload, streamName)){
         onFail("Not allowed to play (CONN_PLAY)");
       }
     }
-    /*LTS-END*/
   }
 
   std::string Output::getConnectedHost(){return myConn.getHost();}

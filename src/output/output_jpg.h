@@ -1,4 +1,5 @@
 #include "output_http.h"
+#include <sstream>
 
 namespace Mist{
   class OutJPG : public HTTPOutput{

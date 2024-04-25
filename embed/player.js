@@ -859,6 +859,9 @@ function MistVideo(streamName,options) {
                       me.s({type:"set_speed",play_rate:MistVideo.player.api.playbackRate});
                     });
                   }
+                  if (me.socket.readyState == me.socket.OPEN) {
+                    me.socket.onopen();
+                  }
                 },
                 destroy: function(){
                   MistVideo.log("Closing metadata socket..");

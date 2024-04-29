@@ -1139,7 +1139,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   if (Request.isMember("api_endpoint")){
     HTTP::URL url("http://localhost:4242");
     url.host = Util::listenInterface;
-    if (url.host == "::"){url.host = "::1";}
+    if (url.host == "::"){url.host = "[::1]";}
     if (url.host == "0.0.0.0"){url.host = "127.0.0.1";}
     url.port = JSON::Value(Util::listenPort).asString();
     Response["api_endpoint"] = url.getUrl();

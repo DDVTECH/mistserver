@@ -288,19 +288,23 @@ namespace HTTP{
   }
 
   void URIReader::readAll(size_t (*dataCallback)(const char *data, size_t len)){
-    while (!isEOF()){readSome(dataCallback, 419430);}
+    while (!isEOF()){
+      if (!readSome(dataCallback, 419430)){Util::sleep(50);}
+    }
   }
 
   /// Read all function, with use of callbacks
   void URIReader::readAll(Util::DataCallback &cb){
-    while (!isEOF()){readSome(1048576, cb);}
+    while (!isEOF()){
+      if (!readSome(1048576, cb)){Util::sleep(50);}
+    }
   }
 
   /// Read all blocking function, which internally uses the Nonblocking function.
   void URIReader::readAll(char *&dataPtr, size_t &dataLen){
     if (getSize() != std::string::npos){allData.allocate(getSize());}
     while (!isEOF()){
-      readSome(10046, *this);
+      if (!readSome(10046, *this)){Util::sleep(50);}
       bufPos = allData.size();
     }
     dataPtr = allData;
@@ -309,27 +313,29 @@ namespace HTTP{
 
   void httpBodyCallback(const char *ptr, size_t size){INFO_MSG("callback");}
 
-  void URIReader::readSome(size_t (*dataCallback)(const char *data, size_t len), size_t wantedLen){
+  size_t URIReader::readSome(size_t (*dataCallback)(const char *data, size_t len), size_t wantedLen){
     /// TODO: Implement
+    return 0;
   }
 
   // readsome with callback
-  void URIReader::readSome(size_t wantedLen, Util::DataCallback &cb){
-    if (isEOF()){return;}
+  size_t URIReader::readSome(size_t wantedLen, Util::DataCallback &cb){
+    if (isEOF()){return 0;}
     // Files read from the memory-mapped file
     if (stateType == HTTP::File){
       // Simple bounds check, don't read beyond the end of the file
       uint64_t dataLen = ((wantedLen + curPos) > totalSize) ? totalSize - curPos : wantedLen;
       cb.dataCallback(mapped + curPos, dataLen);
       curPos += dataLen;
-      return;
+      return dataLen;
     }
     // HTTP-based read from the Downloader
     if (stateType == HTTP::HTTP){
       // Note: this function returns true if the full read was completed only.
       // It's the reason this function returns void rather than bool.
+      size_t prev = cb.getDataCallbackPos();
       downer.continueNonBlocking(cb);
-      return;
+      return cb.getDataCallbackPos() - prev;
     }
     // Everything else uses the socket directly
     int s = downer.getSocket().Received().bytes(wantedLen);
@@ -339,7 +345,7 @@ namespace HTTP{
         s = downer.getSocket().Received().bytes(wantedLen);
       }else{
         Util::sleep(50);
-        return;
+        return s;
       }
     }
     // Future optimization: augment the Socket::Buffer to handle a Util::DataCallback as argument.
@@ -347,10 +353,11 @@ namespace HTTP{
     Util::ResizeablePointer buf;
     downer.getSocket().Received().remove(buf, s);
     cb.dataCallback(buf, s);
+    return s;
   }
 
   /// Readsome blocking function.
-  void URIReader::readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen){
+  size_t URIReader::readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen){
     // Clear the buffer if we're finished with it
     if (allData.size() && bufPos == allData.size()){
       allData.truncate(0);
@@ -365,12 +372,13 @@ namespace HTTP{
       dataPtr = allData + bufPos;
       dataLen = wantedLen;
       bufPos += wantedLen;
-      return;
+      return wantedLen;
     }
     // Ok, we have a short count. Return the amount we actually got.
     dataPtr = allData + bufPos;
     dataLen = allData.size() - bufPos;
     bufPos = allData.size();
+    return dataLen;
   }
 
   void URIReader::close(){

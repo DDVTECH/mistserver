@@ -1,7 +1,6 @@
 #pragma once
 #include "downloader.h"
 #include "util.h"
-#include <fstream>
 namespace HTTP{
 
   enum URIType{Closed = 0, File, Stream, HTTP};
@@ -37,11 +36,11 @@ namespace HTTP{
     void readAll(Util::DataCallback &cb);
 
     /// Reads wantedLen bytes of data from current position, calling the dataCallback whenever minLen/maxLen require it.
-    void readSome(size_t (*dataCallback)(const char *data, size_t len), size_t wantedLen);
+    size_t readSome(size_t (*dataCallback)(const char *data, size_t len), size_t wantedLen);
     /// Reads wantedLen bytes of data from current position, returning it in a single buffer.
-    void readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen);
+    size_t readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen);
 
-    void readSome(size_t wantedLen, Util::DataCallback &cb);
+    size_t readSome(size_t wantedLen, Util::DataCallback &cb);
 
     /// Closes the currently open URI. Does not change the internal URI value.
     void close();

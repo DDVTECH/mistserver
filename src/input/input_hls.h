@@ -156,7 +156,6 @@ namespace Mist{
 
     void parseStreamHeader();
     void parseLivePoint();
-    void streamMainLoop();
 
     uint32_t getMappedTrackId(uint64_t id);
     uint32_t getMappedTrackPlaylist(uint64_t id);

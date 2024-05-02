@@ -2308,9 +2308,6 @@ namespace DTSC{
         IPC::sharedPage toErase;
         toErase.init(pageName, 0, false, false);
         // Set the master flag so that the page will be destroyed once it leaves scope
-        #if defined(__CYGWIN__) || defined(_WIN32)
-          IPC::releasePage(pageName);
-        #endif
         toErase.master = true;
       }
       tPages.deleteRecords(1);

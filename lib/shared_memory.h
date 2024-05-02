@@ -1,16 +1,10 @@
 #pragma once
-#include <set>
 #include <string>
 #include <sys/stat.h>
 
 #include "defines.h"
-#include "timing.h"
 
-#if defined(__CYGWIN__) || defined(_WIN32)
-#include <windows.h>
-#else
 #include <semaphore.h>
-#endif
 
 #ifndef ACCESSPERMS
 #define ACCESSPERMS (S_IRWXU | S_IRWXG | S_IRWXO)
@@ -42,13 +36,7 @@ namespace IPC{
     void unlink();
 
   private:
-#if defined(__CYGWIN__) || defined(_WIN32)
-    ///\todo Maybe sometime implement anything else than 777
-    static SECURITY_ATTRIBUTES getSecurityAttributes();
-    HANDLE mySem;
-#else
     sem_t *mySem;
-#endif
     unsigned int isLocked;
     uint64_t lockTime;
     std::string myName;
@@ -90,11 +78,6 @@ namespace IPC{
     char *mapped;
   };
 
-#if defined(__CYGWIN__) || defined(_WIN32)
-  void preservePage(std::string);
-  void releasePage(std::string);
-#endif
-
 #ifdef SHM_ENABLED
   ///\brief A class for managing shared memory pages.
   class sharedPage{
@@ -109,13 +92,8 @@ namespace IPC{
     void unmap();
     void close();
     bool exists();
-#if defined(__CYGWIN__) || defined(_WIN32)
-    ///\brief The handle of the opened shared memory page
-    HANDLE handle;
-#else
     ///\brief The fd handle of the opened shared memory page
     int handle;
-#endif
     ///\brief The name of the opened shared memory page
     std::string name;
     ///\brief The size in bytes of the opened shared memory page

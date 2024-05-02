@@ -1,6 +1,7 @@
 #include <iostream>
 #include <mist/shared_memory.h>
 #include <mist/util.h>
+#include <mist/timing.h>
 
 int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();

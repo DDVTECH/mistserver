@@ -162,15 +162,8 @@ namespace Mist{
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), idx, pageNumber);
     std::string pageName(pageId);
     IPC::sharedPage toErase;
-#ifdef __CYGWIN__
-    toErase.init(pageName, 26 * 1024 * 1024, false, false);
-#else
     toErase.init(pageName, tPages.getInt("size", pageIdx), false, false);
-#endif
     // Set the master flag so that the page will be destroyed once it leaves scope
-#if defined(__CYGWIN__) || defined(_WIN32)
-    IPC::releasePage(pageName);
-#endif
     toErase.master = true;
     // Update the page on the tracks index page if needed
     uint64_t firstKeyNum = tPages.getInt(firstKey, pageIdx);

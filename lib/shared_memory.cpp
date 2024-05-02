@@ -1,7 +1,4 @@
-#include "auth.h"
-#include "bitfields.h"
 #include "defines.h"
-#include "procs.h"
 #include "shared_memory.h"
 #include "stream.h"
 #include "timing.h"
@@ -10,32 +7,15 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <iostream>
 #include <sys/mman.h>
 #include <sys/sem.h>
 #include <unistd.h>
 
-#if defined(__CYGWIN__) || defined(_WIN32)
-#include <accctrl.h>
-#include <aclapi.h>
-#include <windows.h>
-#endif
-
 namespace IPC{
-
-#if defined(__CYGWIN__) || defined(_WIN32)
-  static std::map<std::string, sharedPage> preservedPages;
-  void preservePage(std::string p){preservedPages[p].init(p, 0, false, false);}
-  void releasePage(std::string p){preservedPages.erase(p);}
-#endif
 
   ///\brief Empty semaphore constructor, clears all values
   semaphore::semaphore(){
-#if defined(__CYGWIN__) || defined(_WIN32)
-    mySem = 0;
-#else
     mySem = SEM_FAILED;
-#endif
     isLocked = 0;
   }
 
@@ -46,11 +26,7 @@ namespace IPC{
   /// otherwise \param value The initial value of the semaphore if O_CREAT is given in oflag,
   /// ignored otherwise
   semaphore::semaphore(const char *name, int oflag, mode_t mode, unsigned int value, bool noWait){
-#if defined(__CYGWIN__) || defined(_WIN32)
-    mySem = 0;
-#else
     mySem = SEM_FAILED;
-#endif
     isLocked = 0;
     open(name, oflag, mode, value, noWait);
   }
@@ -60,11 +36,7 @@ namespace IPC{
 
   ///\brief Returns whether we have a valid semaphore
   semaphore::operator bool() const{
-#if defined(__CYGWIN__) || defined(_WIN32)
-    return mySem != 0;
-#else
     return mySem != SEM_FAILED;
-#endif
   }
 
   ///\brief Opens a semaphore
@@ -85,33 +57,6 @@ namespace IPC{
     }
     int timer = 0;
     while (!(*this) && timer++ < 10){
-#if defined(__CYGWIN__) || defined(_WIN32)
-      std::string semaName = "Global\\";
-      semaName += (name + 1);
-      if (oflag & O_CREAT){
-        if (oflag & O_EXCL){
-          // attempt opening, if succes, close handle and return false;
-          HANDLE tmpSem = OpenMutex(SYNCHRONIZE, false, semaName.c_str());
-          if (tmpSem){
-            CloseHandle(tmpSem);
-            mySem = 0;
-            break;
-          }
-        }
-        SECURITY_ATTRIBUTES security = getSecurityAttributes();
-        mySem = CreateMutex(&security, true, semaName.c_str());
-        if (value){ReleaseMutex(mySem);}
-      }else{
-        mySem = OpenMutex(SYNCHRONIZE, false, semaName.c_str());
-      }
-      if (!(*this)){
-        if (GetLastError() == ERROR_FILE_NOT_FOUND && !noWait){// Error code 2
-          Util::wait(Util::expBackoffMs(timer-1, 10, 5000));
-        }else{
-          break;
-        }
-      }
-#else
       if (oflag & O_CREAT){
         mySem = sem_open(name, oflag, mode, value);
 #if defined(__APPLE__)
@@ -132,21 +77,14 @@ namespace IPC{
           break;
         }
       }
-#endif
     }
     if (*this){myName = (char *)name;}
   }
 
   ///\brief Returns the current value of the semaphore
   int semaphore::getVal() const{
-#if defined(__CYGWIN__) || defined(_WIN32)
-    LONG res;
-    ReleaseSemaphore(mySem, 0,
-                     &res); // not really release.... just checking to see if I can get the value this way
-#else
     int res;
     sem_getvalue(mySem, &res);
-#endif
     return res;
   }
 
@@ -159,11 +97,7 @@ namespace IPC{
 #endif
       return;
     }
-#if defined(__CYGWIN__) || defined(_WIN32)
-    ReleaseMutex(mySem);
-#else
     sem_post(mySem);
-#endif
     --isLocked;
 #if DEBUG >= DLVL_DEVEL
     if (!isLocked){
@@ -186,12 +120,8 @@ namespace IPC{
 #if DEBUG >= DLVL_DEVEL
       uint64_t preLockTime = Util::getMicros();
 #endif
-#if defined(__CYGWIN__) || defined(_WIN32)
-      WaitForSingleObject(mySem, INFINITE);
-#else
       int tmp;
       do{tmp = sem_wait(mySem);}while (tmp == -1 && errno == EINTR);
-#endif
 #if DEBUG >= DLVL_DEVEL
       lockTime = Util::getMicros();
       if (lockTime - preLockTime > 50000){
@@ -212,15 +142,7 @@ namespace IPC{
   bool semaphore::tryWait(){
     if (!(*this)){return false;}
     int result;
-#if defined(__CYGWIN__) || defined(_WIN32)
-    result = WaitForSingleObject(mySem, 0); // wait at most 1ms
-    if (result == 0x80){
-      WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
-      result = 0;
-    }
-#else
     do{result = sem_trywait(mySem);}while (result == -1 && errno == EINTR);
-#endif
     isLocked += (result == 0 ? 1 : 0);
     if (isLocked == 1){lockTime = Util::getMicros();}
     return isLocked;
@@ -231,13 +153,7 @@ namespace IPC{
   bool semaphore::tryWait(uint64_t ms){
     if (!(*this)){return false;}
     int result;
-#if defined(__CYGWIN__) || defined(_WIN32)
-    result = WaitForSingleObject(mySem, ms); // wait at most 1s
-    if (result == 0x80){
-      WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
-      result = 0;
-    }
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
     /// \todo (roxlu) test tryWaitOneSecond, shared_memory.cpp
     uint64_t now = Util::getMicros();
     uint64_t timeout = now + (ms * 1000);
@@ -264,13 +180,7 @@ namespace IPC{
   bool semaphore::tryWaitOneSecond(){
     if (!(*this)){return false;}
     int result;
-#if defined(__CYGWIN__) || defined(_WIN32)
-    result = WaitForSingleObject(mySem, 1000); // wait at most 1s
-    if (result == 0x80){
-      WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
-      result = 0;
-    }
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
     /// \todo (roxlu) test tryWaitOneSecond, shared_memory.cpp
     uint64_t now = Util::getMicros();
     uint64_t timeout = now + 1e6;
@@ -295,13 +205,8 @@ namespace IPC{
   void semaphore::close(){
     if (*this){
       while (isLocked){post();}
-#if defined(__CYGWIN__) || defined(_WIN32)
-      CloseHandle(mySem);
-      mySem = 0;
-#else
       sem_close(mySem);
       mySem = SEM_FAILED;
-#endif
     }
     myName.clear();
   }
@@ -310,60 +215,21 @@ namespace IPC{
   /// Intended to be called from forked child processes, to drop the reference to the semaphore.
   void semaphore::abandon(){
     if (*this){
-#if defined(__CYGWIN__) || defined(_WIN32)
-      CloseHandle(mySem);
-      mySem = 0;
-#else
       sem_close(mySem);
       mySem = SEM_FAILED;
-#endif
     }
     myName.clear();
   }
 
   /// Unlinks the previously opened semaphore, closing it (if open) in the process.
   void semaphore::unlink(){
-#if defined(__CYGWIN__) || defined(_WIN32)
-    while (isLocked){post();}
-#endif
-#if !defined(__CYGWIN__) && !defined(_WIN32)
     if (myName.size()){sem_unlink(myName.c_str());}
-#endif
     if (*this){
-#if defined(__CYGWIN__) || defined(_WIN32)
-      CloseHandle(mySem);
-      mySem = 0;
-#else
       sem_close(mySem);
       mySem = SEM_FAILED;
-#endif
     }
     myName.clear();
   }
-
-#if defined(__CYGWIN__) || defined(_WIN32)
-  SECURITY_ATTRIBUTES semaphore::getSecurityAttributes(){
-    ///\todo We really should clean this up sometime probably
-    /// We currently have everything static, because the result basically depends on everything
-    static SECURITY_ATTRIBUTES result;
-    static bool resultValid = false;
-    static SECURITY_DESCRIPTOR securityDescriptor;
-    if (resultValid){return result;}
-
-    InitializeSecurityDescriptor(&securityDescriptor, SECURITY_DESCRIPTOR_REVISION);
-    if (!SetSecurityDescriptorDacl(&securityDescriptor, TRUE, NULL, FALSE)){
-      FAIL_MSG("Failed to set pSecurityDescriptor: %u", GetLastError());
-      return result;
-    }
-
-    result.nLength = sizeof(SECURITY_ATTRIBUTES);
-    result.lpSecurityDescriptor = &securityDescriptor;
-    result.bInheritHandle = FALSE;
-
-    resultValid = true;
-    return result;
-  }
-#endif
 
   /// brief Creates a shared page
   ///\param name_ The name of the page to be created
@@ -395,24 +261,15 @@ namespace IPC{
 
   /// Returns true if the open file still exists.
   bool sharedPage::exists(){
-#if defined(__CYGWIN__) || defined(_WIN32)
-    return true; // Not implemented under Windows: shared memory ALWAYS exists if open!
-#else
     struct stat sb;
     if (fstat(handle, &sb)){return false;}
     return (sb.st_nlink > 0);
-#endif
   }
 
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap(){
     if (mapped){
-#if defined(__CYGWIN__) || defined(_WIN32)
-      // under Cygwin, the mapped location is shifted by 4 to contain the page size.
-      UnmapViewOfFile(mapped - 4);
-#else
       munmap(mapped, len);
-#endif
       mapped = 0;
       len = 0;
     }
@@ -423,12 +280,8 @@ namespace IPC{
     unmap();
     if (handle > 0){
       INSANE_MSG("Closing page %s in %s mode", name.c_str(), master ? "master" : "client");
-#if defined(__CYGWIN__) || defined(_WIN32)
-      CloseHandle(handle);
-#else
       ::close(handle);
       if (master && name != ""){shm_unlink(name.c_str());}
-#endif
       handle = 0;
     }
   }
@@ -457,37 +310,6 @@ namespace IPC{
     if (name.size()){
       INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(),
                  master ? "master" : "client", autoBackoff ? "with" : "without");
-#if defined(__CYGWIN__) || defined(_WIN32)
-      if (master){
-        // Under cygwin, all pages are 4 bytes longer than claimed.
-        handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len + 4, name.c_str());
-      }else{
-        int i = 0;
-        do{
-          if (i != 0){Util::wait(Util::expBackoffMs(i-1, 10, 10000));}
-          handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());
-          i++;
-        }while (i <= 10 && !handle && autoBackoff);
-      }
-      if (!handle){
-        MEDIUM_MSG("%s for page %s failed with error code %u",
-                   (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), GetLastError());
-        return;
-      }
-      mapped = (char *)MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-      if (!mapped){
-        FAIL_MSG("MapViewOfFile for page %s failed with error code %u", name.c_str(), GetLastError());
-        return;
-      }
-      // Under cygwin, the extra 4 bytes contain the real size of the page.
-      if (master){
-        Bit::htobl(mapped, len);
-      }else{
-        len = Bit::btohl(mapped);
-      }
-      // Now shift by those 4 bytes.
-      mapped += 4;
-#else
       handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
       if (handle == -1){
         if (master){
@@ -537,7 +359,6 @@ namespace IPC{
         mapped = 0;
         return;
       }
-#endif
     }
   }
 

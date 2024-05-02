@@ -153,11 +153,11 @@ static inline void show_stackframe(){}
 #define FLIP_MIN_DURATION 20000
 
 // New meta
-#define SHM_STREAM_META "MstMeta%s" //%s stream name
+#define SHM_STREAM_META "/MstMeta%s" //%s stream name
 #define SHM_STREAM_META_LEN 8 * 1024 * 1024
 #define SHM_STREAM_META_ITEM 2 * 1024
 
-#define SHM_STREAM_TM "MstTrak%s@%" PRIu32 "-%zu" //%s stream name
+#define SHM_STREAM_TM "/MstTrak%s@%" PRIu32 "-%zu" //%s stream name
 #define SHM_STREAM_TRACK_ITEM 16 * 1024 * 1024
 #define SHM_STREAM_TRACK_LEN 4 * SHM_STREAM_TRACK_ITEM
 
@@ -195,34 +195,34 @@ static inline void show_stackframe(){}
 #define TRACK_PAGE_OFFSET 100
 #define TRACK_PAGE_RECORDSIZE 36
 
-#define COMMS_STATISTICS "MstStat"
+#define COMMS_STATISTICS "/MstStat"
 #define COMMS_STATISTICS_INITSIZE 16 * 1024 * 1024
 
-#define COMMS_USERS "MstUser%s" //%s stream name
+#define COMMS_USERS "/MstUser%s" //%s stream name
 #define COMMS_USERS_INITSIZE 512 * 1024
 
-#define COMMS_SESSIONS "MstSession%s"
+#define COMMS_SESSIONS "/MstSession%s"
 #define COMMS_SESSIONS_INITSIZE 8 * 1024 * 1024
 
 #define CUSTOM_VARIABLES_INITSIZE 64 * 1024
 
-#define EXTWRITERS "MstExtWriters"
+#define EXTWRITERS "/MstExtWriters"
 
 #define EXTWRITERS_INITSIZE 1 * 1024 * 1024
 
 #define SEM_STATISTICS "/MstStat"
 #define SEM_USERS "/MstUser%s" //%s stream name
 
-#define SHM_TRACK_DATA "MstData%s@%zu_%" PRIu32 //%s stream name, %zu track ID, %PRIu32 page #
+#define SHM_TRACK_DATA "/MstData%s@%zu_%" PRIu32 //%s stream name, %zu track ID, %PRIu32 page #
 // End new meta
 
 #define INPUT_USER_INTERVAL 250
 
-#define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
-#define SHM_STREAM_CONF "MstSCnf%s"   //%s stream name
-#define SHM_STREAM_IPID "MstIPID%s"   //%s stream name
-#define SHM_STREAM_PPID "MstPPID%s"   //%s stream name
-#define SHM_GLOBAL_CONF "MstGlobalConfig"
+#define SHM_STREAM_STATE "/MstSTATE%s" //%s stream name
+#define SHM_STREAM_CONF "/MstSCnf%s"   //%s stream name
+#define SHM_STREAM_IPID "/MstIPID%s"   //%s stream name
+#define SHM_STREAM_PPID "/MstPPID%s"   //%s stream name
+#define SHM_GLOBAL_CONF "/MstGlobalConfig"
 #define STRMSTAT_OFF 0
 #define STRMSTAT_INIT 1
 #define STRMSTAT_BOOT 2
@@ -231,20 +231,20 @@ static inline void show_stackframe(){}
 #define STRMSTAT_SHUTDOWN 5
 #define STRMSTAT_INVALID 255
 
-#define SHM_TRIGGER "MstTRGR%s" //%s trigger name
+#define SHM_TRIGGER "/MstTRGR%s" //%s trigger name
 #define SEM_LIVE "/MstLIVE%s"   //%s stream name
 #define SEM_INPUT "/MstInpt%s"  //%s stream name
 #define SEM_TRACKLIST "/MstTRKS%s"  //%s stream name
 #define SEM_SESSION "/MstSess%s"
 #define SEM_SESSCACHE "/MstSessCacheLock"
 #define SESS_TIMEOUT 600 // Session timeout in seconds
-#define SHM_CAPA "MstCapa"
-#define SHM_PROTO "MstProt"
-#define SHM_PROXY "MstProx"
-#define SHM_STATE_LOGS "MstStateLogs"
-#define SHM_STATE_ACCS "MstStateAccs"
-#define SHM_STATE_STREAMS "MstStateStreams"
-#define SHM_CUSTOM_VARIABLES "MstVars"
+#define SHM_CAPA "/MstCapa"
+#define SHM_PROTO "/MstProt"
+#define SHM_PROXY "/MstProx"
+#define SHM_STATE_LOGS "/MstStateLogs"
+#define SHM_STATE_ACCS "/MstStateAccs"
+#define SHM_STATE_STREAMS "/MstStateStreams"
+#define SHM_CUSTOM_VARIABLES "/MstVars"
 #define NAME_BUFFER_SIZE 200 // char buffer size for snprintf'ing shm filenames
 #define SHM_SESSIONS "/MstSess"
 #define SHM_SESSIONS_ITEM 165     // 4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync
@@ -256,7 +256,7 @@ static inline void show_stackframe(){}
 #define IPC_MAX_LEN 250 // most other implementation a maximum of 251, including terminating null
 #endif
 
-#define SHM_STREAM_ENCRYPT "MstCRYP%s" //%s stream name
+#define SHM_STREAM_ENCRYPT "/MstCRYP%s" //%s stream name
 
 #define SIMUL_TRACKS 40
 

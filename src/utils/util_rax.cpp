@@ -11,6 +11,7 @@ int main(int argc, char **argv){
   IPC::sharedPage f(argv[1], 0, false, false);
   if (!f.mapped){
     std::cout << "Could not open " << argv[1] << ": does not exist" << std::endl;
+    return 1;
   }
   const Util::RelAccX A(f.mapped, false);
   if (!A.isReady()){

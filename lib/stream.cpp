@@ -864,7 +864,7 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
             break;
           }
           //Check for external writer support
-          if (front == "/" && back.size() && checkTarget.substr(checkTarget.size() - back.size()) == back){
+          if (front == "/" && back.size() && checkTarget.size() >= back.size() && checkTarget.substr(checkTarget.size() - back.size()) == back){
             HTTP::URL tUri(target);
             // If it is a remote target, we might need to spawn an external binary
             if (tUri.isLocalPath()){continue;}

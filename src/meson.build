@@ -14,3 +14,31 @@ executables += {
   'deps' : [libmist_dep]
 }
 
+executables += {
+  'name': 'MistServer',
+  'sources': [
+    files(
+      'output/mist_out.cpp',
+      'output/output.cpp',
+      'output/output_rtmp.cpp'
+    ),
+    io_cpp,
+    header_tgts
+  ],
+  'defines': [
+    string_opt.format('OUTPUTTYPE', 'output_rtmp.h')
+  ],
+  'deps' : [libmist_dep]
+}
+  # executables += {
+  #   'name': 'MistOut'+output.get('name'),
+  #   'sources' : [
+  #     sources,
+  #     header_tgts
+  #   ],
+  #   'deps' : deps,
+  #   'defines' : [
+  #     string_opt.format('OUTPUTTYPE', 'output_'+output.get('format')+'.h'),
+  #     '-DTS_BASECLASS='+tsBaseClass
+  #   ]
+  # }

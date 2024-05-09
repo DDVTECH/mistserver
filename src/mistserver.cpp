@@ -9,6 +9,7 @@
 #include "output/output_http_internal.h"
 #include "input/mist_in.cpp"
 #include "input/input_buffer.h"
+#include "session.cpp"
 
 int main(int argc, char *argv[]){
   if (argc < 2) {
@@ -34,6 +35,9 @@ int main(int argc, char *argv[]){
   }
   else if (strcmp(argv[1], "MistInBuffer") == 0) {
     return InputMain<Mist::inputBuffer>(new_argc, new_argv);
+  }
+  else if (strcmp(argv[1], "MistSession") == 0) {
+    return SessionMain(new_argc, new_argv);
   }
   INFO_MSG("binary not found: %s", argv[1]);
   return 0;

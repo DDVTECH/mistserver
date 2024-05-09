@@ -112,7 +112,7 @@ void userOnDisconnect(Comms::Connections & connections, size_t idx){
   connPktretrans.erase(idx);
 }
 
-int main(int argc, char **argv){
+int SessionMain(int argc, char **argv){
   Comms::Sessions sessions;
   uint64_t lastSeen = Util::bootSecs();
   Util::redirectLogsIfNeeded();

@@ -19,6 +19,8 @@ executables += {
   'sources': [
     files(
       'mistserver.cpp',
+      'input/input.cpp',
+      'input/input_buffer.cpp',
       'output/output.cpp',
       'output/output_hls.cpp',
       'output/output_http.cpp',

@@ -6,6 +6,8 @@
 #include "output/mist_out.cpp"
 #include "output/output_rtmp.h"
 #include "output/output_hls.h"
+#include "input/mist_in.cpp"
+#include "input/input_buffer.h"
 
 int main(int argc, char *argv[]){
   if (argc < 2) {
@@ -25,6 +27,9 @@ int main(int argc, char *argv[]){
   }
   else if (strcmp(argv[1], "MistOutRTMP") == 0) {
     return OutputMain<Mist::OutRTMP>(new_argc, new_argv);
+  }
+  else if (strcmp(argv[1], "MistInBuffer") == 0) {
+    return InputMain<Mist::inputBuffer>(new_argc, new_argv);
   }
   INFO_MSG("binary not found: %s", argv[1]);
   return 0;

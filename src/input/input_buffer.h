@@ -58,5 +58,3 @@ namespace Mist{
     std::map<size_t, size_t> sourcePids;
   };
 }// namespace Mist
-
-typedef Mist::InputBuffer mistIn;

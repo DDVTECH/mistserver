@@ -24,12 +24,14 @@ executables += {
       'output/output.cpp',
       'output/output_hls.cpp',
       'output/output_http.cpp',
+      'output/output_http_internal.cpp',
       'output/output_ts.cpp',
       'output/output_ts_base.cpp',
       'output/output_rtmp.cpp'
     ),
     io_cpp,
-    header_tgts
+    header_tgts,
+    embed_tgts
   ],
   'defines': [
     '-DTS_BASECLASS=HTTPOutput',

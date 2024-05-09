@@ -6,6 +6,7 @@
 #include "output/mist_out.cpp"
 #include "output/output_rtmp.h"
 #include "output/output_hls.h"
+#include "output/output_http_internal.h"
 #include "input/mist_in.cpp"
 #include "input/input_buffer.h"
 
@@ -24,6 +25,9 @@ int main(int argc, char *argv[]){
   }
   if (strcmp(argv[1], "MistOutHLS") == 0) {
     return OutputMain<Mist::OutHLS>(new_argc, new_argv);
+  }
+  else if (strcmp(argv[1], "MistOutHTTP") == 0) {
+    return OutputMain<Mist::OutHTTP>(new_argc, new_argv);
   }
   else if (strcmp(argv[1], "MistOutRTMP") == 0) {
     return OutputMain<Mist::OutRTMP>(new_argc, new_argv);

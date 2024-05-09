@@ -1,10 +1,12 @@
-#include OUTPUTTYPE
+#include "output_rtmp.h"
+#include "output_hls.h"
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/socket.h>
 #include <mist/util.h>
 #include <mist/stream.h>
 
+template<class T>
 int spawnForked(Socket::Connection &S){
   {
     struct sigaction new_action;
@@ -13,7 +15,7 @@ int spawnForked(Socket::Connection &S){
     new_action.sa_flags = 0;
     sigaction(SIGUSR1, &new_action, NULL);
   }
-  mistOut tmp(S);
+  T tmp(S);
   return tmp.run();
 }
 
@@ -24,15 +26,16 @@ void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   Util::Config::is_active = false;
 }
 
-int main(int argc, char *argv[]){
+template<class T>
+int Main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
-  mistOut::init(&conf);
+  T::init(&conf);
   if (conf.parseArgs(argc, argv)){
     if (conf.getBool("json")){
-      mistOut::capa["version"] = PACKAGE_VERSION;
-      std::cout << mistOut::capa.toString() << std::endl;
+      T::capa["version"] = PACKAGE_VERSION;
+      std::cout << T::capa.toString() << std::endl;
       return -1;
     }
     {
@@ -50,7 +53,7 @@ int main(int argc, char *argv[]){
       }
     }
     conf.activate();
-    if (mistOut::listenMode()){
+    if (T::listenMode()){
       {
         struct sigaction new_action;
         new_action.sa_sigaction = handleUSR1;
@@ -58,7 +61,7 @@ int main(int argc, char *argv[]){
         new_action.sa_flags = 0;
         sigaction(SIGUSR1, &new_action, NULL);
       }
-      mistOut::listener(conf, spawnForked);
+      T::listener(conf, spawnForked<T>);
       if (conf.is_restarting && Socket::checkTrueSocket(0)){
         INFO_MSG("Reloading input while re-using server socket");
         execvp(argv[0], argv);
@@ -66,7 +69,7 @@ int main(int argc, char *argv[]){
       }
     }else{
       Socket::Connection S(fileno(stdout), fileno(stdin));
-      mistOut tmp(S);
+      T tmp(S);
       return tmp.run();
     }
   }
@@ -74,3 +77,25 @@ int main(int argc, char *argv[]){
   return 0;
 }
 
+int main(int argc, char *argv[]){
+  if (argc < 2) {
+    INFO_MSG("usage: %s [MistSomething]", argv[0]);
+    return 1;
+  }
+  // Create a new argv array without argv[1]
+  int new_argc = argc - 1;
+  char** new_argv = new char*[new_argc];
+  for (int i = 0, j = 0; i < argc; ++i) {
+      if (i != 1) {
+          new_argv[j++] = argv[i];
+      }
+  }
+  if (strcmp(argv[1], "MistOutHLS") == 0) {
+    return Main<Mist::OutHLS>(new_argc, new_argv);
+  }
+  else if (strcmp(argv[1], "MistOutRTMP") == 0) {
+    return Main<Mist::OutRTMP>(new_argc, new_argv);
+  }
+  INFO_MSG("binary not found: %s", argv[1]);
+  return 0;
+}

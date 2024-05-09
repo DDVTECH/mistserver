@@ -20,16 +20,37 @@ executables += {
     files(
       'output/mist_out.cpp',
       'output/output.cpp',
+      'output/output_hls.cpp',
+      'output/output_http.cpp',
+      'output/output_ts.cpp',
+      'output/output_ts_base.cpp',
       'output/output_rtmp.cpp'
     ),
     io_cpp,
     header_tgts
   ],
   'defines': [
-    string_opt.format('OUTPUTTYPE', 'output_rtmp.h')
+    '-DTS_BASECLASS=HTTPOutput',
   ],
   'deps' : [libmist_dep]
 }
+
+# executables += {
+#   'name': 'MistServer',
+#   'sources': [
+#     files(
+#       'output/mist_out.cpp',
+#       'output/output.cpp',
+#       'output/output_rtmp.cpp'
+#     ),
+#     io_cpp,
+#     header_tgts
+#   ],
+#   'defines': [
+#     string_opt.format('OUTPUTTYPE', 'output_rtmp.h')
+#   ],
+#   'deps' : [libmist_dep]
+# }
   # executables += {
   #   'name': 'MistOut'+output.get('name'),
   #   'sources' : [

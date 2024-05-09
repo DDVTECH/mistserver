@@ -25,5 +25,3 @@ namespace Mist{
     uint64_t until;
   };
 }// namespace Mist
-
-typedef Mist::OutHLS mistOut;

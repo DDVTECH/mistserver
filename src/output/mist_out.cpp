@@ -17,7 +17,7 @@ int spawnForked(Socket::Connection &S){
   return tmp.run();
 }
 
-void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
+void handleUSR1Output(int signum, siginfo_t *sigInfo, void *ignore){
   HIGH_MSG("USR1 received - triggering rolling restart");
   Util::Config::is_restarting = true;
   Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1");
@@ -54,7 +54,7 @@ int OutputMain(int argc, char *argv[]){
     if (T::listenMode()){
       {
         struct sigaction new_action;
-        new_action.sa_sigaction = handleUSR1;
+        new_action.sa_sigaction = handleUSR1Output;
         sigemptyset(&new_action.sa_mask);
         new_action.sa_flags = 0;
         sigaction(SIGUSR1, &new_action, NULL);

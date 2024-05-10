@@ -1,4 +1,8 @@
 #include "controller_capabilities.h"
+#include "../output/output_rtmp.h"
+#include "../output/output_hls.h"
+#include "../output/output_http_internal.h"
+#include "../input/input_buffer.h"
 #include <fstream>
 #include <mist/config.h>
 #include <mist/defines.h>
@@ -249,6 +253,7 @@ namespace Controller{
 
   /// Aquire list of available protocols, storing in global 'capabilities' JSON::Value.
   void checkAvailProtocols(){
+    #ifdef GO_AWAY
     std::deque<std::string> execs;
     Util::getMyExec(execs);
     std::string arg_one;
@@ -313,6 +318,15 @@ namespace Controller{
         }
       }
     }
+    #else
+    // Mist::OutHTTP
+    // Mist::OutRTMP
+    // Mist::inputBuffer
+    capabilities["inputs"]["Buffer"] = JSON::fromString(Mist::inputBuffer::capa.toString());
+    capabilities["connectors"]["HLS"] = JSON::fromString(Mist::OutHLS::capa.toString());
+    capabilities["connectors"]["HTTP"] = JSON::fromString(Mist::OutHTTP::capa.toString());
+    capabilities["connectors"]["RTMP"] = JSON::fromString(Mist::OutRTMP::capa.toString());
+    #endif
   }
 
   ///\brief A class storing information about the cpu the server is running on.

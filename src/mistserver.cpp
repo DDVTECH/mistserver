@@ -10,11 +10,12 @@
 #include "input/mist_in.cpp"
 #include "input/input_buffer.h"
 #include "session.cpp"
+#include "controller/controller.cpp"
 
 int main(int argc, char *argv[]){
+  INFO_MSG("starting")
   if (argc < 2) {
-    INFO_MSG("usage: %s [MistSomething]", argv[0]);
-    return 1;
+    return 201;
   }
   // Create a new argv array without argv[1]
   int new_argc = argc - 1;
@@ -23,6 +24,9 @@ int main(int argc, char *argv[]){
       if (i != 1) {
           new_argv[j++] = argv[i];
       }
+  }
+ if (strcmp(argv[1], "MistController") == 0) {
+    return ControllerMain(new_argc, new_argv);
   }
   if (strcmp(argv[1], "MistOutHLS") == 0) {
     return OutputMain<Mist::OutHLS>(new_argc, new_argv);
@@ -39,6 +43,9 @@ int main(int argc, char *argv[]){
   else if (strcmp(argv[1], "MistSession") == 0) {
     return SessionMain(new_argc, new_argv);
   }
+  else {
+    return ControllerMain(argc, argv);
+  }
   INFO_MSG("binary not found: %s", argv[1]);
-  return 0;
+  return 202;
 }

@@ -126,14 +126,14 @@ namespace Controller{
   }
 
   static inline void buildPipedArguments(JSON::Value &p, char *argarr[], const JSON::Value &capabilities){
-    int argnum = 0;
+    int argnum = 1;
     static std::string tmparg;
-    tmparg = Util::getMyPath() + std::string("MistOut") + p["connector"].asStringRef();
-    struct stat buf;
-    if (::stat(tmparg.c_str(), &buf) != 0){
-      tmparg = Util::getMyPath() + std::string("MistConn") + p["connector"].asStringRef();
-    }
-    if (::stat(tmparg.c_str(), &buf) != 0){return;}
+    tmparg = std::string("MistOut") + p["connector"].asStringRef();
+    // struct stat buf;
+    // if (::stat(tmparg.c_str(), &buf) != 0){
+    //   tmparg = Util::getMyPath() + std::string("MistConn") + p["connector"].asStringRef();
+    // }
+    // if (::stat(tmparg.c_str(), &buf) != 0){return;}
     argarr[argnum++] = (char *)tmparg.c_str();
     const JSON::Value &pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
@@ -160,7 +160,7 @@ namespace Controller{
 
     // used for building args
     int err = fileno(stderr);
-    char *argarr[15]; // approx max # of args (with a wide margin)
+    char *argarr[16] = {"/home/iameli/code/mistserver/build/MistServer"}; // approx max # of args (with a wide margin)
     int i;
 
     std::string tmp;
@@ -255,11 +255,12 @@ namespace Controller{
         Log("CONF", "Starting connector: " + *runningConns.begin());
         action = true;
         // clear out old args
-        for (i = 0; i < 15; i++){argarr[i] = 0;}
+        for (i = 1; i < 16; i++){argarr[i] = 0;}
         // get args for this connector
         JSON::Value p = JSON::fromString(*runningConns.begin());
         buildPipedArguments(p, (char **)&argarr, capabilities);
         // start piped w/ generated args
+        INFO_MSG("piped command[0]: %s [1]: %s", argarr[0], argarr[1])
         currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
         Triggers::doTrigger("OUTPUT_START", *runningConns.begin()); // LTS
       }

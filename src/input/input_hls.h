@@ -107,7 +107,6 @@ namespace Mist{
 
   protected:
     uint64_t zUTC; ///< Zero point in local millis, as UTC unix time millis
-    uint64_t nUTC; ///< Next packet timestamp in UTC unix time millis
     int64_t streamOffset; ///< bootMsOffset we need to set once we have parsed the header
     unsigned int startTime;
     SegmentReader segDowner;
@@ -120,7 +119,6 @@ namespace Mist{
     std::map<uint64_t, uint64_t> pidMapping;
     std::map<uint64_t, uint64_t> pidMappingR;
     std::map<int, int64_t> plsTimeOffset;
-    std::map<int, int64_t> DVRTimeOffsets;
     std::map<int, uint64_t> plsLastTime;
     std::map<int, uint64_t> plsInterval;
 
@@ -146,6 +144,7 @@ namespace Mist{
     bool preSetup();
     bool readHeader();
     bool readExistingHeader();
+    void postHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
 

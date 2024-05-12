@@ -1511,6 +1511,20 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
           if (M){
             F = (uint64_t)M.getValidTracks().size();
           }
+        }else if (j->asStringRef() == "sourcepids"){
+          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
+          if (M){
+            std::set<uint64_t> pids;
+            std::set<size_t> trks = M.getValidTracks();
+            for (std::set<size_t>::iterator ti = trks.begin(); ti != trks.end(); ++ti){
+              pids.insert(M.isClaimedBy(*ti));
+            }
+            pids.erase(0);
+            F.shrink(0);
+            for (std::set<uint64_t>::iterator pi = pids.begin(); pi != pids.end(); ++pi){
+              F.append(*pi);
+            }
+          }
         }else if (j->asStringRef() == "status"){
           uint8_t ss = Util::getStreamStatus(it->first);
           switch (ss){

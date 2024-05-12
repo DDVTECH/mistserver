@@ -424,6 +424,7 @@ namespace DTSC{
 
     void claimTrack(size_t trackIdx);
     bool isClaimed(size_t trackIdx) const;
+    uint64_t isClaimedBy(size_t trackIdx) const;
     void abandonTrack(size_t trackIdx);
     bool hasEmbeddedFrames(size_t trackIdx) const;
     bool getEmbeddedData(size_t trackIdx, size_t num, char * & dataPtr, size_t & dataLen) const;

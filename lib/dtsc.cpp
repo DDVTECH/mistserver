@@ -1908,6 +1908,10 @@ namespace DTSC{
     return (trackList.getInt(trackPidField, trackIdx) != 0);
   }
   
+  uint64_t Meta::isClaimedBy(size_t trackIdx) const{
+    return trackList.getInt(trackPidField, trackIdx);
+  }
+  
   void Meta::claimTrack(size_t trackIdx){
     if (trackList.getInt(trackPidField, trackIdx) != 0){
       FAIL_MSG("Cannot claim track: already claimed by PID %" PRIu64, trackList.getInt(trackPidField, trackIdx));

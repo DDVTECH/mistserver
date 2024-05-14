@@ -13,9 +13,8 @@
 #include "controller/controller.cpp"
 
 int main(int argc, char *argv[]){
-  INFO_MSG("starting")
   if (argc < 2) {
-    return 201;
+    return ControllerMain(argc, argv);
   }
   // Create a new argv array without argv[1]
   int new_argc = argc - 1;

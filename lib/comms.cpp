@@ -360,7 +360,8 @@ namespace Comms{
         Socket::hostBytesToStr(ip.data(), ip.size(), host);
         pid_t thisPid;
         std::deque<std::string> args;
-        args.push_back(Util::getMyPath() + "MistSession");
+        args.push_back(Util::getMyPath() + "MistServer");
+        args.push_back("MistSession");
         args.push_back(sessionId);
 
         // First bit defines whether to include stream name

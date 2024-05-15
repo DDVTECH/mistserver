@@ -2,6 +2,7 @@
 #include INPUTTYPE
 #endif
 #include <mist/util.h>
+#include <mist/config.h>
 
 template<class T>
 int InputMain(int argc, char *argv[]){

@@ -68,9 +68,6 @@ foreach output : outputs
 
   if output.has_key('extra')
     extra = output.get('extra')
-    if not extra.contains('debased')
-      sources += base
-    endif
     if extra.contains('http')
       sources += files('output_http.cpp')
       if extra.contains('ts')
@@ -98,6 +95,18 @@ foreach output : outputs
     if extra.contains('embed')
       sources += embed_tgts
     endif
+  endif
+
+  sources_debased = []
+  foreach source : sources
+    sources_debased += source
+  endforeach
+
+  if output.has_key('extra')
+    extra = output.get('extra')
+    if not extra.contains('debased')
+      sources += base
+    endif
   else
     sources += base
   endif
@@ -109,6 +118,9 @@ foreach output : outputs
     'sources' : [
       sources,
       header_tgts
+    ],
+    'sources_debased' : [
+      sources_debased
     ],
     'deps' : deps,
     'defines' : [

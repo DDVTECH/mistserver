@@ -74,12 +74,18 @@ foreach input : inputs
       io_cpp,
       header_tgts
     ],
+    'sources_debased' : [
+      files(
+        'input.cpp',
+        'input_'+input.get('format')+'.cpp'
+      )
+    ],
     'deps' : deps,
     'defines': [
       string_opt.format('INPUTTYPE', inputtype_header)
     ],
     'headers': [
-      inputtype_header
+      files(inputtype_header)
     ]
   }
 endforeach

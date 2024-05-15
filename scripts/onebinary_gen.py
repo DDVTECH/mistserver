@@ -50,11 +50,13 @@ for name in json_files:
   if stem.startswith(MIST_IN):
     category = "inputs"
     connector = stem[len(MIST_IN):]
-    class_name = "Mist::In" + connector
+    class_name = "Mist::Input" + connector
+    func_name = "InputMain"
   elif stem.startswith(MIST_OUT):
     category = "connectors"
     connector = stem[len(MIST_OUT):]
     class_name = "Mist::Out" + connector
+    func_name = "OutputMain"
   else:
     raise Exception("unknown binary naming convention: " + stem)
   capabilities.append({
@@ -63,6 +65,7 @@ for name in json_files:
     'connector': connector,
     'class_name': class_name,
     'binary_name' : stem,
+    'func_name': func_name,
   })
 
 cap_lines = [
@@ -85,22 +88,27 @@ Path(out_fullpath).write_text('\n'.join(cap_lines))
 
 entrypoint_lines = []
 
+for header_file in header_files:
+  entrypoint_lines.append('#include "' + header_file + '"')
+
 entrypoint_lines.extend([
   '#include <mist/config.h>',
   '#include <mist/defines.h>',
   '#include <mist/socket.h>',
   '#include <mist/util.h>',
   '#include <mist/stream.h>',
-])
-
-for header_file in header_files:
-  entrypoint_lines.append('#include "' + header_file + '"')
-
-entrypoint_lines.extend([
+  '#include "src/session.h"',
+  '#include "src/controller/controller.h"',
   '#include "src/output/mist_out.cpp"',
   '#include "src/input/mist_in.cpp"',
-  '#include "src/session.cpp"',
-  '#include "src/controller/controller.cpp"',
+])
+
+
+entrypoint_lines.extend([
+  # '#include "src/output/mist_out.cpp"',
+  # '#include "src/input/mist_in.cpp"',
+  # '#include "src/session.cpp"',
+  # '#include "src/controller/controller.cpp"',
   'int main(int argc, char *argv[]){',
   '  if (argc < 2) {',
   '    return ControllerMain(argc, argv);',
@@ -121,7 +129,7 @@ entrypoint_lines.extend([
 for cap in capabilities:
   entrypoint_lines.extend([
   '  else if (strcmp(argv[1], "' + cap['binary_name'] + '") == 0) {',
-  '    return OutputMain<' + cap['class_name'] + '>(new_argc, new_argv);',
+  '    return ' + cap['func_name'] +'<' + cap['class_name'] + '>(new_argc, new_argv);',
   '  }',
   ])
 

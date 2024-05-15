@@ -60,5 +60,5 @@ namespace Mist{
 }// namespace Mist
 
 #ifndef ONE_BINARY
-typedef Mist::inputBuffer mistIn;
+typedef Mist::InputBuffer mistIn;
 #endif

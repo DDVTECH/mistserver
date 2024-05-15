@@ -31,18 +31,23 @@ for name in args.files:
   json_str = json.dumps(text)
   category = ''
   connector = ''
+  class_name = ''
   if stem.startswith(MIST_IN):
     category = "inputs"
     connector = stem[len(MIST_IN):]
+    class_name = "Mist::In" + connector
   elif stem.startswith(MIST_OUT):
     category = "connectors"
     connector = stem[len(MIST_OUT):]
+    class_name = "Mist::Out" + connector
   else:
     raise Exception("unknown binary naming convention: " + stem)
   capabilities.append({
     'json_str': json_str,
     'category': category,
     'connector': connector,
+    'class_name': class_name,
+    'binary_name' : stem,
   })
 
 cap_lines = [
@@ -62,3 +67,58 @@ cap_lines.extend([
 
 out_fullpath = os.path.join(os.getcwd(), args.cap_header)
 Path(out_fullpath).write_text('\n'.join(cap_lines))
+
+entrypoint_lines = []
+
+entrypoint_lines.extend([
+  '#include <mist/config.h>',
+  '#include <mist/defines.h>',
+  '#include <mist/socket.h>',
+  '#include <mist/util.h>',
+  '#include <mist/stream.h>',
+  '#include "src/output/mist_out.cpp"',
+  '#include "src/output/output_rtmp.h"',
+  '#include "src/output/output_hls.h"',
+  '#include "src/output/output_http_internal.h"',
+  '#include "src/input/mist_in.cpp"',
+  '#include "src/input/input_buffer.h"',
+  '#include "src/session.cpp"',
+  '#include "src/controller/controller.cpp"',
+  'int main(int argc, char *argv[]){',
+  '  if (argc < 2) {',
+  '    return ControllerMain(argc, argv);',
+  '  }',
+  '  // Create a new argv array without argv[1]',
+  '  int new_argc = argc - 1;',
+  '  char** new_argv = new char*[new_argc];',
+  '  for (int i = 0, j = 0; i < argc; ++i) {',
+  '      if (i != 1) {',
+  '          new_argv[j++] = argv[i];',
+  '      }',
+  '  }',
+  '  if (strcmp(argv[1], "MistController") == 0) {',
+  '    return ControllerMain(new_argc, new_argv);',
+  '  }',
+])
+
+for cap in capabilities:
+  entrypoint_lines.extend([
+  '  else if (strcmp(argv[1], "' + cap['binary_name'] + '") == 0) {',
+  '    return OutputMain<' + cap['class_name'] + '>(new_argc, new_argv);',
+  '  }',
+  ])
+
+entrypoint_lines.extend([
+  '  else if (strcmp(argv[1], "MistSession") == 0) {',
+  '    return SessionMain(new_argc, new_argv);',
+  '  }',
+  '  else {',
+  '    return ControllerMain(argc, argv);',
+  '  }',
+  '  INFO_MSG("binary not found: %s", argv[1]);',
+  '  return 202;',
+  '}',
+])
+
+entrypoint_fullpath = os.path.join(os.getcwd(), args.entrypoint)
+Path(entrypoint_fullpath).write_text('\n'.join(entrypoint_lines))

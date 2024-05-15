@@ -8,7 +8,7 @@
 #include <sys/types.h>
 
 namespace Mist{
-  inputPlaylist::inputPlaylist(Util::Config *cfg) : Input(cfg){
+  InputPlaylist::InputPlaylist(Util::Config *cfg) : Input(cfg){
     capa["name"] = "Playlist";
     capa["desc"] = "Enables Playlist Input";
     capa["source_match"].append("/*.pls");
@@ -20,7 +20,7 @@ namespace Mist{
     playlistIndex = 0xFFFFFFFEull; // Not FFFFFFFF on purpose!
   }
 
-  bool inputPlaylist::checkArguments(){
+  bool InputPlaylist::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -39,7 +39,7 @@ namespace Mist{
     return true;
   }
 
-  void inputPlaylist::streamMainLoop(){
+  void InputPlaylist::streamMainLoop(){
     bool seenValidEntry = true;
     Comms::Users killSwitch;
     killSwitch.reload(streamName, (size_t)INVALID_TRACK_ID, (uint8_t)(COMM_STATUS_ACTIVE | COMM_STATUS_DONOTTRACK));
@@ -134,7 +134,7 @@ namespace Mist{
     }
   }
 
-  void inputPlaylist::reloadPlaylist(){
+  void InputPlaylist::reloadPlaylist(){
     minIndex = std::string::npos;
     maxIndex = std::string::npos;
     std::string playlistFile;

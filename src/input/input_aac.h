@@ -4,10 +4,10 @@
 #include <mist/urireader.h>
 
 namespace Mist{
-  class inputAAC : public Input{
+  class InputAAC : public Input{
   public:
-    inputAAC(Util::Config *cfg);
-    ~inputAAC();
+    InputAAC(Util::Config *cfg);
+    ~InputAAC();
 
   protected:
     // Private Functions
@@ -24,4 +24,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputAAC mistIn;
+typedef Mist::InputAAC mistIn;

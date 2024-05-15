@@ -106,10 +106,10 @@ namespace Mist{
 
   void playlistRunner(void *ptr);
 
-  class inputHLS : public Input{
+  class InputHLS : public Input{
   public:
-    inputHLS(Util::Config *cfg);
-    ~inputHLS();
+    InputHLS(Util::Config *cfg);
+    ~InputHLS();
     bool needsLock(){return !config->getBool("realtime");}
     bool openStreamSource();
     bool callback();
@@ -187,4 +187,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputHLS mistIn;
+typedef Mist::InputHLS mistIn;

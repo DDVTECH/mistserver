@@ -3,9 +3,9 @@
 #include <mist/dtsc.h>
 
 namespace Mist{
-  class inputPlaylist : public Input{
+  class InputPlaylist : public Input{
   public:
-    inputPlaylist(Util::Config *cfg);
+    InputPlaylist(Util::Config *cfg);
     bool needsLock(){return false;}
 
   protected:
@@ -28,4 +28,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputPlaylist mistIn;
+typedef Mist::InputPlaylist mistIn;

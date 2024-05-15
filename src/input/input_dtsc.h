@@ -22,9 +22,9 @@ namespace Mist{
                        ///< associated with.
   };
 
-  class inputDTSC : public Input{
+  class InputDTSC : public Input{
   public:
-    inputDTSC(Util::Config *cfg);
+    InputDTSC(Util::Config *cfg);
     bool needsLock();
 
     virtual std::string getConnectedBinHost(){
@@ -61,4 +61,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputDTSC mistIn;
+typedef Mist::InputDTSC mistIn;

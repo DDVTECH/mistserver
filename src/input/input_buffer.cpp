@@ -25,7 +25,7 @@
 /*LTS-END*/
 
 namespace Mist{
-  inputBuffer::inputBuffer(Util::Config *cfg) : Input(cfg){
+  InputBuffer::InputBuffer(Util::Config *cfg) : Input(cfg){
     firstProcTime = 0;
     lastProcTime = 0;
     allProcsRunning = false;
@@ -136,7 +136,7 @@ namespace Mist{
     resumeMode = false;
   }
 
-  inputBuffer::~inputBuffer(){
+  InputBuffer::~InputBuffer(){
     config->is_active = false;
     if (liveMeta){
       liveMeta->unlink();
@@ -146,7 +146,7 @@ namespace Mist{
   }
 
   /// Cleans up any left-over data for the current stream
-  void inputBuffer::onCrash(){
+  void InputBuffer::onCrash(){
     WARN_MSG("Buffer crashed. Cleaning.");
     streamName = config->getString("streamname");
 
@@ -185,7 +185,7 @@ namespace Mist{
   /// FULL, EMPTY, DRY or RECOVER (depending on current state)
   /// Detected issues in string format, or empty string if no issues
   /// ~~~~~~~~~~~~~~~
-  void inputBuffer::updateMeta(){
+  void InputBuffer::updateMeta(){
     if (!M){
       Util::logExitReason(ER_SHM_LOST, "Lost connection to metadata");
       return;
@@ -262,7 +262,7 @@ namespace Mist{
   /// * first fragment hasn't been at least lastms-firstms ms in buffer
   /// * less than 8 times the biggest fragment duration is buffered
   /// If a key was deleted and the first buffered data page is no longer used, it is deleted also.
-  bool inputBuffer::removeKey(size_t tid){
+  bool InputBuffer::removeKey(size_t tid){
     DTSC::Keys keys(M.keys(tid));
     // If this track is empty, abort
     if (!keys.getValidCount()){return false;}
@@ -290,7 +290,7 @@ namespace Mist{
     return meta.removeFirstKey(tid);
   }
 
-  void inputBuffer::finish(){
+  void InputBuffer::finish(){
     if (M.getValidTracks().size()){
       /*LTS-START*/
       if (M.getBufferWindow()){
@@ -306,7 +306,7 @@ namespace Mist{
     updateMeta();
   }
 
-  void inputBuffer::removeTrack(size_t tid){
+  void InputBuffer::removeTrack(size_t tid){
     size_t lastUser = users.recordCount();
     for (size_t i = 0; i < lastUser; ++i){
       if (users.getStatus(i) == COMM_STATUS_INVALID){continue;}
@@ -330,7 +330,7 @@ namespace Mist{
     /*LTS-END*/
   }
 
-  void inputBuffer::removeUnused(){
+  void InputBuffer::removeUnused(){
     meta.reloadReplacedPagesIfNeeded();
     if (!meta){
       return;
@@ -433,7 +433,7 @@ namespace Mist{
     updateMeta();
   }
 
-  void inputBuffer::userLeadIn(){
+  void InputBuffer::userLeadIn(){
     meta.reloadReplacedPagesIfNeeded();
     /*LTS-START*/
     // Reload the configuration to make sure we stay up to date with changes through the api
@@ -475,7 +475,7 @@ namespace Mist{
     }
     hasPush = false;
   }
-  void inputBuffer::userOnActive(size_t id){
+  void InputBuffer::userOnActive(size_t id){
     ///\todo Add tracing of earliest watched keys, to prevent data going out of memory for
     /// still-watching viewers
     if (!(users.getStatus(id) & COMM_STATUS_DISCONNECT) && (users.getStatus(id) & COMM_STATUS_SOURCE)){
@@ -486,7 +486,7 @@ namespace Mist{
 
     if (!(users.getStatus(id) & COMM_STATUS_DONOTTRACK)){++connectedUsers;}
   }
-  void inputBuffer::userOnDisconnect(size_t id){
+  void InputBuffer::userOnDisconnect(size_t id){
     if (sourcePids.count(id)){
       if (!resumeMode){
         INFO_MSG("Disconnected track %zu", sourcePids[id]);
@@ -498,7 +498,7 @@ namespace Mist{
       sourcePids.erase(id);
     }
   }
-  void inputBuffer::userLeadOut(){
+  void InputBuffer::userLeadOut(){
     if (config->is_active && streamStatus){
       streamStatus.mapped[0] = (hasPush && allProcsRunning) ? STRMSTAT_READY : STRMSTAT_WAIT;
     }
@@ -526,7 +526,7 @@ namespace Mist{
     /*LTS-END*/
   }
 
-  uint64_t inputBuffer::retrieveSetting(DTSC::Scan &streamCfg, const std::string &setting,
+  uint64_t InputBuffer::retrieveSetting(DTSC::Scan &streamCfg, const std::string &setting,
                                         const std::string &option){
     std::string opt = (option == "" ? setting : option);
     // If stream is not configured, use commandline option
@@ -537,7 +537,7 @@ namespace Mist{
     return config->getOption(opt, true)[0u].asInt();
   }
 
-  bool inputBuffer::preRun(){
+  bool InputBuffer::preRun(){
     // This function gets run periodically to make sure runtime updates of the config get parsed.
     Util::Procs::kill_timeout = 5;
     std::string strName = config->getString("streamname");
@@ -602,7 +602,7 @@ namespace Mist{
     return true;
   }
 
-  uint64_t inputBuffer::findTrack(const std::string &trackVal){
+  uint64_t InputBuffer::findTrack(const std::string &trackVal){
     std::set<size_t> validTracks = M.getValidTracks();
     if (!validTracks.size()){
       return INVALID_TRACK_ID;
@@ -646,7 +646,7 @@ namespace Mist{
 
   /*LTS-START*/
   /// Checks if all processes are running, starts them if needed, stops them if needed
-  void inputBuffer::checkProcesses(const JSON::Value &procs){
+  void InputBuffer::checkProcesses(const JSON::Value &procs){
     allProcsRunning = true;
     if (!M.getValidTracks().size()){return;}
     std::set<std::string> newProcs;

@@ -13,10 +13,10 @@ extern "C"{
 }
 
 namespace Mist{
-  class inputAV : public Input{
+  class InputAV : public Input{
   public:
-    inputAV(Util::Config *cfg);
-    ~inputAV();
+    InputAV(Util::Config *cfg);
+    ~InputAV();
 
   protected:
     // Private Functions
@@ -31,4 +31,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputAV mistIn;
+typedef Mist::InputAV mistIn;

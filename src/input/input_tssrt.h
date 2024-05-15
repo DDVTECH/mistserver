@@ -9,10 +9,10 @@
 
 namespace Mist{
 
-  class inputTSSRT : public Input{
+  class InputTSSRT : public Input{
   public:
-    inputTSSRT(Util::Config *cfg, Socket::SRTConnection s = Socket::SRTConnection());
-    ~inputTSSRT();
+    InputTSSRT(Util::Config *cfg, Socket::SRTConnection s = Socket::SRTConnection());
+    ~InputTSSRT();
     void setSingular(bool newSingular);
     virtual bool needsLock();
     virtual std::string getConnectedBinHost(){
@@ -49,4 +49,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputTSSRT mistIn;
+typedef Mist::InputTSSRT mistIn;

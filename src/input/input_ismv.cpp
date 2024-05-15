@@ -11,7 +11,7 @@
 #include "input_ismv.h"
 
 namespace Mist{
-  inputISMV::inputISMV(Util::Config *cfg) : Input(cfg){
+  InputISMV::InputISMV(Util::Config *cfg) : Input(cfg){
     capa["name"] = "ISMV";
     capa["desc"] = "This input allows you to stream ISMV Video on Demand files.";
     capa["source_match"] = "/*.ismv";
@@ -22,7 +22,7 @@ namespace Mist{
     inFile = 0;
   }
 
-  bool inputISMV::checkArguments(){
+  bool InputISMV::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -41,7 +41,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputISMV::preRun(){
+  bool InputISMV::preRun(){
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
@@ -50,7 +50,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputISMV::readHeader(){
+  bool InputISMV::readHeader(){
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -97,7 +97,7 @@ namespace Mist{
     return true;
   }
 
-  void inputISMV::getNext(size_t idx){
+  void InputISMV::getNext(size_t idx){
     thisPacket.null();
 
     if (!buffered.size()){return;}
@@ -128,7 +128,7 @@ namespace Mist{
     if (idx != INVALID_TRACK_ID && thisPacket.getTrackId() != M.getID(idx)){getNext(idx);}
   }
 
-  void inputISMV::seek(uint64_t seekTime, size_t idx){
+  void InputISMV::seek(uint64_t seekTime, size_t idx){
     buffered.clear();
     lastKeyNum.clear();
 
@@ -152,7 +152,7 @@ namespace Mist{
     }
   }
 
-  void inputISMV::parseMoov(MP4::MOOV &moovBox){
+  void InputISMV::parseMoov(MP4::MOOV &moovBox){
     std::deque<MP4::TRAK> trak = moovBox.getChildren<MP4::TRAK>();
     for (std::deque<MP4::TRAK>::iterator it = trak.begin(); it != trak.end(); it++){
       size_t tNumber = meta.addTrack();
@@ -189,7 +189,7 @@ namespace Mist{
     }
   }
 
-  bool inputISMV::readMoofSkipMdat(size_t &tId, std::vector<MP4::trunSampleInformation> &trunSamples){
+  bool InputISMV::readMoofSkipMdat(size_t &tId, std::vector<MP4::trunSampleInformation> &trunSamples){
     tId = INVALID_TRACK_ID;
     trunSamples.clear();
 
@@ -222,7 +222,7 @@ namespace Mist{
     return true;
   }
 
-  void inputISMV::bufferFragmentData(size_t trackId, uint32_t keyNum){
+  void InputISMV::bufferFragmentData(size_t trackId, uint32_t keyNum){
     INFO_MSG("Bpos seek for %zu/%" PRIu32, trackId, keyNum);
     if (trackId == INVALID_TRACK_ID){return;}
     DTSC::Keys keys(M.keys(trackId));

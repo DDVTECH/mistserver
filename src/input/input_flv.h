@@ -3,10 +3,10 @@
 #include <mist/flv_tag.h>
 
 namespace Mist{
-  class inputFLV : public Input{
+  class InputFLV : public Input{
   public:
-    inputFLV(Util::Config *cfg);
-    ~inputFLV();
+    InputFLV(Util::Config *cfg);
+    ~InputFLV();
 
   protected:
     // Private Functions
@@ -22,4 +22,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputFLV mistIn;
+typedef Mist::InputFLV mistIn;

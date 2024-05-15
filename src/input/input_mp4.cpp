@@ -96,7 +96,7 @@ namespace Mist{
     initialised = true;
   }
 
-  mp4TrackHeader &inputMP4::headerData(size_t trackID){
+  mp4TrackHeader &InputMP4::headerData(size_t trackID){
     static mp4TrackHeader none;
     for (std::deque<mp4TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); it++){
       if (it->trackId == trackID){return *it;}
@@ -104,7 +104,7 @@ namespace Mist{
     return none;
   }
 
-  inputMP4::inputMP4(Util::Config *cfg) : Input(cfg){
+  InputMP4::InputMP4(Util::Config *cfg) : Input(cfg){
     capa["name"] = "MP4";
     capa["desc"] = "This input allows streaming of MP4 files as Video on Demand.";
     capa["source_match"].append("/*.mp4");
@@ -125,7 +125,7 @@ namespace Mist{
     readPos = 0;
   }
 
-  bool inputMP4::checkArguments(){
+  bool InputMP4::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -145,7 +145,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputMP4::preRun(){
+  bool InputMP4::preRun(){
     // open File
     inFile.open(config->getString("input"));
     if (!inFile){
@@ -159,17 +159,17 @@ namespace Mist{
     return true;
   }
 
-  void inputMP4::dataCallback(const char *ptr, size_t size){readBuffer.append(ptr, size);}
-  size_t inputMP4::getDataCallbackPos() const{return readPos + readBuffer.size();}
+  void InputMP4::dataCallback(const char *ptr, size_t size){readBuffer.append(ptr, size);}
+  size_t InputMP4::getDataCallbackPos() const{return readPos + readBuffer.size();}
 
-  bool inputMP4::needHeader(){
+  bool InputMP4::needHeader(){
     //Attempt to read cache, but force calling of the readHeader function anyway
     bool r = Input::needHeader();
     if (!r){r = !readHeader();}
     return r;
   }
 
-  bool inputMP4::readHeader(){
+  bool InputMP4::readHeader(){
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -493,7 +493,7 @@ namespace Mist{
     return true;
   }
 
-  void inputMP4::getNext(size_t idx){// get next part from track in stream
+  void InputMP4::getNext(size_t idx){// get next part from track in stream
     if (curPositions.empty()){
       thisPacket.null();
       return;
@@ -587,7 +587,7 @@ namespace Mist{
     }
   }
 
-  void inputMP4::seek(uint64_t seekTime, size_t idx){// seek to a point
+  void InputMP4::seek(uint64_t seekTime, size_t idx){// seek to a point
     nextKeyframe.clear();
     curPositions.clear();
     if (idx != INVALID_TRACK_ID){
@@ -600,7 +600,7 @@ namespace Mist{
     }
   }
 
-  void inputMP4::handleSeek(uint64_t seekTime, size_t idx){
+  void InputMP4::handleSeek(uint64_t seekTime, size_t idx){
     nextKeyframe[idx] = 0;
     mp4PartTime addPart;
     addPart.trackID = idx;

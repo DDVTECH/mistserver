@@ -40,7 +40,7 @@ void signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
 // We use threads here for multiple input pushes, because of the internals of the SRT Library
 static void callThreadCallbackSRT(void *socknum){
   // use the accepted socket as the second parameter
-  Mist::inputTSSRT inp(cfgPointer, *(Socket::SRTConnection *)socknum);
+  Mist::InputTSSRT inp(cfgPointer, *(Socket::SRTConnection *)socknum);
   inp.setSingular(false);
   inp.run();
 }
@@ -48,7 +48,7 @@ static void callThreadCallbackSRT(void *socknum){
 namespace Mist{
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
-  inputTSSRT::inputTSSRT(Util::Config *cfg, Socket::SRTConnection s) : Input(cfg){
+  InputTSSRT::InputTSSRT(Util::Config *cfg, Socket::SRTConnection s) : Input(cfg){
     rawIdx = INVALID_TRACK_ID;
     lastRawPacket = 0;
     bootMSOffsetCalculated = false;
@@ -158,9 +158,9 @@ namespace Mist{
     singularFlag = true;
   }
 
-  inputTSSRT::~inputTSSRT(){}
+  InputTSSRT::~InputTSSRT(){}
 
-  bool inputTSSRT::checkArguments(){
+  bool InputTSSRT::checkArguments(){
     if (config->getString("datatrack") == "json"){
       tsStream.setRawDataParser(TS::JSON);
     }
@@ -168,7 +168,7 @@ namespace Mist{
   }
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
-  bool inputTSSRT::preRun(){
+  bool InputTSSRT::preRun(){
     rawMode = config->getBool("raw");
     if (rawMode){INFO_MSG("Entering raw mode");}
     if (srtConn.getSocket() == -1){
@@ -216,7 +216,7 @@ namespace Mist{
   }
 
   // Retrieve the next packet to be played from the srt connection.
-  void inputTSSRT::getNext(size_t idx){
+  void InputTSSRT::getNext(size_t idx){
     thisPacket.null();
     bool hasPacket = tsStream.hasPacket();
     while (!hasPacket && srtConn && config->is_active){
@@ -284,9 +284,9 @@ namespace Mist{
     thisTime = pktTimeWithOffset;
   }
 
-  bool inputTSSRT::openStreamSource(){return true;}
+  bool InputTSSRT::openStreamSource(){return true;}
 
-  void inputTSSRT::streamMainLoop(){
+  void InputTSSRT::streamMainLoop(){
     // If we do not have a srtConn here, we are the main thread and should start accepting pushes.
     if (srtConn.getSocket() == -1){
       cfgPointer = config;
@@ -308,11 +308,11 @@ namespace Mist{
     srtConn.close();
   }
 
-  bool inputTSSRT::needsLock(){return false;}
+  bool InputTSSRT::needsLock(){return false;}
 
-  void inputTSSRT::setSingular(bool newSingular){singularFlag = newSingular;}
+  void InputTSSRT::setSingular(bool newSingular){singularFlag = newSingular;}
 
-  void inputTSSRT::connStats(Comms::Connections &statComm){
+  void InputTSSRT::connStats(Comms::Connections &statComm){
     statComm.setUp(srtConn.dataUp());
     statComm.setDown(srtConn.dataDown());
     statComm.setPacketCount(srtConn.packetCount());

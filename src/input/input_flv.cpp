@@ -15,7 +15,7 @@
 #include "input_flv.h"
 
 namespace Mist{
-  inputFLV::inputFLV(Util::Config *cfg) : Input(cfg){
+  InputFLV::InputFLV(Util::Config *cfg) : Input(cfg){
     capa["name"] = "FLV";
     capa["desc"] = "Allows loading FLV files for Video on Demand.";
     capa["source_match"] = "/*.flv";
@@ -28,9 +28,9 @@ namespace Mist{
     capa["codecs"]["audio"].append("MP3");
   }
 
-  inputFLV::~inputFLV(){}
+  InputFLV::~InputFLV(){}
 
-  bool inputFLV::checkArguments(){
+  bool InputFLV::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -49,7 +49,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputFLV::preRun(){
+  bool InputFLV::preRun(){
     // open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile){
@@ -67,7 +67,7 @@ namespace Mist{
   /// Overrides the default keepRunning function to shut down
   /// if the file disappears or changes, by polling the file's mtime.
   /// If neither applies, calls the original function.
-  bool inputFLV::keepRunning(){
+  bool InputFLV::keepRunning(){
     struct stat statData;
     if (stat(config->getString("input").c_str(), &statData) == -1){
       INFO_MSG("Shutting down because input file disappeared");
@@ -80,7 +80,7 @@ namespace Mist{
     return Input::keepRunning();
   }
 
-  bool inputFLV::readHeader(){
+  bool InputFLV::readHeader(){
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -116,7 +116,7 @@ namespace Mist{
     return true;
   }
 
-  void inputFLV::getNext(size_t idx){
+  void InputFLV::getNext(size_t idx){
     uint64_t lastBytePos = Util::ftell(inFile);
     if (idx != INVALID_TRACK_ID){
       uint8_t targetTag = 0x08;
@@ -165,7 +165,7 @@ namespace Mist{
     }
   }
 
-  void inputFLV::seek(uint64_t seekTime, size_t idx){
+  void InputFLV::seek(uint64_t seekTime, size_t idx){
     // We will seek to the corresponding keyframe of the video track if selected, otherwise audio
     // keyframe. Flv files are never multi-track, so track 1 is video, track 2 is audio.
     size_t seekTrack = (idx == INVALID_TRACK_ID ? M.mainTrack() : idx);

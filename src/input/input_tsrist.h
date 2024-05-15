@@ -5,10 +5,10 @@
 
 namespace Mist{
 
-  class inputTSRIST : public Input{
+  class InputTSRIST : public Input{
   public:
-    inputTSRIST(Util::Config *cfg);
-    ~inputTSRIST();
+    InputTSRIST(Util::Config *cfg);
+    ~InputTSRIST();
     virtual bool needsLock(){return false;}
     virtual bool publishesTracks(){return false;}
     virtual std::string getConnectedBinHost(){
@@ -42,4 +42,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputTSRIST mistIn;
+typedef Mist::InputTSRIST mistIn;

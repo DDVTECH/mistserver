@@ -3,10 +3,10 @@
 #include <mist/dtsc.h>
 
 namespace Mist{
-  class inputFLAC : public Input{
+  class InputFLAC : public Input{
   public:
-    inputFLAC(Util::Config *cfg);
-    ~inputFLAC();
+    InputFLAC(Util::Config *cfg);
+    ~InputFLAC();
 
   protected:
     bool checkArguments();
@@ -45,4 +45,4 @@ namespace Mist{
 
 }// namespace Mist
 
-typedef Mist::inputFLAC mistIn;
+typedef Mist::InputFLAC mistIn;

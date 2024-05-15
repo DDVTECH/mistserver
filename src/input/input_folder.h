@@ -2,9 +2,9 @@
 #include <mist/dtsc.h>
 
 namespace Mist{
-  class inputFolder : public Input{
+  class InputFolder : public Input{
   public:
-    inputFolder(Util::Config *cfg);
+    InputFolder(Util::Config *cfg);
     int boot(int argc, char *argv[]);
 
   protected:
@@ -15,4 +15,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputFolder mistIn;
+typedef Mist::InputFolder mistIn;

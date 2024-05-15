@@ -13,7 +13,7 @@
 #include "input_dtsc.h"
 
 namespace Mist{
-  inputDTSC::inputDTSC(Util::Config *cfg) : Input(cfg){
+  InputDTSC::InputDTSC(Util::Config *cfg) : Input(cfg){
     capa["name"] = "DTSC";
     capa["desc"] = "Load DTSC files as Video on Demand sources, or dtsc:// URLs from other "
                    "instances for live sources. This is the optimal method to pull live "
@@ -66,7 +66,7 @@ namespace Mist{
     lockNeeded = false;
   }
 
-  bool inputDTSC::needsLock(){
+  bool InputDTSC::needsLock(){
     if (!lockCache){
       lockNeeded =
           config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input") != "-";
@@ -135,7 +135,7 @@ namespace Mist{
     }
   }
 
-  void inputDTSC::parseStreamHeader(){
+  void InputDTSC::parseStreamHeader(){
     while (srcConn.connected() && config->is_active){
       srcConn.spool();
       if (!srcConn.Received().available(8)){
@@ -176,7 +176,7 @@ namespace Mist{
     }
   }
 
-  bool inputDTSC::openStreamSource(){
+  bool InputDTSC::openStreamSource(){
     std::string source = config->getString("input");
     if (source == "-"){
       srcConn.open(fileno(stdout), fileno(stdin));
@@ -204,9 +204,9 @@ namespace Mist{
     return true;
   }
 
-  void inputDTSC::closeStreamSource(){srcConn.close();}
+  void InputDTSC::closeStreamSource(){srcConn.close();}
 
-  bool inputDTSC::checkArguments(){
+  bool InputDTSC::checkArguments(){
     if (!needsLock()){return true;}
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
@@ -230,12 +230,12 @@ namespace Mist{
     return true;
   }
 
-  bool inputDTSC::needHeader(){
+  bool InputDTSC::needHeader(){
     if (!needsLock()){return false;}
     return Input::needHeader();
   }
 
-  bool inputDTSC::readHeader(){
+  bool InputDTSC::readHeader(){
     if (!F){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -272,7 +272,7 @@ namespace Mist{
     return meta;
   }
 
-  void inputDTSC::getNext(size_t idx){
+  void InputDTSC::getNext(size_t idx){
     if (!needsLock()){
       getNextFromStream(idx);
       return;
@@ -336,7 +336,7 @@ namespace Mist{
     fseek(F, thisPos.bytePos, SEEK_SET);
   }
 
-  void inputDTSC::getNextFromStream(size_t idx){
+  void InputDTSC::getNextFromStream(size_t idx){
     thisPacket.reInit(srcConn);
     while (config->is_active){
       if (thisPacket.getVersion() == DTSC::DTCM){
@@ -415,7 +415,7 @@ namespace Mist{
     }
   }
 
-  void inputDTSC::seek(uint64_t seekTime, size_t idx){
+  void InputDTSC::seek(uint64_t seekTime, size_t idx){
     currentPositions.clear();
     if (idx != INVALID_TRACK_ID){
       seekNext(seekTime, idx, true);
@@ -427,7 +427,7 @@ namespace Mist{
     }
   }
 
-  void inputDTSC::seekNext(uint64_t ms, size_t trackIdx, bool forceSeek){
+  void InputDTSC::seekNext(uint64_t ms, size_t trackIdx, bool forceSeek){
     seekPos tmpPos;
     tmpPos.trackID = trackIdx;
     if (!forceSeek && thisPacket && ms >= thisPacket.getTime() && trackIdx >= thisPacket.getTrackId()){

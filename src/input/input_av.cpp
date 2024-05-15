@@ -11,7 +11,7 @@
 #include "input_av.h"
 
 namespace Mist{
-  inputAV::inputAV(Util::Config *cfg) : Input(cfg){
+  InputAV::InputAV(Util::Config *cfg) : Input(cfg){
     pFormatCtx = 0;
     capa["name"] = "AV";
     capa["desc"] =
@@ -37,11 +37,11 @@ namespace Mist{
     }
   }
 
-  inputAV::~inputAV(){
+  InputAV::~InputAV(){
     if (pFormatCtx){avformat_close_input(&pFormatCtx);}
   }
 
-  bool inputAV::checkArguments(){
+  bool InputAV::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -60,7 +60,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputAV::preRun(){
+  bool InputAV::preRun(){
     // make sure all av inputs are registered properly, just in case
     // the constructor already does this, but under windows it doesn't remember that it has.
     // Very sad, that. We may need to get windows some medication for it.
@@ -94,7 +94,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputAV::readHeader(){
+  bool InputAV::readHeader(){
     if (!meta || (needsLock() && isSingular())){
       meta.reInit(isSingular() ? streamName : "");
     }
@@ -167,7 +167,7 @@ namespace Mist{
     return true;
   }
 
-  void inputAV::getNext(size_t wantIdx){
+  void InputAV::getNext(size_t wantIdx){
     AVPacket packet;
     while (av_read_frame(pFormatCtx, &packet) >= 0){
       // filter tracks we don't care about
@@ -198,7 +198,7 @@ namespace Mist{
     Util::logExitReason(ER_UNKNOWN, "getNext failed");
   }
 
-  void inputAV::seek(uint64_t seekTime, size_t idx){
+  void InputAV::seek(uint64_t seekTime, size_t idx){
     int stream_index = av_find_default_stream_index(pFormatCtx);
     // Convert ts to frame
     unsigned long long reseekTime =

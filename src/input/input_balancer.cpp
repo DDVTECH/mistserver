@@ -6,7 +6,7 @@
 #include <mist/url.h>
 
 namespace Mist{
-  inputBalancer::inputBalancer(Util::Config *cfg) : Input(cfg){
+  InputBalancer::InputBalancer(Util::Config *cfg) : Input(cfg){
     capa["name"] = "Balancer";
     capa["desc"] =
         "The load balancer input restarts itself as the input a load balancer tells it it should "
@@ -82,7 +82,7 @@ namespace Mist{
     capa["optional"]["segmentsize"]["default"] = 5000;
   }
 
-  int inputBalancer::boot(int argc, char *argv[]){
+  int InputBalancer::boot(int argc, char *argv[]){
     if (!config->parseArgs(argc, argv)){return 1;}
     if (config->getBool("json")){return Input::boot(argc, argv);}
 

@@ -1,8 +1,8 @@
-#include "input_srt.h"
+#include "input_subrip.h"
 
 namespace Mist{
 
-  InputSrt::InputSrt(Util::Config *cfg) : Input(cfg){
+  InputSubRip::InputSubRip(Util::Config *cfg) : Input(cfg){
     vtt = false;
     capa["name"] = "SubRip";
     capa["decs"] =
@@ -13,7 +13,7 @@ namespace Mist{
     capa["codecs"]["subtitle"].append("subtitle");
   }
 
-  bool InputSrt::preRun(){
+  bool InputSubRip::preRun(){
     fileSource.close();
     fileSource.open(config->getString("input").c_str());
     if (!fileSource.is_open()){
@@ -23,7 +23,7 @@ namespace Mist{
     return true;
   }
 
-  bool InputSrt::checkArguments(){
+  bool InputSubRip::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -45,7 +45,7 @@ namespace Mist{
     return true;
   }
 
-  bool InputSrt::readHeader(){
+  bool InputSubRip::readHeader(){
     if (!fileSource.good()){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -63,7 +63,7 @@ namespace Mist{
     return true;
   }
 
-  void InputSrt::getNext(size_t idx){
+  void InputSubRip::getNext(size_t idx){
     thisPacket.null();
     std::string line;
 
@@ -131,6 +131,6 @@ namespace Mist{
     thisPacket.null();
   }
 
-  void InputSrt::seek(uint64_t seekTime, size_t idx){fileSource.seekg(0, fileSource.beg);}
+  void InputSubRip::seek(uint64_t seekTime, size_t idx){fileSource.seekg(0, fileSource.beg);}
 
 }// namespace Mist

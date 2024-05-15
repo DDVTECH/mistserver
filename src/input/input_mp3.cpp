@@ -13,7 +13,7 @@
 #include "input_mp3.h"
 
 namespace Mist{
-  inputMP3::inputMP3(Util::Config *cfg) : Input(cfg){
+  InputMP3::InputMP3(Util::Config *cfg) : Input(cfg){
     capa["name"] = "MP3";
     capa["desc"] = "This input allows you to stream MP3 Video on Demand files.";
     capa["source_match"] = "/*.mp3";
@@ -23,7 +23,7 @@ namespace Mist{
     timestamp = 0;
   }
 
-  bool inputMP3::checkArguments(){
+  bool InputMP3::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -42,7 +42,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputMP3::preRun(){
+  bool InputMP3::preRun(){
     // open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile){
@@ -52,7 +52,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputMP3::readHeader(){
+  bool InputMP3::readHeader(){
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -94,7 +94,7 @@ namespace Mist{
     return true;
   }
 
-  void inputMP3::getNext(size_t idx){
+  void InputMP3::getNext(size_t idx){
     thisPacket.null();
     static char packHeader[3000];
     size_t filePos = ftell(inFile);
@@ -158,7 +158,7 @@ namespace Mist{
     timestamp += (sampleCount / (sampleRate / 1000));
   }
 
-  void inputMP3::seek(uint64_t seekTime, size_t idx){
+  void InputMP3::seek(uint64_t seekTime, size_t idx){
     idx = 0;
     DTSC::Keys keys(M.keys(idx));
     uint32_t keyNum = M.getKeyNumForTime(idx, seekTime);

@@ -12,9 +12,9 @@ namespace Mist{
       {{0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, -1},
        {0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, -1},
        {0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, -1}}};
-  class inputMP3 : public Input{
+  class InputMP3 : public Input{
   public:
-    inputMP3(Util::Config *cfg);
+    InputMP3(Util::Config *cfg);
 
   protected:
     // Private Functions
@@ -30,4 +30,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputMP3 mistIn;
+typedef Mist::InputMP3 mistIn;

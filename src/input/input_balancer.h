@@ -2,9 +2,9 @@
 #include <mist/dtsc.h>
 
 namespace Mist{
-  class inputBalancer : public Input{
+  class InputBalancer : public Input{
   public:
-    inputBalancer(Util::Config *cfg);
+    InputBalancer(Util::Config *cfg);
     int boot(int argc, char *argv[]);
 
   protected:
@@ -13,4 +13,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputBalancer mistIn;
+typedef Mist::InputBalancer mistIn;

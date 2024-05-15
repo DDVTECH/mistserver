@@ -140,11 +140,11 @@ namespace Mist{
 
   // These are used in the HTTP::Downloader callback, to prevent timeouts when downloading
   // segments/playlists.
-  inputHLS *self = 0;
+  InputHLS *self = 0;
   bool callbackFunc(uint8_t){return self->callback();}
 
   /// Called by the global callbackFunc, to prevent timeouts
-  bool inputHLS::callback(){
+  bool InputHLS::callback(){
     keepAlive();
     return config->is_active;
   }
@@ -723,7 +723,7 @@ namespace Mist{
   }
 
   /// Constructor of HLS Input
-  inputHLS::inputHLS(Util::Config *cfg) : Input(cfg){
+  InputHLS::InputHLS(Util::Config *cfg) : Input(cfg){
     zUTC = nUTC = 0;
     self = this;
     streamIsLive = true; //< default to sliding window playlist
@@ -783,11 +783,11 @@ namespace Mist{
     inFile = NULL;
   }
 
-  inputHLS::~inputHLS(){
+  InputHLS::~InputHLS(){
     if (inFile){fclose(inFile);}
   }
 
-  bool inputHLS::checkArguments(){
+  bool InputHLS::checkArguments(){
     config->is_active = true;
     if (config->getString("input") == "-"){
       return false;
@@ -806,7 +806,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputHLS::readExistingHeader(){
+  bool InputHLS::readExistingHeader(){
     if (!Input::readExistingHeader()){
       INFO_MSG("Could not read existing header, regenerating");
       return false;
@@ -900,12 +900,12 @@ namespace Mist{
     return true;
   }
 
-  void inputHLS::parseStreamHeader(){
+  void InputHLS::parseStreamHeader(){
     streamIsVOD = false;
     readHeader();
   }
 
-  bool inputHLS::readHeader(){
+  bool InputHLS::readHeader(){
     // to analyse and extract data
     TS::Packet packet; 
     char *data;
@@ -1038,7 +1038,7 @@ namespace Mist{
   }
 
   /// Sets inputLocalVars based on data ingested
-  void inputHLS::injectLocalVars(){
+  void InputHLS::injectLocalVars(){
     meta.inputLocalVars.null();
     meta.inputLocalVars["version"] = 4;
 
@@ -1080,7 +1080,7 @@ namespace Mist{
   /// \brief Parses new segments added to playlist files as live data
   /// \param segmentIndex: the index of the segment in the current playlist
   /// \return True if the segment has been buffered successfully
-  bool inputHLS::parseSegmentAsLive(uint64_t segmentIndex){
+  bool InputHLS::parseSegmentAsLive(uint64_t segmentIndex){
     bool hasOffset = false;
     bool hasPacket = false;
     uint64_t bufferTime = config->getInteger("pagetimeout");
@@ -1187,12 +1187,12 @@ namespace Mist{
     return true;
   }
 
-  void inputHLS::streamMainLoop(){
+  void InputHLS::streamMainLoop(){
     parseLivePoint();
   }
 
   // Removes any metadata which is no longer and the playlist or buffered in memory
-  void inputHLS::updateMeta(){
+  void InputHLS::updateMeta(){
     // EVENT and VOD type playlists should never segments disappear from the start
     // Only LIVE (sliding-window) type playlists should execute updateMeta()
     if (streamIsVOD || !streamIsLive){
@@ -1224,7 +1224,7 @@ namespace Mist{
     }
   }
 
-  void inputHLS::parseLivePoint(){
+  void InputHLS::parseLivePoint(){
     uint64_t maxTime = Util::bootMS() + 500;
     // Update all playlists to make sure listEntries contains all live segments
     for (std::map<uint64_t, Playlist>::iterator pListIt = playlistMapping.begin();
@@ -1279,16 +1279,16 @@ namespace Mist{
   }
 
   /// \brief Override userLeadOut to buffer new data as live packets
-  void inputHLS::userLeadOut(){
+  void InputHLS::userLeadOut(){
     Input::userLeadOut();
     if (streamIsLive){
       parseLivePoint();
     }
   }
 
-  bool inputHLS::openStreamSource(){return true;}
+  bool InputHLS::openStreamSource(){return true;}
 
-  void inputHLS::getNext(size_t idx){
+  void InputHLS::getNext(size_t idx){
     INSANE_MSG("Getting next");
     uint32_t tid = 0;
     bool finished = false;
@@ -1390,7 +1390,7 @@ namespace Mist{
   }
 
   // Note: bpos is overloaded here for playlist entry!
-  void inputHLS::seek(uint64_t seekTime, size_t idx){
+  void InputHLS::seek(uint64_t seekTime, size_t idx){
     if (idx == INVALID_TRACK_ID){return;}
     plsTimeOffset.clear();
     plsLastTime.clear();
@@ -1456,7 +1456,7 @@ namespace Mist{
   /// \param currentPlaylist: the ID of the playlist we are currently trying to parse
   /// \param nUTC: Defaults to 0. If larger than 0, sync the timestamp based on this value and zUTC
   /// \return the (modified) packetTime, used for meta.updates and buffering packets
-  uint64_t inputHLS::getPacketTime(uint64_t packetTime, uint64_t tid, uint64_t currentPlaylist, uint64_t nUTC){
+  uint64_t InputHLS::getPacketTime(uint64_t packetTime, uint64_t tid, uint64_t currentPlaylist, uint64_t nUTC){
     INSANE_MSG("Calculating adjusted packet time for track %" PRIu64 " on playlist %" PRIu64 " with current timestamp %" PRIu64 ". UTC timestamp is %" PRIu64, tid, currentPlaylist, packetTime, nUTC);
     uint64_t newTime = packetTime;
 
@@ -1519,7 +1519,7 @@ namespace Mist{
   /// \brief Returns the packet ID corresponding to this playlist and track
   /// \param trackId: the trackid corresponding to this track and playlist
   /// \param currentPlaylist: the ID of the playlist we are currently trying to parse
-  uint64_t inputHLS::getPacketID(uint64_t currentPlaylist, uint64_t trackId){
+  uint64_t InputHLS::getPacketID(uint64_t currentPlaylist, uint64_t trackId){
     uint64_t packetId = pidMapping[(((uint64_t)currentPlaylist) << 32) + trackId];
     if (packetId == 0){
       pidMapping[(((uint64_t)currentPlaylist) << 32) + trackId] = pidCounter;
@@ -1530,11 +1530,11 @@ namespace Mist{
     return packetId;
   }
 
-  uint64_t inputHLS::getOriginalTrackId(uint32_t playlistId, uint32_t id){
+  uint64_t InputHLS::getOriginalTrackId(uint32_t playlistId, uint32_t id){
     return pidMapping[(((uint64_t)playlistId) << 32) + id];
   }
 
-  uint32_t inputHLS::getMappedTrackId(uint64_t id){
+  uint32_t InputHLS::getMappedTrackId(uint64_t id){
     static uint64_t lastIn = id;
     static uint32_t lastOut = (pidMappingR[id] & 0xFFFFFFFFull);
     if (lastIn != id){
@@ -1544,7 +1544,7 @@ namespace Mist{
     return lastOut;
   }
 
-  uint32_t inputHLS::getMappedTrackPlaylist(uint64_t id){
+  uint32_t InputHLS::getMappedTrackPlaylist(uint64_t id){
     if (!pidMappingR.count(id)){
       FAIL_MSG("No mapping found for track ID %" PRIu64, id);
       return 0;
@@ -1559,7 +1559,7 @@ namespace Mist{
   }
 
   /// Parses the main playlist, possibly containing variants.
-  bool inputHLS::initPlaylist(const std::string &uri, bool fullInit){
+  bool InputHLS::initPlaylist(const std::string &uri, bool fullInit){
     // Used to set zUTC, in case the first EXT-X-PROGRAM-DATE-TIME does not appear before the first segment
     float timestampSum = 0;
     bool isRegularPls = false;
@@ -1741,7 +1741,7 @@ namespace Mist{
   }
 
   /// Function for reading every playlist.
-  bool inputHLS::readPlaylist(const HTTP::URL &uri, const  std::string & relurl, bool fullInit){
+  bool InputHLS::readPlaylist(const HTTP::URL &uri, const  std::string & relurl, bool fullInit){
     std::string urlBuffer;
     // Wildcard streams can have a ' ' in the name, which getUrl converts to a '+'
     if (uri.isLocalPath()){
@@ -1761,7 +1761,7 @@ namespace Mist{
 
   /// Read next .ts file from the playlist. (from the list of entries which needs
   /// to be processed)
-  bool inputHLS::readNextFile(){
+  bool InputHLS::readNextFile(){
     tsStream.clear();
 
     playListEntries ntry;
@@ -1808,7 +1808,7 @@ namespace Mist{
   /// return the playlist id from which we need to read the first upcoming segment
   /// by timestamp.
   /// this will keep the playlists in sync while reading segments.
-  size_t inputHLS::firstSegment(){
+  size_t InputHLS::firstSegment(){
     // Only one selected? Immediately return the right playlist.
     if (!streamIsLive){return getMappedTrackPlaylist(M.getID(userSelect.begin()->first));}
     uint64_t firstTimeStamp = 0;
@@ -1831,7 +1831,7 @@ namespace Mist{
     return tmpId;
   }
 
-  void inputHLS::finish(){
+  void InputHLS::finish(){
     if (streamIsLive){ //< Already generated from readHeader
       INFO_MSG("Writing updated header to disk");
       injectLocalVars();
@@ -1840,7 +1840,7 @@ namespace Mist{
     Input::finish();
   }
 
-  void inputHLS::checkHeaderTimes(const HTTP::URL & streamFile){
+  void InputHLS::checkHeaderTimes(const HTTP::URL & streamFile){
     if (streamIsLive){return;} //< Since the playlist will likely be newer than the DTSH for live-dvr
     Input::checkHeaderTimes(streamFile);
   }

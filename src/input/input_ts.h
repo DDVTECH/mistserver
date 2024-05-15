@@ -9,10 +9,10 @@
 
 namespace Mist{
   /// This class contains all functions needed to implement TS Input
-  class inputTS : public Input, public Util::DataCallback{
+  class InputTS : public Input, public Util::DataCallback{
   public:
-    inputTS(Util::Config *cfg);
-    ~inputTS();
+    InputTS(Util::Config *cfg);
+    ~InputTS();
 
     // This function can simply check standAlone because we ensure it's set in checkArguments,
     // which is always called before the first call to needsLock
@@ -56,4 +56,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputTS mistIn;
+typedef Mist::InputTS mistIn;

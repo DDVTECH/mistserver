@@ -16,7 +16,7 @@
 #include <mist/flac.h>
 
 namespace Mist{
-  inputFLAC::inputFLAC(Util::Config *cfg) : Input(cfg){
+  InputFLAC::InputFLAC(Util::Config *cfg) : Input(cfg){
     capa["name"] = "FLAC";
     capa["desc"] = "Allows loading FLAC files for Audio on Demand.";
     capa["source_match"] = "/*.flac";
@@ -36,9 +36,9 @@ namespace Mist{
     tNum = INVALID_TRACK_ID;
   }
 
-  inputFLAC::~inputFLAC(){}
+  InputFLAC::~InputFLAC(){}
 
-  bool inputFLAC::checkArguments(){
+  bool InputFLAC::checkArguments(){
     if (config->getString("input") == "-"){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
@@ -57,7 +57,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputFLAC::preRun(){
+  bool InputFLAC::preRun(){
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
@@ -66,7 +66,7 @@ namespace Mist{
     return true;
   }
 
-  void inputFLAC::stripID3tag(){
+  void InputFLAC::stripID3tag(){
     char header[10];
     fread(header, 10, 1, inFile); // Read a 10 byte header
     if (header[0] == 'I' || header[1] == 'D' || header[2] == '3'){
@@ -81,7 +81,7 @@ namespace Mist{
     }
   }
 
-  bool inputFLAC::readMagicPacket(){
+  bool InputFLAC::readMagicPacket(){
     char magic[4];
     if (fread(magic, 4, 1, inFile) != 1){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read magic word - aborting!");
@@ -97,7 +97,7 @@ namespace Mist{
     return false;
   }
 
-  bool inputFLAC::readHeader(){
+  bool InputFLAC::readHeader(){
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
       return false;
@@ -206,7 +206,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputFLAC::fillBuffer(size_t size){
+  bool InputFLAC::fillBuffer(size_t size){
     if (feof(inFile)){
       INFO_MSG("EOF");
       return flacBuffer.size();
@@ -229,7 +229,7 @@ namespace Mist{
     return flacBuffer.size();
   }
 
-  void inputFLAC::getNext(size_t idx){
+  void InputFLAC::getNext(size_t idx){
     while (!stopProcessing){
       blockSize = M.inputLocalVars["blockSize"].asInt();
 
@@ -323,7 +323,7 @@ namespace Mist{
     return;
   }
 
-  void inputFLAC::seek(uint64_t seekTime, size_t idx){
+  void InputFLAC::seek(uint64_t seekTime, size_t idx){
     uint64_t mainTrack = M.mainTrack();
     blockSize = M.inputLocalVars["blockSize"].asInt();
     sampleRate = meta.getRate(mainTrack);

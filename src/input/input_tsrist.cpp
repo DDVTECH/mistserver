@@ -21,7 +21,7 @@
 #include <mist/tinythread.h>
 #include <sys/stat.h>
 
-Mist::inputTSRIST *connPtr = 0;
+Mist::InputTSRIST *connPtr = 0;
 Util::Config *cnfPtr = 0;
 
 
@@ -65,7 +65,7 @@ static int cb_recv(void *arg, struct rist_data_block *b){
 namespace Mist{
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
-  inputTSRIST::inputTSRIST(Util::Config *cfg) : Input(cfg){
+  InputTSRIST::InputTSRIST(Util::Config *cfg) : Input(cfg){
     rawMode = false;
     rawIdx = INVALID_TRACK_ID;
     lastRawPacket = 0;
@@ -170,12 +170,12 @@ namespace Mist{
     receiver_ctx = 0;
   }
 
-  inputTSRIST::~inputTSRIST(){
+  InputTSRIST::~InputTSRIST(){
     cnfPtr = 0;
     rist_destroy(receiver_ctx);
   }
 
-  bool inputTSRIST::checkArguments(){
+  bool InputTSRIST::checkArguments(){
     if (config->getString("datatrack") == "json"){
       tsStream.setRawDataParser(TS::JSON);
     }
@@ -183,7 +183,7 @@ namespace Mist{
   }
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
-  bool inputTSRIST::preRun(){
+  bool InputTSRIST::preRun(){
     rawMode = config->getBool("raw");
     if (rawMode){INFO_MSG("Entering raw mode");}
 
@@ -200,7 +200,7 @@ namespace Mist{
   }
 
   // Retrieve the next packet to be played from the srt connection.
-  void inputTSRIST::getNext(size_t idx){
+  void InputTSRIST::getNext(size_t idx){
     thisPacket.null();
     if (rawMode){
       //Set to false so the other thread knows its safe to fill
@@ -246,12 +246,12 @@ namespace Mist{
     thisPacket.setTime(adjustTime);
   }
 
-  void inputTSRIST::onFail(const std::string & msg){
+  void InputTSRIST::onFail(const std::string & msg){
     FAIL_MSG("%s", msg.c_str());
     Util::logExitReason(ER_FORMAT_SPECIFIC, msg.c_str());
   }
 
-  bool inputTSRIST::openStreamSource(){
+  bool InputTSRIST::openStreamSource(){
     if (rist_receiver_create(&receiver_ctx, (rist_profile)config->getInteger("profile"), &log_settings) != 0){
       onFail("Failed to create RIST receiver context");
       return false;
@@ -282,7 +282,7 @@ namespace Mist{
     return true;
   }
 
-  void inputTSRIST::addData(const char * ptr, size_t len){
+  void InputTSRIST::addData(const char * ptr, size_t len){
     for (size_t o = 0; o+188 <= len; o += 188){
       if (rawMode){
         rawBuffer.append(ptr+o, 188);
@@ -308,7 +308,7 @@ namespace Mist{
   }
 
 
-  void inputTSRIST::connStats(Comms::Connections &statComm){
+  void InputTSRIST::connStats(Comms::Connections &statComm){
     statComm.setUp(0);
     statComm.setDown(downBytes);
     statComm.setHost(getConnectedBinHost());

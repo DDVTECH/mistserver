@@ -6,9 +6,9 @@
 
 namespace Mist{
 
-  class InputSrt : public Input{
+  class InputSubRip : public Input{
   public:
-    InputSrt(Util::Config *cfg);
+    InputSubRip(Util::Config *cfg);
 
   protected:
     std::ifstream fileSource;
@@ -25,4 +25,4 @@ namespace Mist{
 
 }// namespace Mist
 
-typedef Mist::InputSrt mistIn;
+typedef Mist::InputSubRip mistIn;

@@ -35,7 +35,7 @@ int64_t timeStampOffset = 0;
 
 void parseThread(void *mistIn){
   uint64_t lastTimeStamp = 0;
-  Mist::inputTS *input = reinterpret_cast<Mist::inputTS *>(mistIn);
+  Mist::InputTS *input = reinterpret_cast<Mist::InputTS *>(mistIn);
 
   size_t tid = 0;
   {
@@ -160,7 +160,7 @@ namespace Mist{
 
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
-  inputTS::inputTS(Util::Config *cfg) : Input(cfg){
+  InputTS::InputTS(Util::Config *cfg) : Input(cfg){
     rawMode = false;
     udpMode = false;
     rawIdx = INVALID_TRACK_ID;
@@ -279,7 +279,7 @@ namespace Mist{
     config->addOption("raw", option);
   }
 
-  inputTS::~inputTS(){
+  InputTS::~InputTS(){
     if (!standAlone){
       tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
       threadTimer.clear();
@@ -289,7 +289,7 @@ namespace Mist{
 
   bool skipPipes = false;
 
-  bool inputTS::checkArguments(){
+  bool InputTS::checkArguments(){
     if (config->getString("input").substr(0, 6) == "srt://"){
       std::string source = config->getString("input");
       HTTP::URL srtUrl(source);
@@ -313,7 +313,7 @@ namespace Mist{
   }
 
   /// Live Setup of TS Input
-  bool inputTS::preRun(){
+  bool InputTS::preRun(){
     std::string const inCfg = config->getString("input");
     udpMode = false;
     rawMode = config->getBool("raw");
@@ -396,7 +396,7 @@ namespace Mist{
     return true;
   }
 
-  void inputTS::dataCallback(const char *ptr, size_t size){
+  void InputTS::dataCallback(const char *ptr, size_t size){
     if (standAlone){
       unitStartSeen |= assembler.assemble(tsStream, ptr, size, true, readPos);
     }else{
@@ -404,11 +404,11 @@ namespace Mist{
     }
     readPos += size;
   }
-  size_t inputTS::getDataCallbackPos() const{
+  size_t InputTS::getDataCallbackPos() const{
     return readPos;
   }
 
-  bool inputTS::needHeader(){
+  bool InputTS::needHeader(){
     if (!standAlone){return false;}
     return Input::needHeader();
   }
@@ -418,7 +418,7 @@ namespace Mist{
   /// It encounters a new PES start, it writes the currently found PES data
   /// for a specific track to metadata. After the entire stream has been read,
   /// it writes the remaining metadata.
-  bool inputTS::readHeader(){
+  bool InputTS::readHeader(){
     if (!reader){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -476,7 +476,7 @@ namespace Mist{
   /// At the moment, the logic of sending the last packet that was finished has been implemented,
   /// but the seeking and finding data is not yet ready.
   ///\todo Finish the implementation
-  void inputTS::getNext(size_t idx){
+  void InputTS::getNext(size_t idx){
     size_t pid = (idx == INVALID_TRACK_ID ? 0 : M.getID(idx));
     INSANE_MSG("Getting next on track %zu", idx);
     thisPacket.null();
@@ -516,7 +516,7 @@ namespace Mist{
   }
 
   /// Guarantees the PMT is read and we know about all tracks.
-  void inputTS::postHeader(){
+  void InputTS::postHeader(){
     if (!standAlone){return;}
     tsStream.clear();
     assembler.clear();
@@ -531,7 +531,7 @@ namespace Mist{
   }
 
   /// Seeks to a specific time
-  void inputTS::seek(uint64_t seekTime, size_t idx){
+  void InputTS::seek(uint64_t seekTime, size_t idx){
     uint64_t seekPos = 0xFFFFFFFFull;
     if (idx != INVALID_TRACK_ID){
       uint32_t keyNum = M.getKeyNumForTime(idx, seekTime);
@@ -553,7 +553,7 @@ namespace Mist{
     readPos = reader.getPos();
   }
 
-  bool inputTS::openStreamSource(){
+  bool InputTS::openStreamSource(){
     //Non-UDP mode inputs were already opened in preRun()
     if (!udpMode){return reader;}
     HTTP::URL input_url(config->getString("input"));
@@ -564,7 +564,7 @@ namespace Mist{
     return (udpCon.getSock() != -1);
   }
 
-  void inputTS::streamMainLoop(){
+  void InputTS::streamMainLoop(){
     Comms::Connections statComm;
     uint64_t startTime = Util::bootSecs();
     uint64_t noDataSince = Util::bootSecs();
@@ -730,7 +730,7 @@ namespace Mist{
     }
   }
 
-  void inputTS::finish(){
+  void InputTS::finish(){
     if (standAlone){
       Input::finish();
       return;

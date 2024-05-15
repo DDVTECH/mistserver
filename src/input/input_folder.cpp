@@ -7,7 +7,7 @@
 #include "input_folder.h"
 
 namespace Mist{
-  inputFolder::inputFolder(Util::Config *cfg) : Input(cfg){
+  InputFolder::InputFolder(Util::Config *cfg) : Input(cfg){
     capa["name"] = "Folder";
     capa["desc"] =
         "The folder input will make available all supported files in the given folder as streams "
@@ -21,7 +21,7 @@ namespace Mist{
     capa["morphic"] = 1;
   }
 
-  int inputFolder::boot(int argc, char *argv[]){
+  int InputFolder::boot(int argc, char *argv[]){
     if (!config->parseArgs(argc, argv)){return 1;}
     if (config->getBool("json")){return Input::boot(argc, argv);}
 

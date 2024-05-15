@@ -70,9 +70,9 @@ namespace Mist{
     bool stco64;
   };
 
-  class inputMP4 : public Input, public Util::DataCallback {
+  class InputMP4 : public Input, public Util::DataCallback {
   public:
-    inputMP4(Util::Config *cfg);
+    InputMP4(Util::Config *cfg);
     virtual void dataCallback(const char *ptr, size_t size);
     virtual size_t getDataCallbackPos() const;
 
@@ -101,4 +101,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputMP4 mistIn;
+typedef Mist::InputMP4 mistIn;

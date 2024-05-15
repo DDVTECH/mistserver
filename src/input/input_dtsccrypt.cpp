@@ -14,7 +14,7 @@
 #include <ctime>
 
 namespace Mist{
-  inputDTSC::inputDTSC(Util::Config *cfg) : Input(cfg){
+  InputDTSC::InputDTSC(Util::Config *cfg) : Input(cfg){
     capa["name"] = "DTSC";
     capa["desc"] = "Enables DTSC Input";
     capa["priority"] = 9;
@@ -52,7 +52,7 @@ namespace Mist{
     srand(time(NULL));
   }
 
-  bool inputDTSC::checkArguments(){
+  bool InputDTSC::checkArguments(){
     key = Encodings::Base64::decode(config->getString("key"));
     if (key == ""){
       if (config->getString("keyseed") == "" || config->getString("keyid") == ""){
@@ -90,7 +90,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputDTSC::readHeader(){
+  bool InputDTSC::readHeader(){
     if (!inFile){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
@@ -110,7 +110,7 @@ namespace Mist{
     return true;
   }
 
-  void inputDTSC::getNext(bool smart){
+  void InputDTSC::getNext(bool smart){
     if (smart){
       inFile.seekNext();
     }else{
@@ -135,13 +135,13 @@ namespace Mist{
     Encryption::encryptPlayReady(thisPacket, myMeta.tracks[tid].codec, iVec, key.data());
   }
 
-  void inputDTSC::seek(int seekTime){
+  void InputDTSC::seek(int seekTime){
     inFile.seek_time(seekTime);
     initialTime = 0;
     playUntil = 0;
   }
 
-  void inputDTSC::trackSelect(std::string trackSpec){
+  void InputDTSC::trackSelect(std::string trackSpec){
     selectedTracks.clear();
     long long unsigned int index;
     while (trackSpec != ""){

@@ -59,7 +59,7 @@
 #include "input_aac.h"     
 
 namespace Mist{
-  inputAAC::inputAAC(Util::Config *cfg) : Input(cfg){
+  InputAAC::InputAAC(Util::Config *cfg) : Input(cfg){
     capa["name"] = "AAC";
     capa["desc"] = "Allows loading AAC files";
     capa["source_match"] = "/*.aac";
@@ -75,9 +75,9 @@ namespace Mist{
     audioTrack = INVALID_TRACK_ID;
   }
 
-  inputAAC::~inputAAC(){}
+  InputAAC::~InputAAC(){}
 
-  bool inputAAC::checkArguments(){
+  bool InputAAC::checkArguments(){
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
         Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
@@ -92,7 +92,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputAAC::preRun(){
+  bool InputAAC::preRun(){
     inFile.open(config->getString("input"));
     if (!inFile || inFile.isEOF()){
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
@@ -111,7 +111,7 @@ namespace Mist{
   // Overrides the default keepRunning function to shut down
   // if the file disappears or changes, by polling the file's mtime.
   // If neither applies, calls the original function.
-  bool inputAAC::keepRunning(){
+  bool InputAAC::keepRunning(){
     struct stat statData;
     if (stat(config->getString("input").c_str(), &statData) == -1){
       INFO_MSG("Shutting down because input file disappeared");
@@ -127,7 +127,7 @@ namespace Mist{
 
   // Reads the first frame to init track
   // Then calls getNext untill all other frames have been added to the DTSH file
-  bool inputAAC::readHeader(){
+  bool InputAAC::readHeader(){
     char *aacData;
     char *aacFrame;
     uint64_t frameSize = 0;
@@ -209,7 +209,7 @@ namespace Mist{
   
   // Reads the ADTS frame at the current position then updates thisPacket
   // @param <idx> contains the trackID to which we want to add the ADTS payload
-  void inputAAC::getNext(size_t idx){
+  void InputAAC::getNext(size_t idx){
     //packets should be initialised to null to ensure termination
     thisPacket.null();
 
@@ -294,7 +294,7 @@ namespace Mist{
    // Seeks to the filePos 
    // @param <seekTime> timestamp of the DTSH entry containing required file pos info
    // @param <idx> trackID of the AAC track
-  void inputAAC::seek(uint64_t seekTime, size_t idx){
+  void InputAAC::seek(uint64_t seekTime, size_t idx){
     if (audioTrack == INVALID_TRACK_ID){
       std::set<size_t> trks = meta.getValidTracks();
       if (trks.size()){

@@ -4,10 +4,10 @@
 #include <mist/shared_memory.h>
 
 namespace Mist{
-  class inputBuffer : public Input{
+  class InputBuffer : public Input{
   public:
-    inputBuffer(Util::Config *cfg);
-    ~inputBuffer();
+    InputBuffer(Util::Config *cfg);
+    ~InputBuffer();
     void onCrash();
 
   private:
@@ -59,4 +59,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputBuffer mistIn;
+typedef Mist::InputBuffer mistIn;

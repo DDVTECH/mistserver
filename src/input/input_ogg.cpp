@@ -33,7 +33,7 @@ namespace Mist{
     return retval;
   }
 
-  inputOGG::inputOGG(Util::Config *cfg) : Input(cfg){
+  InputOGG::InputOGG(Util::Config *cfg) : Input(cfg){
     capa["name"] = "OGG";
     capa["desc"] = "This input allows streaming of OGG files as Video on Demand.";
     capa["source_match"] = "/*.ogg";
@@ -43,7 +43,7 @@ namespace Mist{
     capa["codecs"]["audio"].append("opus");
   }
 
-  bool inputOGG::checkArguments(){
+  bool InputOGG::checkArguments(){
     if (config->getString("input") == "-"){
       std::cerr << "Input from stream not yet supported" << std::endl;
       return false;
@@ -51,7 +51,7 @@ namespace Mist{
     return true;
   }
 
-  bool inputOGG::preRun(){
+  bool InputOGG::preRun(){
     // open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile){
@@ -62,7 +62,7 @@ namespace Mist{
   }
 
   ///\todo check if all trackID (tid) instances are replaced with bitstream serial numbers
-  void inputOGG::parseBeginOfStream(OGG::Page &bosPage){
+  void InputOGG::parseBeginOfStream(OGG::Page &bosPage){
     // long long int tid = snum2tid.size() + 1;
     size_t tid = bosPage.getBitstreamSerialNumber();
     size_t idx = M.trackIDToIndex(tid, getpid());
@@ -117,7 +117,7 @@ namespace Mist{
     }
   }
 
-  bool inputOGG::readHeader(){
+  bool InputOGG::readHeader(){
     meta.reInit(config->getString("streamname"), true);
     OGG::Page myPage;
     fseek(inFile, 0, SEEK_SET);
@@ -228,7 +228,7 @@ namespace Mist{
     return true;
   }
 
-  position inputOGG::seekFirstData(size_t idx){
+  position InputOGG::seekFirstData(size_t idx){
     fseek(inFile, 0, SEEK_SET);
     position res;
     res.time = 0;
@@ -272,7 +272,7 @@ namespace Mist{
     return res;
   }
 
-  void inputOGG::getNext(size_t idx){
+  void InputOGG::getNext(size_t idx){
     if (!currentPositions.size()){
       thisPacket.null();
       return;
@@ -362,7 +362,7 @@ namespace Mist{
     if (readFullPacket){currentPositions.insert(curPos);}
   }// getnext()
 
-  uint64_t inputOGG::calcGranuleTime(size_t tid, uint64_t granule){
+  uint64_t InputOGG::calcGranuleTime(size_t tid, uint64_t granule){
     size_t idx = M.trackIDToIndex(tid, getpid());
     switch (oggTracks[idx].codec){
     case OGG::VORBIS:
@@ -395,7 +395,7 @@ namespace Mist{
   }
 #endif
 
-  void inputOGG::seek(uint64_t seekTime, size_t idx){
+  void InputOGG::seek(uint64_t seekTime, size_t idx){
     currentPositions.clear();
     MEDIUM_MSG("Seeking to %" PRIu64 "ms", seekTime);
 

@@ -483,7 +483,7 @@ makeInput(Folder folder)#LTS
 makeInput(Playlist playlist)#LTS
 makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
-makeInput(SubRip srt)#LTS
+makeInput(SubRip subrip)#LTS
 makeInput(SDP sdp)
 
 if(SRT_LIB)

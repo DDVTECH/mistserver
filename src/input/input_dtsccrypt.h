@@ -2,9 +2,9 @@
 #include <mist/dtsc.h>
 
 namespace Mist{
-  class inputDTSC : public Input{
+  class InputDTSC : public Input{
   public:
-    inputDTSC(Util::Config *cfg);
+    InputDTSC(Util::Config *cfg);
 
   protected:
     // Private Functions
@@ -21,4 +21,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputDTSC mistIn;
+typedef Mist::InputDTSC mistIn;

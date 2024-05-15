@@ -22,9 +22,9 @@ namespace Mist{
     std::string iVec;
   };
 
-  class inputISMV : public Input{
+  class InputISMV : public Input{
   public:
-    inputISMV(Util::Config *cfg);
+    InputISMV(Util::Config *cfg);
 
   protected:
     // Private Functions
@@ -47,4 +47,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputISMV mistIn;
+typedef Mist::InputISMV mistIn;

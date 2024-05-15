@@ -35,9 +35,9 @@ namespace Mist{
     uint64_t segmentNo;
   };
 
-  class inputOGG : public Input{
+  class InputOGG : public Input{
   public:
-    inputOGG(Util::Config *cfg);
+    InputOGG(Util::Config *cfg);
 
   protected:
     // Private Functions
@@ -58,4 +58,4 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::inputOGG mistIn;
+typedef Mist::InputOGG mistIn;

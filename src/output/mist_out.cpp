@@ -1,3 +1,6 @@
+#ifndef ONE_BINARY
+#include OUTPUTTYPE
+#endif
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/socket.h>
@@ -74,3 +77,9 @@ int OutputMain(int argc, char *argv[]){
   INFO_MSG("Exit reason: %s", Util::exitReason);
   return 0;
 }
+
+#ifndef ONE_BINARY
+int main(int argc, char *argv[]){
+  return OutputMain<mistOut>(argc, argv);
+}
+#endif

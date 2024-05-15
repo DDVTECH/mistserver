@@ -25,3 +25,7 @@ namespace Mist{
     uint64_t until;
   };
 }// namespace Mist
+
+#ifndef ONE_BINARY
+typedef Mist::OutHLS mistOut;
+#endif

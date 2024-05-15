@@ -54,3 +54,7 @@ namespace Mist{
     void calcNextFrameInfo();
   };
 }// namespace Mist
+
+#ifndef ONE_BINARY
+typedef Mist::OutRTMP mistOut;
+#endif

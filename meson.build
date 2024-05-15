@@ -203,17 +203,87 @@ subdir('test')
 
 exec_tgts = []
 
+make_header = find_program('scripts/make_header.sh')
+
+onebinary_stuff = []
+onebinary_stuff += 'MistOutRTMP'
+onebinary_stuff += 'MistOutHLS'
+onebinary_stuff += 'MistOutHTTP'
+onebinary_stuff += 'MistInBuffer'
+
+onebinary_tgts = []
+
 ## This makes sure all (installable) executables are build in top level directory
 ## Done because MistController expects its binaries to all be in the same directory
 foreach exec : executables
-  exec_tgts += executable(
+  my_exec = executable(
     exec.get('name'),
     exec.get('sources'),
     dependencies: exec.get('deps'),
     cpp_args: exec.get('defines'),
     install: true,
   )
+  exec_tgts += my_exec
+  gen_src_name = exec.get('name') + '.json'
+  gen_src = custom_target(gen_src_name,
+    input: [my_exec],
+    output: [exec.get('name') + '.json'],
+    command: [make_header, '@INPUT@', '@OUTPUT0@']
+  )
+  if onebinary_stuff.contains(exec.get('name'))
+    onebinary_tgts += gen_src
+  endif
 endforeach
+
+prog_python = find_program('python3')
+
+onebinary_header = custom_target('onebinary',
+  input: [onebinary_tgts],
+  output: ['controller_static_capabilities.cpp'],
+  command: [prog_python, '../scripts/onebinary_gen.py', '--cap-header', '@OUTPUT0@', '--entrypoint', 'foo.cpp', '@INPUT@'],
+  depends: [onebinary_tgts]
+)
+
+onebinary = executable(
+  'MistServer',
+  [
+    files(
+      'src/mistserver.cpp',
+      'src/input/input.cpp',
+      'src/input/input_buffer.cpp',
+      'src/output/output.cpp',
+      'src/output/output_hls.cpp',
+      'src/output/output_http.cpp',
+      'src/output/output_http_internal.cpp',
+      'src/output/output_ts.cpp',
+      'src/output/output_ts_base.cpp',
+      'src/output/output_rtmp.cpp',
+      'src/controller/controller_external_writers.cpp',
+      'src/controller/controller_updater.cpp',
+      'src/controller/controller_streams.cpp',
+      'src/controller/controller_storage.cpp',
+      'src/controller/controller_connectors.cpp',
+      'src/controller/controller_statistics.cpp',
+      'src/controller/controller_limits.cpp',
+      'src/controller/controller_capabilities.cpp',
+      'src/controller/controller_uplink.cpp',
+      'src/controller/controller_api.cpp',
+      'src/controller/controller_push.cpp',
+      'src/controller/controller_variables.cpp',
+    ),
+    io_cpp,
+    header_tgts,
+    embed_tgts,
+    server_html,
+    onebinary_header,
+  ],
+  cpp_args: [
+    '-DTS_BASECLASS=HTTPOutput',
+    '-DONE_BINARY=1',
+  ],
+  dependencies : [libmist_dep],
+  install: true,
+)
 
 # Docs
 doxygen = find_program('doxygen', required: false)

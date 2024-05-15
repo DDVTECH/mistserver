@@ -677,3 +677,8 @@ int ControllerMain(int argc, char **argv){
   return 0;
 }
 
+#ifndef ONE_BINARY
+int main(int argc, char **argv){
+  return ControllerMain(argc, argv);
+}
+#endif

@@ -58,3 +58,7 @@ namespace Mist{
     std::map<size_t, size_t> sourcePids;
   };
 }// namespace Mist
+
+#ifndef ONE_BINARY
+typedef Mist::inputBuffer mistIn;
+#endif

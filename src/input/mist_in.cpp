@@ -1,3 +1,6 @@
+#ifndef ONE_BINARY
+#include INPUTTYPE
+#endif
 #include <mist/util.h>
 
 template<class T>
@@ -7,3 +10,9 @@ int InputMain(int argc, char *argv[]){
   T conv(&conf);
   return conv.boot(argc, argv);
 }
+
+#ifndef ONE_BINARY
+int main(int argc, char *argv[]){
+  return InputMain<mistIn>(argc, argv);
+}
+#endif

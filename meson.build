@@ -212,7 +212,7 @@ onebinary_stuff += 'MistOutHTTP'
 # onebinary_stuff += 'MistInBuffer'
 
 onebinary_tgts = []
-onebinary_sources = []
+onebinary_headers = []
 
 ## This makes sure all (installable) executables are build in top level directory
 ## Done because MistController expects its binaries to all be in the same directory
@@ -233,6 +233,7 @@ foreach exec : executables
   )
   if onebinary_stuff.contains(exec.get('name'))
     onebinary_tgts += gen_src
+    onebinary_headers += exec.get('headers')
   endif
 endforeach
 
@@ -240,7 +241,7 @@ prog_python = find_program('python3')
 script = files('scripts/onebinary_gen.py')
 
 onebinary_header = custom_target('onebinary',
-  input: [onebinary_tgts],
+  input: [onebinary_tgts, onebinary_headers],
   output: ['controller_static_capabilities.cpp', 'mistserver.cpp'],
   command: [prog_python, script, '--cap-header', '@OUTPUT0@', '--entrypoint', '@OUTPUT1@', '@INPUT@'],
   depends: [onebinary_tgts]
@@ -272,7 +273,6 @@ onebinary = executable(
       'src/controller/controller_push.cpp',
       'src/controller/controller_variables.cpp',
     ),
-    onebinary_sources,
     io_cpp,
     header_tgts,
     embed_tgts,

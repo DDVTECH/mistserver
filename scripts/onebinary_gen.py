@@ -18,13 +18,28 @@ parser.add_argument('files', metavar='N', type=str, nargs='+', help='input binar
 
 args = parser.parse_args()
 
+json_files = []
+header_files = []
+for file in args.files:
+  if file.endswith('.json'):
+    json_files.append(file)
+  elif file.endswith('h'):
+    header_files.append(file)
+  else:
+    raise Exception("unknown file type: " + file)
+
+# print('json')
+# print(json_files)
+# print('h')
+# print(header_files)
+
 MIST_IN = "MistIn"
 MIST_OUT = "MistOut"
 CAP_LINE = '    capabilities["{category}"]["{connector}"] = JSON::fromString({json_str});'
 
 capabilities = []
 
-for name in args.files:
+for name in json_files:
   path = Path(name)
   stem = path.stem
   text = path.read_text().strip("\n")
@@ -76,12 +91,14 @@ entrypoint_lines.extend([
   '#include <mist/socket.h>',
   '#include <mist/util.h>',
   '#include <mist/stream.h>',
+])
+
+for header_file in header_files:
+  entrypoint_lines.append('#include "' + header_file + '"')
+
+entrypoint_lines.extend([
   '#include "src/output/mist_out.cpp"',
-  '#include "src/output/output_rtmp.h"',
-  '#include "src/output/output_hls.h"',
-  '#include "src/output/output_http_internal.h"',
   '#include "src/input/mist_in.cpp"',
-  '#include "src/input/input_buffer.h"',
   '#include "src/session.cpp"',
   '#include "src/controller/controller.cpp"',
   'int main(int argc, char *argv[]){',

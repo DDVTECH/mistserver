@@ -102,6 +102,8 @@ foreach output : outputs
     sources += base
   endif
 
+  outputtype_header = 'output_'+output.get('format')+'.h'
+
   executables += {
     'name': 'MistOut'+output.get('name'),
     'sources' : [
@@ -110,8 +112,11 @@ foreach output : outputs
     ],
     'deps' : deps,
     'defines' : [
-      string_opt.format('OUTPUTTYPE', 'output_'+output.get('format')+'.h'),
+      string_opt.format('OUTPUTTYPE', outputtype_header),
       '-DTS_BASECLASS='+tsBaseClass
+    ],
+    'headers' : [
+      files(outputtype_header)
     ]
   }
 endforeach

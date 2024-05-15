@@ -61,6 +61,8 @@ foreach input : inputs
     deps += av_libs
   endif
 
+  inputtype_header = 'input_'+input.get('format')+'.h'
+
   executables += {
     'name' : 'MistIn'+input.get('name'),
     'sources' : [
@@ -74,7 +76,10 @@ foreach input : inputs
     ],
     'deps' : deps,
     'defines': [
-      string_opt.format('INPUTTYPE', 'input_'+input.get('format')+'.h')
+      string_opt.format('INPUTTYPE', inputtype_header)
+    ],
+    'headers': [
+      inputtype_header
     ]
   }
 endforeach

@@ -2,7 +2,7 @@
 #include "output_ts_base.h"
 
 namespace Mist{
-  class OutHLS : public TSOutput{
+  class OutHLS : public TSOutputHTTP{
   public:
     OutHLS(Socket::Connection &conn);
     ~OutHLS();

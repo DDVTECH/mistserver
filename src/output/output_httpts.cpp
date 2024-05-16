@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 namespace Mist{
-  OutHTTPTS::OutHTTPTS(Socket::Connection &conn) : TSOutput(conn){
+  OutHTTPTS::OutHTTPTS(Socket::Connection &conn) : TSOutputHTTP(conn){
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     HTTP::URL target(config->getString("target"));
     if (target.protocol == "srt"){

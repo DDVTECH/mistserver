@@ -445,7 +445,7 @@ namespace Mist{
       return;
     }
     // Invoke the generic TS output sendNext handler
-    TSOutput::sendNext();
+    TSOutputHTTP::sendNext();
   }
 
   void OutHLS::sendTS(const char *tsData, size_t len){H.Chunkify(tsData, len, myConn);}

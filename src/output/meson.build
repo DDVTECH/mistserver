@@ -78,6 +78,7 @@ foreach output : outputs
     endif
     if extra.contains('ts')
       sources += files('output_ts_base.cpp')
+      sources += files('output_http.cpp')
     endif
     if extra.contains('with_rist')
       deps += librist

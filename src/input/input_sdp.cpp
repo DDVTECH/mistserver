@@ -1,14 +1,14 @@
 #include "input_sdp.h"
 
 // Will point to current InputSDP obj after constructor is called
-Mist::InputSDP *classPointer = 0;
+Mist::InputSDP *classPointerSDP = 0;
 size_t bytesUp = 0;
 // CB used to receive DTSC packets back from RTP sorter
-void incomingPacket(const DTSC::Packet &pkt){
-  classPointer->incoming(pkt);
+void incomingPacketSDP(const DTSC::Packet &pkt){
+  classPointerSDP->incoming(pkt);
 }
 void insertRTP(const uint64_t track, const RTP::Packet &p){
-  classPointer->incomingRTP(track, p);
+  classPointerSDP->incomingRTP(track, p);
 }
 
 /// Function used to send RTCP packets over UDP
@@ -16,7 +16,7 @@ void insertRTP(const uint64_t track, const RTP::Packet &p){
 ///\param data The RTP Packet that needs to be sent
 ///\param len The size of data
 ///\param channel Not used here, but is kept for compatibility with sendTCP
-void sendUDP(void *socket, const char *data, size_t len, uint8_t channel){
+void sendUDPSDP(void *socket, const char *data, size_t len, uint8_t channel){
   ((Socket::UDPConnection *)socket)->SendNow(data, len);
   bytesUp += len;
 }
@@ -30,8 +30,8 @@ namespace Mist{
     setPacketOffset = false;
     packetOffset = 0;
     sdpState.myMeta = &meta;
-    sdpState.incomingPacketCallback = incomingPacket;
-    classPointer = this;
+    sdpState.incomingPacketCallback = incomingPacketSDP;
+    classPointerSDP = this;
     standAlone = false;
     hasBork = false;
     bytesRead = 0;
@@ -280,7 +280,7 @@ namespace Mist{
       // Send RTCP packet back to host
       if (Util::bootSecs() > it->second.rtcpSent + rtcpInterval){
         it->second.rtcpSent = Util::bootSecs();
-        it->second.pack.sendRTCP_RR(it->second, sendUDP);
+        it->second.pack.sendRTCP_RR(it->second, sendUDPSDP);
       }
     }
     if (!receivedPacket){

@@ -3,10 +3,10 @@
 Mist::InputRTSP *classPointer = 0;
 Socket::Connection *mainConn = 0;
 
-void incomingPacket(const DTSC::Packet &pkt){
+void incomingPacketRTSP(const DTSC::Packet &pkt){
   classPointer->incoming(pkt);
 }
-void insertRTP(const uint64_t track, const RTP::Packet &p){
+void insertRTPRTSP(const uint64_t track, const RTP::Packet &p){
   classPointer->incomingRTP(track, p);
 }
 
@@ -15,7 +15,7 @@ void insertRTP(const uint64_t track, const RTP::Packet &p){
 ///\param data The RTP Packet that needs to be sent
 ///\param len The size of data
 ///\param channel Not used here, but is kept for compatibility with sendTCP
-void sendUDP(void *socket, const char *data, size_t len, uint8_t channel){
+void sendUDPRTSP(void *socket, const char *data, size_t len, uint8_t channel){
   ((Socket::UDPConnection *)socket)->SendNow(data, len);
   if (mainConn){mainConn->addUp(len);}
 }
@@ -31,7 +31,7 @@ namespace Mist{
     packetOffset = 0;
     TCPmode = true;
     sdpState.myMeta = &meta;
-    sdpState.incomingPacketCallback = incomingPacket;
+    sdpState.incomingPacketCallback = incomingPacketRTSP;
     classPointer = this;
     standAlone = false;
     seenSDP = false;
@@ -363,7 +363,7 @@ namespace Mist{
     for (std::map<uint64_t, SDP::Track>::iterator it = sdpState.tracks.begin();
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
-      it->second.sorter.setCallback(it->first, insertRTP);
+      it->second.sorter.setCallback(it->first, insertRTPRTSP);
       while (s.Receive()){
         r = true;
         // if (s.getDestPort() != it->second.sPortA){
@@ -377,7 +377,7 @@ namespace Mist{
       }
       if (Util::bootSecs() != it->second.rtcpSent){
         it->second.rtcpSent = Util::bootSecs();
-        it->second.pack.sendRTCP_RR(it->second, sendUDP);
+        it->second.pack.sendRTCP_RR(it->second, sendUDPRTSP);
       }
     }
     return r;

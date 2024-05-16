@@ -1,3 +1,4 @@
+#pragma once
 #include "http_parser.h"
 #include "socket.h"
 #include "url.h"

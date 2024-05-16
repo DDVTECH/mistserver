@@ -206,9 +206,6 @@ exec_tgts = []
 make_header = find_program('scripts/make_header.sh')
 
 onebinary_stuff = []
-onebinary_stuff += 'MistOutRTMP'
-onebinary_stuff += 'MistOutHLS'
-onebinary_stuff += 'MistOutHTTP'
 onebinary_stuff += 'MistInAAC'
 onebinary_stuff += 'MistInBalancer'
 onebinary_stuff += 'MistInBuffer'
@@ -230,6 +227,33 @@ onebinary_stuff += 'MistInSubRip'
 onebinary_stuff += 'MistInTS'
 # onebinary_stuff += 'MistInTSRIST'
 # onebinary_stuff += 'MistInTSSRT'
+onebinary_stuff += 'MistOutAAC'
+# onebinary_stuff += 'MistOutCMAF'
+onebinary_stuff += 'MistOutDTSC'
+onebinary_stuff += 'MistOutEBML'
+onebinary_stuff += 'MistOutFLAC'
+onebinary_stuff += 'MistOutFLV'
+onebinary_stuff += 'MistOutH264'
+onebinary_stuff += 'MistOutHDS'
+# onebinary_stuff += 'MistOutHLS'
+onebinary_stuff += 'MistOutHTTP'
+onebinary_stuff += 'MistOutHTTPMinimalServer'
+onebinary_stuff += 'MistOutHTTPS'
+# onebinary_stuff += 'MistOutHTTPTS'
+onebinary_stuff += 'MistOutJSON'
+onebinary_stuff += 'MistOutJSONLine'
+onebinary_stuff += 'MistOutMP3'
+onebinary_stuff += 'MistOutMP4'
+onebinary_stuff += 'MistOutOGG'
+onebinary_stuff += 'MistOutRTMP'
+onebinary_stuff += 'MistOutRTSP'
+# onebinary_stuff += 'MistOutSDP'
+# onebinary_stuff += 'MistOutSubRip'
+onebinary_stuff += 'MistOutTS'
+# onebinary_stuff += 'MistOutTSRIST'
+# onebinary_stuff += 'MistOutTSSRT'
+onebinary_stuff += 'MistOutWAV'
+# onebinary_stuff += 'MistOutWebRTC'
 
 onebinary_tgts = []
 onebinary_headers = []
@@ -296,7 +320,7 @@ onebinary = executable(
     onebinary_header,
   ],
   cpp_args: [
-    '-DTS_BASECLASS=HTTPOutput',
+    '-DTS_BASECLASS=Output',
     '-DONE_BINARY=1',
   ],
   dependencies : [libmist_dep],

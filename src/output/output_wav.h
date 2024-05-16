@@ -18,4 +18,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::OutWAV mistOut;
+#endif

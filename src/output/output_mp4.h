@@ -141,4 +141,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::OutMP4 mistOut;
+#endif

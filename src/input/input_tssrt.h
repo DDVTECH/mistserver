@@ -49,4 +49,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputTSSRT mistIn;
+#endif

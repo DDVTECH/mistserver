@@ -429,3 +429,9 @@ int SessionMain(int argc, char **argv){
   INFO_MSG("Shutting down session %s: %s", thisSessionId.c_str(), Util::exitReason);
   return 0;
 }
+
+#ifndef ONE_BINARY
+int main(int argc, char **argv){
+  return SessionMain(argc, argv);
+}
+#endif

@@ -1,3 +1,4 @@
+#pragma once
 #include "adts.h"
 #include "h265.h"
 #include "ts_packet.h"

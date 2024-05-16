@@ -24,4 +24,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputAAC mistIn;
+#endif

@@ -47,4 +47,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputISMV mistIn;
+#endif

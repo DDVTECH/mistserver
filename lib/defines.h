@@ -260,15 +260,6 @@ static inline void show_stackframe(){}
 
 #define SIMUL_TRACKS 40
 
-#ifndef UDP_API_HOST
-#define UDP_API_HOST "localhost"
-#endif
-
-#ifndef UDP_API_PORT
-#define UDP_API_PORT 4242
-#endif
-
-
 // The amount of milliseconds a simulated live stream is allowed to be "behind".
 // Setting this value to lower than 2 seconds **WILL** cause stuttering in playback due to buffer negotiation.
 #define SIMULATED_LIVE_BUFFER 7000

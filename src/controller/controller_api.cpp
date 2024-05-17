@@ -452,10 +452,27 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
 
 void Controller::handleUDPAPI(void *np){
   Socket::UDPConnection uSock(true);
-  uint16_t boundPort = uSock.bind(UDP_API_PORT, UDP_API_HOST);
-  if (!boundPort){
-    FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
-    return;
+  uint16_t boundPort;
+  {
+    HTTP::URL udpApiAddr("udp://localhost:4242");
+    if (getenv("UDP_API")){udpApiAddr = HTTP::URL(getenv("UDP_API"));}
+    boundPort = uSock.bind(udpApiAddr.getPort(), udpApiAddr.host);
+    if (!boundPort){
+      FAIL_MSG("Could not open local UDP API socket on %s:%" PRIu16 " - retrying with an ephemeral port", udpApiAddr.host.c_str(), udpApiAddr.getPort());
+      boundPort = uSock.bind(0, udpApiAddr.host);
+      if (!boundPort){
+        std::stringstream newHost;
+        char ranNums[3];
+        Util::getRandomBytes(ranNums, 3);
+        newHost << "127." << (int)ranNums[0] << "." << (int)ranNums[1] << "." << (int)ranNums[2];
+        FAIL_MSG("Could not open local ephemeral UDP API socket either - retrying with host %s", newHost.str().c_str());
+        boundPort = uSock.bind(0, newHost.str());
+        if (!boundPort){
+          FAIL_MSG("Could not open local UDP API socket even after all that... disabling local UDP API, some functionality may not be available");
+          return;
+        }
+      }
+    }
   }
   HTTP::URL boundAddr;
   boundAddr.protocol = "udp";

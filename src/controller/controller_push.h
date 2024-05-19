@@ -7,6 +7,7 @@ namespace Controller{
   // Functions for current pushes, start/stop/list
   void startPush(const std::string &streamname, std::string &target);
   void stopPush(unsigned int ID);
+  void readPushList();
   void listPush(JSON::Value &output);
   void pushLogMessage(uint64_t id, const JSON::Value & msg);
   void setPushStatus(uint64_t id, const JSON::Value & status);

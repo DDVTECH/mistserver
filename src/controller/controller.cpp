@@ -347,6 +347,10 @@ int main_loop(int argc, char **argv){
                 << "!----" APPNAME " Started at " << buffer << " ----!" << std::endl;
     }
   }
+  
+  // We need to do this before we start the log reader, since the log reader might parse messages
+  // from pushes, which block if this list is not read yet.
+  Controller::readPushList();
 
   {// spawn thread that reads stderr of process
     std::string logPipe = Util::getTmpFolder() + "MstLog";

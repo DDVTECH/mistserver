@@ -111,6 +111,7 @@ entrypoint_lines.extend([
   # '#include "src/controller/controller.cpp"',
   'int main(int argc, char *argv[]){',
   '  if (argc < 2) {',
+  '    program_invocation_short_name = (char *)"MistController";'
   '    return ControllerMain(argc, argv);',
   '  }',
   '  // Create a new argv array without argv[1]',
@@ -129,6 +130,7 @@ entrypoint_lines.extend([
 for cap in capabilities:
   entrypoint_lines.extend([
   '  else if (strcmp(argv[1], "' + cap['binary_name'] + '") == 0) {',
+  '    program_invocation_short_name = argv[1];'
   '    return ' + cap['func_name'] +'<' + cap['class_name'] + '>(new_argc, new_argv);',
   '  }',
   ])
@@ -138,6 +140,7 @@ entrypoint_lines.extend([
   '    return SessionMain(new_argc, new_argv);',
   '  }',
   '  else {',
+  '    program_invocation_short_name = (char *)"MistController";',
   '    return ControllerMain(argc, argv);',
   '  }',
   '  INFO_MSG("binary not found: %s", argv[1]);',

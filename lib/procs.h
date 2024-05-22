@@ -13,6 +13,12 @@
 /// Contains utility code, not directly related to streaming media
 namespace Util{
 
+  /// Gets directory the current executable is stored in.
+  std::string getMyPath();
+
+  /// Gets all executables in getMyPath that start with "Mist".
+  void getMyExec(std::deque<std::string> &execs);
+
   /// Deals with spawning, monitoring and stopping child processes
   class Procs{
   private:

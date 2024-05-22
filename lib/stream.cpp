@@ -640,21 +640,21 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     setenv("MISTPROVIDER", "1", 1);
   }
 
-  std::string player_bin = Util::getMyPath() + "MistIn" + input["name"].asStringRef();
-  char *argv[30] ={(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(),
-                    (char *)filename.c_str()};
-  int argNum = 3;
+  std::deque<std::string> argDeq;
+  argDeq.push_back("MistIn" + input["name"].asStringRef());
+  argDeq.push_back("-s");
+  argDeq.push_back(streamname);
+  argDeq.push_back(filename);
   std::string debugLvl;
   if (Util::printDebugLevel != DEBUG && !str_args.count("--debug")){
     debugLvl = JSON::Value(Util::printDebugLevel).asString();
-    argv[++argNum] = (char *)"--debug";
-    argv[++argNum] = (char *)debugLvl.c_str();
+    argDeq.push_back("--debug");
+    argDeq.push_back(debugLvl);
   }
   for (std::map<std::string, std::string>::iterator it = str_args.begin(); it != str_args.end(); ++it){
-    argv[++argNum] = (char *)it->first.c_str();
-    if (it->second.size()){argv[++argNum] = (char *)it->second.c_str();}
+    argDeq.push_back(it->first);
+    if (it->second.size()){argDeq.push_back(it->second);}
   }
-  argv[++argNum] = (char *)0;
 
   Util::Procs::setHandler();
 
@@ -683,13 +683,12 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     Socket::Connection io(0, 1);
     io.drop();
     std::stringstream args;
-    for (size_t i = 0; i < 30; ++i){
-      if (!argv[i] || !argv[i][0]){break;}
-      args << argv[i] << " ";
+    for (int i = 0; i < argDeq.size(); i++){
+      args << argDeq[i] << " ";
     }
     INFO_MSG("Starting %s", args.str().c_str());
-    execvp(argv[0], argv);
-    FAIL_MSG("Starting process %s failed: %s", argv[0], strerror(errno));
+    Util::Procs::ExecMist(argDeq);
+    FAIL_MSG("Starting process %s failed: %s", argDeq[0].c_str(), strerror(errno));
     _exit(42);
   }else if (spawn_pid != NULL){
     *spawn_pid = pid;

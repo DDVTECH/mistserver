@@ -354,6 +354,31 @@ pid_t Util::Procs::StartPiped(std::deque<std::string> &argDeq, int *fdin, int *f
   return ret;
 }
 
+// Create a new deque with a rewritten first element to reflect the correct path
+void mistifyDeque(std::deque<std::string> &argDeq) {
+  argDeq[0] = Util::getMyPath() + argDeq[0];
+}
+
+// Start one of our Mist* processes, resolving our path automatically and such.
+pid_t Util::Procs::StartPipedMist(std::deque<std::string> &argDeq, int *fdin, int *fdout, int *fderr){
+  mistifyDeque(argDeq);
+  return Util::Procs::StartPiped(argDeq, fdin, fdout, fderr);
+}
+
+// Exec to one of our Mist* processes, resolving our path automatically and such.
+int Util::Procs::ExecMist(std::deque<std::string> &argDeq){
+  mistifyDeque(argDeq);
+  char *const *argv = dequeToArgv(argDeq);
+  return execvp(argv[0], argv);
+}
+
+// Check whether a given Mist* binary is available for us to run
+bool Util::Procs::HasMistBinary(std::string binName){
+  std::string tmparg = Util::getMyPath() + binName;
+  struct stat buf;
+  return ::stat(tmparg.c_str(), &buf) == 0;
+}
+
 /// Starts a new process with given fds if the name is not already active.
 /// \return 0 if process was not started, process PID otherwise.
 /// \arg argv Command for this process.

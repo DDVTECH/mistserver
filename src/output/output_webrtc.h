@@ -163,7 +163,7 @@ namespace Mist{
                                ///< messages to which we need to reply.
     std::map<uint64_t, WebRTCTrack> webrtcTracks; ///< WebRTCTracks indexed by payload type for incoming data and indexed by
                                                   ///< myMeta.tracks[].trackID for outgoing data.
-    tthread::thread *webRTCInputOutputThread; ///< The thread in which we read WebRTC data when
+    tthread::thread *ioThread; ///< The thread in which we read WebRTC data when
                                               ///< we're receive media from another peer.
     uint32_t SSRC; ///< The SSRC for this local instance. Is used when generating RTCP reports. */
     uint64_t rtcpTimeoutInMillis; ///< When current time in millis exceeds this timeout we have to

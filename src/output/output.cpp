@@ -1670,7 +1670,8 @@ namespace Mist{
     /*LTS-END*/
     DONTEVEN_MSG("MistOut client handler started");
     while (keepGoing() && (wantRequest || parseData)){
-      Comms::sessionConfigCache();
+      thisBootMs = Util::bootMS();
+      Comms::sessionConfigCache(thisBootMs);
       if (wantRequest){requestHandler();}
       if (parseData){
         if (!isInitialized){
@@ -2273,7 +2274,7 @@ namespace Mist{
     if (!isInitialized){return;}
     // also cancel if it has been less than a second since the last update
     // unless force is set to true
-    uint64_t now = Util::bootSecs();
+    uint64_t now = thisBootMs / 1000;
     if (now <= lastStats && !force){return;}
 
     if (isRecording()){

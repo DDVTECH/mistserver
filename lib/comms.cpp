@@ -19,9 +19,10 @@ namespace Comms{
   uint8_t defaultCommFlags = 0;
 
   /// \brief Refreshes the session configuration if the last update was more than 5 seconds ago
-  void sessionConfigCache(){
+  void sessionConfigCache(uint64_t bootMs){
     static uint64_t lastUpdate = 0;
-    if (Util::bootSecs() > lastUpdate + 5){
+    if (!bootMs){bootMs = Util::bootMS();}
+    if (bootMs > lastUpdate + 5000){
       VERYHIGH_MSG("Updating session config");
       JSON::Value tmpVal = Util::getGlobalConfig("sessionViewerMode");
       if (!tmpVal.isNull()){ sessionViewerMode = tmpVal.asInt(); }
@@ -35,7 +36,7 @@ namespace Comms{
       if (!tmpVal.isNull()){ sessionStreamInfoMode = tmpVal.asInt(); }
       tmpVal = Util::getGlobalConfig("tknMode");
       if (!tmpVal.isNull()){ tknMode = tmpVal.asInt(); }
-      lastUpdate = Util::bootSecs();
+      lastUpdate = bootMs;
     }
   }
 

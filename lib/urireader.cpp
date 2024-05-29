@@ -213,7 +213,6 @@ namespace HTTP{
         downer.getSocket().close();
         downer.getSocket().Received().clear();
         allData.truncate(0);
-        if (!downer.isOk()){return false;}
         supportRangeRequest = false;
         totalSize = std::string::npos;
       }else{
@@ -334,7 +333,16 @@ namespace HTTP{
       // Note: this function returns true if the full read was completed only.
       // It's the reason this function returns void rather than bool.
       size_t prev = cb.getDataCallbackPos();
-      downer.continueNonBlocking(cb);
+      if (downer.continueNonBlocking(cb)){
+        if (downer.getStatusCode() >= 400){
+          WARN_MSG("Received error response code %" PRIu32 " (%s)", downer.getStatusCode(), downer.getStatusText().c_str());
+          // cb.dataCallbackFlush();
+          downer.getSocket().close();
+          downer.getSocket().Received().clear();
+          allData.truncate(0);
+          return 0;
+        }
+      }
       return cb.getDataCallbackPos() - prev;
     }
     // Everything else uses the socket directly

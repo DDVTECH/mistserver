@@ -403,6 +403,7 @@ int main_loop(int argc, char **argv){
   Controller::updateBandwidthConfig();
   createAccount(Controller::conf.getString("account"));
   Controller::conf.activate(); // activate early, so threads aren't killed.
+  Controller::conf.setMutexAborter(&Controller::configMutex);
 
 #if !defined(__CYGWIN__) && !defined(_WIN32)
   {
@@ -630,6 +631,7 @@ int main(int argc, char **argv){
   Controller::conf = Util::Config(argv[0]);
   Util::Config::binaryType = Util::CONTROLLER;
   Controller::conf.activate();
+  Controller::conf.setMutexAborter(&Controller::configMutex);
   if (getenv("ATHEIST")){return main_loop(argc, argv);}
   uint64_t reTimer = 0;
   while (Controller::conf.is_active){

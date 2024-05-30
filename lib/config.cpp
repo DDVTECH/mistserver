@@ -576,6 +576,11 @@ void Util::Config::activate(){
   is_active = true;
 }
 
+tthread::mutex * mutabort = 0;
+void Util::Config::setMutexAborter(void * mutex){
+  mutabort = (tthread::mutex*)mutex;
+}
+
 /// Basic signal handler. Sets is_active to false if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, reaps children for the SIGCHLD
 /// signal, and ignores all other signals.
@@ -584,8 +589,11 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   case SIGINT: // these three signals will set is_active to false.
   case SIGHUP:
   case SIGTERM:
-    if (serv_sock_pointer){serv_sock_pointer->close();}
-    if (stdin){fclose(stdin);}
+    if (!mutabort || mutabort->try_lock()){
+      if (serv_sock_pointer){serv_sock_pointer->close();}
+      if (stdin){fclose(stdin);}
+      if (mutabort){mutabort->unlock();}
+    }
 #if DEBUG >= DLVL_DEVEL
     static int ctr = 0;
     if (!is_active && ++ctr > 4){BACKTRACE;}

@@ -36,6 +36,7 @@ namespace Util{
     static void signal_handler(int signum, siginfo_t *sigInfo, void *ignore);
 
   public:
+    static void setMutexAborter(void * mutex);
     // variables
     static bool is_active;     ///< Set to true by activate(), set to false by the signal handler.
     static bool is_restarting; ///< Set to true when restarting, set to false on boot.

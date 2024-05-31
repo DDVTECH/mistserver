@@ -659,11 +659,11 @@ int main(int argc, char **argv){
       continue;
     }
     // if the exit was clean, don't restart it
-    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0 && !Util::Config::is_restarting)){
+    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0) && !Util::Config::is_restarting){
       MEDIUM_MSG("Controller shut down cleanly");
       break;
     }
-    if (WIFEXITED(status) && (WEXITSTATUS(status) == 42 || Util::Config::is_restarting)){
+    if ((WIFEXITED(status) && WEXITSTATUS(status) == 42) || Util::Config::is_restarting){
       WARN_MSG("Refreshing angel process for update");
       std::string myFile = Util::getMyPath() + "MistController";
       execvp(myFile.c_str(), argv);

@@ -24,7 +24,7 @@ namespace Mist{
     std::string streamOut; ///< When pushing out, the output stream name
     bool setRtmpOffset;
     int64_t rtmpOffset;
-    uint64_t lastOutTime;
+    uint64_t lastSend;
     uint32_t maxbps;
     std::string app_name;
     void parseChunk(Socket::Buffer &inputBuffer);

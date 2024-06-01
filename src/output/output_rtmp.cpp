@@ -30,7 +30,6 @@ namespace Mist{
     customAudioIterator = 0;
     currentFrameTimestamp = 0;
     lastAck = Util::bootSecs();
-    lastOutTime = 0;
     setRtmpOffset = false;
     rtmpOffset = 0;
     authAttempts = 0;
@@ -566,15 +565,6 @@ namespace Mist{
       if (liveSeek()){return;}
     }
 
-    if (streamOut.size()){
-      if (thisPacket.getTime() - rtmpOffset < lastOutTime){
-        int64_t OLD = rtmpOffset;
-        rtmpOffset -= (1 + lastOutTime - (thisPacket.getTime() - rtmpOffset));
-        INFO_MSG("Changing rtmpOffset from %" PRId64 " to %" PRId64, OLD, rtmpOffset);
-        realTime = 800;
-      }
-      lastOutTime = thisPacket.getTime() - rtmpOffset;
-    }
     uint64_t timestamp = thisPacket.getTime() - rtmpOffset;
     // make sure we don't go negative
     if (rtmpOffset > (int64_t)thisPacket.getTime()){

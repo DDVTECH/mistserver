@@ -1073,9 +1073,9 @@ namespace Mist{
         // Connect to stats for INPUT detection
         if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
-          if (!statComm){
+          if (statComm.getExit() || statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from session");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -1237,7 +1237,7 @@ namespace Mist{
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from session");
             return;
           }
           uint64_t now = Util::bootSecs();

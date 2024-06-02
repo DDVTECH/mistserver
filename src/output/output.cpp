@@ -2456,37 +2456,33 @@ namespace Mist{
     if (!statComm){
       statComm.reload(streamName, getConnectedBinHost(), tkn, getStatsName(), reqUrl);
     }
-    if (!statComm || statComm.getExit()){
+    if (!statComm){
+      Util::logExitReason(ER_SHM_LOST, "could not connect to session");
       onFail("Shutting down since this session is not allowed to view this stream");
       statComm.unload();
       return;
     }
-
     lastStats = now;
-
     VERYHIGH_MSG("Writing stats: %s, %s, %s, %" PRIu64 ", %" PRIu64, getConnectedHost().c_str(), streamName.c_str(),
              tkn.c_str(), myConn.dataUp(), myConn.dataDown());
-    /*LTS-START*/
-    if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
-      onFail("Shutting down on controller request");
-      statComm.unload();
-      return;
-    }
-    /*LTS-END*/
     statComm.setNow(now);
     connStats(now, statComm);
     statComm.setLastSecond(thisPacket ? thisPacket.getTime()/1000 : 0);
     statComm.setPid(getpid());
+    if (statComm.getExit() || statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
+      Util::logExitReason(ER_CLEAN_INTENDED_STOP, "shutdown due to session end");
+      onFail("Shutting down due to session end");
+      statComm.unload();
+      return;
+    }
 
-    /*LTS-START*/
-    // Tag the session with the user agent
+
     if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
       JSON::Value APIcall;
       APIcall["tag_sessid"][statComm.sessionId] = "UA:"+UA;
       Util::sendUDPApi(APIcall);
       newUA = false;
     }
-    /*LTS-END*/
 
     if (isPushing()){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -2496,9 +2492,6 @@ namespace Mist{
         if (!it->second){
           if (dropPushTrack(it->second.getTrack(), "track mapping no longer valid")){break;}
         }
-        //if (Util::bootSecs() - M.getLastUpdated(it->first) > 5){
-        //  if (dropPushTrack(it->second.getTrack(), "track updates being ignored by buffer")){break;}
-        //}
       }
     }
   }

@@ -201,6 +201,7 @@ namespace Mist{
 
   void InputRTSP::streamMainLoop(){
     Comms::Connections statComm;
+    statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), url.getUrl());
     uint64_t startTime = Util::epoch();
     uint64_t lastPing = Util::bootSecs();
     uint64_t lastSecs = 0;
@@ -214,7 +215,6 @@ namespace Mist{
       if (lastSecs != currSecs){
         lastSecs = currSecs;
         // Connect to stats for INPUT detection
-        statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;

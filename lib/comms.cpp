@@ -105,7 +105,9 @@ namespace Comms{
         if (getStatus(i) == COMM_STATUS_INVALID || (getStatus(i) & COMM_STATUS_DISCONNECT)){continue;}
         uint64_t cPid = getPid(i);
         if (cPid > 1 && !(getStatus(i) & COMM_STATUS_NOKILL)){
-          Util::Procs::Stop(cPid); // soft kill
+          if (c > 4){
+            Util::Procs::Stop(cPid); // soft kill after 4 loops
+          }
           keepGoing = true;
         }
         setStatus(COMM_STATUS_REQDISCONNECT | getStatus(i), i);

@@ -372,6 +372,7 @@ int main(int argc, char **argv){
       Util::wait(1000);
     }
     shouldSleep = connections.getExit();
+    connections.setExit();
   }//connections scope end
   if (Util::bootSecs() - lastSeen > STATS_DELAY){
     Util::logExitReason(ER_CLEAN_INACTIVE, "Session inactive for %d seconds", STATS_DELAY);

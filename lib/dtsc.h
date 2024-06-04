@@ -535,6 +535,7 @@ namespace DTSC{
     void streamInit(size_t trackCount = DEFAULT_TRACK_COUNT);
     void updateFieldDataReferences();
     void resizeTrackList(size_t newTrackCount);
+    void preloadTrackFields();
 
     std::string streamName;
 
@@ -560,6 +561,7 @@ namespace DTSC{
     Util::RelAccXFieldData streamVodField;
     Util::RelAccXFieldData streamLiveField;
     Util::RelAccXFieldData streamSourceField;
+    Util::RelAccXFieldData streamTracksField;
     Util::RelAccXFieldData streamMaxKeepAwayField;
     Util::RelAccXFieldData streamBufferWindowField;
     Util::RelAccXFieldData streamBootMsOffsetField;

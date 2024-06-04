@@ -1184,8 +1184,9 @@ namespace DTSC{
       stream.addField("minfragduration", RAX_64UINT);
       stream.setRCount(1);
       stream.addRecords(1);
+      streamTracksField = stream.getFieldData("tracks");
 
-      trackList = Util::RelAccX(stream.getPointer("tracks"), false);
+      trackList = Util::RelAccX(stream.getPointer(streamTracksField), false);
       trackList.addField("valid", RAX_UINT);
       trackList.addField("id", RAX_32UINT);
       trackList.addField("type", RAX_32STRING);
@@ -1201,7 +1202,10 @@ namespace DTSC{
       trackList.addField("playready", RAX_STRING, 1024);
 
       trackList.setRCount(trackCount);
+      trackList.setReady();
+      preloadTrackFields();
     }else{
+      if (stream.isReady()){streamTracksField = stream.getFieldData("tracks");}
       refresh();
     }
     // Initialize internal bufferFields
@@ -1217,7 +1221,9 @@ namespace DTSC{
     streamBootMsOffsetField = stream.getFieldData("bootmsoffset");
     streamUTCOffsetField = stream.getFieldData("utcoffset");
     streamMinimumFragmentDurationField = stream.getFieldData("minfragduration");
+  }
 
+  void Meta::preloadTrackFields(){
     trackValidField = trackList.getFieldData("valid");
     trackIdField = trackList.getFieldData("id");
     trackTypeField = trackList.getFieldData("type");
@@ -1311,16 +1317,17 @@ namespace DTSC{
   /// Does not clear "tracks" beforehand, so it may contain stale information afterwards if it was
   /// already populated.
   void Meta::refresh(){
-    if (!stream.isReady() || !stream.getPointer("tracks")){
+    if (!stream.isReady() || !stream.getPointer(streamTracksField)){
       INFO_MSG("No track pointer, not refreshing.");
       return;
     }
-    trackList = Util::RelAccX(stream.getPointer("tracks"), false);
+    trackList = Util::RelAccX(stream.getPointer(streamTracksField), false);
+    preloadTrackFields();
     for (size_t i = 0; i < trackList.getPresent(); i++){
-      if (trackList.getInt("valid", i) == 0){continue;}
+      if (trackList.getInt(trackValidField, i) == 0){continue;}
       if (tracks.count(i)){continue;}
       IPC::sharedPage &p = tM[i];
-      p.init(trackList.getPointer("page", i), SHM_STREAM_TRACK_LEN, false, false);
+      p.init(trackList.getPointer(trackPageField, i), SHM_STREAM_TRACK_LEN, false, false);
 
       Track &t = tracks[i];
       t.track = Util::RelAccX(p.mapped, true);
@@ -1385,7 +1392,7 @@ namespace DTSC{
   /// Returns true if a reload happened
   bool Meta::reloadReplacedPagesIfNeeded(){
     if (isMemBuf){return false;}//Only for shm-backed metadata
-    if (!stream.isReady() || !stream.getPointer("tracks")){
+    if (!stream.isReady() || !stream.getPointer(streamTracksField)){
       INFO_MSG("No track pointer, not refreshing.");
       return false;
     }
@@ -1412,20 +1419,20 @@ namespace DTSC{
 
     bool ret = false;
     for (size_t i = 0; i < trackList.getPresent(); i++){
-      if (trackList.getInt("valid", i) == 0){continue;}
+      if (trackList.getInt(trackValidField, i) == 0){continue;}
       bool always_load = !tracks.count(i);
       if (always_load || tracks[i].track.isReload()){
         ret = true;
         Track &t = tracks[i];
         if (always_load){
-          VERYHIGH_MSG("Loading track: %s", trackList.getPointer("page", i));
+          VERYHIGH_MSG("Loading track: %s", trackList.getPointer(trackPageField, i));
         }else{
-          VERYHIGH_MSG("Reloading track: %s", trackList.getPointer("page", i));
+          VERYHIGH_MSG("Reloading track: %s", trackList.getPointer(trackPageField, i));
         }
         IPC::sharedPage &p = tM[i];
-        p.init(trackList.getPointer("page", i), SHM_STREAM_TRACK_LEN, false, false);
+        p.init(trackList.getPointer(trackPageField, i), SHM_STREAM_TRACK_LEN, false, false);
         if (!p.mapped){
-          WARN_MSG("Failed to load page %s, retrying later", trackList.getPointer("page", i));
+          WARN_MSG("Failed to load page %s, retrying later", trackList.getPointer(trackPageField, i));
           tM.erase(i);
           tracks.erase(i);
           continue;

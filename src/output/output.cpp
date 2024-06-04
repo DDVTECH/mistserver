@@ -2152,7 +2152,7 @@ namespace Mist{
       nxt = *(buffer.begin());
 
       if (meta.reloadReplacedPagesIfNeeded()){return false;}
-      if (!M.getValidTracks().count(nxt.tid)){
+      if (!M.trackLoaded(nxt.tid)){
         dropTrack(nxt.tid, "disappeared from metadata");
         return false;
       }

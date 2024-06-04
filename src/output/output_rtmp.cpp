@@ -1800,9 +1800,9 @@ namespace Mist{
             for (std::map<size_t, uint64_t>::iterator it = lastTagTime.begin(); it != lastTagTime.end(); ++it){
               if (it->second == reTrack){continue;}
               size_t iIdx = reTrackToID[it->first];
-              if (it->second < ltt){
-                meta.setNowms(iIdx, ltt-1);
-                it->second = ltt-1;
+              if (it->second + 100 < ltt){
+                meta.setNowms(iIdx, ltt-100);
+                it->second = ltt-100;
               }
             }
           }

@@ -1585,7 +1585,7 @@ namespace Mist{
           sendCommand(amfReply, 20, 1);
         }
         HIGH_MSG("Publish starting");
-        if (!targetParams.count("realtime")){realTime = 0;}
+        if (!targetParams.count("realtime")){realTime = 800;}
         parseData = true;
         return;
       }

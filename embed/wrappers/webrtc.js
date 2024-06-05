@@ -406,7 +406,6 @@ p.prototype.build = function (MistVideo,callback) {
     
     this.stop = function(){
       if (!this.isConnected) { throw "Not connected, cannot stop." }
-      n_
       this.signaling.send({type: "stop"});
     };
     this.seek = function(seekTime){
@@ -904,7 +903,9 @@ p.prototype.build = function (MistVideo,callback) {
       me.webrtc.stop();
       me.webrtc.signaling.ws.close();
       me.webrtc.peerConn.close();
-    } catch (e) {}
+    } catch (e) { 
+      //console.log(e);
+    }
   };
   
   callback(video);

@@ -165,9 +165,9 @@ namespace SDP{
     bool parseOffer(const std::string &sdp);
     bool hasVideo(); ///< Check if the offer has video.
     bool hasAudio(); ///< Check if the offer has audio.
-    bool enableVideo(const std::string &codecName);
-    bool enableAudio(const std::string &codecName);
-    bool enableMeta(const std::string &codecName);
+    bool enableVideo(const std::string &codecName, SDP::Session &sdpSession);
+    bool enableAudio(const std::string &codecName, SDP::Session &sdpSession);
+    bool enableMeta(const std::string &codecName, SDP::Session &sdpSession);
     void setCandidate(const std::string &ip, uint16_t port);
     void setFingerprint(const std::string &fingerprintSha); ///< Set the SHA265 that represents the
                                                             ///< certificate that is used with DTLS.
@@ -178,7 +178,7 @@ namespace SDP{
 
   private:
     bool enableMedia(const std::string &type, const std::string &codecName, SDP::Media &outMedia,
-                     SDP::MediaFormat &outFormat);
+                     SDP::MediaFormat &outFormat, SDP::Session &sdpSession);
     void addLine(const std::string fmt, ...);
     std::string generateSessionId();
     std::string generateIceUFrag(); ///< Generates the `ice-ufrag` value.

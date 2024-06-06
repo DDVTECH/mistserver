@@ -773,7 +773,7 @@ namespace Mist{
 
     // setup video WebRTC Track.
     if (vidTrack != INVALID_TRACK_ID){
-      if (sdpAnswer.enableVideo(M.getCodec(vidTrack))){
+      if (sdpAnswer.enableVideo(M.getCodec(vidTrack), sdpSession)){
         WebRTCTrack &videoTrack = webrtcTracks[vidTrack];
         if (!createWebRTCTrackFromAnswer(sdpAnswer.answerVideoMedia, sdpAnswer.answerVideoFormat, videoTrack)){
           FAIL_MSG("Failed to create the WebRTCTrack for the selected video.");
@@ -791,7 +791,7 @@ namespace Mist{
 
     // setup audio WebRTC Track
     if (audTrack != INVALID_TRACK_ID){
-      if (sdpAnswer.enableAudio(M.getCodec(audTrack))){
+      if (sdpAnswer.enableAudio(M.getCodec(audTrack), sdpSession)){
         WebRTCTrack &audioTrack = webrtcTracks[audTrack];
         if (!createWebRTCTrackFromAnswer(sdpAnswer.answerAudioMedia, sdpAnswer.answerAudioFormat, audioTrack)){
           FAIL_MSG("Failed to create the WebRTCTrack for the selected audio.");
@@ -804,7 +804,7 @@ namespace Mist{
 
     // setup meta WebRTC Track
     if (metaTrack != INVALID_TRACK_ID){
-      if (sdpAnswer.enableMeta(M.getCodec(metaTrack))){
+      if (sdpAnswer.enableMeta(M.getCodec(metaTrack), sdpSession)){
         WebRTCTrack &mTrack = webrtcTracks[metaTrack];
         if (!createWebRTCTrackFromAnswer(sdpAnswer.answerMetaMedia, sdpAnswer.answerMetaFormat, mTrack)){
           FAIL_MSG("Failed to create the WebRTCTrack for the selected metadata.");
@@ -989,7 +989,7 @@ namespace Mist{
     meta.reInit(streamName, false);
 
     // video
-    if (sdpAnswer.enableVideo(prefVideoCodec)){
+    if (sdpAnswer.enableVideo(prefVideoCodec, sdpSession)){
 
       size_t vIdx = meta.addDelayedTrack();
       if (!sdpAnswer.setupVideoDTSCTrack(meta, vIdx)){
@@ -1028,7 +1028,7 @@ namespace Mist{
     }
 
     // audio setup
-    if (sdpAnswer.enableAudio(prefAudioCodec)){
+    if (sdpAnswer.enableAudio(prefAudioCodec, sdpSession)){
 
       size_t aIdx = meta.addDelayedTrack();
       if (!sdpAnswer.setupAudioDTSCTrack(meta, aIdx)){

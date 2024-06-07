@@ -1483,7 +1483,7 @@ namespace Mist{
             }
             if (description.find("?reason=needauth") != std::string::npos){
               std::map<std::string, std::string> authVars;
-              HTTP::parseVars(description.substr(description.find("?reason=needauth") + 1), authVars);
+              HTTP::parseVars(description.substr(description.find("?reason=needauth") + 1), authVars, "&", false);
               std::string authSalt = authVars.count("salt") ? authVars["salt"] : "";
               std::string authOpaque = authVars.count("opaque") ? authVars["opaque"] : "";
               std::string authChallenge = authVars.count("challenge") ? authVars["challenge"] : "";
@@ -1504,9 +1504,9 @@ namespace Mist{
               }
               Secure::md5bin(to_hash.data(), to_hash.size(), md5buffer);
               std::string hash_two = Encodings::Base64::encode(std::string(md5buffer, 16));
-              std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user, "/:=@[]") +
+              std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user, "/:=@[]+ ") +
                                     "&challenge=00000000&response=" + hash_two;
-              if (authOpaque.size()){authStr += "&opaque=" + Encodings::URL::encode(authOpaque, "/:=@[]");}
+              if (authOpaque.size()){authStr += "&opaque=" + Encodings::URL::encode(authOpaque, "/:=@[]+ ");}
               startPushOut(authStr.c_str());
               return;
             }

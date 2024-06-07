@@ -19,9 +19,9 @@ namespace Encodings{
   class URL{
   public:
     /// urldecodes std::string data, parsing out both %-encoded characters and +-encoded spaces.
-    static std::string decode(const std::string &in);
+    static std::string decode(const std::string &in, bool queryStr = false);
     /// urlencodes std::string data, leaving only the characters A-Za-z0-9~!&()' alone.
-    static std::string encode(const std::string &c, const std::string &ign = "");
+    static std::string encode(const std::string &c, const std::string &ign = "", bool queryStr = false);
   };
 
   /// Hexadecimal-related functions

@@ -756,7 +756,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
 
 /// HTTP variable parser to std::map<std::string, std::string> structure.
 /// Reads variables from data, decodes and stores them to storage.
-void HTTP::parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator){
+void HTTP::parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator, bool queryStr){
   std::string varname;
   std::string varval;
   // position where a part starts (e.g. after &)
@@ -776,7 +776,7 @@ void HTTP::parseVars(const std::string &data, std::map<std::string, std::string>
     }
     if (varname.size()){
       DONTEVEN_MSG("Found key:value pair '%s:%s'", varname.c_str(), varval.c_str());
-      storage[Encodings::URL::decode(varname)] = Encodings::URL::decode(varval);
+      storage[Encodings::URL::decode(varname, queryStr)] = Encodings::URL::decode(varval, queryStr);
     }
     if (nextpos == std::string::npos){
       // in case the string is gigantic

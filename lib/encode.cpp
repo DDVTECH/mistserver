@@ -97,7 +97,7 @@ namespace Encodings{
   }
 
   /// urlencodes std::string data, leaving only the characters A-Za-z0-9~!&()' alone.
-  std::string URL::encode(const std::string &c, const std::string &ign){
+  std::string URL::encode(const std::string &c, const std::string &ign, bool queryStr){
     std::string escaped = "";
     int max = c.length();
     for (int i = 0; i < max; i++){
@@ -107,7 +107,7 @@ namespace Encodings{
           (ign.size() && ign.find(c[i]) != std::string::npos)){
         escaped.append(&c[i], 1);
       }else{
-        if (c[i] == ' '){
+        if (c[i] == ' ' && queryStr){
           escaped.append("+");
         }else{
           escaped.append("%");
@@ -119,7 +119,7 @@ namespace Encodings{
   }
 
   /// urldecodes std::string data, parsing out both %-encoded characters and +-encoded spaces.
-  std::string URL::decode(const std::string &in){
+  std::string URL::decode(const std::string &in, bool queryStr){
     std::string out;
     for (unsigned int i = 0; i < in.length(); ++i){
       if (in[i] == '%'){
@@ -130,7 +130,7 @@ namespace Encodings{
         if (i < in.length()){tmp += Hex::ord(in[i]);}
         out += tmp;
       }else{
-        if (in[i] == '+'){
+        if (in[i] == '+' && queryStr){
           out += ' ';
         }else{
           out += in[i];

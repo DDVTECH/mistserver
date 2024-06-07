@@ -651,7 +651,6 @@ int main(int argc, char **argv){
     while (waitpid(pid, &status, 0) != pid && errno == EINTR){
       if (Util::Config::is_restarting){
         Controller::conf.is_active = true;
-        Util::Config::is_restarting = false;
         kill(pid, SIGUSR1);
       }
       if (!Controller::conf.is_active){
@@ -671,6 +670,7 @@ int main(int argc, char **argv){
       execvp(myFile.c_str(), argv);
       FAIL_MSG("Error restarting: %s", strerror(errno));
     }
+    Util::Config::is_restarting = false;
     INFO_MSG("Controller uncleanly shut down! Restarting in %" PRIu64 "...", reTimer);
     Util::wait(reTimer);
     reTimer += 1000;

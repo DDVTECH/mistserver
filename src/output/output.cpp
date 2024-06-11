@@ -1129,42 +1129,12 @@ namespace Mist{
         }
       }
       
-      if (targetParams.count("split")){
-        long long endRec = atoll(targetParams["split"].c_str()) * 1000;
-        INFO_MSG("Will split recording every %lld seconds", atoll(targetParams["split"].c_str()));
-        targetParams["nxt-split"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
-      }
-      // Duration to record in seconds. Overrides recstop.
-      if (targetParams.count("duration")){
-        int64_t endRec;
-        if (targetParams.count("recstart")){
-          endRec = atoll(targetParams["recstart"].c_str()) + atoll(targetParams["duration"].c_str()) * 1000;
-        }else{
-          endRec = seekPos + atoll(targetParams["duration"].c_str()) * 1000;
-        }
-        targetParams["recstop"] = JSON::Value(endRec).asString();
-        // Recheck recording end time
-        endRec = atoll(targetParams["recstop"].c_str());
-        if (endRec < 0 || endRec < startTime()){
-          onFail("Entire recording range is in the past", true);
-          return;
-        }
-      }
-      // Print calculated start and stop time
-      if (targetParams.count("recstart")){
-        INFO_MSG("Recording will start at timestamp %llu ms", atoll(targetParams["recstart"].c_str()));
-      } else{
-        INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", endTime()); 
-      }
-      if (targetParams.count("recstop")){
-        INFO_MSG("Recording will stop at timestamp %llu ms", atoll(targetParams["recstop"].c_str()));
-      }
       // Wait for the stream to catch up to the starttime
       uint64_t streamAvail = endTime();
       uint64_t lastUpdated = Util::getMS();
-      if (atoll(targetParams["recstart"].c_str()) > streamAvail){       
+      if (seekPos > streamAvail){
         INFO_MSG("Waiting for stream to reach recording starting point. Recording will start in " PRETTY_PRINT_TIME, PRETTY_ARG_TIME((atoll(targetParams["recstart"].c_str()) - streamAvail) / 1000));
-        while (Util::getMS() - lastUpdated < 10000 && atoll(targetParams["recstart"].c_str()) > streamAvail && keepGoing()){
+        while (Util::getMS() - lastUpdated < 10000 && seekPos > streamAvail && keepGoing()){
           Util::sleep(250);
           meta.reloadReplacedPagesIfNeeded();
           if (endTime() > streamAvail){
@@ -1173,6 +1143,36 @@ namespace Mist{
             lastUpdated = Util::getMS();
           }
         }
+      }
+      {
+        size_t mainTrack = getMainSelectedTrack();
+        if (mainTrack != INVALID_TRACK_ID && M.getType(mainTrack) == "video"){
+          uint64_t preSeekPos = seekPos;
+          seekPos = M.getTimeForKeyIndex(mainTrack, M.getKeyIndexForTime(mainTrack, seekPos));
+          if (seekPos != preSeekPos){
+            INFO_MSG("Shifting recording start from %" PRIu64 " to %" PRIu64 " so that it starts with a keyframe", preSeekPos, seekPos);
+          }
+        }
+      }
+      if (targetParams.count("split")){
+        long long endRec = atoll(targetParams["split"].c_str()) * 1000;
+        INFO_MSG("Will split recording every %lld seconds", atoll(targetParams["split"].c_str()));
+        targetParams["nxt-split"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
+      }
+      // Duration to record in seconds. Overrides recstop.
+      if (targetParams.count("duration")){
+        int64_t endRec;
+        endRec = seekPos + atoll(targetParams["duration"].c_str()) * 1000;
+        targetParams["recstop"] = JSON::Value(endRec).asString();
+        if (endRec < 0 || endRec < startTime()){
+          onFail("Entire recording range is in the past", true);
+          return;
+        }
+      }
+      // Print calculated start and stop time
+      INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", seekPos); 
+      if (targetParams.count("recstop")){
+        INFO_MSG("Recording will stop at timestamp %llu ms", atoll(targetParams["recstop"].c_str()));
       }
       // If we have a stop position and it's within available range,
       // apply a limiter to the stream to make it appear like a VoD asset

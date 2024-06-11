@@ -37,6 +37,7 @@ namespace Util{
 
   public:
     static void setMutexAborter(void * mutex);
+    static void wipeShm();
     // variables
     static bool is_active;     ///< Set to true by activate(), set to false by the signal handler.
     static bool is_restarting; ///< Set to true when restarting, set to false on boot.

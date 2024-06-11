@@ -175,6 +175,27 @@ static bool checkSerial(const std::string &ser){
 #endif
 #endif
 
+void Util::Config::wipeShm(){
+  DIR *d = opendir("/dev/shm");
+  char fileName[300];
+  struct dirent *dp;
+  uint64_t deleted = 0;
+  if (d){
+    do{
+      errno = 0;
+      if ((dp = readdir(d))){
+        if (strstr(dp->d_name, "Mst")){
+          snprintf(fileName, sizeof(fileName), "/dev/shm/%s", dp->d_name);
+          unlink(fileName);
+          ++deleted;
+        }
+      }
+    }while (dp != NULL);
+    closedir(d);
+  }
+  if (deleted){WARN_MSG("Wiped %" PRIu64 " shared memory file(s)", deleted);}
+}
+
 Util::Config::Config(){
   // global options here
   vals["debug"]["long"] = "debug";

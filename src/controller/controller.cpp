@@ -393,6 +393,14 @@ int main_loop(int argc, char **argv){
     }
     setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
   }
+
+#ifdef __CYGWIN__
+  // Wipe shared memory, unless NO_WIPE_SHM is set
+  if (!getenv("NO_WIPE_SHM")){
+    Util::Config::wipeShm();
+    setenv("NO_WIPE_SHM", "1", 1);
+  }
+#endif
   
   Controller::readConfigFromDisk();
   Controller::writeConfig();
@@ -642,6 +650,9 @@ int main(int argc, char **argv){
       return main_loop(argc, argv);
     }
     Util::Procs::fork_complete();
+#ifdef __CYGWIN__
+    setenv("NO_WIPE_SHM", "1", 1);
+#endif
     if (pid == -1){
       FAIL_MSG("Unable to spawn controller process!");
       return 2;

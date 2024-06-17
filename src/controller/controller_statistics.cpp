@@ -385,7 +385,7 @@ void Controller::SharedMemStats(void *config){
   while (((Util::Config *)config)->is_active){
     {
       std::ifstream cpustat("/proc/stat");
-      if (cpustat){
+      if (cpustat.good()){
         char line[300];
         while (cpustat.getline(line, 300)){
           static uint64_t cl_total = 0, cl_idle = 0;
@@ -403,6 +403,7 @@ void Controller::SharedMemStats(void *config){
           }
         }
       }
+      cpustat.close();
     }
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);

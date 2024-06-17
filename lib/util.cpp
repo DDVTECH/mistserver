@@ -306,11 +306,14 @@ namespace Util{
   /// Secure random bytes generator
   /// Uses /dev/urandom internally
   void getRandomBytes(void * dest, size_t len){
-    static FILE * randSource = fopen("/dev/urandom", "rb");
-    if (fread((void *)dest, len, 1, randSource) != 1){
+    std::ifstream rndSrc("/dev/urandom", std::ifstream::binary);
+    rndSrc.read((char*)dest, len);
+    size_t cnt = rndSrc.gcount();
+    if (!rndSrc.good()){
       WARN_MSG("Reading random data failed - generating using rand() as backup");
-      for (size_t i = 0; i < len; ++i){((char*)dest)[i] = rand() % 255;}
+      for (size_t i = cnt; i < len; ++i){((char*)dest)[i] = rand() % 255;}
     }
+    rndSrc.close();
   }
 
   /// 64-bits version of ftell

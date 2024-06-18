@@ -348,6 +348,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
           req["authorize"] = JSON::fromString(auth.substr(5));
           if (Storage["account"]){
             tthread::lock_guard<tthread::mutex> guard(configMutex);
+            if (!Controller::conf.is_active){return 0;}
             authorized = authorize(req, req, conn);
             if (!authorized){
               H.Clean();
@@ -413,6 +414,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
       if (H.url == "/api2"){Request["minimal"] = true;}
       {// lock the config mutex here - do not unlock until done processing
         tthread::lock_guard<tthread::mutex> guard(configMutex);
+        if (!Controller::conf.is_active){return 0;}
         // if already authorized, do not re-check for authorization
         if (authorized && Storage["account"]){
           Response["authorize"]["status"] = "OK";
@@ -1053,6 +1055,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   ///
   if (Request.isMember("clearstatlogs") || Request.isMember("log") || !Request.isMember("minimal")){
     tthread::lock_guard<tthread::mutex> guard(logMutex);
+    if (!Controller::conf.is_active){return;}
     if (!Request.isMember("minimal") || Request.isMember("log")){
       Response["log"] = Controller::Storage["log"];
     }

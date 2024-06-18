@@ -30,19 +30,23 @@ namespace Controller{
     JSON::Value logs;
   };
   std::map<pid_t, procInfo> activeProcs;
+  tthread::recursive_mutex procMutex;
 
   void procLogMessage(uint64_t id, const JSON::Value & msg){
+    tthread::lock_guard<tthread::recursive_mutex> procGuard(procMutex);
     JSON::Value &log = activeProcs[id].logs;
     log.append(msg);
     log.shrink(25);
   }
 
   bool isProcActive(uint64_t id){
+    tthread::lock_guard<tthread::recursive_mutex> procGuard(procMutex);
     return activeProcs.count(id);
   }
 
 
   void getProcsForStream(const std::string & stream, JSON::Value & returnedProcList){
+    tthread::lock_guard<tthread::recursive_mutex> procGuard(procMutex);
     std::set<pid_t> wipeList;
     for (std::map<pid_t, procInfo>::iterator it = activeProcs.begin(); it != activeProcs.end(); ++it){
       if (!stream.size() || stream == it->second.sink || stream == it->second.source){
@@ -65,6 +69,7 @@ namespace Controller{
   }
 
   void setProcStatus(uint64_t id, const std::string & proc, const std::string & source, const std::string & sink, const JSON::Value & status){
+    tthread::lock_guard<tthread::recursive_mutex> procGuard(procMutex);
     procInfo & prc = activeProcs[id];
     prc.lastupdate = Util::bootSecs();
     prc.stats.extend(status);

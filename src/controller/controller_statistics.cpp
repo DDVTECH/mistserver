@@ -1859,6 +1859,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
 
     {// Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
+      if (!Controller::conf.is_active){return;}
 
       response << "# HELP mist_sessions_total Number of sessions active right now, server-wide, by type.\n";
       response << "# TYPE mist_sessions_total gauge\n";
@@ -1937,6 +1938,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     resp["bwlimit"] = bwLimit;
     {// Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
+      if (!Controller::conf.is_active){return;}
       resp["curr"].append((uint64_t)sessions.size());
 
       if (Controller::triggerStats.size()){
@@ -1982,6 +1984,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
 
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+      if (!Controller::conf.is_active){return;}
       // add tags, if any
       if (Storage.isMember("tags") && Storage["tags"].isArray() && Storage["tags"].size()){resp["tags"] = Storage["tags"];}
       // Loop over connectors

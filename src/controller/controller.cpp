@@ -586,7 +586,6 @@ int main_loop(int argc, char **argv){
   monitorThread.join();
   HIGH_MSG("Joining UDP API thread...");
   UDPAPIThread.join();
-  /*LTS-START*/
   HIGH_MSG("Joining uplink thread...");
   uplinkThread.join();
   HIGH_MSG("Joining push thread...");
@@ -597,9 +596,9 @@ int main_loop(int argc, char **argv){
   HIGH_MSG("Joining updater thread...");
   updaterThread.join();
 #endif
-  /*LTS-END*/
   // write config
-  tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
+  tthread::lock_guard<tthread::mutex> guardLog(Controller::logMutex);
+  tthread::lock_guard<tthread::mutex> guardCnf(Controller::configMutex);
   Controller::writeConfigToDisk(true);
   // stop all child processes
   Util::Procs::StopAll();

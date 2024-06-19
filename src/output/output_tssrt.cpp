@@ -473,6 +473,7 @@ static void callThreadCallbackSRT(void *srtPtr){
 }
 
 int main(int argc, char *argv[]){
+  Socket::SRT::libraryInit();
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
@@ -563,5 +564,6 @@ int main(int argc, char *argv[]){
     }
   }
   INFO_MSG("Exit reason: %s", Util::exitReason);
+  Socket::SRT::libraryCleanup();
   return 0;
 }

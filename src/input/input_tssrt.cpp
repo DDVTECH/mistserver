@@ -169,6 +169,7 @@ namespace Mist{
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
   bool InputTSSRT::preRun(){
+    Socket::SRT::libraryInit();
     rawMode = config->getBool("raw");
     if (rawMode){INFO_MSG("Entering raw mode");}
     if (srtConn.getSocket() == -1){
@@ -301,6 +302,7 @@ namespace Mist{
           HIGH_MSG("Spawned new thread for socket %i", S.getSocket());
         }
       }
+      Socket::SRT::libraryCleanup();
       return;
     }
     // If we are here: we have a proper connection (either accepted or pull input) and should start parsing it as such

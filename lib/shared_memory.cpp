@@ -330,7 +330,7 @@ namespace IPC{
         }
         return;
       }
-      if (handle > 0 && handle < 3){
+      if (handle >= 0 && handle < 3){
         int tmpHandle = fcntl(handle, F_DUPFD, 3);
         if (tmpHandle >= 3){
           DONTEVEN_MSG("Remapped handle for page %s from %d to %d!", name.c_str(), handle, tmpHandle);

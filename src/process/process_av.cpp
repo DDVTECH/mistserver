@@ -99,7 +99,68 @@ namespace Mist{
       }
     };
 
+    void setNowMS(uint64_t t){
+      if (!userSelect.size()){return;}
+      meta.setNowms(userSelect.begin()->first, t);
+    }
+
     ~ProcessSink(){ }
+
+    void parseH264(bool isKey){
+      // Get buffer pointers
+      const char* bufIt = (char*)packet_out->data;
+      uint64_t bufSize = packet_out->size;
+      const char *nextPtr;
+      const char *pesEnd = (char*)packet_out->data + bufSize;
+      uint32_t nalSize = 0;
+
+      // Parse H264-specific data
+      nextPtr = nalu::scanAnnexB(bufIt, bufSize);
+      if (!nextPtr){
+        WARN_MSG("Unable to find AnnexB data in the H264 buffer");
+        return;
+      }
+      thisPacket.null();
+      while (nextPtr < pesEnd){
+        if (!nextPtr){nextPtr = pesEnd;}
+        // Calculate size of NAL unit, removing null bytes from the end
+        nalSize = nalu::nalEndPosition(bufIt, nextPtr - bufIt) - bufIt;
+        if (nalSize){
+          // If we don't have a packet yet, init an empty packet
+          if (!thisPacket){
+            thisPacket.genericFill(thisTime, 0, 1, 0, 0, 0, isKey);
+          }
+          // Set PPS/SPS info
+          uint8_t typeNal = bufIt[0] & 0x1F;
+          if (typeNal == 0x07){
+            spsInfo.assign(std::string(bufIt, (nextPtr - bufIt)));
+          } else if (typeNal == 0x08){
+            ppsInfo.assign(std::string(bufIt, (nextPtr - bufIt)));
+          }
+          thisPacket.appendNal(bufIt, nalSize);
+        }
+        if (((nextPtr - bufIt) + 3) >= bufSize){break;}// end of the line
+        bufSize -= ((nextPtr - bufIt) + 3); // decrease the total size
+        bufIt = nextPtr + 3;
+        nextPtr = nalu::scanAnnexB(bufIt, bufSize);
+      }
+    }
+
+    void parseAV1(bool isKey){
+      thisPacket.null();
+      // Get buffer pointers
+      const char* bufIt = (char*)packet_out->data;
+      uint64_t bufSize = packet_out->size;
+      thisPacket.genericFill(thisTime, 0, 1, bufIt, bufSize, 0, isKey);
+    }
+
+    void parseJPEG(){
+      thisPacket.null();
+      // Get buffer pointers
+      const char* bufIt = (char*)packet_out->data;
+      uint64_t bufSize = packet_out->size;
+      thisPacket.genericFill(thisTime, 0, 1, bufIt, bufSize, 0, 1);
+    }
 
     /// \brief Outputs buffer as video
     void bufferVideo(){
@@ -112,43 +173,14 @@ namespace Mist{
           VERYHIGH_MSG("Buffering %iB packet @%zums", packet_out->size, thisTime);
         }
 
-        // Get buffer pointers
-        const char* bufIt = (char*)packet_out->data;
-        uint64_t bufSize = packet_out->size;
-        const char *nextPtr;
-        const char *pesEnd = (char*)packet_out->data + bufSize;
-        uint32_t nalSize = 0;
+        if (codecOut == "AV1"){
+          parseAV1(isKey);
+        }else if (codecOut == "H264"){
+          parseH264(isKey);
+        }else if (codecOut == "JPEG"){
+          parseJPEG();
+        }
 
-        // Parse H264-specific data
-        nextPtr = nalu::scanAnnexB(bufIt, bufSize);
-        if (!nextPtr){
-          WARN_MSG("Unable to find AnnexB data in the H264 buffer");
-          return;
-        }
-        thisPacket.null();
-        while (nextPtr < pesEnd){
-          if (!nextPtr){nextPtr = pesEnd;}
-          // Calculate size of NAL unit, removing null bytes from the end
-          nalSize = nalu::nalEndPosition(bufIt, nextPtr - bufIt) - bufIt;
-          if (nalSize){
-            // If we don't have a packet yet, init an empty packet
-            if (!thisPacket){
-              thisPacket.genericFill(thisTime, 0, 1, 0, 0, 0, isKey);
-            }
-            // Set PPS/SPS info
-            uint8_t typeNal = bufIt[0] & 0x1F;
-            if (typeNal == 0x07){
-              spsInfo.assign(std::string(bufIt, (nextPtr - bufIt)));
-            } else if (typeNal == 0x08){
-              ppsInfo.assign(std::string(bufIt, (nextPtr - bufIt)));
-            }
-            thisPacket.appendNal(bufIt, nalSize);
-          }
-          if (((nextPtr - bufIt) + 3) >= bufSize){break;}// end of the line
-          bufSize -= ((nextPtr - bufIt) + 3); // decrease the total size
-          bufIt = nextPtr + 3;
-          nextPtr = nalu::scanAnnexB(bufIt, bufSize);
-        }
         if (!thisPacket){return;}
         // Now that we have SPS and PPS info, init the video track
         setVideoInit();
@@ -263,35 +295,65 @@ namespace Mist{
       if (trkIdx != INVALID_TRACK_ID){return;}
       // We're encoding to a target codec
       if (codec_out){
-        if (!spsInfo.size() || !ppsInfo.size()){return;}
-        // First generate needed data
-        h264::sequenceParameterSet sps(spsInfo, spsInfo.size());
-        h264::SPSMeta spsChar = sps.getCharacteristics();
+        if (codecOut == "AV1"){
+          // Add a single track and init some metadata
+          meta.reInit(streamName, false);
+          trkIdx = meta.addTrack();
+          meta.setType(trkIdx, "video");
+          meta.setCodec(trkIdx, codecOut);
+          meta.setID(trkIdx, 1);
+          meta.setWidth(trkIdx, frameConverted->width);
+          meta.setHeight(trkIdx,  frameConverted->height);
+          meta.setFpks(trkIdx, inFpks);
+          meta.setInit(trkIdx, (char*)context_out->extradata, context_out->extradata_size);
+          if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
+            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+          }
+          INFO_MSG("AV1 track index is %zu", trkIdx);
+        } else if (codecOut == "JPEG"){
+          meta.reInit(streamName, false);
+          trkIdx = meta.addTrack();
+          meta.setType(trkIdx, "video");
+          meta.setCodec(trkIdx, codecOut);
+          meta.setID(trkIdx, 1);
+          meta.setWidth(trkIdx, frameConverted->width);
+          meta.setHeight(trkIdx,  frameConverted->height);
+          meta.setFpks(trkIdx, inFpks);
+          if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
+            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+          }
+          INFO_MSG("MJPEG track index is %zu", trkIdx);
+        }else if (codecOut == "H264"){
+          if (!spsInfo.size() || !ppsInfo.size()){return;}
+          // First generate needed data
+          h264::sequenceParameterSet sps(spsInfo, spsInfo.size());
+          h264::SPSMeta spsChar = sps.getCharacteristics();
 
-        MP4::AVCC avccBox;
-        avccBox.setVersion(1);
-        avccBox.setProfile(spsInfo[1]);
-        avccBox.setCompatibleProfiles(spsInfo[2]);
-        avccBox.setLevel(spsInfo[3]);
-        avccBox.setSPSCount(1);
-        avccBox.setSPS(spsInfo, spsInfo.size());
-        avccBox.setPPSCount(1);
-        avccBox.setPPS(ppsInfo, ppsInfo.size());
+          MP4::AVCC avccBox;
+          avccBox.setVersion(1);
+          avccBox.setProfile(spsInfo[1]);
+          avccBox.setCompatibleProfiles(spsInfo[2]);
+          avccBox.setLevel(spsInfo[3]);
+          avccBox.setSPSCount(1);
+          avccBox.setSPS(spsInfo, spsInfo.size());
+          avccBox.setPPSCount(1);
+          avccBox.setPPS(ppsInfo, ppsInfo.size());
 
-        // Add a single track and init some metadata
-        meta.reInit(streamName, false);
-        trkIdx = meta.addTrack();
-        meta.setType(trkIdx, "video");
-        meta.setCodec(trkIdx, "H264");
-        meta.setID(trkIdx, 1);
-        if (avccBox.payloadSize()){meta.setInit(trkIdx, avccBox.payload(), avccBox.payloadSize());}
-        meta.setWidth(trkIdx, spsChar.width);
-        meta.setHeight(trkIdx,  spsChar.height);
-        meta.setFpks(trkIdx, inFpks);
-        if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
-          userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+          // Add a single track and init some metadata
+          meta.reInit(streamName, false);
+          trkIdx = meta.addTrack();
+          meta.setType(trkIdx, "video");
+          meta.setCodec(trkIdx, "H264");
+          meta.setID(trkIdx, 1);
+          if (avccBox.payloadSize()){meta.setInit(trkIdx, avccBox.payload(), avccBox.payloadSize());}
+          meta.setWidth(trkIdx, spsChar.width);
+          meta.setHeight(trkIdx,  spsChar.height);
+          meta.setFpks(trkIdx, inFpks);
+          if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
+            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+          }
+          INFO_MSG("H264 track index is %zu", trkIdx);
         }
-        INFO_MSG("H264 track index is %zu", trkIdx);
       }else{
         // Add a single track and init some metadata
         meta.reInit(streamName, false);
@@ -347,9 +409,11 @@ namespace Mist{
     void connStats(Comms::Connections &statComm){}
   };
 
+  ProcessSink * sinkClass = 0;
+
   class ProcessSource : public Output{
   private:
-    SwsContext *convertCtx; ///< Convert input to h264-compatible YUV420 format
+    SwsContext *convertCtx; ///< Convert input to target-codec-compatible YUV420 format
     SwrContext *resampleContext; ///< Resample audio formats
     enum AVPixelFormat pixelFormat;
     enum AVPixelFormat softFormat;
@@ -360,6 +424,7 @@ namespace Mist{
     AVBufferRef *hw_decode_ctx;
     AVPixelFormat hw_decode_fmt;
     AVPixelFormat hw_decode_sw_fmt;
+    uint64_t skippedFrames; //< Amount of frames since last JPEG image
 
     // Filter vars
 //    AVFilterContext *buffersink_ctx;
@@ -390,6 +455,7 @@ namespace Mist{
       softFormat = AV_PIX_FMT_NONE;
       softDecodeFormat = AV_PIX_FMT_NONE;
       hw_decode_ctx = 0;
+      skippedFrames = 99999; //< Init high so that it does not skip the first keyframe
     };
 
     ~ProcessSource(){
@@ -410,6 +476,7 @@ namespace Mist{
         capa["codecs"][0u][0u].append("UYVY");
         capa["codecs"][0u][0u].append("NV12");
         capa["codecs"][0u][0u].append("H264");
+        capa["codecs"][0u][0u].append("AV1");
         capa["codecs"][0u][0u].append("JPEG");
       }else{
         capa["codecs"][0u][0u].append("PCM");
@@ -466,11 +533,17 @@ namespace Mist{
       if (encoder.size()){
         codec_out = avcodec_find_encoder_by_name(encoder.c_str());
       }else{
-        codec_out = avcodec_find_encoder(AV_CODEC_ID_H264);
+        if (codecOut == "AV1"){
+          codec_out = avcodec_find_encoder(AV_CODEC_ID_AV1);
+        }else if (codecOut == "H264"){
+          codec_out = avcodec_find_encoder(AV_CODEC_ID_H264);
+        }else if (codecOut == "JPEG"){
+          codec_out = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
+        }
       }
       AVCodecContext * tmpCtx = avcodec_alloc_context3(codec_out);
       if (!tmpCtx) {
-        ERROR_MSG("Could not allocate %s H264 encode context", encoder.c_str());
+        ERROR_MSG("Could not allocate %s %s encode context", encoder.c_str(), codecOut.c_str());
         av_logLevel = AV_LOG_WARNING;
         return false;
       }
@@ -499,7 +572,11 @@ namespace Mist{
       tmpCtx->qmin = 20;
       tmpCtx->qmax = 51;
       tmpCtx->framerate = (AVRational){(int)targetFPKS, 1000};
-      tmpCtx->profile = FF_PROFILE_H264_HIGH;
+      if (codecOut == "AV1"){
+        tmpCtx->profile = FF_PROFILE_AV1_MAIN;
+      }else if (codecOut == "H264"){
+        tmpCtx->profile = FF_PROFILE_H264_HIGH;
+      }
       tmpCtx->gop_size = Mist::opt["gopsize"].asInt();
       tmpCtx->max_b_frames = 0;
       tmpCtx->has_b_frames = false;
@@ -515,7 +592,7 @@ namespace Mist{
         av_hwdevice_ctx_create(&hw_device_ctx, hwDev, 0, 0, 0);
 
         if (!hw_device_ctx){
-          INFO_MSG("Could not open %s H264 hardware acceleration", encoder.c_str());
+          INFO_MSG("Could not open %s %s hardware acceleration", encoder.c_str(), codecOut.c_str());
           avcodec_free_context(&tmpCtx);
           av_logLevel = AV_LOG_WARNING;
           softFormat = AV_PIX_FMT_NONE;
@@ -547,7 +624,7 @@ namespace Mist{
       int ret;
       if (hwDev == AV_HWDEVICE_TYPE_CUDA){
         AVDictionary *avDict = NULL;
-        if (Mist::opt["tune"].asString() == "zerolatency"){
+        if (codecOut == "H264" && Mist::opt["tune"].asString() == "zerolatency"){
           av_dict_set(&avDict, "preset", "ll", 0);
           av_dict_set(&avDict, "tune", "ull", 0);
         }
@@ -560,19 +637,27 @@ namespace Mist{
           av_dict_set(&avDict, "tune", "ull", 0);
         }
         av_dict_set(&avDict, "rc", "cbr", 0);
-        av_dict_set(&avDict, "profile", "high", 0);
+        if (codecOut == "H264"){
+          av_dict_set(&avDict, "profile", "high", 0);
+        }
         ret = avcodec_open2(tmpCtx, codec_out, &avDict);
       }else if (hwDev == AV_HWDEVICE_TYPE_QSV){
         AVDictionary *avDict = NULL;
-        av_dict_set(&avDict, "preset", "medium", 0);
+        if (codecOut == "H264"){
+          av_dict_set(&avDict, "preset", "medium", 0);
+        }
         av_dict_set(&avDict, "look_ahead", "0", 0);
         ret = avcodec_open2(tmpCtx, codec_out, &avDict);
       }else{
         AVDictionary *avDict = NULL;
-        if (Mist::opt["tune"] == "zerolatency-lq"){Mist::opt["tune"] = "zerolatency";}
-        if (Mist::opt["tune"] == "zerolatency-hq"){Mist::opt["tune"] = "zerolatency";}
-        av_dict_set(&avDict, "tune", Mist::opt["tune"].asString().c_str(), 0);
-        av_dict_set(&avDict, "preset", Mist::opt["preset"].asString().c_str(), 0);
+        if (codecOut == "H264"){
+          if (Mist::opt["tune"] == "zerolatency-lq"){Mist::opt["tune"] = "zerolatency";}
+          if (Mist::opt["tune"] == "zerolatency-hq"){Mist::opt["tune"] = "zerolatency";}
+          av_dict_set(&avDict, "tune", Mist::opt["tune"].asString().c_str(), 0);
+          av_dict_set(&avDict, "preset", Mist::opt["preset"].asString().c_str(), 0);
+        }else if (codecOut =="AV1"){
+          tmpCtx->thread_count = 8;
+        }
         ret = avcodec_open2(tmpCtx, codec_out, &avDict);
       }
 
@@ -580,7 +665,7 @@ namespace Mist{
         if (hw_device_ctx){av_buffer_unref(&hw_device_ctx);}
         if (frameInHW){av_frame_free(&frameInHW);}
         avcodec_free_context(&tmpCtx);
-        printError("Could not open H264 codec context", ret);
+        printError("Could not open " + codecIn + " codec context", ret);
         av_logLevel = AV_LOG_WARNING;
         softFormat = AV_PIX_FMT_NONE;
         return false;
@@ -593,21 +678,43 @@ namespace Mist{
 
     /// \brief Tries various encoders for video transcoding
     void allocateVideoEncoder(){
-      // Prepare H264 encoder
-      if (!context_out && codecOut == "H264") {
-        INFO_MSG("Initting H264 encoder");
-        //if (!tryEncoder("h264_vaapi", AV_HWDEVICE_TYPE_VAAPI, AV_PIX_FMT_VAAPI, AV_PIX_FMT_YUYV422)){
-        //if (!tryEncoder("h264_vaapi", AV_HWDEVICE_TYPE_VAAPI, AV_PIX_FMT_VAAPI, AV_PIX_FMT_YUV420P)){
-        if (!allowHW || !tryEncoder("h264_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_UYVY422)){
-          if (!allowHW || !tryEncoder("h264_nvenc", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
-            INFO_MSG("Falling back to software encoder.");
-            if (!allowSW || !tryEncoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE)){
-              ERROR_MSG("Could not allocate H264 context");
-              exit(1);
+      // Prepare target codec encoder
+      if (!context_out){
+        INFO_MSG("Initting %s encoder", codecOut.c_str());
+        if(codecOut == "H264"){
+          // if (!allowHW || !tryEncoder("h264_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){
+            if (!allowHW || !tryEncoder("h264_nvenc", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
+              INFO_MSG("Falling back to software encoder.");
+              if (!allowSW || !tryEncoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE)){
+                ERROR_MSG("Could not allocate H264 context");
+                exit(1);
+              }
             }
+          // }
+        }else if(codecOut == "AV1"){
+          // if (!allowHW || !tryEncoder("av1_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){
+            if (!allowHW || !tryEncoder("av1_nvenc", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
+              INFO_MSG("Falling back to software encoder.");
+              if (!allowSW || !tryEncoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE)){
+                ERROR_MSG("Could not allocate AV1 context");
+                exit(1);
+              }
+            }
+          // }
+        }else if(codecOut == "JPEG"){
+          // Default to a software transcode
+          if (!allowSW || !tryEncoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_NONE)){
+            // if (!allowHW || !tryEncoder("mjpeg_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUVJ420P)){
+              if (!allowHW || !tryEncoder("mjpeg_nvenc", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUVJ420P)){
+                  ERROR_MSG("Could not allocate AV1 context");
+                  exit(1);
+              }
+            // }
           }
+
+
         }
-        INFO_MSG("H264 encoder inited");
+        INFO_MSG("%s encoder initted", codecOut.c_str());
       }
 
       if (!inFpks){
@@ -732,14 +839,22 @@ namespace Mist{
     /// \brief Tries to open a given encoder. On success immediately configures it
     bool tryDecoder(std::string decoder, AVHWDeviceType hwDev, AVPixelFormat pixFmt, AVPixelFormat softFmt){
       av_logLevel = AV_LOG_DEBUG;
-      if (decoder.size()){
-        codec_in = avcodec_find_decoder_by_name(decoder.c_str());
+       if (decoder.size()){
+         codec_in = avcodec_find_decoder_by_name(decoder.c_str());
       }else{
-        codec_in = avcodec_find_decoder(AV_CODEC_ID_H264);
+        if (codecIn == "AV1"){
+          codec_in = avcodec_find_decoder(AV_CODEC_ID_AV1);
+        }else if (codecIn == "JPEG"){
+          codec_in = avcodec_find_decoder(AV_CODEC_ID_MJPEG);
+        }else if (codecIn == "H264"){
+          codec_in = avcodec_find_decoder(AV_CODEC_ID_H264);
+        }else{
+          codec_in = avcodec_find_decoder(AV_CODEC_ID_H264);
+        }
       }
       AVCodecContext * tmpCtx = avcodec_alloc_context3(codec_in);
       if (!tmpCtx) {
-        ERROR_MSG("Could not allocate %s H264 decode context", decoder.c_str());
+        ERROR_MSG("Could not allocate %s %s decode context", decoder.c_str(), codecIn.c_str());
         av_logLevel = AV_LOG_WARNING;
         return false;
       }
@@ -760,7 +875,7 @@ namespace Mist{
         av_hwdevice_ctx_create(&hw_decode_ctx, hwDev, 0, 0, 0);
 
         if (!hw_decode_ctx){
-          INFO_MSG("Could not open %s H264 hardware decode acceleration", decoder.c_str());
+          INFO_MSG("Could not open %s %s hardware decode acceleration", decoder.c_str(), codecIn.c_str());
           avcodec_free_context(&tmpCtx);
           av_logLevel = AV_LOG_WARNING;
           softDecodeFormat = AV_PIX_FMT_NONE;
@@ -797,7 +912,7 @@ namespace Mist{
         if (hw_decode_ctx){av_buffer_unref(&hw_decode_ctx);}
         if (frameDecodeHW){av_frame_free(&frameDecodeHW);}
         avcodec_free_context(&tmpCtx);
-        printError("Could not open H264 codec context", ret);
+        printError("Could not open " + codecOut + " codec context", ret);
         av_logLevel = AV_LOG_WARNING;
         softDecodeFormat = AV_PIX_FMT_NONE;
         return false;
@@ -822,12 +937,25 @@ namespace Mist{
           pixelFormat = AV_PIX_FMT_NV12;
         }else if(codecIn == "H264"){
           if (!allowHW || !tryDecoder("h264_cuvid", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
-            if (!allowSW){
-              INFO_MSG("Disallowing software decode, aborting!");
-              return false;
-            }
-            INFO_MSG("Falling back to software decoding");
-            tryDecoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE);
+            // if (!allowHW || !tryDecoder("h264_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){
+              if (!allowSW){
+                INFO_MSG("Disallowing software decode, aborting!");
+                return false;
+              }
+              INFO_MSG("Falling back to software decoding");
+              tryDecoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE);
+            // }
+          }
+        }else if(codecIn == "AV1"){
+          if (!allowHW || !tryDecoder("av1_cuvid", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
+            // if (!allowHW || !tryDecoder("av1_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){
+              if (!allowSW){
+                INFO_MSG("Disallowing software decode, aborting!");
+                return false;
+              }
+              INFO_MSG("Falling back to software decoding");
+              tryDecoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE);
+            // }
           }
         }else if(codecIn == "JPEG"){
           // Init MJPEG decoder
@@ -1079,6 +1207,18 @@ namespace Mist{
         }else{
           convertToPixFmt = softFormat;
         }
+      }else if (codecOut == "AV1"){
+        if (softFormat == AV_PIX_FMT_NONE){
+          convertToPixFmt = context_out->pix_fmt;
+        }else{
+          convertToPixFmt = softFormat;
+        }
+      }else if (codecOut == "JPEG"){
+        if (softFormat == AV_PIX_FMT_NONE){
+          convertToPixFmt = context_out->pix_fmt;
+        }else{
+          convertToPixFmt = softFormat;
+        }
       }else if (codecOut == "YUYV"){
         convertToPixFmt = AV_PIX_FMT_YUYV422;
       }else if (codecOut == "UYVY"){
@@ -1240,7 +1380,8 @@ namespace Mist{
           frameConverted->format = convertToPixFmt;
           frameConverted->width  = reqWidth;
           frameConverted->height = reqHeight;
-          frameConverted->quality = FF_QP2LAMBDA * 20;
+          frameConverted->flags |= AV_CODEC_FLAG_QSCALE;
+          frameConverted->quality = FF_QP2LAMBDA * Mist::opt["quality"].asInt();;
           int ret = av_image_alloc(frameConverted->data, frameConverted->linesize, frameConverted->width, frameConverted->height, convertToPixFmt, 32);
           if (ret < 0) {
             av_frame_free(&frameConverted);
@@ -1250,7 +1391,7 @@ namespace Mist{
           }
           INFO_MSG("Allocated converted frame buffer");
         }
-        // Convert RAW frame to a H264 compatible pixel format
+        // Convert RAW frame to a target codec compatible pixel format
         sws_scale(convertCtx, (const uint8_t * const *)frame_RAW->data, frame_RAW->linesize, 0, frame_RAW->height, frameConverted->data, frameConverted->linesize);
       }
       return true;
@@ -1382,9 +1523,9 @@ namespace Mist{
       return true;
     }
 
-    /// @brief  Takes raw video buffer and encode it to create an output packet
+    /// @brief Takes raw video buffer and encode it to create an output packet
     void encodeVideo(){
-      // Encode to H264. Force P frame to prevent keyframe-only outputs from appearing
+      // Encode to target codec. Force P frame to prevent keyframe-only outputs from appearing
       int ret;
       frameConverted->pict_type = AV_PICTURE_TYPE_P;
       frameConverted->pts++;
@@ -1522,6 +1663,17 @@ namespace Mist{
       }
 
       if (thisTime > statSourceMs){statSourceMs = thisTime;}
+
+      // Keyframe only mode for MJPEG output
+      if (codecOut == "JPEG"){
+        ++skippedFrames;
+        if(!thisPacket.getFlag("keyframe") || skippedFrames < Mist::opt["gopsize"].asInt()){
+          sinkClass->setNowMS(thisTime);
+          return;
+        }
+        skippedFrames = 0;
+      }
+
       needsLookAhead = 0;
       maxSkipAhead = 0;
       realTime = 0;
@@ -1684,6 +1836,7 @@ void sinkThread(void *){
   pthread_setname_np(pthread_self(), "sinkThread");
 #endif
   Mist::ProcessSink in(&co);
+  Mist::sinkClass = &in;
   co.getOption("output", true).append("-");
   MEDIUM_MSG("Running sink thread...");
   in.run();
@@ -1724,7 +1877,8 @@ void logcallback(void *ptr, int level, const char *fmt, va_list vl){
   static int print_prefix = 1;
   char line[1024];
   av_log_format_line(ptr, level, fmt, vl, line, sizeof(line), &print_prefix);
-  if (std::string(line).find("specified frame type") != std::string::npos){
+  std::string ll(line);
+  if (ll.find("specified frame type") != std::string::npos || ll.find("rc buffer underflow") != std::string::npos){
     HIGH_MSG("LibAV: %s", line);
   }else{
     INFO_MSG("LibAV: %s", line);
@@ -1758,6 +1912,7 @@ int main(int argc, char *argv[]){
   capa["codecs"][0u][0u].append("NV12");
   capa["codecs"][0u][0u].append("UYVY");
   capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][0u].append("AV1");
   capa["codecs"][0u][0u].append("JPEG");
   capa["codecs"][0u][0u].append("PCM");
   capa["codecs"][0u][0u].append("opus");
@@ -1847,7 +2002,7 @@ int main(int argc, char *argv[]){
     capa["optional"]["track_select"]["default"] = "audio=all&video=all";
 
     capa["optional"]["gopsize"]["name"] = "GOP Size";
-    capa["optional"]["gopsize"]["help"] = "Amount of frames before a new keyframe is sent";
+    capa["optional"]["gopsize"]["help"] = "Amount of frames before a new keyframe is sent. When outputting JPEG, this is the minimum amount of frames between images.";
     capa["optional"]["gopsize"]["type"] = "uint";
     capa["optional"]["gopsize"]["default"] = 40;
 
@@ -1856,16 +2011,20 @@ int main(int argc, char *argv[]){
     capa["required"]["codec"]["type"] = "select";
     capa["required"]["codec"]["select"][0u][0u] = "H264";
     capa["required"]["codec"]["select"][0u][1u] = "H264";
-    capa["required"]["codec"]["select"][1u][0u] = "YUYV";
-    capa["required"]["codec"]["select"][1u][1u] = "YUYV: Raw YUV 4:2:2 pixels";
-    capa["required"]["codec"]["select"][2u][0u] = "UYVY";
-    capa["required"]["codec"]["select"][2u][1u] = "UYVY: Raw YUV 4:2:2 pixels";
-    capa["required"]["codec"]["select"][3u][0u] = "PCM";
-    capa["required"]["codec"]["select"][3u][1u] = "PCM";
-    capa["required"]["codec"]["select"][4u][0u] = "opus";
-    capa["required"]["codec"]["select"][4u][1u] = "opus";
-    capa["required"]["codec"]["select"][5u][0u] = "AAC";
-    capa["required"]["codec"]["select"][5u][1u] = "AAC";
+    capa["required"]["codec"]["select"][1u][0u] = "AV1";
+    capa["required"]["codec"]["select"][1u][1u] = "AV1";
+    capa["required"]["codec"]["select"][2u][0u] = "JPEG";
+    capa["required"]["codec"]["select"][2u][1u] = "JPEG";
+    capa["required"]["codec"]["select"][3u][0u] = "YUYV";
+    capa["required"]["codec"]["select"][3u][1u] = "YUYV: Raw YUV 4:2:2 pixels";
+    capa["required"]["codec"]["select"][4u][0u] = "UYVY";
+    capa["required"]["codec"]["select"][4u][1u] = "UYVY: Raw YUV 4:2:2 pixels";
+    capa["required"]["codec"]["select"][5u][0u] = "PCM";
+    capa["required"]["codec"]["select"][5u][1u] = "PCM";
+    capa["required"]["codec"]["select"][6u][0u] = "opus";
+    capa["required"]["codec"]["select"][6u][1u] = "opus";
+    capa["required"]["codec"]["select"][7u][0u] = "AAC";
+    capa["required"]["codec"]["select"][7u][1u] = "AAC";
 
     capa["optional"]["accel"]["name"] = "Hardware acceleration";
     capa["optional"]["accel"]["help"] = "Control whether hardware acceleration is used or not";
@@ -1931,6 +2090,14 @@ int main(int argc, char *argv[]){
     capa["optional"]["resolution"]["default"] = "keep source resolution";
     capa["optional"]["resolution"]["sort"] = "aca";
     capa["optional"]["resolution"]["dependent"]["x-LSP-kind"] = "video";
+
+    capa["optional"]["quality"]["name"] = "Quality";
+    capa["optional"]["quality"]["help"] = "Level of compression similar to the `qscale` option in FFMPEG. Takes on a value between 1-31. A lower value provides a better quality output";
+    capa["optional"]["quality"]["type"] = "int";
+    capa["optional"]["quality"]["default"] = 20;
+    capa["optional"]["quality"]["min"] = 1;
+    capa["optional"]["quality"]["max"] = 31;
+
     std::cout << capa.toString() << std::endl;
     return -1;
   }
@@ -1955,6 +2122,10 @@ int main(int argc, char *argv[]){
     Mist::opt["bitrate"] = 2000000;
   }
 
+  if (!Mist::opt.isMember("quality") || !Mist::opt["quality"].asInt()){
+    Mist::opt["quality"] = 20;
+  }
+
   if (Mist::opt.isMember("accel") && Mist::opt["accel"].isString()){
     if (Mist::opt["accel"].asStringRef() == "hw"){
       allowSW = false;
@@ -1967,6 +2138,14 @@ int main(int argc, char *argv[]){
   if (!Mist::opt.isMember("codec") || !Mist::opt["codec"] || !Mist::opt["codec"].isString() || Mist::opt["codec"].asStringRef() == "H264"){
     isVideo = true;
     codecOut = "H264";
+    codec_out = 0;
+  }else if (Mist::opt["codec"].asStringRef() == "AV1"){
+    isVideo = true;
+    codecOut = "AV1";
+    codec_out = 0;
+  }else if (Mist::opt["codec"].asStringRef() == "JPEG"){
+    isVideo = true;
+    codecOut = "JPEG";
     codec_out = 0;
   }else if (Mist::opt["codec"].asStringRef() == "YUYV"){
     isVideo = true;

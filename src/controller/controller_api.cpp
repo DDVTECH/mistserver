@@ -189,7 +189,7 @@ public:
   std::string tags;
 };
 
-void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
+void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool authorized){
   std::string logs = H.GetVar("logs");
   std::string accs = H.GetVar("accs");
   bool doStreams = H.GetVar("streams").size();
@@ -197,6 +197,41 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
   H.Clean();
   HTTP::Websocket W(C, req, H);
   if (!W){return;}
+  
+  if (authorized){
+    W.sendFrame("[\"auth\", true]");
+  }else{
+    W.sendFrame("[\"auth\", false]");
+    C.setBlocking(false);
+  }
+  uint64_t authTime = Util::bootMS();
+  while (!authorized && W){
+    if (W.readFrame()){
+
+      //only handle text frames
+      if (W.frameType != 1){continue;}
+
+      //Parse JSON and check command type
+      JSON::Value command = JSON::fromString(W.data, W.data.size());
+      if (command.isArray() && command[0u].asString() == "auth"){
+        tthread::lock_guard<tthread::mutex> guard(configMutex);
+        JSON::Value req;
+        req["authorize"] = command[1u];
+        authorized = authorize(req, req, C);
+        W.sendFrame("[\"auth\", "+req["authorize"].toString()+"]");
+      }
+    }
+    Util::sleep(100);
+    if (Util::bootMS() > authTime + 10000){
+      W.sendFrame("[\"auth\",\"Too slow, sorry\"]");
+      C.close();
+    }
+  }
+  if (!authorized || !W || !C){return;}
+  C.setBlocking(true);
+
+
+
 
   IPC::sharedPage shmLogs(SHM_STATE_LOGS, 1024 * 1024);
   IPC::sharedPage shmAccs(SHM_STATE_ACCS, 1024 * 1024);
@@ -364,15 +399,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
       }
       // Catch websocket requests
       if (H.url == "/ws"){
-        if (!authorized){
-          H.Clean();
-          H.body = "Please login first or provide a valid token authentication.";
-          H.SetHeader("Server", APPIDENT);
-          H.SendResponse("403", "Not authorized", conn);
-          H.Clean();
-          continue;
-        }
-        handleWebSocket(H, conn);
+        handleWebSocket(H, conn, authorized);
         H.Clean();
         continue;
       }

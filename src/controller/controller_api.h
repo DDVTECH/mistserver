@@ -7,6 +7,6 @@ namespace Controller{
   bool authorize(JSON::Value &Request, JSON::Value &Response, Socket::Connection &conn);
   int handleAPIConnection(Socket::Connection &conn);
   void handleAPICommands(JSON::Value &Request, JSON::Value &Response);
-  void handleWebSocket(HTTP::Parser &H, Socket::Connection &C);
+  void handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool authorized);
   void handleUDPAPI(void *np);
 }// namespace Controller

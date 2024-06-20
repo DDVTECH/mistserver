@@ -15,7 +15,7 @@ static const std::set<std::string> emptyset;
 namespace JSON{
 
   /// Lists all types of JSON::Value.
-  enum ValueType{EMPTY, BOOL, INTEGER, DOUBLE, STRING, ARRAY, OBJECT};
+  enum ValueType { EMPTY, BOOL, INTEGER, DOUBLE, STRING, ARRAY, OBJECT, UNSET };
 
   /// JSON-string-escapes a value
   std::string string_escape(const std::string &val);
@@ -115,6 +115,7 @@ namespace JSON{
     bool isNull() const;
     uint32_t size() const;
     void null();
+    void unset();
   };
 
   Value fromDTMI2(const std::string &data);

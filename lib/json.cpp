@@ -15,7 +15,7 @@ JSON::Iter::Iter(Value &root){
   myType = root.myType;
   i = 0;
   r = &root;
-  if (!root.size()){myType = JSON::EMPTY;}
+  if (!root.size()) { myType = JSON::UNSET; }
   if (myType == JSON::ARRAY){aIt = root.arrVal.begin();}
   if (myType == JSON::OBJECT){oIt = root.objVal.begin();}
 }
@@ -86,7 +86,7 @@ JSON::ConstIter::ConstIter(const Value &root){
   myType = root.myType;
   i = 0;
   r = &root;
-  if (!root.size()){myType = JSON::EMPTY;}
+  if (!root.size()) { myType = JSON::UNSET; }
   if (myType == JSON::ARRAY){aIt = root.arrVal.begin();}
   if (myType == JSON::OBJECT){oIt = root.objVal.begin();}
 }
@@ -333,9 +333,9 @@ static void skipToEnd(std::istream &fromstream){
   }
 }
 
-/// Sets this JSON::Value to null;
+/// Sets this JSON::Value to "unset"
 JSON::Value::Value(){
-  null();
+  unset();
 }
 
 /// Sets this JSON::Value to null
@@ -350,7 +350,7 @@ JSON::Value::Value(const Value &rhs){
 
 /// Sets this JSON::Value to read from this position in the std::istream
 JSON::Value::Value(std::istream &fromstream){
-  null();
+  unset();
   bool reading_object = false;
   bool reading_array = false;
   bool negative = false;
@@ -368,7 +368,7 @@ JSON::Value::Value(std::istream &fromstream){
       c = fromstream.get();
       myType = ARRAY;
       Value tmp = JSON::Value(fromstream);
-      if (tmp.myType != EMPTY){append(tmp);}
+      if (tmp.myType != UNSET) { append(tmp); }
       break;
     }
     case '\'':
@@ -528,7 +528,7 @@ bool JSON::Value::operator==(const JSON::Value &rhs) const{
   if (myType == INTEGER || myType == BOOL){return intVal == rhs.intVal;}
   if (myType == DOUBLE){return dblVal == rhs.dblVal;}
   if (myType == STRING){return strVal == rhs.strVal;}
-  if (myType == EMPTY){return true;}
+  if (myType == EMPTY || myType == UNSET) { return true; }
   if (size() != rhs.size()){return false;}
   if (myType == OBJECT){
     jsonForEachConst(*this, it){
@@ -605,6 +605,11 @@ void JSON::Value::null(){
   myType = EMPTY;
 }
 
+void JSON::Value::unset() {
+  null();
+  myType = UNSET;
+}
+
 /// Assigns this JSON::Value to the given JSON::Value, skipping given member recursively.
 JSON::Value &JSON::Value::assignFrom(const Value &rhs, const std::set<std::string> &skip){
   null();
@@ -634,7 +639,7 @@ JSON::Value &JSON::Value::assignFrom(const Value &rhs, const std::set<std::strin
 /// Extends this JSON::Value object with the given JSON::Value object, skipping given member(s) recursively.
 JSON::Value &JSON::Value::extend(const Value &rhs, const std::set<std::string> &skip){
   // Null values turn into objects automatically for sanity reasons
-  if (myType == EMPTY){myType = OBJECT;}
+  if (myType == EMPTY || myType == UNSET) { myType = OBJECT; }
   // Abort if either value is not an object
   if (myType != rhs.myType || myType != OBJECT){return *this;}
   jsonForEachConst(rhs, i){
@@ -737,7 +742,7 @@ JSON::Value::operator double() const{
 /// Returns the raw string value if available, otherwise calls toString().
 JSON::Value::operator std::string() const{
   if (myType == STRING){return strVal;}
-  if (myType == EMPTY){return "";}
+  if (myType == EMPTY || myType == UNSET) { return ""; }
   return toString();
 }
 
@@ -1100,14 +1105,12 @@ std::string JSON::Value::toString() const{
     std::stringstream st;
     st << intVal;
     return st.str();
-    break;
   }
   case DOUBLE:{
     std::stringstream st;
     st.precision(10);
     st << std::fixed << dblVal;
     return st.str();
-    break;
   }
   case BOOL:{
     if (intVal != 0){
@@ -1115,41 +1118,41 @@ std::string JSON::Value::toString() const{
     }else{
       return "false";
     }
-    break;
   }
   case STRING:{
     return JSON::string_escape(strVal);
-    break;
   }
   case ARRAY:{
     std::string tmp = "[";
     if (arrVal.size() > 0){
       jsonForEachConst(*this, i){
-        tmp += i->toString();
+        std::string aVal = i->toString();
+        if (!aVal.size()) { aVal = "null"; }
+        tmp += aVal;
         if (i.num() + 1 != arrVal.size()){tmp += ",";}
       }
     }
     tmp += "]";
     return tmp;
-    break;
   }
   case OBJECT:{
     std::string tmp2 = "{";
     if (objVal.size() > 0){
       jsonForEachConst(*this, i){
         tmp2 += JSON::string_escape(i.key()) + ":";
-        tmp2 += i->toString();
+        std::string oVal = i->toString();
+        if (!oVal.size()) { oVal = "null"; }
+        tmp2 += oVal;
         if (i.num() + 1 != objVal.size()){tmp2 += ",";}
       }
     }
     tmp2 += "}";
     return tmp2;
-    break;
   }
+  case UNSET: return "";
   case EMPTY:
   default: return "null";
   }
-  return "null"; // should never get here...
 }
 
 /// Converts this JSON::Value to valid JSON notation and returns it.
@@ -1160,14 +1163,12 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
     std::stringstream st;
     st << intVal;
     return st.str();
-    break;
   }
   case DOUBLE:{
     std::stringstream st;
     st.precision(10);
     st << std::fixed << dblVal;
     return st.str();
-    break;
   }
   case BOOL:{
     if (intVal != 0){
@@ -1175,16 +1176,14 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
     }else{
       return "false";
     }
-    break;
   }
   case STRING:{
     for (uint8_t i = 0; i < 201 && i < strVal.size(); ++i){
-      if (strVal[i] < 32 || strVal[i] > 126 || strVal.size() > 200){
+      if (strVal[i] < 32 || strVal[i] > 126 || strVal.size() > 1024) {
         return "\"" + JSON::Value((int64_t)strVal.size()).asString() + " bytes of data\"";
       }
     }
     return JSON::string_escape(strVal);
-    break;
   }
   case ARRAY:{
     if (arrVal.size() > 0){
@@ -1198,7 +1197,6 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
     }else{
       return "[]";
     }
-    break;
   }
   case OBJECT:{
     if (objVal.size() > 0){
@@ -1216,12 +1214,11 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
     }else{
       return "{}";
     }
-    break;
   }
+  case UNSET: return "";
   case EMPTY:
   default: return "null";
   }
-  return "null"; // should never get here...
 }
 
 /// Appends the given value to the end of this JSON::Value array.
@@ -1344,7 +1341,7 @@ bool JSON::Value::isArray() const{
 
 /// Returns true if this object is null.
 bool JSON::Value::isNull() const{
-  return (myType == EMPTY);
+  return myType == EMPTY || myType == UNSET;
 }
 
 /// Returns the total of the objects and array size combined.
@@ -1392,7 +1389,7 @@ JSON::Value JSON::fromDTMI(const char *data, uint64_t len, uint32_t &i){
 /// \param i Current parsing position in the raw data (defaults to 0).
 /// \param ret Will be set to JSON::Value, parsed from the raw data.
 void JSON::fromDTMI(const char *data, uint64_t len, uint32_t &i, JSON::Value &ret){
-  ret.null();
+  ret.unset();
   if (i >= len){return;}
   switch (data[i]){
   case 0x01:{// integer
@@ -1429,7 +1426,7 @@ void JSON::fromDTMI(const char *data, uint64_t len, uint32_t &i, JSON::Value &re
       uint16_t tmpi = Bit::btohs(data + i);                 // set tmpi to the UTF-8 length
       std::string tmpstr = std::string(data + i + 2, tmpi); // set the string data
       i += tmpi + 2;                                        // skip length+size forwards
-      ret[tmpstr].null();
+      ret[tmpstr].unset();
       fromDTMI(data, len, i,
                ret[tmpstr]); // add content, recursively parsed, updating i, setting indice to tmpstr
     }

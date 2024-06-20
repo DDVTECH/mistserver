@@ -2,7 +2,6 @@
 # Testing binaries that are not unit tests, but intended for manual use
 convertertest = executable('convertertest', 'converter.cpp', header_tgts, dependencies: libmist_dep)
 urireadertest = executable('urireadertest', 'urireader.cpp', header_tgts, dependencies: libmist_dep)
-jsontest = executable('jsontest', 'json.cpp', header_tgts, dependencies: libmist_dep)
 resolvetest = executable('resolvetest', 'resolve.cpp', header_tgts, dependencies: libmist_dep)
 streamstatustest = executable('streamstatustest', 'status.cpp', header_tgts, dependencies: libmist_dep)
 websockettest = executable('websockettest', 'websocket.cpp', header_tgts, dependencies: libmist_dep)
@@ -32,6 +31,23 @@ test('Retrieve stdout after fail', proctest, suite: 'Procs', args: ['5', '', '',
 
 shellsplittest = executable('shellsplittest', 'shellsplit.cpp', header_tgts, dependencies: libmist_dep)
 test('Shell argument splitter', shellsplittest, args: ['hi "a banana" "" sauce    pudding "miauw"\'"\' "a"\'\'"z"'], env: {'OUTC':'7', 'OUT1':'hi', 'OUT2':'a banana', 'OUT3':'', 'OUT4':'sauce', 'OUT5':'pudding', 'OUT6':'miauw"', 'OUT7':'az'})
+
+jsontest = executable('jsontest', 'json.cpp', header_tgts, dependencies: libmist_dep)
+test('Empty array', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[]', 'JSON_RESULT':'[]'})
+test('Empty object', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'{}', 'JSON_RESULT':'{}'})
+test('Blank string', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'', 'JSON_RESULT':''})
+test('Newline', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'\n', 'JSON_RESULT':''})
+test('Carriage return, newline', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'\r\n', 'JSON_RESULT':''})
+test('Array with carriage return and newline mixed', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'\r\n[\n1\n,\n2\r\n]', 'JSON_RESULT':'[1,2]'})
+test('Large integer', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'123456789000', 'JSON_RESULT':'123456789000'})
+test('11 slices of Pi', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'3.1415926536', 'JSON_RESULT':'3.1415926536'})
+test('String with unicode', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'"(\u256F\u00B0\u25A1\u00B0\uFF09\u256F\uFE35 \u253B\u2501\u253B"', 'JSON_RESULT':'"(\\u256F\\u00B0\\u25A1\\u00B0\\uFF09\\u256F\\uFE35 \\u253B\\u2501\\u253B"'})
+test('Array of various bools and nulls', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[n,n,t,t,f,n,f,n,n]', 'JSON_RESULT':'[null,null,true,true,false,null,false,null,null]'})
+test('Unclosed array', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[[]', 'JSON_RESULT':'[[]]'})
+test('Invalid symbols', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'-inf', 'JSON_RESULT':'null'})
+test('Invalid symbols in array', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[-inf]', 'JSON_RESULT':'[null]'})
+test('Complex structure', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[{"a":[1,2,3.14]},n,[t,f]]', 'JSON_RESULT':'[{"a":[1,2,3.1400000000]},null,[true,false]]'})
+test('Empty object member', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'{"test":}', 'JSON_RESULT':'{"test":null}'})
 
 urltest = executable('urltest', 'url.cpp', header_tgts, dependencies: libmist_dep)
 urltest_vm = {'T_PATH':'', 'T_QUERY':'', 'T_FRAG':'', 'T_USER':'', 'T_PASS':'', 'T_NORM':'', 'T_EXT':''}

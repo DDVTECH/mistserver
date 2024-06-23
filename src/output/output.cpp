@@ -1242,13 +1242,15 @@ namespace Mist{
       // apply a limiter to the stream to make it appear like a VoD asset
       if (targetParams.count("stop") || !M.getLive()){
         size_t mainTrack = getMainSelectedTrack();
-        uint64_t stopPos = M.getLastms(mainTrack);
-        if (targetParams.count("stop")){stopPos = atoll(targetParams["stop"].c_str());}
-        if (!M.getLive() || stopPos <= M.getLastms(mainTrack)){
-          meta.applyLimiter(seekPos, stopPos);
-        }else{
-          // End point past end of track? Don't limit the end point.
-          meta.applyLimiter(seekPos, 0xFFFFFFFFFFFFFFFFull);
+        if (mainTrack != INVALID_TRACK_ID){
+          uint64_t stopPos = M.getLastms(mainTrack);
+          if (targetParams.count("stop")){stopPos = atoll(targetParams["stop"].c_str());}
+          if (!M.getLive() || stopPos <= M.getLastms(mainTrack)){
+            meta.applyLimiter(seekPos, stopPos);
+          }else{
+            // End point past end of track? Don't limit the end point.
+            meta.applyLimiter(seekPos, 0xFFFFFFFFFFFFFFFFull);
+          }
         }
       }else{
         // No stop point, only apply limiter if a start point is set, and never limit the end point.

@@ -19,7 +19,6 @@ namespace Mist{
     }
 
   private:
-    bool isRecording();
     std::string doctype;
     void sendElemTrackEntry(size_t idx);
     size_t sizeElemTrackEntry(size_t idx);

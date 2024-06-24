@@ -119,8 +119,6 @@ namespace Mist{
     cfg->addOption("target", opt);
   }
 
-  bool OutEBML::isRecording(){return config->getString("target").size();}
-
   /// Calculates the size of a Cluster (contents only) and returns it.
   /// Bases the calculation on the currently selected tracks and the given start/end time for the
   /// cluster.

@@ -316,6 +316,24 @@ namespace Util{
     rndSrc.close();
   }
 
+  /// Secure random alphanumeric string generator
+  /// Uses getRandomBytes internally
+  std::string getRandomAlphanumeric(size_t len){
+    std::string ret(len, 'X');
+    getRandomBytes((void*)ret.data(), len);
+    for (size_t i = 0; i < len; ++i){
+      uint8_t v = (ret[i] % 62);
+      if (v < 10){
+        ret[i] = v + '0';
+      }else if (v < 36){
+        ret[i] = v - 10 + 'A';
+      }else{
+        ret[i] = v - 10 - 26 + 'a';
+      }
+    }
+    return ret;
+  }
+
   /// 64-bits version of ftell
   uint64_t ftell(FILE *stream){
     /// \TODO Windows implementation (e.g. _ftelli64 ?)

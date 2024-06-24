@@ -381,6 +381,16 @@ namespace Mist{
           trueCodec = "JPEG";
           trueType = "video";
         }
+        if (codec == "V_MS/VFW/FOURCC"){
+          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+          if (tmpElem){
+            std::string bitmapheader = tmpElem.getValStringUntrimmed();
+            if (bitmapheader.substr(16, 4) == "MJPG"){
+              trueCodec = "JPEG";
+              trueType = "video";
+            }
+          }
+        }
         if (codec == "A_PCM/FLOAT/IEEE"){
           trueCodec = "FLOAT";
           trueType = "audio";

@@ -32,8 +32,6 @@ embed_files = [
     {'infile': '../embed/min/skins/default.css',        'variable': 'skin_default_css',  'outfile': 'skin_default.css.h'},
     {'infile': '../embed/min/skins/dev.css',            'variable': 'skin_dev_css',      'outfile': 'skin_dev.css.h'},
     {'infile': '../embed/skins/video-js.css',           'variable': 'skin_videojs_css',  'outfile': 'skin_videojs.css.h'},
-    {'infile': '../src/output/noffmpeg.jpg',            'variable': 'noffmpeg',          'outfile': 'noffmpeg.h'},
-    {'infile': '../src/output/noh264.jpg',              'variable': 'noh264',            'outfile': 'noh264.h'},
 ]
 
 embed_tgts = []

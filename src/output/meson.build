@@ -22,6 +22,7 @@ outputs = [
     {'name' : 'SDP',               'format' : 'sdp',                'extra': ['http']},
     {'name' : 'HTTP',              'format' : 'http_internal',      'extra': ['http','embed']},
     {'name' : 'JSONLine',          'format' : 'jsonline'},
+    {'name' : 'JPG',               'format' : 'jpg',                'extra': ['http']},
 ]
 
 if usessl 
@@ -37,10 +38,6 @@ endif
 
 if have_srt
   outputs += {'name' : 'TSSRT', 'format' : 'tssrt', 'extra': ['ts', 'debased', 'with_srt']}
-endif
-
-if get_option('WITH_JPG')
-  outputs += {'name' : 'JPG', 'format' : 'jpg', 'extra': ['http','embed']}
 endif
 
 if get_option('WITH_SANITY')

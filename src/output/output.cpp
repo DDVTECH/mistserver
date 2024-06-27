@@ -2209,7 +2209,7 @@ namespace Mist{
           return false;
         }
         // Check if there is a next page for the timestamp we're looking for.
-        if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
+        if (M.getLastms(nxt.tid) >= nxt.time && M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
           loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
           nxt.offset = 0;
           //Only read the next time if the page load succeeded and there is a packet to read from
@@ -2304,11 +2304,8 @@ namespace Mist{
             WARN_MSG("Recovered from race condition");
           }
         }
-        break;//Valid packet!
+        break;
       }
-
-      // Force valid packet if nowMs is higher than current packet time
-      if (!M.getVod() && M.getNowms(nxt.tid) > nxt.time){break;}
 
       //Okay, there's no next page yet, and no next packet on this page either.
       //That means we're waiting for data to show up, somewhere.

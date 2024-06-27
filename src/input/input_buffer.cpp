@@ -228,14 +228,14 @@ namespace Mist{
         }
       }
     }
-    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && Triggers::shouldTrigger("STREAM_BUFFER", streamName)){
+    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull){
       JSON::Value stream_details;
       M.getHealthJSON(stream_details);
-      if (lastFragCount == 0xFFFFull){
-        std::string payload = streamName + "\nFULL\n" + stream_details.toString();
-        Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
-      }else{
-        if (stream_details.isMember("issues") != wentDry){
+      if ((lastFragCount == 0xFFFFull || stream_details.isMember("issues") != wentDry) && Triggers::shouldTrigger("STREAM_BUFFER", streamName)){
+        if (lastFragCount == 0xFFFFull){
+          std::string payload = streamName + "\nFULL\n" + stream_details.toString();
+          Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+        }else{
           if (stream_details.isMember("issues")){
             std::string payload = streamName + "\nDRY\n" + stream_details.toString();
             Triggers::doTrigger("STREAM_BUFFER", payload, streamName);

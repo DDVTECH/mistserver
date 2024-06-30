@@ -558,7 +558,7 @@ namespace TS{
         pesOffset += 2;
       }
 
-      if (paySize - offset - pesOffset < realPayloadSize){
+      if (paySize - offset - pesOffset != realPayloadSize){
         WARN_MSG("Packet loss detected (%" PRIu64 " != %" PRIu64 "), throwing away data to compensate",
                  paySize - offset - pesOffset, realPayloadSize);
         realPayloadSize = paySize - offset - pesOffset;
@@ -679,7 +679,7 @@ namespace TS{
           offset += pesPayload[offset] + 1;
         }
         if (realPayloadSize < offset+packSize){
-          WARN_MSG("Encountered invalid Opus frame (%zu > %" PRIu64 ") - discarding!", offset+packSize, realPayloadSize);
+          WARN_MSG("Encountered invalid Opus frame @%" PRIu64 " (%zu > %" PRIu64 ") - discarding!", timeStamp, offset+packSize, realPayloadSize);
           break;
         }
         out.push_back(DTSC::Packet());

@@ -326,7 +326,7 @@ std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned
 /// Parses the argument Socket::Buffer into the current chunk.
 /// Tries to read a whole chunk, removing data from the Buffer as it reads.
 /// If a single packet contains a partial chunk, it will remove the packet and
-/// call itself again. This has the effect of only causing a "true" reponse in
+/// call itself again. This has the effect of only causing a "true" response in
 /// the case a *whole* chunk is read, not just part of a chunk.
 /// \param buffer The input to parse and update.
 /// \warning This function will destroy the current data in this chunk!

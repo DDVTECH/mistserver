@@ -450,7 +450,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
   case AMF::AMF0_OBJECT:{
     ++i;
     AMF::Object ret(name, AMF::AMF0_OBJECT);
-    while (data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
+    while (i + 1 < len && data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
       tmpi = data[i] * 256 + data[i + 1]; // set tmpi to the UTF-8 length
       tmpstr.clear();                     // clean tmpstr, just to be sure
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
@@ -467,7 +467,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
     tmpstr.clear();                                          // clean tmpstr, just to be sure
     tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
     AMF::Object ret(tmpstr, AMF::AMF0_TYPED_OBJ); // the object is not named "name" but tmpstr
-    while (data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
+    while (i + 1 < len && data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
       tmpi = data[i] * 256 + data[i + 1]; // set tmpi to the UTF-8 length
       tmpstr.clear();                     // clean tmpstr, just to be sure
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
@@ -482,7 +482,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
     ++i;
     AMF::Object ret(name, AMF::AMF0_ECMA_ARRAY);
     i += 4;                               // ignore the array length, we re-calculate it
-    while (data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
+    while (i + 1 < len && data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
       tmpi = data[i] * 256 + data[i + 1]; // set tmpi to the UTF-8 length
       tmpstr.clear();                     // clean tmpstr, just to be sure
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data

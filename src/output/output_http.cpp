@@ -200,8 +200,8 @@ namespace Mist{
       JSON::Value r;
       r["type"] = "on_stop";
       r["data"]["current"] = currentTime();
-      r["data"]["begin"] = Output::startTime();
-      r["data"]["end"] = Output::endTime();
+      r["data"]["begin"] = startTime();
+      r["data"]["end"] = endTime();
       webSock->sendFrame(r.toString());
       parseData = false;
       return false;
@@ -574,21 +574,31 @@ namespace Mist{
 
     //Play command, sets pause state off and optionally also seeks
     if (command["type"] == "play") {
-      bool wasPlaying = parseData;
       parseData = true;
       if (command.isMember("seek_time")){
         handleWebsocketSeek(command);
-      }else{
-        if (!wasPlaying){
-          command["seek_time"] = 0;
-          handleWebsocketSeek(command);
-        }
       }
       return true;
     }
 
     //Unhandled commands end up here
     return false;
+  }
+
+  void HTTPOutput::initialSeek(bool dryRun){
+    Output::initialSeek(dryRun);
+    if (!webSock){return;}
+
+    // For websockets, simulate seeking behaviour
+    if (M.getLive()){
+      // live streams fast-forward to the live point
+      stayLive = true;
+      forwardTo = endTime();
+      realTime = 0;
+    }
+    // No matter what, run the idle commands to print current time in the websocket
+    handleWebsocketIdle();
+    onIdle();
   }
 
   void HTTPOutput::handleWebsocketIdle(){
@@ -624,9 +634,9 @@ namespace Mist{
     r["type"] = "on_time";
     r["data"]["current"] = targetTime();
     r["data"]["next"] = currentTime();
-    r["data"]["begin"] = Output::startTime();
+    r["data"]["begin"] = startTime();
     
-    r["data"]["end"] = Output::endTime();
+    r["data"]["end"] = endTime();
     if (realTime == 0){
       r["data"]["play_rate_curr"] = "fast-forward";
     }else{
@@ -731,9 +741,9 @@ namespace Mist{
       selectDefaultTracks();
     }
 
-    stayLive = (target_rate == 0.0) && (Output::endTime() < seek_time + 5000);
+    stayLive = (target_rate == 0.0) && (endTime() < seek_time + 5000);
     if (command["seek_time"].asStringRef() == "live"){stayLive = true;}
-    if (stayLive){seek_time = Output::endTime();}
+    if (stayLive){seek_time = endTime();}
     
     if (!seek(seek_time, true)) {
       r["error"] = "seek failed, continuing as-is";

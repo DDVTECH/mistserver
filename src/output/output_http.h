@@ -19,6 +19,7 @@ namespace Mist{
     virtual void preHTTP();
     virtual bool onFinish();
     virtual void sendNext();
+    virtual void initialSeek(bool dryRun = false);
     static bool listenMode(){return false;}
     void reConnector(std::string &connector);
     std::string getHandler();

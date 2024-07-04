@@ -950,6 +950,10 @@ namespace RTP{
   }
 
   void toDTSC::handleAAC(uint64_t msTime, char *pl, uint32_t plSize){
+    if (plSize <= 2){
+      WARN_MSG("Invalid AAC data: <= 2 bytes in length");
+      return;
+    }
     // assume AAC packets are single AU units
     /// \todo Support other input than single AU units
     unsigned int headLen = (Bit::btohs(pl) >> 3) + 2; // in bits, so /8, plus two for the prepended size
@@ -958,8 +962,12 @@ namespace RTP{
     uint32_t sampleOffset = 0;
     uint32_t offset = 0;
     uint32_t auSize = 0;
-    for (uint32_t i = 2; i < headLen; i += 2){
+    for (uint32_t i = 2; i < headLen && i + 2 < plSize; i += 2){
       auSize = Bit::btohs(pl + i) >> 3; // only the upper 13 bits
+      if (auSize + headLen + offset > plSize){
+        WARN_MSG("Invalid AAC data: continues beyond packet size");
+        break;
+      }
       nextPack.genericFill(msTime + sampleOffset / multiplier, 0, trackId, pl + headLen + offset,
                            std::min(auSize, plSize - headLen - offset), 0, false);
       offset += auSize;

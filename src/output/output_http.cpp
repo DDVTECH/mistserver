@@ -577,6 +577,8 @@ namespace Mist{
       parseData = true;
       if (command.isMember("seek_time")){
         handleWebsocketSeek(command);
+      }else{
+        if (M.getLive() && currentTime() < startTime()){initialSeek();}
       }
       return true;
     }

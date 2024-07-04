@@ -591,7 +591,6 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   case SIGTERM:
     if (!mutabort || mutabort->try_lock()){
       if (serv_sock_pointer){serv_sock_pointer->close();}
-      if (stdin){fclose(stdin);}
       if (mutabort){mutabort->unlock();}
     }
 #if DEBUG >= DLVL_DEVEL

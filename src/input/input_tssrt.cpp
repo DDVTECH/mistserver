@@ -3,9 +3,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
 #include <mist/defines.h>
 #include <mist/downloader.h>
 #include <mist/flv_tag.h>
@@ -308,6 +305,7 @@ namespace Mist{
     // If we are here: we have a proper connection (either accepted or pull input) and should start parsing it as such
     Input::streamMainLoop();
     srtConn.close();
+    Socket::SRT::libraryCleanup();
   }
 
   bool InputTSSRT::needsLock(){return false;}

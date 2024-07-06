@@ -1218,7 +1218,7 @@ namespace RTP{
   }
 
   void toDTSC::handleH264Single(uint64_t ts, const char *buffer, const uint32_t len, bool isKey){
-    MEDIUM_MSG("H264: %" PRIu64 "@%" PRIu64 ", %" PRIu32 "b%s", trackId, ts, len, isKey ? " (key)" : "");
+    DONTEVEN_MSG("H264: %" PRIu64 "@%" PRIu64 ", %" PRIu32 "b%s", trackId, ts, len, isKey ? " (key)" : "");
     // Ignore zero-length packets (e.g. only contained init data and nothing else)
     if (!len){return;}
 

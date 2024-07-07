@@ -91,6 +91,7 @@ namespace Socket{
     void remove(Util::ResizeablePointer & ptr, unsigned int count);
     std::string copy(unsigned int count);
     void clear();
+    bool compact();
   };
   // Buffer
 

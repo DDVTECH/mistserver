@@ -615,6 +615,62 @@ void Socket::Buffer::clear(){
   data.clear();
 }
 
+bool Socket::Buffer::compact(){
+  size_t preSize = size();
+  size_t preBytes = bytes(0xFFFFFFFFull);
+
+  size_t compactSize = 4096; // 4k chunks
+  if (preBytes > 4194304){ // more than 4MiB of data
+    compactSize = 8192; // 8k chunks
+    if (preBytes > 16777216){ // more than 16MiB of data
+      compactSize = 16384; // 16k chunks
+      if (preBytes > 33554432){ // more than 32MiB of data
+        compactSize = 32768; // 32k chunks
+        if (preBytes > 268435456){ // more than 256MiB of data
+          FAIL_MSG("Disconnecting socket with buffer containing more than 256MiB of data!");
+          return false; // Abort!
+        }
+      }
+    }
+  }
+
+
+  bool changed = false;
+  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+    if (it->size() < compactSize){
+      it->reserve(compactSize);
+      std::deque<std::string>::reverse_iterator currIt = it;
+      ++it;
+      while (currIt->size() < compactSize && it != data.rend()){
+        changed = true;
+        currIt->append(*it);
+        it->clear();
+        if (currIt->size() >= compactSize){break;}
+        ++it;
+      }
+      if (it == data.rend()){break;}
+    }
+  }
+  if (!changed){
+    FAIL_MSG("Disconnecting socket due to socket buffer compacting failure");
+    return false;
+  }
+  while (changed){
+    changed = false;
+    for (std::deque<std::string>::iterator it = data.begin(); it != data.end(); ++it){
+      if (!it->size()){
+        data.erase(it);
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  size_t postSize = size();
+  WARN_MSG("Compacted a %zub socket buffer of %zu parts into %zu parts", preBytes, preSize, postSize);
+  return true;
+}
+
 void Socket::Connection::setBoundAddr(){
   boundaddr.clear();
   // If a bound address was set through environment (e.g. HTTPS output), restore it from there.
@@ -1116,7 +1172,11 @@ uint64_t Socket::Connection::dataDown(){
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::spool(bool strictMode){
   /// \todo Provide better mechanism to prevent overbuffering.
-  if (!strictMode && downbuffer.size() > 10000){
+  if (!strictMode && downbuffer.size() > 5000){
+    if (!downbuffer.compact()){
+      close();
+      return false;
+    }
     return true;
   }else{
     return iread(downbuffer);

@@ -12,6 +12,11 @@ websockettest = executable('websockettest', 'websocket.cpp', dependencies: libmi
 
 # Actual unit tests
 
+sockbuftest = executable('sockbuftest', 'socketbuffer.cpp', dependencies: libmist_dep)
+test('Socket buffer test 8KiB', sockbuftest, args: ['1024'])
+test('Socket buffer test 64KiB', sockbuftest, args: ['8192'])
+test('Socket buffer test 8MiB', sockbuftest, args: ['1048576'])
+
 urltest = executable('urltest', 'url.cpp', dependencies: libmist_dep)
 urltest_vm = {'T_PATH':'', 'T_QUERY':'', 'T_FRAG':'', 'T_USER':'', 'T_PASS':'', 'T_NORM':'', 'T_EXT':''}
 urltest_v = urltest_vm + {'T_PROTO':'', 'T_HOST':'', 'T_PORT':'0'}

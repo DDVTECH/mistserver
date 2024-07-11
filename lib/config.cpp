@@ -567,7 +567,6 @@ void Util::Config::activate(){
   sigaction(SIGHUP, &new_action, NULL);
   sigaction(SIGTERM, &new_action, NULL);
   sigaction(SIGPIPE, &new_action, NULL);
-  sigaction(SIGFPE, &new_action, NULL);
   // check if a child signal handler isn't set already, if so, set it.
   sigaction(SIGCHLD, 0, &cur_action);
   if (cur_action.sa_handler == SIG_DFL || cur_action.sa_handler == SIG_IGN){

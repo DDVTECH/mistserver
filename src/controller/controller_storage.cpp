@@ -395,6 +395,14 @@ namespace Controller{
     if (!Controller::Storage["config"].isMember("tknMode")){
       Controller::Storage["config"]["tknMode"] = SESS_TKN_DEFAULT_MODE;
     }
+    if (!Controller::Storage.isMember("bandwidth") || !Controller::Storage["bandwidth"].isMember("exceptions") || !Controller::Storage["bandwidth"]["exceptions"].size()){
+      Controller::Log("CONF", "Adding default bandwidth exception ranges (local networks) because nothing is configured");
+      Controller::Storage["bandwidth"]["exceptions"].append("::1");
+      Controller::Storage["bandwidth"]["exceptions"].append("127.0.0.0/8");
+      Controller::Storage["bandwidth"]["exceptions"].append("10.0.0.0/8");
+      Controller::Storage["bandwidth"]["exceptions"].append("192.168.0.0/16");
+      Controller::Storage["bandwidth"]["exceptions"].append("172.16.0.0/12");
+    }
     Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
     Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
 

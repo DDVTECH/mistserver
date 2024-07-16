@@ -169,21 +169,6 @@ void Controller::updateBandwidthConfig(){
       }
     }
   }
-  //Localhost is always excepted from counts
-  {
-    std::string newbins = Socket::getBinForms("::1");
-    if (offset + newbins.size() < 1700){
-      memcpy(noBWCountMatches + offset, newbins.data(), newbins.size());
-      offset += newbins.size();
-    }
-  }
-  {
-    std::string newbins = Socket::getBinForms("127.0.0.1/8");
-    if (offset + newbins.size() < 1700){
-      memcpy(noBWCountMatches + offset, newbins.data(), newbins.size());
-      offset += newbins.size();
-    }
-  }
 }
 
 /// This function is ran whenever a stream becomes active.

@@ -735,35 +735,162 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   //Set up fast access to the push_parameters
   JSON::Value & pp = cap["push_parameters"];
 
-  pp["audio"]["name"] = "Audio track(s)";
-  pp["audio"]["help"] = "Override which audio tracks of the stream should be selected";
-  pp["audio"]["type"] = "string";
-  pp["audio"]["validate"][0u] = "track_selector";
-  pp["audio"]["sort"] = "aa";
+  pp["track_selectors"]["type"] = "group";
+  pp["track_selectors"]["name"] = "Track selectors";
+  pp["track_selectors"]["help"] = "Control which tracks are part of the output";
+  {
+    JSON::Value & o = pp["track_selectors"]["options"];
+    o["audio"]["name"] = "Audio track(s)";
+    o["audio"]["help"] = "Override which audio tracks of the stream should be selected";
+    o["audio"]["type"] = "string";
+    o["audio"]["validate"][0u] = "track_selector";
+    o["audio"]["sort"] = "aa";
 
-  pp["video"]["name"] = "Video track(s)";
-  pp["video"]["help"] = "Override which video tracks of the stream should be selected";
-  pp["video"]["type"] = "string";
-  pp["video"]["validate"][0u] = "track_selector";
-  pp["video"]["sort"] = "ab";
+    o["video"]["name"] = "Video track(s)";
+    o["video"]["help"] = "Override which video tracks of the stream should be selected";
+    o["video"]["type"] = "string";
+    o["video"]["validate"][0u] = "track_selector";
+    o["video"]["sort"] = "ab";
 
-  pp["subtitle"]["name"] = "Subtitle track(s)";
-  pp["subtitle"]["help"] = "Override which subtitle tracks of the stream should be selected";
-  pp["subtitle"]["type"] = "string";
-  pp["subtitle"]["validate"].append("track_selector");
-  pp["subtitle"]["sort"] = "ac";
+    o["subtitle"]["name"] = "Subtitle track(s)";
+    o["subtitle"]["help"] = "Override which subtitle tracks of the stream should be selected";
+    o["subtitle"]["type"] = "string";
+    o["subtitle"]["validate"].append("track_selector");
+    o["subtitle"]["sort"] = "ac";
+  }
 
-  pp["rate"]["name"] = "Playback rate";
-  pp["rate"]["help"] = "Multiplier for the playback speed rate, or 0 to not limit";
-  pp["rate"]["type"] = "int";
-  pp["rate"]["default"] = "1";
-  pp["rate"]["sort"] = "ba";
+  pp["trackwait_opts"]["type"] = "group";
+  pp["trackwait_opts"]["name"] = "Wait for tracks";
+  pp["trackwait_opts"]["help"] = "Before starting, ensure the available tracks satisfy certain conditions";
+  {
+    JSON::Value & o = pp["trackwait_opts"]["options"];
+    o["waittrackcount"]["name"] = "Wait for tracks count";
+    o["waittrackcount"]["help"] = "Wait for this number of tracks to be available";
+    o["waittrackcount"]["type"] = "int";
+    o["waittrackcount"]["default"] = 2;
+    o["waittrackcount"]["sort"] = "bda";
 
-  pp["realtime"]["name"] = "Don't speed up output";
-  pp["realtime"]["help"] = "If set to any value, removes the rate override to unlimited normally applied to push outputs";
-  pp["realtime"]["type"] = "bool";
-  pp["realtime"]["format"] = "set_or_unset";
-  pp["realtime"]["sort"] = "bb";
+    o["mintrackkeys"]["name"] = "Wait for track keyframe count";
+    o["mintrackkeys"]["help"] = "Consider a track available if it has this many keyframes buffered";
+    o["mintrackkeys"]["type"] = "int";
+    o["mintrackkeys"]["default"] = 2;
+    o["mintrackkeys"]["sort"] = "bdaa";
+
+    o["mintrackms"]["name"] = "Wait for track duration";
+    o["mintrackms"]["help"] = "Consider a track available if this much data is buffered in it";
+    o["mintrackms"]["type"] = "int";
+    o["mintrackms"]["default"] = 500;
+    o["mintrackms"]["unit"] = "ms";
+    o["mintrackms"]["sort"] = "bdab";
+
+    o["maxtrackms"]["name"] = "Max buffer duration for track wait";
+    o["maxtrackms"]["help"] = "Proceed immediately when this much data is buffered in any available track";
+    o["maxtrackms"]["type"] = "int";
+    o["maxtrackms"]["default"] = "20000";
+    o["maxtrackms"]["unit"] = "ms";
+    o["maxtrackms"]["sort"] = "bdac";
+
+    o["maxwaittrackms"]["name"] = "Track wait timeout";
+    o["maxwaittrackms"]["help"] = "Give up and proceed regardless after this many milliseconds of waiting";
+    o["maxwaittrackms"]["type"] = "int";
+    o["maxwaittrackms"]["default"] = "5000 (5s), or 120000 (2m) if waittrackcount is specifically set to a value";
+    o["maxwaittrackms"]["unit"] = "ms";
+    o["maxwaittrackms"]["sort"] = "bdad";
+  }
+
+  pp["pls_opts"]["type"] = "group";
+  pp["pls_opts"]["name"] = "Playlist writing options";
+  pp["pls_opts"]["help"] = "Control the writing of a playlist file when recording to a segmented format";
+  {
+    JSON::Value & o = pp["pls_opts"]["options"];
+    o["noendlist"]["name"] = "Don't end playlist";
+    o["noendlist"]["help"] = "If set, does not write #X-EXT-ENDLIST when finalizing the playlist on exit";
+    o["noendlist"]["type"] = "bool";
+    o["noendlist"]["format"] = "set_or_unset";
+    o["noendlist"]["sort"] = "bfa";
+
+    o["m3u8"]["name"] = "Playlist path (relative to segments)";
+    o["m3u8"]["help"] = "If set, will write a m3u8 playlist file for the segments to the given path (relative from the first segment path). When this parameter is used, at least one of the variables $segmentCounter or $currentMediaTime must be part of the segment path (to keep segments from overwriting each other). The \"Split interval\" parameter will default to 60 seconds when using this option.";
+    o["m3u8"]["type"] = "string";
+    o["m3u8"]["sort"] = "apa";
+
+    o["targetAge"]["name"] = "Playlist target age";
+    o["targetAge"]["help"] = "When writing a playlist, delete segment entries that are more than this many seconds old from the playlist (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+    o["targetAge"]["type"] = "int";
+    o["targetAge"]["unit"] = "s";
+    o["targetAge"]["sort"] = "apb";
+
+    o["maxEntries"]["name"] = "Playlist max entries";
+    o["maxEntries"]["help"] = "When writing a playlist, delete oldest segment entries once this entry count has been reached (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+    o["maxEntries"]["type"] = "int";
+    o["maxEntries"]["sort"] = "apc";
+  }
+
+  pp["time_opts"]["type"] = "group";
+  pp["time_opts"]["name"] = "Timing options";
+  pp["time_opts"]["help"] = "Control speed and the start/stop timing";
+  {
+    JSON::Value & o = pp["time_opts"]["options"];
+    o["rate"]["name"] = "Playback rate";
+    o["rate"]["help"] = "Multiplier for the playback speed rate, or 0 for unlimited";
+    o["rate"]["type"] = "int";
+    o["rate"]["default"] = "1";
+    o["rate"]["sort"] = "ba";
+
+    o["realtime"]["name"] = "Don't speed up output";
+    o["realtime"]["help"] = "If set to any value, removes the rate override to unlimited normally applied to push outputs";
+    o["realtime"]["type"] = "bool";
+    o["realtime"]["format"] = "set_or_unset";
+    o["realtime"]["sort"] = "bb";
+
+    o["pushdelay"]["name"] = "Push delay";
+    o["pushdelay"]["help"] = "Ensures the stream is always delayed by at least this many seconds. Internally overrides the \"realtime\" and \"start\" parameters";
+    o["pushdelay"]["type"] = "int";
+    o["pushdelay"]["unit"] = "s";
+    o["pushdelay"]["disable"].append("realtime");
+    o["pushdelay"]["disable"].append("start");
+    o["pushdelay"]["sort"] = "bg";
+
+    o["duration"]["name"] = "Duration of push";
+    o["duration"]["help"] = "How much media time to push, in seconds. Internally overrides the stop time(s).";
+    o["duration"]["type"] = "int";
+    o["duration"]["unit"] = "s";
+    o["duration"]["disable"].append("stop");
+    o["duration"]["disable"].append("stopunix");
+    o["duration"]["sort"] = "bi";
+
+    o["stop"]["name"] = "Media timestamp to stop at";
+    o["stop"]["help"] = "Stop where the (internal) media time is at this timestamp";
+    o["stop"]["type"] = "int";
+    o["stop"]["unit"] = "s";
+    o["stop"]["sort"] = "bk";
+
+    o["start"]["name"] = "Media timestamp to start from";
+    o["start"]["help"] = "Start where the (internal) media time is at this timestamp";
+    o["start"]["type"] = "int";
+    o["start"]["unit"] = "s";
+    o["start"]["sort"] = "bl";
+
+    o["stopunix"]["name"] = "Time to stop at";
+    o["stopunix"]["help"] = "Stop where the stream timestamp reaches this point in time";
+    o["stopunix"]["type"] = "unixtime";
+    o["stopunix"]["unit"] = "s";
+    o["stopunix"]["disable"].append("stop");
+    o["stopunix"]["sort"] = "bm";
+
+    o["startunix"]["name"] = "Time to start from";
+    o["startunix"]["help"] = "Start where the stream timestamp is at this point in time";
+    o["startunix"]["type"] = "unixtime";
+    o["startunix"]["unit"] = "s";
+    o["startunix"]["disable"].append("start");
+    o["startunix"]["sort"] = "bn";
+
+    o["split"]["name"] = "Split interval";
+    o["split"]["help"] = "Performs a gapless restart of the recording every this many seconds. Always aligns to the next keyframe after this duration, to ensure each recording is fully playable. When set to zero (the default) will not split at all.";
+    o["split"]["type"] = "int";
+    o["split"]["unit"] = "s";
+    o["split"]["sort"] = "bh";
+  }
 
   pp["unmask"]["name"] = "Unmask tracks";
   pp["unmask"]["help"] = "If set to any value, removes any applied track masking before selecting tracks, acting as if no mask was applied at all";
@@ -771,128 +898,11 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["unmask"]["format"] = "set_or_unset";
   pp["unmask"]["sort"] = "bc";
 
-  pp["waittrackcount"]["name"] = "Wait for GOP count";
-  pp["waittrackcount"]["help"] = "Before starting, wait until this number of GOPs is available in the main selected track";
-  pp["waittrackcount"]["type"] = "int";
-  pp["waittrackcount"]["default"] = 2;
-  pp["waittrackcount"]["sort"] = "bd";
-
-  pp["maxwaittrackms"]["name"] = "Max buffer duration for GOP count wait";
-  pp["maxwaittrackms"]["help"] = "When waiting for GOPs on the main track, give up when this much data is available in the main track buffer";
-  pp["maxwaittrackms"]["type"] = "int";
-  pp["maxwaittrackms"]["default"] = "5s, or 120s when using a non-default GOP count";
-  pp["maxwaittrackms"]["unit"] = "ms";
-  pp["maxwaittrackms"]["sort"] = "be";
-
-  pp["noendlist"]["name"] = "Don't end playlist";
-  pp["noendlist"]["help"] = "If set, does not write #X-EXT-ENDLIST when finalizing the playlist on exit";
-  pp["noendlist"]["type"] = "bool";
-  pp["noendlist"]["format"] = "set_or_unset";
-  pp["noendlist"]["sort"] = "bfa";
-
   pp["append"]["name"] = "Append to file";
   pp["append"]["help"] = "If set to any value, will (if possible) append to an existing file, rather than overwriting it";
   pp["append"]["type"] = "bool";
   pp["append"]["format"] = "set_or_unset";
   pp["append"]["sort"] = "bf";
-
-  pp["split"]["name"] = "Split interval";
-  pp["split"]["help"] = "Performs a gapless restart of the recording every this many seconds. Always aligns to the next keyframe after this duration, to ensure each recording is fully playable. When set to zero (the default) will not split at all.";
-  pp["split"]["type"] = "int";
-  pp["split"]["unit"] = "s";
-  pp["split"]["sort"] = "bh";
-
-  pp["m3u8"]["name"] = "Playlist path (relative to segments)";
-  pp["m3u8"]["help"] = "If set, will write a m3u8 playlist file for the segments to the given path (relative from the first segment path). When this parameter is used, at least one of the variables $segmentCounter or $currentMediaTime must be part of the segment path (to keep segments from overwriting each other). The \"Split interval\" parameter will default to 60 seconds when using this option.";
-  pp["m3u8"]["type"] = "string";
-  pp["m3u8"]["sort"] = "apa";
-
-  pp["targetAge"]["name"] = "Playlist target age";
-  pp["targetAge"]["help"] = "When writing a playlist, delete segment entries that are more than this many seconds old from the playlist (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
-  pp["targetAge"]["type"] = "int";
-  pp["targetAge"]["unit"] = "s";
-  pp["targetAge"]["sort"] = "apb";
-
-  pp["maxEntries"]["name"] = "Playlist max entries";
-  pp["maxEntries"]["help"] = "When writing a playlist, delete oldest segment entries once this entry count has been reached (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
-  pp["maxEntries"]["type"] = "int";
-  pp["maxEntries"]["sort"] = "apc";
-
-  pp["pushdelay"]["name"] = "Push delay";
-  pp["pushdelay"]["help"] = "Ensures the stream is always delayed by at least this many seconds. Internally overrides the \"realtime\" and \"start\" parameters";
-  pp["pushdelay"]["type"] = "int";
-  pp["pushdelay"]["unit"] = "s";
-  pp["pushdelay"]["disable"].append("realtime");
-  pp["pushdelay"]["disable"].append("start");
-  pp["pushdelay"]["sort"] = "bg";
-
-  pp["duration"]["name"] = "Duration of push";
-  pp["duration"]["help"] = "How much media time to push, in seconds. Internally overrides \"recstop\"";
-  pp["duration"]["type"] = "int";
-  pp["duration"]["unit"] = "s";
-  pp["duration"]["disable"].append("recstop");
-  pp["duration"]["disable"].append("stop");
-  pp["duration"]["sort"] = "bi";
-
-  pp["stop"]["name"] = "Media timestamp to stop at";
-  pp["stop"]["help"] = "What internal media timestamp to stop at";
-  pp["stop"]["type"] = "int";
-  pp["stop"]["unit"] = "s";
-  pp["stop"]["prot_only"] = true;
-  pp["stop"]["sort"] = "bk";
-
-  pp["start"]["name"] = "Media timestamp to start from";
-  pp["start"]["help"] = "What internal media timestamp to start from";
-  pp["start"]["type"] = "int";
-  pp["start"]["unit"] = "s";
-  pp["start"]["prot_only"] = true;
-  pp["start"]["sort"] = "bl";
-
-  pp["stopunix"]["name"] = "Unix timestamp to stop at";
-  pp["stopunix"]["help"] = "What unix timestamp to stop at";
-  pp["stopunix"]["type"] = "unixtime";
-  pp["stopunix"]["unit"] = "s";
-  pp["stopunix"]["prot_only"] = true;
-  pp["stopunix"]["disable"].append("stop");
-  pp["stopunix"]["sort"] = "bm";
-
-  pp["startunix"]["name"] = "Unix timestamp to start from";
-  pp["startunix"]["help"] = "What unix timestamp to start from";
-  pp["startunix"]["type"] = "unixtime";
-  pp["startunix"]["unit"] = "s";
-  pp["startunix"]["prot_only"] = true;
-  pp["startunix"]["disable"].append("start");
-  pp["startunix"]["sort"] = "bn";
-
-  pp["recstop"]["name"] = "Media timestamp to stop at";
-  pp["recstop"]["help"] = "What internal media timestamp to stop at";
-  pp["recstop"]["type"] = "int";
-  pp["recstop"]["unit"] = "s";
-  pp["recstop"]["file_only"] = true;
-  pp["recstop"]["sort"] = "bo";
-
-  pp["recstart"]["name"] = "Media timestamp to start from";
-  pp["recstart"]["help"] = "What internal media timestamp to start from";
-  pp["recstart"]["type"] = "int";
-  pp["recstart"]["unit"] = "s";
-  pp["recstart"]["file_only"] = true;
-  pp["recstart"]["sort"] = "bp";
-
-  pp["recstopunix"]["name"] = "Unix timestamp to stop at";
-  pp["recstopunix"]["help"] = "What unix timestamp to stop at";
-  pp["recstopunix"]["type"] = "unixtime";
-  pp["recstopunix"]["unit"] = "s";
-  pp["recstopunix"]["file_only"] = true;
-  pp["recstopunix"]["disable"].append("recstop");
-  pp["recstopunix"]["sort"] = "bq";
-
-  pp["recstartunix"]["name"] = "Unix timestamp to start from";
-  pp["recstartunix"]["help"] = "What unix timestamp to start from";
-  pp["recstartunix"]["type"] = "unixtime";
-  pp["recstartunix"]["unit"] = "s";
-  pp["recstartunix"]["file_only"] = true;
-  pp["recstartunix"]["disable"].append("recstart");
-  pp["recstartunix"]["sort"] = "br";
 
 }
 

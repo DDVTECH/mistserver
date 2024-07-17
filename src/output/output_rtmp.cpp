@@ -1556,7 +1556,7 @@ namespace Mist{
       return;
     }// seek
     if (amfData.getContentP(0)->StrValue() == "_error"){
-      if (!amfData.getContentP(3)){
+      if (amfData.getContentP(3)->GetType() == AMF::AMF0_DDV_CONTAINER){
         WARN_MSG("Received generic error response (no useful content)");
         return;
       }

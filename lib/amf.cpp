@@ -4,6 +4,9 @@
 #include "amf.h"
 #include "defines.h"
 #include <sstream>
+
+AMF::Object nullPtr("error", AMF::AMF0_DDV_CONTAINER);
+
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
 std::string AMF::Object::Indice() const{
@@ -49,7 +52,7 @@ void AMF::Object::addContent(AMF::Object c){
 /// Returns AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
 AMF::Object *AMF::Object::getContentP(unsigned int i){
-  if (i >= contents.size()){return 0;}
+  if (i >= contents.size()){return &nullPtr;}
   return &contents.at(i);
 }
 
@@ -68,7 +71,7 @@ AMF::Object *AMF::Object::getContentP(std::string s){
   for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
     if (it->Indice() == s){return &(*it);}
   }
-  return 0;
+  return &nullPtr;
 }
 
 /// Returns a copy of the object held at indice s.

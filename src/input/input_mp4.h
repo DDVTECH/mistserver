@@ -101,4 +101,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputMP4 mistIn;
+#endif

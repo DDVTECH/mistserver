@@ -40,4 +40,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::OutHTTPS mistOut;
+#endif

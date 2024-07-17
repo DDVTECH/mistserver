@@ -33,4 +33,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::OutSDP mistOut;
+#endif

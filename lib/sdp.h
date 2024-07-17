@@ -1,3 +1,4 @@
+#pragma once
 #include "dtsc.h"
 #include "h265.h"
 #include "http_parser.h"

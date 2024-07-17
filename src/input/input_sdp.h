@@ -1,3 +1,4 @@
+#pragma once
 #include "input.h"
 #include <mist/dtsc.h>
 #include <mist/urireader.h>
@@ -66,4 +67,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputSDP mistIn;
+#endif

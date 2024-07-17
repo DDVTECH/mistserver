@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdlib>
 #include <fstream>
 #include <map>
@@ -54,6 +55,8 @@ namespace Mist{
     virtual bool needsLock(){return !config->getBool("realtime");}
     virtual bool publishesTracks(){return true;}
 
+    static JSON::Value capa;
+
   protected:
     bool internalOnly;
     bool isBuffer;
@@ -105,8 +108,6 @@ namespace Mist{
     bool exitAndLogReason();
 
     uint64_t activityCounter;
-
-    JSON::Value capa;
 
     std::map<size_t, std::set<uint64_t> > keyTimes;
     std::map<trackKey, uint64_t> keyLoadPriority;

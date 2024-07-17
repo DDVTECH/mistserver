@@ -39,4 +39,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::OutEBML mistOut;
+#endif

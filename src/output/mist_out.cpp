@@ -1,10 +1,13 @@
+#ifndef ONE_BINARY
 #include OUTPUTTYPE
+#endif
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/socket.h>
 #include <mist/util.h>
 #include <mist/stream.h>
 
+template<class T>
 int spawnForked(Socket::Connection &S){
   {
     struct sigaction new_action;
@@ -13,26 +16,27 @@ int spawnForked(Socket::Connection &S){
     new_action.sa_flags = 0;
     sigaction(SIGUSR1, &new_action, NULL);
   }
-  mistOut tmp(S);
+  T tmp(S);
   return tmp.run();
 }
 
-void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
+void handleUSR1Output(int signum, siginfo_t *sigInfo, void *ignore){
   HIGH_MSG("USR1 received - triggering rolling restart");
   Util::Config::is_restarting = true;
   Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1");
   Util::Config::is_active = false;
 }
 
-int main(int argc, char *argv[]){
+template<class T>
+int OutputMain(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
-  mistOut::init(&conf);
+  T::init(&conf);
   if (conf.parseArgs(argc, argv)){
     if (conf.getBool("json")){
-      mistOut::capa["version"] = PACKAGE_VERSION;
-      std::cout << mistOut::capa.toString() << std::endl;
+      T::capa["version"] = PACKAGE_VERSION;
+      std::cout << T::capa.toString() << std::endl;
       return -1;
     }
     {
@@ -50,15 +54,15 @@ int main(int argc, char *argv[]){
       }
     }
     conf.activate();
-    if (mistOut::listenMode()){
+    if (T::listenMode()){
       {
         struct sigaction new_action;
-        new_action.sa_sigaction = handleUSR1;
+        new_action.sa_sigaction = handleUSR1Output;
         sigemptyset(&new_action.sa_mask);
         new_action.sa_flags = 0;
         sigaction(SIGUSR1, &new_action, NULL);
       }
-      mistOut::listener(conf, spawnForked);
+      T::listener(conf, spawnForked<T>);
       if (conf.is_restarting && Socket::checkTrueSocket(0)){
         INFO_MSG("Reloading input while re-using server socket");
         execvp(argv[0], argv);
@@ -66,7 +70,7 @@ int main(int argc, char *argv[]){
       }
     }else{
       Socket::Connection S(fileno(stdout), fileno(stdin));
-      mistOut tmp(S);
+      T tmp(S);
       return tmp.run();
     }
   }
@@ -74,3 +78,8 @@ int main(int argc, char *argv[]){
   return 0;
 }
 
+#ifndef ONE_BINARY
+int main(int argc, char *argv[]){
+  return OutputMain<mistOut>(argc, argv);
+}
+#endif

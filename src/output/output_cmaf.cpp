@@ -723,7 +723,7 @@ namespace Mist{
   /* Smooth Streaming Manifest Generation */
   /****************************************/
 
-  std::string toUTF16(const std::string &original){
+  std::string toUTF16CMAF(const std::string &original){
     std::string result;
     result.append("\377\376", 2);
     for (std::string::const_iterator it = original.begin(); it != original.end(); it++){
@@ -845,7 +845,7 @@ namespace Mist{
     smoothAdaptation("video", vTracks, r);
     r << "</SmoothStreamingMedia>\n";
 
-    return toUTF16(r.str());
+    return toUTF16CMAF(r.str());
   }
 
   /**********************************/

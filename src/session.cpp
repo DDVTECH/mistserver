@@ -112,7 +112,7 @@ void userOnDisconnect(Comms::Connections & connections, size_t idx){
   connPktretrans.erase(idx);
 }
 
-int main(int argc, char **argv){
+int SessionMain(int argc, char **argv){
   Comms::Sessions sessions;
   uint64_t lastSeen = Util::bootSecs();
   Util::redirectLogsIfNeeded();
@@ -429,3 +429,9 @@ int main(int argc, char **argv){
   INFO_MSG("Shutting down session %s: %s", thisSessionId.c_str(), Util::exitReason);
   return 0;
 }
+
+#ifndef ONE_BINARY
+int main(int argc, char **argv){
+  return SessionMain(argc, argv);
+}
+#endif

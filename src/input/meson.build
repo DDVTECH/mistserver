@@ -61,6 +61,8 @@ foreach input : inputs
     deps += av_libs
   endif
 
+  inputtype_header = 'input_'+input.get('format')+'.h'
+
   executables += {
     'name' : 'MistIn'+input.get('name'),
     'sources' : [
@@ -72,9 +74,18 @@ foreach input : inputs
       io_cpp,
       header_tgts
     ],
+    'sources_debased' : [
+      files(
+        'input.cpp',
+        'input_'+input.get('format')+'.cpp'
+      )
+    ],
     'deps' : deps,
     'defines': [
-      string_opt.format('INPUTTYPE', 'input_'+input.get('format')+'.h')
+      string_opt.format('INPUTTYPE', inputtype_header)
+    ],
+    'headers': [
+      files(inputtype_header)
     ]
   }
 endforeach

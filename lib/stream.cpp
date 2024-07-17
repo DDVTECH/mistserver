@@ -640,10 +640,11 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     setenv("MISTPROVIDER", "1", 1);
   }
 
-  std::string player_bin = Util::getMyPath() + "MistIn" + input["name"].asStringRef();
-  char *argv[30] ={(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(),
+  std::string player_bin = "MistIn" + input["name"].asStringRef();
+  std::string mistserver_bin = Util::getMyPath() + "MistServer";
+  char *argv[30] ={(char *)(mistserver_bin).c_str(), (char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(),
                     (char *)filename.c_str()};
-  int argNum = 3;
+  int argNum = 4;
   std::string debugLvl;
   if (Util::printDebugLevel != DEBUG && !str_args.count("--debug")){
     debugLvl = JSON::Value(Util::printDebugLevel).asString();

@@ -1,4 +1,7 @@
 #include "controller_capabilities.h"
+#ifdef ONE_BINARY
+#include "controller_capabilities_static.h"
+#endif
 #include <fstream>
 #include <mist/config.h>
 #include <mist/defines.h>
@@ -249,6 +252,7 @@ namespace Controller{
 
   /// Aquire list of available protocols, storing in global 'capabilities' JSON::Value.
   void checkAvailProtocols(){
+    #ifndef ONE_BINARY
     std::deque<std::string> execs;
     Util::getMyExec(execs);
     std::string arg_one;
@@ -313,6 +317,10 @@ namespace Controller{
         }
       }
     }
+    #else
+    // produced with e.g. `./MistOutHLS -j | jq '. | tostring'`
+    Controller::addStaticCapabilities(capabilities);
+    #endif
   }
 
   ///\brief A class storing information about the cpu the server is running on.

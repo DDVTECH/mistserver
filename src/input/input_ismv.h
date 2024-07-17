@@ -7,8 +7,8 @@
 #include <set>
 
 namespace Mist{
-  struct seekPos{
-    bool operator<(const seekPos &rhs) const{
+  struct seekPosISMV{
+    bool operator<(const seekPosISMV &rhs) const{
       if (time < rhs.time){return true;}
       return (time == rhs.time && trackId < rhs.trackId);
     }
@@ -40,11 +40,13 @@ namespace Mist{
     bool readMoofSkipMdat(size_t &tId, std::vector<MP4::trunSampleInformation> &trunSamples);
 
     void bufferFragmentData(size_t trackId, uint32_t keyNum);
-    std::set<seekPos> buffered;
+    std::set<seekPosISMV> buffered;
     std::map<size_t, uint32_t> lastKeyNum;
 
     Util::ResizeablePointer dataPointer;
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputISMV mistIn;
+#endif

@@ -30,4 +30,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputMP3 mistIn;
+#endif

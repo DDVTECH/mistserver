@@ -45,4 +45,6 @@ namespace Mist{
 
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputFLAC mistIn;
+#endif

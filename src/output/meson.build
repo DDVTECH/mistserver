@@ -10,7 +10,7 @@ outputs = [
     {'name' : 'MP3',               'format' : 'mp3',                'extra': ['http']},
     {'name' : 'H264',              'format' : 'h264',               'extra': ['http']},
     {'name' : 'HDS',               'format' : 'hds',                'extra': ['http']},
-    {'name' : 'SubRip',            'format' : 'srt',                'extra': ['http']},
+    {'name' : 'SubRip',            'format' : 'subrip',             'extra': ['http']},
     {'name' : 'JSON',              'format' : 'json',               'extra': ['http']},
     {'name' : 'TS',                'format' : 'ts',                 'extra': ['ts']},
     {'name' : 'HTTPTS',            'format' : 'httpts',             'extra': ['http', 'ts']},
@@ -68,9 +68,6 @@ foreach output : outputs
 
   if output.has_key('extra')
     extra = output.get('extra')
-    if not extra.contains('debased')
-      sources += base
-    endif
     if extra.contains('http')
       sources += files('output_http.cpp')
       if extra.contains('ts')
@@ -84,6 +81,7 @@ foreach output : outputs
     endif
     if extra.contains('ts')
       sources += files('output_ts_base.cpp')
+      sources += files('output_http.cpp')
     endif
     if extra.contains('with_rist')
       deps += librist
@@ -101,9 +99,23 @@ foreach output : outputs
     if extra.contains('embed')
       sources += embed_tgts
     endif
+  endif
+
+  sources_debased = []
+  foreach source : sources
+    sources_debased += source
+  endforeach
+
+  if output.has_key('extra')
+    extra = output.get('extra')
+    if not extra.contains('debased')
+      sources += base
+    endif
   else
     sources += base
   endif
+
+  outputtype_header = 'output_'+output.get('format')+'.h'
 
   executables += {
     'name': 'MistOut'+output.get('name'),
@@ -111,10 +123,16 @@ foreach output : outputs
       sources,
       header_tgts
     ],
+    'sources_debased' : [
+      sources_debased
+    ],
     'deps' : deps,
     'defines' : [
-      string_opt.format('OUTPUTTYPE', 'output_'+output.get('format')+'.h'),
+      string_opt.format('OUTPUTTYPE', outputtype_header),
       '-DTS_BASECLASS='+tsBaseClass
+    ],
+    'headers' : [
+      files(outputtype_header)
     ]
   }
 endforeach

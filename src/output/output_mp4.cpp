@@ -16,7 +16,7 @@ std::set<std::string> supportedAudio;
 std::set<std::string> supportedVideo;
 
 namespace Mist{
-  std::string toUTF16(const std::string &original){
+  std::string toUTF16MP4(const std::string &original){
     std::stringstream result;
     result << (char)0xFF << (char)0xFE;
     for (std::string::const_iterator it = original.begin(); it != original.end(); it++){
@@ -90,7 +90,7 @@ namespace Mist{
 
 
   std::string OutMP4::protectionHeader(size_t idx){
-    std::string tmp = toUTF16(M.getPlayReady(idx));
+    std::string tmp = toUTF16MP4(M.getPlayReady(idx));
     tmp.erase(0, 2); // remove first 2 characters
     std::stringstream resGen;
     resGen << (char)((tmp.size() + 10) & 0xFF);

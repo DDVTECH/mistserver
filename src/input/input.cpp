@@ -18,6 +18,7 @@
 
 namespace Mist{
   Util::Config *Input::config = NULL;
+  JSON::Value Input::capa = JSON::Value();
 
   void Input::userLeadIn(){
     connectedUsers = 0;

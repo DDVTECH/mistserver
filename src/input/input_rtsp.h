@@ -1,3 +1,4 @@
+#pragma once
 #include "input.h"
 #include <mist/dtsc.h>
 #include <mist/http_parser.h>
@@ -52,4 +53,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::InputRTSP mistIn;
+#endif

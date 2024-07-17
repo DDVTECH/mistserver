@@ -212,17 +212,129 @@ subdir('test')
 
 exec_tgts = []
 
+make_header = find_program('scripts/make_header.sh')
+
+onebinary_stuff = []
+onebinary_stuff += 'MistInAAC'
+onebinary_stuff += 'MistInBalancer'
+onebinary_stuff += 'MistInBuffer'
+onebinary_stuff += 'MistInDTSC'
+onebinary_stuff += 'MistInEBML'
+onebinary_stuff += 'MistInFLAC'
+onebinary_stuff += 'MistInFLV'
+onebinary_stuff += 'MistInFolder'
+onebinary_stuff += 'MistInH264'
+onebinary_stuff += 'MistInHLS'
+onebinary_stuff += 'MistInISMV'
+onebinary_stuff += 'MistInMP3'
+onebinary_stuff += 'MistInMP4'
+onebinary_stuff += 'MistInOGG'
+onebinary_stuff += 'MistInPlaylist'
+onebinary_stuff += 'MistInRTSP'
+onebinary_stuff += 'MistInSDP'
+onebinary_stuff += 'MistInSubRip'
+onebinary_stuff += 'MistInTS'
+# onebinary_stuff += 'MistInTSRIST'
+# onebinary_stuff += 'MistInTSSRT'
+onebinary_stuff += 'MistOutAAC'
+onebinary_stuff += 'MistOutCMAF'
+onebinary_stuff += 'MistOutDTSC'
+onebinary_stuff += 'MistOutEBML'
+onebinary_stuff += 'MistOutFLAC'
+onebinary_stuff += 'MistOutFLV'
+onebinary_stuff += 'MistOutH264'
+onebinary_stuff += 'MistOutHDS'
+onebinary_stuff += 'MistOutHLS'
+onebinary_stuff += 'MistOutHTTP'
+onebinary_stuff += 'MistOutHTTPMinimalServer'
+onebinary_stuff += 'MistOutHTTPS'
+onebinary_stuff += 'MistOutHTTPTS'
+onebinary_stuff += 'MistOutJSON'
+onebinary_stuff += 'MistOutJSONLine'
+onebinary_stuff += 'MistOutMP3'
+onebinary_stuff += 'MistOutMP4'
+onebinary_stuff += 'MistOutOGG'
+onebinary_stuff += 'MistOutRTMP'
+onebinary_stuff += 'MistOutRTSP'
+# onebinary_stuff += 'MistOutSDP'
+# onebinary_stuff += 'MistOutSubRip'
+onebinary_stuff += 'MistOutTS'
+# onebinary_stuff += 'MistOutTSRIST'
+# onebinary_stuff += 'MistOutTSSRT'
+onebinary_stuff += 'MistOutWAV'
+# onebinary_stuff += 'MistOutWebRTC'
+
+onebinary_tgts = []
+onebinary_headers = []
+onebinary_sources = []
+
 ## This makes sure all (installable) executables are build in top level directory
 ## Done because MistController expects its binaries to all be in the same directory
 foreach exec : executables
-  exec_tgts += executable(
+  my_exec = executable(
     exec.get('name'),
     exec.get('sources'),
     dependencies: exec.get('deps'),
     cpp_args: exec.get('defines'),
     install: true,
   )
+  exec_tgts += my_exec
+  gen_src_name = exec.get('name') + '.json'
+  gen_src = custom_target(gen_src_name,
+    input: [my_exec],
+    output: [exec.get('name') + '.json'],
+    command: [make_header, '@INPUT@', '@OUTPUT0@']
+  )
+  if onebinary_stuff.contains(exec.get('name'))
+    onebinary_tgts += gen_src
+    onebinary_headers += exec.get('headers')
+    onebinary_sources += exec.get('sources_debased')
+  endif
 endforeach
+
+prog_python = find_program('python3')
+script = files('scripts/onebinary_gen.py')
+
+onebinary_header = custom_target('onebinary',
+  input: [onebinary_tgts, onebinary_headers],
+  output: ['controller_static_capabilities.cpp', 'mistserver.cpp'],
+  command: [prog_python, script, '--cap-header', '@OUTPUT0@', '--entrypoint', '@OUTPUT1@', '@INPUT@'],
+  depends: [onebinary_tgts]
+)
+
+onebinary = executable(
+  'MistServer',
+  [
+    files(
+      'src/controller/controller_external_writers.cpp',
+      'src/controller/controller_updater.cpp',
+      'src/controller/controller_streams.cpp',
+      'src/controller/controller_storage.cpp',
+      'src/controller/controller_connectors.cpp',
+      'src/controller/controller_statistics.cpp',
+      'src/controller/controller_limits.cpp',
+      'src/controller/controller_capabilities.cpp',
+      'src/controller/controller_uplink.cpp',
+      'src/controller/controller_api.cpp',
+      'src/controller/controller_push.cpp',
+      'src/controller/controller_variables.cpp',
+      'src/session.cpp',
+      'src/controller/controller.cpp',
+    ),
+    onebinary_sources,
+    io_cpp,
+    header_tgts,
+    embed_tgts,
+    server_html,
+    onebinary_header,
+  ],
+  cpp_args: [
+    '-DTS_BASECLASS=Output',
+    '-DONE_BINARY=1',
+  ],
+  dependencies : [libmist_dep],
+  install: true,
+)
 
 # Docs
 doxygen = find_program('doxygen', required: false)

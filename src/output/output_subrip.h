@@ -1,10 +1,10 @@
 #include "output_http.h"
 
 namespace Mist{
-  class OutSRT : public HTTPOutput{
+  class OutSubRip : public HTTPOutput{
   public:
-    OutSRT(Socket::Connection &conn);
-    ~OutSRT();
+    OutSubRip(Socket::Connection &conn);
+    ~OutSubRip();
     static void init(Util::Config *cfg);
     void onHTTP();
     void sendNext();
@@ -19,4 +19,6 @@ namespace Mist{
   };
 }// namespace Mist
 
-typedef Mist::OutSRT mistOut;
+#ifndef ONE_BINARY
+typedef Mist::OutSubRip mistOut;
+#endif

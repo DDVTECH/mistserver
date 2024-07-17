@@ -13,4 +13,3 @@ executables += {
   'defines': [],
   'deps' : [libmist_dep]
 }
-

@@ -102,7 +102,7 @@ namespace Mist{
 
     if (!buffered.size()){return;}
 
-    seekPos thisPos = *buffered.begin();
+    seekPosISMV thisPos = *buffered.begin();
     buffered.erase(buffered.begin());
 
     fseek(inFile, thisPos.position, SEEK_SET);
@@ -252,7 +252,7 @@ namespace Mist{
 
     currentPosition = ftell(inFile) + 8;
     for (unsigned int i = 0; i < trunBox.getSampleInformationCount(); i++){
-      seekPos myPos;
+      seekPosISMV myPos;
       myPos.position = currentPosition;
       myPos.trackId = trackId;
       myPos.time = currentTime;

@@ -13,4 +13,6 @@ namespace Mist{
   };
 }// namespace Mist
 
+#ifndef ONE_BINARY
 typedef Mist::OutHTTPMinimalServer mistOut;
+#endif

@@ -353,6 +353,7 @@ namespace Mist{
   void InOutBase::bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                                    size_t packDataSize, uint64_t packBytePos, bool isKeyframe, DTSC::Meta &aMeta){
     aMeta.reloadReplacedPagesIfNeeded();
+    if (!aMeta){return;}
     aMeta.setLive(true);
 
     // Store the trackid for easier access

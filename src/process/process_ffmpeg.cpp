@@ -1,6 +1,6 @@
 #include "process_ffmpeg.h"
+#include "process.hpp"
 #include <algorithm> //for std::find
-#include <fstream>
 #include <mist/defines.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
@@ -235,6 +235,7 @@ int main(int argc, char *argv[]){
     capa["hrn"] = "Encoder: FFMPEG";                                     // human readable name
     capa["desc"] = "Use a local FFMPEG installed binary to do encoding"; // description
     capa["sort"] = "sort"; // sort the parameters by this key
+    addGenericProcessOptions(capa);
 
     capa["optional"]["source_mask"]["name"] = "Source track mask";
     capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
@@ -280,6 +281,10 @@ int main(int argc, char *argv[]){
     capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
     capa["optional"]["exit_unmask"]["default"] = false;
     capa["optional"]["exit_unmask"]["sort"] = "dda";
+
+    capa["optional"]["inconsequential"]["name"] = "Inconsequential process";
+    capa["optional"]["inconsequential"]["help"] = "If set, this process need not be running for a stream to be considered fully active.";
+    capa["optional"]["inconsequential"]["default"] = false;
 
     capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
     capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
@@ -488,15 +493,6 @@ int main(int argc, char *argv[]){
         "input track without modifications and nothing else.";
     capa["optional"]["sources"]["sort"] = "baa";
     capa["optional"]["sources"]["dependent"]["x-LSP-kind"] = "video";
-
-    capa["optional"]["track_inhibit"]["name"] = "Track inhibitor(s)";
-    capa["optional"]["track_inhibit"]["sort"] = "aba";
-    capa["optional"]["track_inhibit"]["help"] =
-        "What tracks to use as inhibitors. If this track selector is able to select a track, the "
-        "process does not start. Defaults to none.";
-    capa["optional"]["track_inhibit"]["type"] = "string";
-    capa["optional"]["track_inhibit"]["validate"][0u] = "track_selector";
-    capa["optional"]["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
 
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");

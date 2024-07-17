@@ -1,4 +1,5 @@
 #include "process_av.h"
+#include "process.hpp"
 #include <mist/procs.h>
 #include <mist/h264.h>
 #include <mist/mp4_generic.h>
@@ -1788,6 +1789,7 @@ int main(int argc, char *argv[]){
     capa["name"] = "AV";
     capa["hrn"] = "Encoder: libav (ffmpeg library)";
     capa["desc"] = "Generic video encoder that directly integrates with the ffmpeg library rather than calling a binary and transmuxing twice";
+    addGenericProcessOptions(capa);
 
     capa["optional"]["source_mask"]["name"] = "Source track mask";
     capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
@@ -1843,14 +1845,6 @@ int main(int argc, char *argv[]){
     capa["optional"]["track_select"]["type"] = "string";
     capa["optional"]["track_select"]["validate"][0u] = "track_selector";
     capa["optional"]["track_select"]["default"] = "audio=all&video=all";
-
-    capa["optional"]["track_inhibit"]["name"] = "Track inhibitor(s)";
-    capa["optional"]["track_inhibit"]["help"] =
-        "What tracks to use as inhibitors. If this track selector is able to select a track, the "
-        "process does not start. Defaults to none.";
-    capa["optional"]["track_inhibit"]["type"] = "string";
-    capa["optional"]["track_inhibit"]["validate"][0u] = "track_selector";
-    capa["optional"]["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
 
     capa["optional"]["gopsize"]["name"] = "GOP Size";
     capa["optional"]["gopsize"]["help"] = "Amount of frames before a new keyframe is sent";

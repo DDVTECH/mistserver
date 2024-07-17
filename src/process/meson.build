@@ -14,7 +14,7 @@ process_common_dep = declare_dependency(link_with: process_common)
 executables += {
     'name' : 'MistProcFFMPEG',
     'sources' : [
-        files('process_ffmpeg.cpp'),
+        files('process.hpp', 'process_ffmpeg.cpp'),
         header_tgts
     ],
     'deps' :[libmist_dep, process_common_dep],
@@ -24,7 +24,7 @@ executables += {
 executables += {
     'name' : 'MistProcMKVExec',
     'sources' : [
-        files('process_exec.cpp'),
+        files('process.hpp', 'process_exec.cpp'),
         header_tgts
     ],
     'deps' :[libmist_dep, process_common_dep],
@@ -34,7 +34,7 @@ executables += {
 executables += {
     'name' : 'MistProcLivepeer',
     'sources' : [
-        files('process_livepeer.cpp'),
+        files('process.hpp', 'process_livepeer.cpp'),
         input_cpp,
         output_http_cpp,
         output_ts_base_cpp,
@@ -50,7 +50,7 @@ if get_option('WITH_AV')
     executables += {
         'name' : 'MistProcAV',
         'sources' : [
-            files('process_av.cpp'),
+            files('process.hpp', 'process_av.cpp'),
             header_tgts,
             io_cpp,
             input_cpp,

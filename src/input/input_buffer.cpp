@@ -682,7 +682,7 @@ namespace Mist{
       }
       if (tmp.isMember("track_inhibit")){
         std::set<size_t> wouldSelect = Util::wouldSelect(
-            M, std::string("audio=none&video=none&subtitle=none&") + tmp["track_inhibit"].asStringRef());
+            M, std::string("audio=none&video=none&subtitle=none&meta=none&") + tmp["track_inhibit"].asStringRef());
         if (wouldSelect.size()){
           // Inhibit if there is a match and we're not already running.
           if (!runningProcs.count(key)){continue;}
@@ -774,7 +774,8 @@ namespace Mist{
           argarr[3] = (char*)debugLvl.c_str();;
           argarr[4] = 0;
         }
-        allProcsRunning = false;
+        // Only count process as not-running if it's not inconsequential
+        if (!args.isMember("inconsequential") || !args["inconsequential"].asBool()){allProcsRunning = false;}
         INFO_MSG("Starting process: %s %s", argarr[0], argarr[1]);
         runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
         // Increment per-process boot counter

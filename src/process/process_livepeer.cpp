@@ -1,7 +1,6 @@
-#include <algorithm> //for std::find
-#include <fstream>
-#include <mist/timing.h>
 #include "process_livepeer.h"
+#include "process.hpp"
+#include <mist/timing.h>
 #include <mist/procs.h>
 #include <mist/util.h>
 #include <mist/downloader.h>
@@ -107,23 +106,25 @@ namespace Mist{
       }
       presegs[currPreSeg].data.append(tsData, len);
     };
-    virtual void initialSeek(){
+    virtual void initialSeek(bool dryRun = false){
       if (!meta){return;}
-      if (opt.isMember("source_mask") && !opt["source_mask"].isNull() && opt["source_mask"].asString() != ""){
-        uint64_t sourceMask = opt["source_mask"].asInt();
-        if (userSelect.size()){
-          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            INFO_MSG("Masking source track %zu to %" PRIu64, it->first, sourceMask);
-            meta.validateTrack(it->first, sourceMask);
+      if (!dryRun){
+        if (opt.isMember("source_mask") && !opt["source_mask"].isNull() && opt["source_mask"].asString() != ""){
+          uint64_t sourceMask = opt["source_mask"].asInt();
+          if (userSelect.size()){
+            for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+              INFO_MSG("Masking source track %zu to %" PRIu64, it->first, sourceMask);
+              meta.validateTrack(it->first, sourceMask);
+            }
           }
         }
+        if (!meta.getLive() || opt["leastlive"].asBool()){
+          INFO_MSG("Seeking to earliest point in stream");
+          seek(0);
+          return;
+        }
       }
-      if (!meta.getLive() || opt["leastlive"].asBool()){
-        INFO_MSG("Seeking to earliest point in stream");
-        seek(0);
-        return;
-      }
-      Output::initialSeek();
+      Output::initialSeek(dryRun);
     }
     void sendNext(){
       {
@@ -554,6 +555,7 @@ int main(int argc, char *argv[]){
 
     capa["name"] = "Livepeer";
     capa["desc"] = "Use livepeer to transcode video.";
+    addGenericProcessOptions(capa);
 
     capa["optional"]["source_mask"]["name"] = "Source track mask";
     capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
@@ -596,6 +598,10 @@ int main(int argc, char *argv[]){
     capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
     capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
     capa["optional"]["exit_unmask"]["default"] = false;
+
+    capa["optional"]["inconsequential"]["name"] = "Inconsequential process";
+    capa["optional"]["inconsequential"]["help"] = "If set, this process need not be running for a stream to be considered fully active.";
+    capa["optional"]["inconsequential"]["default"] = false;
 
     capa["optional"]["sink"]["name"] = "Target stream";
     capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults "
@@ -694,14 +700,6 @@ int main(int argc, char *argv[]){
       grp["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
     }
 
-    capa["optional"]["track_inhibit"]["name"] = "Track inhibitor(s)";
-    capa["optional"]["track_inhibit"]["help"] =
-        "What tracks to use as inhibitors. If this track selector is able to select a track, the "
-        "process does not start. Defaults to none.";
-    capa["optional"]["track_inhibit"]["type"] = "string";
-    capa["optional"]["track_inhibit"]["validate"][0u] = "track_selector";
-    capa["optional"]["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
-
     capa["optional"]["debug"]["name"] = "Debug level";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["type"] = "debug";
@@ -715,22 +713,6 @@ int main(int argc, char *argv[]){
     capa["ainfo"]["bc"]["name"] = "Currently used broadcaster";
     capa["ainfo"]["sinkTime"]["name"] = "Sink timestamp";
     capa["ainfo"]["sourceTime"]["name"] = "Source timestamp";
-
-    capa["optional"]["restart_delay"]["name"] = "Restart delay";
-    capa["optional"]["restart_delay"]["help"] = "The maximum amount of delay in milliseconds between restarts. If set to 0 it will restart immediately";
-    capa["optional"]["restart_delay"]["type"] = "int";
-    capa["optional"]["restart_delay"]["default"] = 0;
-
-    capa["optional"]["restart_type"]["name"] = "Restart behaviour";
-    capa["optional"]["restart_type"]["help"] = "When set to exponential backoff it will increase the delay up to the configured amount for each restart";
-    capa["optional"]["restart_type"]["type"] = "select";
-    capa["optional"]["restart_type"]["select"][0u][0u] = "fixed";
-    capa["optional"]["restart_type"]["select"][0u][1u] = "Fixed Delay";
-    capa["optional"]["restart_type"]["select"][1u][0u] = "backoff";
-    capa["optional"]["restart_type"]["select"][1u][1u] = "Exponential Backoff";
-    capa["optional"]["restart_type"]["select"][2u][0u] = "disabled";
-    capa["optional"]["restart_type"]["select"][2u][1u] = "Disabled";
-    capa["optional"]["restart_type"]["value"] = "fixed";
 
     std::cout << capa.toString() << std::endl;
     return -1;

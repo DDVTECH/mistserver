@@ -275,20 +275,21 @@ var UI = {
       }
     },
     {
-      Guides: {
-        link: 'http://mistserver.org/documentation#Userdocs'
+      Documentation: {
+        link: 'https://docs.mistserver.org/'
       },
-      Tools: {
+      Changelog: {
+        link: 'https://releases.mistserver.org/changelog'
+      },
+      'Email for Help': {}
+      /*Tools: {
         submenu: {
           'Release notes': {
             link: 'http://mistserver.org/documentation#Devdocs'
           },
-          'Mist Shop': {
-            link: 'http://mistserver.org/products'
-          },
           'Email for Help': {}
         }
-      }
+      }*/
     }
   ],
   buildMenu: function(){
@@ -6329,7 +6330,7 @@ var UI = {
           $main.append('Loading Mist capabilities..');
           mist.send(function(){
             UI.navto('Start Push',other);
-          },{capabilities:1,variable_list:true,external_writer_list:true});
+          },{capabilities:true,variable_list:true,external_writer_list:true});
           return;
         }
         
@@ -6418,7 +6419,7 @@ var UI = {
           }
           var $additional_params = $("<div>").css("margin","1em 0");
           var $autopush = $("<div>");
-          var push_parameters;
+          var push_parameters, full_list_of_push_parameters;
           if (other == "auto") {
             $autopush.css("margin","1em 0").html(UI.buildUI([{
               label: "This push should be active",
@@ -6675,13 +6676,29 @@ var UI = {
               }
               if (!("friendly" in mist.data.capabilities.connectors[match])) { mist.data.capabilities.connectors[match].friendly = mist.data.capabilities.connectors[match].name; }
               $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
-              push_parameters = {};
-              //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
+              push_parameters = $.extend({},mist.data.capabilities.connectors[match].push_parameters);
+              full_list_of_push_parameters = {};
+              function processPushParam(param,key) {
+                //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
+                if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { 
+                  delete push_parameters[key];
+                  return;
+                }
+                if (param.file_only && (val[0] != "/")) {
+                  delete push_parameters[key];
+                  return;
+                }
+                if (param.type == "group") {
+                  for (var i in param.options) {
+                    processPushParam(param.options[i],i);
+                  }
+                }
+                else {
+                  full_list_of_push_parameters[key] = param;
+                }
+              }
               for (var i in mist.data.capabilities.connectors[match].push_parameters) {
-                var param = mist.data.capabilities.connectors[match].push_parameters[i];
-                if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { continue; }
-                if (param.file_only && (val[0] != "/")) { continue; }
-                push_parameters[i] = param;
+                processPushParam(mist.data.capabilities.connectors[match].push_parameters[i],i);
               }
 
               var capa = {
@@ -6696,7 +6713,7 @@ var UI = {
               for (var i in params) {
                 var p = params[i].split("=");
                 var name = p[0];
-                if (!(name in push_parameters)) {
+                if (!(name in full_list_of_push_parameters)) {
                   custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
                 }
               }
@@ -6792,7 +6809,7 @@ var UI = {
                     //remove any params that are set to null
                     delete params[i];
                   }
-                  else if (!(i in push_parameters)) {
+                  else if (!(i in full_list_of_push_parameters)) {
                     //remove any params that are not supported by this protocol (they will have been duplicatec to saveas.custom_url_parameters if the user wanted to keep them)
                     delete params[i];
                   }
@@ -8126,6 +8143,24 @@ var mist = {
             obj.itemLabel = ele.itemLabel;
             obj.sublist = mist.convertBuildOptions(ele,obj.saveas);
             break;
+          }
+          case 'group': {
+            var children = mist.convertBuildOptions({
+              optional: ele.options
+            },saveas);
+            children = children.slice(1); //remove h4 "Optional parameters"
+            if ("help" in ele) {
+              children.unshift(
+                $("<span>").addClass("description").text(ele.help)
+              );
+            }
+            if ("name" in ele) {
+              children.unshift(
+                $("<b>").text(ele.name)
+              );
+            }
+            return $("<div>").addClass("itemsettings").append(UI.buildUI(children));
+            
           }
           case 'bool': {
             obj.type = 'checkbox';

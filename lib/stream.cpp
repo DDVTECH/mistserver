@@ -37,19 +37,22 @@ static std::string strftime_now(const std::string &format){
 std::string Util::codecString(const std::string &codec, const std::string &initData){
   if (codec == "H264"){
     std::stringstream r;
-    MP4::AVCC avccBox;
-    avccBox.setPayload(initData);
-    r << "avc1.";
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
+    r << "avc1";
+    if (initData.size() >= 4){
+      r << ".";
+      r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
+      r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
+      r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
+    }
     return r.str();
   }
   if (codec == "HEVC"){
+    std::stringstream r;
+    r << "hev1";
+    if (!initData.size()){return r.str();}
     h265::initData init(initData);
     h265::metaInfo mInfo = init.getMeta();
-    std::stringstream r;
-    r << "hev1.";
+    r << ".";
     switch (mInfo.general_profile_space){
     case 0: break;
     case 1: r << 'A'; break;

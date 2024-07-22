@@ -361,7 +361,8 @@ namespace Controller{
                     waitingPushes[streamname].erase(target);
                     if (!waitingPushes[streamname].size()){waitingPushes.erase(streamname);}
                     MEDIUM_MSG("Conditions of push `%s->%s` evaluate to true. Starting push...", stream.c_str(), target.c_str());
-                    startPush(streamname, target);
+                    std::string tmpTarget = target;
+                    startPush(streamname, tmpTarget);
                     curCount++;
                     // If no end time is given but there is a start time, remove the push after starting it
                     if (startTime && !endTime){
@@ -547,7 +548,8 @@ namespace Controller{
     if (startTime && !endTime){
       INFO_MSG("Immediately starting push %s->%s as the added push only has a defined start time"
                 , stream.c_str(), target.c_str());
-      startPush(stream, target);
+      std::string tmpTarget = target;
+      startPush(stream, tmpTarget);
       // Return push list
       response["push_auto_list"] = Controller::Storage["autopushes"];
       return;
@@ -563,7 +565,8 @@ namespace Controller{
       for (std::set<std::string>::iterator jt = activeStreams.begin();
             jt != activeStreams.end(); ++jt){
         std::string streamname = *jt;
-        startPush(streamname, target);
+        std::string tmpTarget = target;
+        startPush(streamname, tmpTarget);
       }
     }
     // Return push list

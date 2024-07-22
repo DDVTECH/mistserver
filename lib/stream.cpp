@@ -576,7 +576,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
 
   // Only use configured source if not manually overridden. Abort if no config is available.
   if (!filename.size()){
-    if (!stream_cfg){
+    if (!stream_cfg || !stream_cfg.isMember("source") || !stream_cfg["source"].isString() || !stream_cfg["source"]){
       MEDIUM_MSG("Stream %s not configured, no source manually given, cannot start", streamname.c_str());
       return false;
     }

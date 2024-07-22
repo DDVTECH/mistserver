@@ -3036,6 +3036,7 @@ namespace DTSC{
       trackJSON["init"] = getInit(*it);
       trackJSON["firstms"] = getFirstms(*it);
       trackJSON["lastms"] = getLastms(*it);
+      trackJSON["nowms"] = getNowms(*it);
       trackJSON["bps"] = getBps(*it);
       trackJSON["maxbps"] = getMaxBps(*it);
       if (!skipDynamic && getLive()){

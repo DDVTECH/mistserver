@@ -1286,9 +1286,7 @@ namespace DTSC{
       stream.setInt("vod", origStream.getInt("vod"));
       stream.setInt("live", origStream.getInt("live"));
       stream.setString("source", origStream.getPointer("source"));
-      stream.setString("uuid", origStream.getPointer("uuid"));
       stream.setInt("maxkeepaway", origStream.getInt("maxkeepaway"));
-      stream.setInt("resume", origStream.getInt("resume"));
       stream.setInt("bufferwindow", origStream.getInt("bufferwindow"));
       stream.setInt("bootmsoffset", origStream.getInt("bootmsoffset"));
       stream.setInt("utcoffset", origStream.getInt("utcoffset"));

@@ -19,7 +19,7 @@ You can also manually install, full instructions can be found in our manual: htt
 Compile instructions
 ====================
 
-The recommended build system for compiling MistServer is Meson.
+The only supported build system for compiling MistServer is Meson, since CMake support was discontinued in MistServer 3.4.
 
 The project makes full use of Meson's support for "wraps" and all dependencies can be automatically fulfilled through this system. If a system-wide library is available (and compatible), that one will be preferred.
 

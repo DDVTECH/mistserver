@@ -1808,7 +1808,7 @@ namespace Mist{
           pData["ainfo"]["sinkSleepTime"] = totalSinkSleep / (uint64_t)inputFrameCount / 1000;
           pData["ainfo"]["sourceSleepTime"] = totalSourceSleep / (uint64_t)inputFrameCount / 1000;
         }
-        if ((uint64_t)outputFrameCount){
+        if ((uint64_t)outputFrameCount > encPrevCount){
           pData["ainfo"]["encodeTime"] = (totalEncode - encPrevTime) / (((uint64_t)outputFrameCount)-encPrevCount) / 1000;
           encPrevTime = totalEncode;
           encPrevCount = (uint64_t)outputFrameCount;

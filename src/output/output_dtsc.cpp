@@ -173,6 +173,12 @@ namespace Mist{
         HIGH_MSG("Received DTCM: %s", dScan.asJSON().toString().c_str());
         if (dScan.getMember("cmd").asString() == "ok"){
           INFO_MSG("Remote OK: %s", dScan.getMember("msg").asString().c_str());
+          if (dScan.getMember("msg").asString() == "pong"){
+            if (selectDefaultTracks()){
+              INFO_MSG("Track selection changed while idle - resending headers");
+              sentHeader = false;
+            }
+          }
           continue;
         }
         if (dScan.getMember("cmd").asString() == "push"){

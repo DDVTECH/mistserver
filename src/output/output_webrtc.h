@@ -98,6 +98,7 @@ namespace Mist{
     void handleWebsocketIdle();
     virtual void onFail(const std::string &msg, bool critical = false);
     bool doesWebsockets(){return true;}
+    void onCommandSend(const std::string & data);
     void handleWebRTCInputOutputFromThread();
     bool handleUDPSocket(Socket::UDPConnection & sock);
     bool handleUDPSocket(WebRTCSocket & wSock);

@@ -14,6 +14,7 @@ namespace Mist{
     //Websocket related
     webSock = 0;
     wsCmds = false;
+    wsCmdForce = false;
     stayLive = true;
     target_rate = 0.0;
     forwardTo = 0;
@@ -29,6 +30,10 @@ namespace Mist{
       myConn.Received().prepend(config->getString("prequest"));
     }
     config->activate();
+  }
+
+  void HTTPOutput::onCommandSend(const std::string & data){
+    webSock->sendFrame(data);
   }
 
   HTTPOutput::~HTTPOutput(){
@@ -198,13 +203,13 @@ namespace Mist{
       return true;
     }
     //If we're a websocket and handling commands, finish it cleanly too
-    if (webSock && wsCmds){
+    if (wsCmdForce || (webSock && wsCmds)){
       JSON::Value r;
       r["type"] = "on_stop";
       r["data"]["current"] = currentTime();
       r["data"]["begin"] = startTime();
       r["data"]["end"] = endTime();
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
       parseData = false;
       return false;
     }
@@ -214,7 +219,7 @@ namespace Mist{
 
   void HTTPOutput::sendNext(){
     //If we're not in websocket mode and handling commands, we do nothing here
-    if (!wsCmds || !webSock){return;}
+    if (!wsCmdForce && (!wsCmds || !webSock)){return;}
 
     //Finish fast-forwarding if forwardTo time was reached
     if (forwardTo && thisTime >= forwardTo){
@@ -238,7 +243,7 @@ namespace Mist{
       }else{
         r["data"]["play_rate_curr"] = target_rate;
       }
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
     }
 
     // Handle nice move-over to new main video track
@@ -258,7 +263,7 @@ namespace Mist{
   void HTTPOutput::requestHandler(){
     // Handle onIdle function caller, if needed
     if (idleInterval && (Util::bootMS() > idleLast + idleInterval)){
-      if (wsCmds){handleWebsocketIdle();}
+      if (wsCmds || wsCmdForce){handleWebsocketIdle();}
       onIdle();
       idleLast = Util::bootMS();
     }
@@ -470,6 +475,12 @@ namespace Mist{
     JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
     if (!command || !command.isMember("type")){return false;}
 
+    return handleCommand(command);
+  }
+
+  /// Handles standardized (WebSocket) commands.
+  /// Returns true if a command was executed, false otherwise.
+  bool HTTPOutput::handleCommand(const JSON::Value & command){
     //Seek command, for changing playback position
     if (command["type"] == "seek") {
       handleWebsocketSeek(command);
@@ -489,7 +500,7 @@ namespace Mist{
         //On resume, restore the timing to be where it was when pausing
         firstTime = Util::bootMS() - (lastPacketTime / target_rate);
       }
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
       return true;
     }
 
@@ -500,7 +511,7 @@ namespace Mist{
         lastPacketTime = targetTime();
       }
       parseData = false;
-      webSock->sendFrame("{\"type\":\"pause\",\"paused\":true}");
+      onCommandSend("{\"type\":\"pause\",\"paused\":true}");
       return true;
     }
 
@@ -553,7 +564,7 @@ namespace Mist{
         JSON::Value r;
         r["type"] = "warning";
         r["warning"] = "Ignored fast_forward command: ff_to property missing";
-        webSock->sendFrame(r.toString());
+        onCommandSend(r.toString());
       }
       onIdle();
       return true;
@@ -565,7 +576,7 @@ namespace Mist{
       r["type"] = "set_speed";
       if (!command.isMember("play_rate")){
         r["error"] = "play_rate missing";
-        webSock->sendFrame(r.toString());
+        onCommandSend(r.toString());
         return false;
       }
 
@@ -596,13 +607,13 @@ namespace Mist{
         }else{
           stayLive = false;
           //Set new realTime speed
-          realTime = 1000 / target_rate;
-          firstTime = Util::bootMS() - (prevTargetTime / target_rate);
+          realTime = 1000.0 / target_rate;
+          firstTime = Util::bootMS() - prevTargetTime * realTime / 1000;
           maxSkipAhead = 1;//disable automatic rate control
         }
       }
       if (M.getLive()){r["data"]["live_point"] = stayLive;}
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
       handleWebsocketIdle();
       onIdle();
       return true;
@@ -665,7 +676,7 @@ namespace Mist{
   }
 
   void HTTPOutput::handleWebsocketIdle(){
-    if (!webSock){return;}
+    if (!webSock && !wsCmdForce){return;}
     if (!parseData){return;}
 
     //Finish fast-forwarding if forwardTo time was reached
@@ -690,7 +701,7 @@ namespace Mist{
       }else{
         r["data"]["play_rate_curr"] = target_rate;
       }
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
     }
 
     JSON::Value r;
@@ -728,7 +739,7 @@ namespace Mist{
         r["data"]["unixoffset"] = M.getUTCOffset();
       }
     }
-    webSock->sendFrame(r.toString());
+    onCommandSend(r.toString());
   }
 
   bool HTTPOutput::possiblyReselectTracks(uint64_t seekTarget){
@@ -776,7 +787,7 @@ namespace Mist{
           r["data"]["play_rate_prev"] = target_rate;
         }
         r["data"]["play_rate_curr"] = "fast-forward";
-        webSock->sendFrame(r.toString());
+        onCommandSend(r.toString());
       }
     }else{
       prevVidTrack = INVALID_TRACK_ID;
@@ -792,7 +803,7 @@ namespace Mist{
         r["data"]["play_rate_prev"] = target_rate;
       }
       r["data"]["play_rate_curr"] = "fast-forward";
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
     }
     handleWebsocketIdle();
     onIdle();
@@ -803,25 +814,43 @@ namespace Mist{
   bool HTTPOutput::handleWebsocketSeek(const JSON::Value& command) {
     JSON::Value r;
     r["type"] = "seek";
-    if (!command.isMember("seek_time")){
+
+    if (!command.isMember("seek_time") && !command.isMember("unix")){
       r["error"] = "seek_time missing";
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
       return false;
     }
 
-    uint64_t seek_time = command["seek_time"].asInt();
+    uint64_t seek_time = 0;
+    if (command.isMember("seek_time")){
+      seek_time = command["seek_time"].asInt();
+    }
+    if (command.isMember("unix")){
+      int64_t uTime = command["unix"].asInt();
+      // Relative time
+      if (uTime < 946684800){
+        seek_time = M.unixMsToPacketTime(Util::unixMS()+uTime);
+      }else{
+        seek_time = M.unixMsToPacketTime(uTime);
+      }
+      if (!seek_time){
+        r["error"] = "unix time cannot be converted to stream timeline";
+        onCommandSend(r.toString());
+        return true;
+      }
+    }
     if (!parseData){
       parseData = true;
       selectDefaultTracks();
     }
 
     stayLive = (target_rate == 0.0) && (endTime() < seek_time + 5000);
-    if (command["seek_time"].asStringRef() == "live"){stayLive = true;}
+    if (command.isMember("seek_time") && command["seek_time"].asStringRef() == "live"){stayLive = true;}
     if (stayLive){seek_time = endTime();}
     
     if (!seek(seek_time, true)) {
       r["error"] = "seek failed, continuing as-is";
-      webSock->sendFrame(r.toString());
+      onCommandSend(r.toString());
       return false;
     }
     if (M.getLive()){r["data"]["live_point"] = stayLive;}
@@ -849,7 +878,7 @@ namespace Mist{
     }
     handleWebsocketIdle();
     onIdle();
-    webSock->sendFrame(r.toString());
+    onCommandSend(r.toString());
     return true;
   }
 

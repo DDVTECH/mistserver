@@ -354,6 +354,7 @@ namespace DTSC{
 
     std::string getTrackIdentifier(size_t idx, bool unique = false) const;
     uint64_t packetTimeToUnixMs(uint64_t pktTime, uint64_t systemBoot = 0) const;
+    uint64_t unixMsToPacketTime(uint64_t unixTime, uint64_t systemBoot = 0) const;
 
     void setInit(size_t trackIdx, const std::string &init);
     void setInit(size_t trackIdx, const char *init, size_t initLen);

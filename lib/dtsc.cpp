@@ -2817,6 +2817,20 @@ namespace DTSC{
     return 0;
   }
 
+  uint64_t Meta::unixMsToPacketTime(uint64_t unixTime, uint64_t systemBoot) const{
+    if (getUTCOffset()){
+      return unixTime - getUTCOffset();
+    }
+    if (getLive()){
+      // Grab system boot time from global config file if possible
+      if (!systemBoot){systemBoot = Util::getGlobalConfig("systemBoot").asInt();}
+      // fall back to local calculation if loading from global config fails
+      if (!systemBoot){systemBoot = (Util::unixMS() - Util::bootMS());}
+      return unixTime - (systemBoot + getBootMsOffset());
+    }
+    return 0;
+  }
+
   const Util::RelAccX &Meta::parts(size_t idx) const{return tracks.at(idx).parts;}
   Util::RelAccX &Meta::keys(size_t idx){return tracks.at(idx).keys;}
   const Util::RelAccX &Meta::keys(size_t idx) const{return tracks.at(idx).keys;}
@@ -3765,7 +3779,7 @@ namespace DTSC{
       const uint64_t t = getTime(i);
       if (t >= timestamp || t + getDuration(i) > timestamp){return i;}
     }
-    return endKey;
+    return endKey ? (endKey - 1) : 0;
   }
 
   void Keys::applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p){

@@ -30,13 +30,16 @@ namespace Mist{
     virtual void onWebsocketFrame(){};
     virtual void onWebsocketConnect(){};
     virtual void preWebsocketConnect(){};
+    virtual void onCommandSend(const std::string & data);
     bool handleWebsocketCommands();
+    bool handleCommand(const JSON::Value & command);
     void handleWebsocketIdle();
     bool handleWebsocketSeek(const JSON::Value & command);
     bool possiblyReselectTracks(uint64_t seekTarget);
   protected:
     //WebSocket related
     bool wsCmds; ///< If true, implements all our standard websocket-based seek/play/etc commands
+    bool wsCmdForce; ///< If true, forces all our standard commands regardless of websocket connection status
     double target_rate; ///< Target playback speed rate (1.0 = normal, 0 = auto)
     uint64_t forwardTo; ///< Playback position we're fast-forwarding towards
     size_t prevVidTrack; ///< Previously selected main video track

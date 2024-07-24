@@ -419,12 +419,22 @@ namespace Mist{
   }
 
   void OutWebRTC::requestHandler(){
+    // Handle onIdle function caller, if needed
+    if (idleInterval && (Util::bootMS() > idleLast + idleInterval)){
+      if (wsCmds || wsCmdForce){handleWebsocketIdle();}
+      onIdle();
+      idleLast = Util::bootMS();
+    }
     if (noSignalling){
       // For WHEP, make sure we keep listening for packets while waiting for new data to come in for sending
       if (parseData && !handleWebRTCInputOutput()){
         sendPaced(10);
       }else{
-        if (ioThread){Util::sleep(500);}
+        if (ioThread){
+          Util::sleep(500);
+        }else{
+          if (!handleWebRTCInputOutput()){sendPaced(10);}
+        }
       }
       // After 10s of no packets, abort
       if (thisBootMs > lastRecv + 10000){
@@ -818,8 +828,8 @@ namespace Mist{
     }
 
     // setup meta WebRTC Track
-    if (metaTrack != INVALID_TRACK_ID){
-      if (sdpAnswer.enableMeta(M.getCodec(metaTrack), sdpSession)){
+    if (metaTrack != INVALID_TRACK_ID || sdpSession.getMediaForType("meta")){
+      if (sdpAnswer.enableMeta("JSON", sdpSession)){
         WebRTCTrack &mTrack = webrtcTracks[metaTrack];
         if (!createWebRTCTrackFromAnswer(sdpAnswer.answerMetaMedia, sdpAnswer.answerMetaFormat, mTrack)){
           FAIL_MSG("Failed to create the WebRTCTrack for the selected metadata.");
@@ -835,6 +845,23 @@ namespace Mist{
     idleInterval = 1000;
 
     return true;
+  }
+
+  void OutWebRTC::onCommandSend(const std::string & data){
+    if (wsCmdForce){
+      sctp_sndinfo sndinfo;
+      sndinfo.snd_sid = dataChannels["MistControl"];
+      sndinfo.snd_flags = SCTP_EOR;
+      sndinfo.snd_ppid = htonl(51);
+      sndinfo.snd_context = 0;
+      sndinfo.snd_assoc_id = 0;
+      int ret = usrsctp_sendv(sctp_sock, data.data(), data.size(), NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
+      if (ret < 0){
+        WARN_MSG("Could not send data channel command message: %s", strerror(errno));
+      }
+    }else{
+      if (webSock){HTTPOutput::onCommandSend(data);}
+    }
   }
 
   void OutWebRTC::handleWebsocketIdle(){
@@ -1302,7 +1329,7 @@ namespace Mist{
       if (now >= rtcpTimeoutInMillis){
         std::map<uint64_t, WebRTCTrack>::iterator it;
         for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
-          if (!M || M.getType(it->first) != "video"){continue;}//Video-only, at least for now
+          if (!M || it->first == INVALID_TRACK_ID || M.getType(it->first) != "video"){continue;}//Video-only, at least for now
           sendRTCPFeedbackREMB(it->second);
           sendRTCPFeedbackRR(it->second);
         }
@@ -1313,7 +1340,7 @@ namespace Mist{
       if (now >= rtcpKeyFrameTimeoutInMillis){
         std::map<uint64_t, WebRTCTrack>::iterator it;
         for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
-          if (!M || M.getType(it->first) != "video"){continue;}//Video-only
+          if (!M || it->first == INVALID_TRACK_ID || M.getType(it->first) != "video"){continue;}//Video-only
           sendRTCPFeedbackPLI(it->second);
         }
         rtcpKeyFrameTimeoutInMillis = now + rtcpKeyFrameDelayInMillis;
@@ -1727,6 +1754,11 @@ namespace Mist{
           if ((protocol == "subtitle" || label == "subtitle" || protocol == "*" || label == "*") && !dataChannels.count("subtitle")){
             dataChannels["subtitle"] = stream;
           }
+          if ((protocol == "MistControl" || label == "MistControl") && !wsCmdForce){
+            dataChannels["MistControl"] = stream;
+            wsCmdForce = true;
+            INFO_MSG("Enabling command channel!");
+          }
         }
         if (packetLog.is_open()){
           packetLog << "Data channel " << stream << " opened: " << label << "/" << protocol << " (" << chanTypeStr << ")" << std::endl;
@@ -1741,6 +1773,12 @@ namespace Mist{
         return;
       }
     }else if (ppid == 51){
+      if (wsCmdForce && dataChannels["MistControl"] == stream){
+        JSON::Value command = JSON::fromString(data, len);
+        if (!command || !command.isMember("type")){return;}
+        handleCommand(command);
+        return;
+      }
       std::string txt(data, len);
       INFO_MSG("Received text: %s", txt.c_str());
       if (packetLog.is_open()){
@@ -1803,7 +1841,7 @@ namespace Mist{
     size_t idx = M.trackIDToIndex(trackId, getpid());
     if (idx == INVALID_TRACK_ID || !webrtcTracks.count(idx)){
       ERROR_MSG(
-          "Recieved init data for a track that we don't manage. TrackID %zu /PayloadType: %zu",
+          "Received init data for a track that we don't manage. TrackID %zu /PayloadType: %zu",
           idx, M.getID(idx));
       return;
     }

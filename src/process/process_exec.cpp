@@ -89,6 +89,7 @@ namespace Mist{
       capa["name"] = "MKVExec";
       targetParams["keeptimes"] = true;
       realTime = 0;
+      subtractTime = 0;
     };
     virtual bool onFinish(){
       if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
@@ -135,7 +136,7 @@ namespace Mist{
           }
         }
       }
-      if (thisTime > statSourceMs){statSourceMs = thisTime;}
+      if (thisTime-subtractTime > statSourceMs){statSourceMs = thisTime-subtractTime;}
       needsLookAhead = 0;
       maxSkipAhead = 0;
       if (!sendFirst){

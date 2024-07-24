@@ -6,6 +6,7 @@
 
 namespace Mist{
   OutEBML::OutEBML(Socket::Connection &conn) : HTTPOutput(conn){
+    subtractTime = 0;
     currentClusterTime = 0;
     newClusterTime = 0;
     segmentSize = 0xFFFFFFFFFFFFFFFFull;
@@ -48,6 +49,18 @@ namespace Mist{
       }
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
       initialize();
+      initialSeek();
+
+      std::string timestamps = "zero";
+      if (targetParams.count("ts")){timestamps = targetParams["ts"];}
+      if (timestamps == "zero"){
+        subtractTime = currentTime();
+      } else if (timestamps == "keep"){
+        subtractTime = 0;
+      }else if (M){
+        int64_t utcTime = M.packetTimeToUnixMs(currentTime());
+        if (utcTime){subtractTime = currentTime() - utcTime;}
+      }
       if (M && !M.getLive()){calcVodSizes();}
     }
   }
@@ -107,6 +120,19 @@ namespace Mist{
     capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
     capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
     config->addStandardPushCapabilities(capa);
+
+    JSON::Value & pp = capa["push_parameters"];
+    pp["ts"]["name"] = "Timestamps";
+    pp["ts"]["help"] = "How to transform the timestamps.";
+    pp["ts"]["type"] = "select";
+    pp["ts"]["select"][0u][0u] = "unix";
+    pp["ts"]["select"][0u][1u] = "Convert to unix time in milliseconds, or as-is if unknown time";
+    pp["ts"]["select"][1u][0u] = "zero";
+    pp["ts"]["select"][1u][1u] = "Start the timestamps at zero";
+    pp["ts"]["select"][2u][0u] = "keep";
+    pp["ts"]["select"][2u][1u] = "Keep timestamps as-is";
+    pp["ts"]["default"] = "unix";
+
     capa["push_urls"].append("/*.mkv");
     capa["push_urls"].append("/*.webm");
     capa["push_urls"].append("mkv-exec:*");
@@ -123,7 +149,7 @@ namespace Mist{
   /// Bases the calculation on the currently selected tracks and the given start/end time for the
   /// cluster.
   size_t OutEBML::clusterSize(uint64_t start, uint64_t end){
-    size_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start);
+    size_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start-subtractTime);
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       DTSC::Keys keys(M.getKeys(it->first));
 
@@ -187,7 +213,7 @@ namespace Mist{
         if (nxtKTime && nxtKTime < newClusterTime){newClusterTime = nxtKTime;}
       }
       EBML::sendElemHead(myConn, EBML::EID_CLUSTER, clusterSize(currentClusterTime, newClusterTime));
-      EBML::sendElemUInt(myConn, EBML::EID_TIMECODE, currentClusterTime);
+      EBML::sendElemUInt(myConn, EBML::EID_TIMECODE, currentClusterTime-subtractTime);
     }
 
     DTSC::Packet p(thisPacket, thisIdx + 1);
@@ -372,7 +398,8 @@ namespace Mist{
       EBML::sendElemSeek(myConn, EBML::EID_CUES, seekheadSize + infoSize + tracksSize);
     }
     // Info
-    EBML::sendElemInfo(myConn, APPIDENT, duration);
+    int64_t utcTime = M.packetTimeToUnixMs(currentTime());
+    EBML::sendElemInfo(myConn, APPIDENT, duration, utcTime);
     // Tracks
     size_t trackSizes = 0;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -485,9 +512,28 @@ namespace Mist{
     }else{
       //Non-range request
       if (!M.getLive()){H.SetHeader("Content-Length", byteEnd - byteStart + 1);}
+      initialSeek();
       /// \todo Switch to chunked?
       H.SendResponse("200", "OK", myConn);
     }
+
+
+    std::string timestamps = "zero";
+    if (req.GetVar("ts").size()){timestamps = req.GetVar("ts");}
+    if (timestamps == "zero"){
+      if (M.getLive()){
+        subtractTime = currentTime();
+      }else{
+        subtractTime = startTime();
+      }
+    } else if (timestamps == "keep"){
+      subtractTime = 0;
+    }else if (M){
+      int64_t utcTime = M.packetTimeToUnixMs(currentTime());
+      if (utcTime){subtractTime = currentTime() - utcTime;}
+    }
+
+
     //Start outputting data
     if (!headersOnly){
       parseData = true;
@@ -534,8 +580,6 @@ namespace Mist{
     for (size_t i = fragments.getFirstValid(); i < fragments.getEndValid(); i++){
       uint64_t clusterStart = M.getTimeForFragmentIndex(idx, i);
       uint64_t clusterEnd = clusterStart + fragments.getDuration(i);
-      // The first fragment always starts at time 0, even if the main track does not.
-      if (!fragNo){clusterStart = 0;}
       uint64_t clusterTmpEnd = clusterEnd;
       do{
         clusterTmpEnd = clusterEnd;

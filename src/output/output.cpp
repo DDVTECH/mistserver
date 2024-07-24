@@ -764,8 +764,8 @@ namespace Mist{
   /// Return the intended target current time of the media buffer (as opposed to actual)
   /// This takes into account the current playback speed as well as the maxSkipAhead setting.
   uint64_t Output::targetTime(){
-    if (!realTime){return currentTime();}
-    return (((Util::bootMS() - firstTime) * 1000) / realTime + maxSkipAhead);
+    if (!realTime){return Util::bootMS() - firstTime + maxSkipAhead;}
+    return ((Util::bootMS() - firstTime) * 1000 / realTime) + maxSkipAhead;
   }
 
   /// Return the start time of the selected tracks.

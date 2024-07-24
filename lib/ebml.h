@@ -42,6 +42,7 @@ namespace EBML{
     EID_CHANNELS = 0x1F,
     EID_SAMPLINGFREQUENCY = 0x35,
     EID_TIMECODE = 0x67,
+    EID_DATEUTC = 0x461,
     EID_BITDEPTH = 0x2264,
     EID_TRACKENTRY = 0x2E,
     EID_TRACKUID = 0x33C5,
@@ -97,6 +98,7 @@ namespace EBML{
     uint64_t getValUInt() const;
     int64_t getValInt() const;
     double getValFloat() const;
+    int64_t getValDate() const;
     std::string getValString() const;
     std::string getValStringUntrimmed() const;
     const Element findChild(uint32_t id) const;

@@ -275,7 +275,7 @@ namespace Mist{
     if (!meta || (needsLock() && isSingular())){
       meta.reInit(isSingular() ? streamName : "");
     }
-
+    int64_t dateVal = 0; 
     while (readElement()){
       if (!config->is_active){
         WARN_MSG("Aborting header generation due to shutdown: %s", Util::exitReason);
@@ -470,6 +470,7 @@ namespace Mist{
         meta.inputLocalVars["timescale"] = timeScaleVal;
         timeScale = ((double)timeScaleVal) / 1000000.0;
       }
+      if (E.getID() == EBML::EID_DATEUTC){dateVal = E.getValDate();}
       // Live streams stop parsing the header as soon as the first Cluster is encountered
       if (E.getID() == EBML::EID_CLUSTER){
         if (!needsLock()){return true;}
@@ -492,6 +493,11 @@ namespace Mist{
           while (TP.hasPackets(true)){
             packetData &C = TP.getPacketData(true);
             meta.update(C.time, C.offset, idx, C.dsize, C.bpos, C.key);
+            if (dateVal){
+              meta.setUTCOffset(dateVal - C.time);
+              if (!meta.getUTCOffset()){meta.setUTCOffset(1);}
+              dateVal = 0;
+            }
             TP.remove();
           }
           TP.flush();
@@ -527,6 +533,11 @@ namespace Mist{
         while (TP.hasPackets()){
           packetData &C = TP.getPacketData(isVideo);
           meta.update(C.time, C.offset, idx, C.dsize, C.bpos, C.key);
+          if (dateVal){
+            meta.setUTCOffset(dateVal - C.time);
+            if (!meta.getUTCOffset()){meta.setUTCOffset(1);}
+            dateVal = 0;
+          }
           TP.remove();
         }
       }
@@ -539,6 +550,11 @@ namespace Mist{
           packetData &C =
               TP.getPacketData(M.getType(M.trackIDToIndex(it->first, getpid())) == "video");
           meta.update(C.time, C.offset, M.trackIDToIndex(C.track, getpid()), C.dsize, C.bpos, C.key);
+          if (dateVal){
+            meta.setUTCOffset(dateVal - C.time);
+            if (!meta.getUTCOffset()){meta.setUTCOffset(1);}
+            dateVal = 0;
+          }
           TP.remove();
         }
       }

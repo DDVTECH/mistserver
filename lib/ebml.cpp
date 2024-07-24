@@ -1,6 +1,7 @@
 #include "bitfields.h"
 #include "defines.h"
 #include "ebml.h"
+#include "timing.h"
 #include <iomanip>
 #include <sstream>
 
@@ -192,7 +193,7 @@ namespace EBML{
     case 0x3a770: return "Chapters";
     case 0x941a469: return "Attachments";
     case 0x8: return "FlagDefault";
-    case 0x461: return "DateUTC";
+    case EID_DATEUTC: return "DateUTC";
     case 0x3BA9: return "Title";
     case 0x1B: return "BlockDuration";
     case 0x21A7: return "AttachedFile";
@@ -349,7 +350,7 @@ namespace EBML{
     case 0x33A4: return ELEM_BIN;
     case EID_SIMPLEBLOCK:
     case 0x21: return ELEM_BLOCK;
-    case 0x461: return ELEM_DATE;
+    case EID_DATEUTC: return ELEM_DATE;
     default: return ELEM_UNKNOWN;
     }
   }
@@ -409,6 +410,10 @@ namespace EBML{
       ret << std::string(indent, ' ') << "Element (" << getPayloadLen() << "/" << getOuterLen()
           << ") [" << getIDString(getID()) << "] = " << getValInt() << std::endl;
     }break;
+    case ELEM_DATE:{
+      ret << std::string(indent, ' ') << "Element (" << getPayloadLen() << "/" << getOuterLen()
+          << ") [" << getIDString(getID()) << "] = " << Util::getUTCStringMillis(getValDate()) << std::endl;
+    }break;
     case ELEM_FLOAT:{
       ret << std::string(indent, ' ') << "Element (" << getPayloadLen() << "/" << getOuterLen()
           << ") [" << getIDString(getID()) << "] = " << getValFloat() << std::endl;
@@ -464,6 +469,7 @@ namespace EBML{
     const char *payDat = getPayload();
     uint64_t val = 0;
     switch (getPayloadLen()){
+    case 0: break;
     case 1: val = payDat[0]; break;
     case 2: val = Bit::btohs(payDat); break;
     case 3: val = Bit::btoh24(payDat); break;
@@ -481,6 +487,7 @@ namespace EBML{
     const char *payDat = getPayload();
     int64_t val = 0;
     switch (getPayloadLen()){
+    case 0: break;
     case 1: val = (int8_t)payDat[0]; break;
     case 2: val = (((int64_t)Bit::btohs(payDat)) << 48) >> 48; break;
     case 3: val = (((int64_t)Bit::btoh24(payDat)) << 40) >> 40; break;
@@ -492,6 +499,10 @@ namespace EBML{
     default: WARN_MSG("Int payload size %" PRIu64 " not implemented", getPayloadLen());
     }
     return val;
+  }
+
+  int64_t Element::getValDate() const{
+    return 978307200000ll + (getValInt() / 1000000);
   }
 
   double Element::getValFloat() const{

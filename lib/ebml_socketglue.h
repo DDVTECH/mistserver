@@ -11,9 +11,9 @@ namespace EBML{
   void sendElemDbl(Socket::Connection &C, uint32_t ID, const double val);
   void sendElemStr(Socket::Connection &C, uint32_t ID, const std::string &val);
   void sendElemEBML(Socket::Connection &C, const std::string &doctype);
-  void sendElemInfo(Socket::Connection &C, const std::string &appName, double duration);
+  void sendElemInfo(Socket::Connection &C, const std::string &appName, double duration, int64_t date = 0);
   uint32_t sizeElemEBML(const std::string &doctype);
-  uint32_t sizeElemInfo(const std::string &appName, double duration);
+  uint32_t sizeElemInfo(const std::string &appName, double duration, int64_t date = 0);
 
   void sendElemSeek(Socket::Connection &C, uint32_t ID, uint64_t bytePos);
   uint32_t sizeElemSeek(uint32_t ID, uint64_t bytePos);

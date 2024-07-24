@@ -17,6 +17,7 @@ namespace Mist{
       if (config->getString("target").size() && config->getString("target").substr(0, 9) != "mkv-exec:"){return true;}
       return false;
     }
+    int64_t subtractTime;
 
   private:
     std::string doctype;

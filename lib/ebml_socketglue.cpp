@@ -42,6 +42,30 @@ namespace EBML{
     return sizeElemHead(ID, iSize) + iSize;
   }
 
+  uint8_t sizeInt(const int64_t val){
+    if (val >= 0x100000000000000ll || val <= -0x100000000000000ll){
+      return 8;
+    }else if (val >= 0x1000000000000ll || val <= -0x1000000000000ll){
+      return 7;
+    }else if (val >= 0x10000000000ll || val <= -0x10000000000ll){
+      return 6;
+    }else if (val >= 0x100000000ll || val <= -0x100000000ll){
+      return 5;
+    }else if (val >= 0x1000000ll || val <= -0x1000000ll){
+      return 4;
+    }else if (val >= 0x10000ll || val <= -0x10000ll){
+      return 3;
+    }else if (val >= 0x100ll || val <= -0x100ll){
+      return 2;
+    }
+    return 1;
+  }
+
+  uint32_t sizeElemInt(uint32_t ID, const int64_t val){
+    uint8_t iSize = sizeInt(val);
+    return sizeElemHead(ID, iSize) + iSize;
+  }
+
   uint32_t sizeElemID(uint32_t ID, const uint64_t val){
     uint8_t iSize = UniInt::writeSize(val);
     return sizeElemHead(ID, iSize) + iSize;
@@ -64,6 +88,23 @@ namespace EBML{
   void sendElemUInt(Socket::Connection &C, uint32_t ID, const uint64_t val){
     char tmp[8];
     uint8_t wSize = sizeUInt(val);
+    switch (wSize){
+    case 8: Bit::htobll(tmp, val); break;
+    case 7: Bit::htob56(tmp, val); break;
+    case 6: Bit::htob48(tmp, val); break;
+    case 5: Bit::htob40(tmp, val); break;
+    case 4: Bit::htobl(tmp, val); break;
+    case 3: Bit::htob24(tmp, val); break;
+    case 2: Bit::htobs(tmp, val); break;
+    case 1: tmp[0] = val; break;
+    }
+    sendElemHead(C, ID, wSize);
+    C.SendNow(tmp, wSize);
+  }
+
+  void sendElemInt(Socket::Connection &C, uint32_t ID, const int64_t val){
+    char tmp[8];
+    uint8_t wSize = sizeInt(val);
     switch (wSize){
     case 8: Bit::htobll(tmp, val); break;
     case 7: Bit::htob56(tmp, val); break;
@@ -116,11 +157,20 @@ namespace EBML{
     }
   }
 
-  void sendElemInfo(Socket::Connection &C, const std::string &appName, double duration){
-    sendElemHead(C, EID_INFO,
-                 13 + 2 * appName.size() + (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0));
+  void sendElemInfo(Socket::Connection &C, const std::string &appName, double duration, int64_t date){
+    size_t contentLen = 13 + 2 * appName.size();
+    if (duration > 0){
+      contentLen += sizeElemDbl(EID_DURATION, duration);
+    }
+    if (date){
+      date -= 978307200000ll;
+      date *= 1000000;
+      contentLen += sizeElemInt(EID_DATEUTC, date);
+    }
+    sendElemHead(C, EID_INFO, contentLen);
     sendElemUInt(C, EID_TIMECODESCALE, 1000000);
     if (duration > 0){sendElemDbl(C, EID_DURATION, duration);}
+    if (date){sendElemInt(C, EID_DATEUTC, date);}
     sendElemStr(C, EID_MUXINGAPP, appName);
     sendElemStr(C, EID_WRITINGAPP, appName);
   }
@@ -129,10 +179,17 @@ namespace EBML{
     return 27 + doctype.size() + sizeElemHead(EID_EBML, 27 + doctype.size());
   }
 
-  uint32_t sizeElemInfo(const std::string &appName, double duration){
-    return 13 + 2 * appName.size() + (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0) +
-           sizeElemHead(EID_INFO, 13 + 2 * appName.size() +
-                                      (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0));
+  uint32_t sizeElemInfo(const std::string &appName, double duration, int64_t date){
+    size_t contentLen = 13 + 2 * appName.size();
+    if (duration > 0){
+      contentLen += sizeElemDbl(EID_DURATION, duration);
+    }
+    if (date){
+      date -= 978307200000ll;
+      date *= 1000000;
+      contentLen += sizeElemInt(EID_DATEUTC, date);
+    }
+    return contentLen + sizeElemHead(EID_INFO, contentLen);
   }
 
   void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime, bool forceKeyframe){

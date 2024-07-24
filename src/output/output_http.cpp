@@ -621,7 +621,25 @@ namespace Mist{
       if (command.isMember("seek_time")){
         handleWebsocketSeek(command);
       }else{
-        if (M.getLive() && currentTime() < startTime()){initialSeek();}
+        if (M.getLive() && currentTime() < startTime()){
+          initialSeek();
+        }else{
+          if (lastPacketTime){
+            //On resume, restore the timing to be where it was when pausing
+            if (target_rate == 0.0){
+              firstTime = Util::bootMS() - lastPacketTime;
+            }else{
+              firstTime = Util::bootMS() - (lastPacketTime / target_rate);
+            }
+          }else{
+            //We don't know? Guess.
+            if (target_rate == 0.0){
+              firstTime = Util::bootMS() - currentTime();
+            }else{
+              firstTime = Util::bootMS() - (currentTime() / target_rate);
+            }
+          }
+        }
       }
       return true;
     }
@@ -699,6 +717,17 @@ namespace Mist{
     r["data"]["jitter"] = jitter;
     if (M.getLive() && dataWaitTimeout < jitter*1.5){dataWaitTimeout = jitter*1.5;}
     if (capa.isMember("maxdelay") && capa["maxdelay"].asInt() < jitter*1.5){capa["maxdelay"] = jitter*1.5;}
+    if (M.getLive()){
+      if (M.getUTCOffset()){
+        r["data"]["unixoffset"] = M.getUTCOffset();
+      }else{
+        r["data"]["unixoffset"] = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS());
+      }
+    }else{
+      if (M.getUTCOffset()){
+        r["data"]["unixoffset"] = M.getUTCOffset();
+      }
+    }
     webSock->sendFrame(r.toString());
   }
 

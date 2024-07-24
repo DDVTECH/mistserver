@@ -11038,7 +11038,7 @@ var mist = {
           case 'select':
             obj.type = 'select';
             obj.select = ele.select.slice(0);
-            if (obj.validate.indexOf("required") >= 0) {
+            if (obj.validate.indexOf("required") < 0) {
               obj.select.unshift(["",("placeholder" in obj ? "Default ("+obj.placeholder+")" : "" )]);
             }
             break;

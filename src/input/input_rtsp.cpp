@@ -384,6 +384,7 @@ namespace Mist{
   }
 
   void InputRTSP::incoming(const DTSC::Packet &pkt){
+    if (!M){return;}
     if (!M.getBootMsOffset()){
       meta.setBootMsOffset(Util::bootMS() - pkt.getTime());
       packetOffset = 0;

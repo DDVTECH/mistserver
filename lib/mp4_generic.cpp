@@ -416,14 +416,18 @@ namespace MP4{
   uint32_t AVCC::getSPSLen(size_t index){
     if (index >= getSPSCount()){return 0;}
     size_t offset = 6;
-    for (size_t i = 0; i < index; i++){offset += getInt16(offset) + 2;}
+    uint64_t plSize = payloadSize();
+    for (size_t i = 0; i < index && offset + 1 < plSize; i++){offset += getInt16(offset) + 2;}
+    if (offset + 1 >= plSize){return 0;}
     return getInt16(offset);
   }
 
   char *AVCC::getSPS(size_t index){
     if (index >= getSPSCount()){return 0;}
     size_t offset = 6;
-    for (size_t i = 0; i < index; i++){offset += getInt16(offset) + 2;}
+    uint64_t plSize = payloadSize();
+    for (size_t i = 0; i < index && offset + 1 < plSize; i++){offset += getInt16(offset) + 2;}
+    if (offset >= plSize){return 0;}
     return payload() + offset + 2;
   }
 
@@ -452,13 +456,19 @@ namespace MP4{
   size_t AVCC::PPSCountOffset(){
     size_t offset = 6;
     size_t spsCount = getSPSCount();
-    for (size_t i = 0; i < spsCount; i++){offset += getInt16(offset) + 2;}
+    uint64_t plSize = payloadSize();
+    for (size_t i = 0; i < spsCount && offset + 1 <= plSize; i++){offset += getInt16(offset) + 2;}
+    if (offset > plSize){return 0;}
     return offset;
   }
 
   void AVCC::setPPSCount(uint32_t _count){setInt8(_count, PPSCountOffset());}
 
-  uint32_t AVCC::getPPSCount(){return getInt8(PPSCountOffset());}
+  uint32_t AVCC::getPPSCount(){
+    size_t cO = PPSCountOffset();
+    if (!cO){return 0;}
+    return getInt8(cO);
+  }
 
   void AVCC::setPPS(std::string newPPS, size_t index){
     setPPS(newPPS.data(), newPPS.size(), index);
@@ -468,7 +478,7 @@ namespace MP4{
       WARN_MSG("Cannot set entry at position %zu/%u: Out of bounds", index, getPPSCount());
     }
     int offset = PPSCountOffset() + 1;
-    for (size_t i = 0; i < index; i++){offset += getInt16(offset) + 2;}
+    for (size_t i = 0; i < index && offset + 1; i++){offset += getInt16(offset) + 2;}
     setInt16(len, offset);
     for (unsigned int i = 0; i < len; i++){
       setInt8(data[i], offset + 2 + i);
@@ -481,14 +491,18 @@ namespace MP4{
       return 0;
     }
     int offset = PPSCountOffset() + 1;
-    for (size_t i = 0; i < index; i++){offset += getInt16(offset) + 2;}
+    uint64_t plSize = payloadSize();
+    for (size_t i = 0; i < index && offset + 1 <= plSize; i++){offset += getInt16(offset) + 2;}
+    if (offset + 1 >= plSize){return 0;}
     return getInt16(offset);
   }
 
   char *AVCC::getPPS(size_t index){
     if (index >= getPPSCount()){return 0;}
     int offset = PPSCountOffset() + 1;
-    for (size_t i = 0; i < index; i++){offset += getInt16(offset) + 2;}
+    uint64_t plSize = payloadSize();
+    for (size_t i = 0; i < index && offset + 1 <= plSize; i++){offset += getInt16(offset) + 2;}
+    if (offset + 1 >= plSize){return 0;}
     return payload() + offset + 2;
   }
 
@@ -565,7 +579,7 @@ namespace MP4{
     size_t count = getSPSCount();
     for (size_t i = 0; i < count; i++){
       char *sps = getSPS(i);
-      if (memcmp("\000\000\000\001", sps, 4) == 0 || memcmp("\000\000\001", sps, 3)){
+      if (!memcmp("\000\000\000\001", sps, 4) || !memcmp("\000\000\001", sps, 3)){
         needSanitization = true;
         break;
       }
@@ -574,7 +588,7 @@ namespace MP4{
       count = getPPSCount();
       for (size_t i = 0; i < count; i++){
         char *pps = getPPS(i);
-        if (memcmp("\000\000\000\001", pps, 4) == 0 || memcmp("\000\000\001", pps, 3)){
+        if (!memcmp("\000\000\000\001", pps, 4) || !memcmp("\000\000\001", pps, 3)){
           needSanitization = true;
           break;
         }
@@ -593,14 +607,14 @@ namespace MP4{
       char *sps = getSPS(i);
       size_t len = getSPSLen(i);
       bool modded = true;
-      while (modded){
+      while (modded && len >= 4){
         modded = false;
-        if (memcmp("\000\000\001", sps, 3) == 0){
+        if (!memcmp("\000\000\001", sps, 3)){
           modded = true;
           len -= 3;
           sps += 3;
         }
-        if (memcmp("\000\000\000\001", sps, 4) == 0){
+        if (!memcmp("\000\000\000\001", sps, 4)){
           modded = true;
           len -= 4;
           sps += 4;
@@ -614,14 +628,14 @@ namespace MP4{
       char *pps = getPPS(i);
       size_t len = getPPSLen(i);
       bool modded = true;
-      while (modded){
+      while (modded && len >= 4){
         modded = false;
-        if (memcmp("\000\000\001", pps, 3) == 0){
+        if (!memcmp("\000\000\001", pps, 3)){
           modded = true;
           len -= 3;
           pps += 3;
         }
-        if (memcmp("\000\000\000\001", pps, 4) == 0){
+        if (!memcmp("\000\000\000\001", pps, 4)){
           modded = true;
           len -= 4;
           pps += 4;

@@ -5,7 +5,6 @@
 #include <mist/rtp.h>
 #include <mist/sdp.h>
 #include <mist/url.h>
-#include <set>
 #include <string>
 
 namespace Mist{
@@ -24,6 +23,7 @@ namespace Mist{
 
   protected:
     // Private Functions
+    void doTimers();
     bool checkArguments();
     bool needHeader(){return false;}
     bool openStreamSource();
@@ -47,6 +47,10 @@ namespace Mist{
     std::string session;
     bool setPacketOffset;
     int64_t packetOffset;
+
+    uint64_t startTime;
+    uint64_t lastPing;
+    uint64_t lastSecs;
 
     std::string lastRequestedSetup;
   };

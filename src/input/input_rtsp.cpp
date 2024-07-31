@@ -26,6 +26,9 @@ namespace Mist{
   }
 
   InputRTSP::InputRTSP(Util::Config *cfg) : Input(cfg){
+    startTime = Util::epoch();
+    lastPing = Util::bootSecs();
+    lastSecs = 0;
     needAuth = false;
     setPacketOffset = false;
     packetOffset = 0;
@@ -199,38 +202,37 @@ namespace Mist{
     tcpCon.close();
   }
 
-  void InputRTSP::streamMainLoop(){
-    Comms::Connections statComm;
-    statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), url.getUrl());
-    uint64_t startTime = Util::epoch();
-    uint64_t lastPing = Util::bootSecs();
-    uint64_t lastSecs = 0;
-    while (keepAlive() && parsePacket()){
-      uint64_t currSecs = Util::bootSecs();
-      handleUDP();
-      if (Util::bootSecs() - lastPing > 30){
-        sendCommand("GET_PARAMETER", url.getUrl(), "");
-        lastPing = Util::bootSecs();
-      }
-      if (lastSecs != currSecs){
-        lastSecs = currSecs;
-        // Connect to stats for INPUT detection
-        if (statComm){
-          if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
-            config->is_active = false;
-            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
-            return;
-          }
-          uint64_t now = Util::bootSecs();
-          statComm.setNow(now);
-          statComm.setStream(streamName);
-          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
-          statComm.setUp(tcpCon.dataUp());
-          statComm.setDown(tcpCon.dataDown());
-          statComm.setTime(now - startTime);
-          statComm.setLastSecond(0);
+  void InputRTSP::doTimers(){
+    uint64_t currSecs = Util::bootSecs();
+    if (currSecs - lastPing > 30){
+      sendCommand("GET_PARAMETER", url.getUrl(), "");
+      lastPing = Util::bootSecs();
+    }
+    if (lastSecs != currSecs){
+      lastSecs = currSecs;
+      // Connect to stats for INPUT detection
+      if (statComm){
+        if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
+          config->is_active = false;
+          Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
+          return;
         }
+        statComm.setNow(currSecs);
+        statComm.setStream(streamName);
+        statComm.setConnector("INPUT:" + capa["name"].asStringRef());
+        statComm.setUp(tcpCon.dataUp());
+        statComm.setDown(tcpCon.dataDown());
+        statComm.setTime(currSecs - startTime);
+        statComm.setLastSecond(0);
       }
+    }
+  }
+
+  void InputRTSP::streamMainLoop(){
+    statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), url.getUrl());
+    while (keepAlive() && parsePacket()){
+      handleUDP();
+      doTimers();
     }
     if (!tcpCon){
       Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "TCP connection closed");
@@ -245,6 +247,7 @@ namespace Mist{
       if (!tcpCon.Received().size() || !tcpCon.Received().available(1)){
         if (!tcpCon.spool() && tcpCon && keepAlive()){
           Util::sleep(waitTime);
+          doTimers();
           if (!mustHave){return tcpCon;}
         }
         continue;
@@ -317,10 +320,12 @@ namespace Mist{
           return true;
         }
         if (!tcpCon.spool() && tcpCon && keepAlive()){Util::sleep(waitTime);}
+        doTimers();
         continue;
       }
       if (!tcpCon.Received().available(4)){
         if (!tcpCon.spool() && tcpCon && keepAlive()){Util::sleep(waitTime);}
+        doTimers();
         continue;
       }// a TCP RTP packet, but not complete yet
 
@@ -330,6 +335,7 @@ namespace Mist{
       uint16_t len = ntohs(*(short *)(tcpHead.data() + 2));
       if (!tcpCon.Received().available(len + 4)){
         if (!tcpCon.spool() && tcpCon){Util::sleep(waitTime);}
+        doTimers();
         continue;
       }// a TCP RTP packet, but not complete yet
       // remove whole packet from buffer, including 4 byte header
@@ -409,6 +415,7 @@ namespace Mist{
       if (!userSelect[idx] || (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT)){
         Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         tcpCon.close();
+        config->is_active = false;
       }
     }
 

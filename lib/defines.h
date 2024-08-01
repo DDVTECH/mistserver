@@ -78,7 +78,7 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
   }
 #endif
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || DEBUG < DLVL_DEVEL
 static inline void show_stackframe(){}
 #else
 #include <execinfo.h>

@@ -2708,7 +2708,7 @@ namespace Mist{
       statComm.reload(streamName, getConnectedBinHost(), tkn, getStatsName(), reqUrl);
     }
     if (!statComm){
-      Util::logExitReason(ER_SHM_LOST, "could not connect to session");
+      Util::logExitReason(ER_SHM_LOST, "could not connect to session %s", statComm.sessionId.c_str());
       onFail("Shutting down since this session is not allowed to view this stream");
       statComm.unload();
       return;

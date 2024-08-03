@@ -389,6 +389,7 @@ namespace Comms{
     if (!_master){
       dataPage.init(userPageName, 0, false, false);
       if (!dataPage){
+        INFO_MSG("Booting new session %s", sessionId.c_str());
         std::string host;
         Socket::hostBytesToStr(ip.data(), ip.size(), host);
         pid_t thisPid;
@@ -437,6 +438,8 @@ namespace Comms{
         unsetenv("SESSION_TKN");
         unsetenv("SESSION_PROTOCOL");
         unsetenv("SESSION_REQURL");
+      }else{
+        INFO_MSG("Connecting to existing session %s", sessionId.c_str());
       }
     }
     reload(sessionId, _master, reIssue);

@@ -520,6 +520,7 @@ namespace Mist{
       Util::logExitReason(ER_CLEAN_EOF, "source disconnected for non-resumable stream");
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
       config->is_active = false;
+      canCancelUnload = false;
       userSelect.clear();
     }
     /*LTS-START*/

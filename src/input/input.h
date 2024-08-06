@@ -103,6 +103,7 @@ namespace Mist{
     bool bufferFrame(size_t track, uint32_t keyNum);
     void doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason);
     bool exitAndLogReason();
+    bool canCancelUnload;
 
     uint64_t activityCounter;
 

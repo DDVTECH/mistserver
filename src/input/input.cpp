@@ -98,6 +98,7 @@ namespace Mist{
 
   Input::Input(Util::Config *cfg) : InOutBase(){
     config = cfg;
+    canCancelUnload = true;
     standAlone = true;
     Util::Config::binaryType = Util::INPUT;
     inputTimeout = INPUT_TIMEOUT;
@@ -952,11 +953,15 @@ namespace Mist{
     /*LTS-START*/
     if (!ret){
       if (Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
-        std::string payload = config->getString("streamname") + "\n" + capa["name"].asStringRef() + "\n";
+        std::string payload = config->getString("streamname") + "\n" + capa["name"].asStringRef() + "\n" + std::string(canCancelUnload?"cancelable":"uncancelable") + Util::exitReason;
         if (!Triggers::doTrigger("STREAM_UNLOAD", payload, config->getString("streamname"))){
-          activityCounter = Util::bootSecs();
-          config->is_active = true;
-          ret = true;
+          if (canCancelUnload){
+            activityCounter = Util::bootSecs();
+            config->is_active = true;
+            ret = true;
+          }else{
+            WARN_MSG("Attempted to abort unload with STREAM_UNLOAD trigger, but not a cancelable exit reason");
+          }
         }
       }
     }

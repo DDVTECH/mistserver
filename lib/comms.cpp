@@ -305,8 +305,18 @@ namespace Comms{
     if(!sem){
       char semName[NAME_BUFFER_SIZE];
       snprintf(semName, NAME_BUFFER_SIZE, SEM_SESSION, sessId.c_str());
-      sem.open(semName, O_RDWR, ACCESSPERMS, 1);
-      if (!sem){return;}
+      size_t tries = 0;
+      do {
+        sem.open(semName, O_RDWR, ACCESSPERMS, 1);
+        if (!sem){
+          Util::sleep(Util::expBackoffMs(tries++, 15, 15000));
+        }
+      } while (!sem && tries < 15);
+      if (!sem){
+        FAIL_MSG("Could not open session semaphore; aborting!");
+        index = INVALID_RECORD_INDEX;
+        return;
+      }
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, sessId.c_str());

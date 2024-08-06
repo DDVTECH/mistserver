@@ -118,9 +118,11 @@ namespace Socket{
     std::string &get();
     bool available(unsigned int count);
     bool available(unsigned int count) const;
-    std::string remove(unsigned int count);
-    void remove(Util::ResizeablePointer & ptr, unsigned int count);
-    std::string copy(unsigned int count);
+    void skip(size_t count);
+    std::string remove(size_t count);
+    void remove(Util::ResizeablePointer & ptr, size_t count);
+    std::string copy(size_t count);
+    size_t copy(Util::ResizeablePointer & ptr, size_t count);
     void clear();
     bool compact();
   };

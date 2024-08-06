@@ -52,6 +52,7 @@ namespace Mist {
     authAttempts = 0;
     didReceiveDeleteStream = false;
     maxbps = config->getInteger("maxkbps") * 128;
+    conn.Received().splitter.clear();
     //Switch realtime tracking system to mode where it never skips ahead, but only changes playback speed
     maxSkipAhead = 0;
     if (config->getString("target").size() && config->getString("target") != "-") {
@@ -77,7 +78,6 @@ namespace Mist {
         MEDIUM_MSG("Handshake fail (this is not a problem, usually)");
       }
       setBlocking(false);
-      parseChunk(myConn.Received());
     }
   }
 
@@ -1862,7 +1862,7 @@ namespace Mist {
         onFinish();
         break; // happens when connection breaks unexpectedly
       case 1:  // set chunk size
-        RTMPStream::chunk_rec_max = Bit::btohl(next.data.data());
+        RTMPStream::chunk_rec_max = Bit::btohl(next.data);
         MEDIUM_MSG("CTRL: Set chunk size: %zu", RTMPStream::chunk_rec_max);
         break;
       case 2: // abort message - we ignore this one
@@ -1871,7 +1871,7 @@ namespace Mist {
         break;
       case 3: // ack
         VERYHIGH_MSG("CTRL: Acknowledgement");
-        RTMPStream::snd_window_at = Bit::btohl(next.data.data());
+        RTMPStream::snd_window_at = Bit::btohl(next.data);
         RTMPStream::snd_window_at = RTMPStream::snd_cnt;
         break;
       case 4:{
@@ -1885,33 +1885,26 @@ namespace Mist {
         // 6 = pingrequest, 4 bytes data
         // 7 = pingresponse, 4 bytes data
         // we don't need to process this
-        int16_t ucmtype = Bit::btohs(next.data.data());
+        int16_t ucmtype = Bit::btohs(next.data);
         switch (ucmtype){
-        case 0:
-          MEDIUM_MSG("CTRL: UCM StreamBegin %" PRIu32, Bit::btohl(next.data.data() + 2));
-          break;
-        case 1: MEDIUM_MSG("CTRL: UCM StreamEOF %" PRIu32, Bit::btohl(next.data.data() + 2)); break;
-        case 2: MEDIUM_MSG("CTRL: UCM StreamDry %" PRIu32, Bit::btohl(next.data.data() + 2)); break;
-        case 3:
-          MEDIUM_MSG("CTRL: UCM SetBufferLength %" PRIu32 " %" PRIu32,
-                     Bit::btohl(next.data.data() + 2), Bit::btohl(next.data.data() + 6));
-          break;
-        case 4:
-          MEDIUM_MSG("CTRL: UCM StreamIsRecorded %" PRIu32, Bit::btohl(next.data.data() + 2));
-          break;
-        case 6:
-          MEDIUM_MSG("CTRL: UCM PingRequest %" PRIu32, Bit::btohl(next.data.data() + 2));
-          myConn.SendNow(RTMPStream::SendUSR(7, Bit::btohl(next.data.data() + 2))); // send UCM PingResponse (7)
-          break;
-        case 7:
-          MEDIUM_MSG("CTRL: UCM PingResponse %" PRIu32, Bit::btohl(next.data.data() + 2));
-          break;
-        default: MEDIUM_MSG("CTRL: UCM Unknown (%" PRId16 ")", ucmtype); break;
+          case 0: MEDIUM_MSG("CTRL: UCM StreamBegin %" PRIu32, Bit::btohl(next.data + 2)); break;
+          case 1: MEDIUM_MSG("CTRL: UCM StreamEOF %" PRIu32, Bit::btohl(next.data + 2)); break;
+          case 2: MEDIUM_MSG("CTRL: UCM StreamDry %" PRIu32, Bit::btohl(next.data + 2)); break;
+          case 3:
+            MEDIUM_MSG("CTRL: UCM SetBufferLength %" PRIu32 " %" PRIu32, Bit::btohl(next.data + 2), Bit::btohl(next.data + 6));
+            break;
+          case 4: MEDIUM_MSG("CTRL: UCM StreamIsRecorded %" PRIu32, Bit::btohl(next.data + 2)); break;
+          case 6:
+            MEDIUM_MSG("CTRL: UCM PingRequest %" PRIu32, Bit::btohl(next.data + 2));
+            myConn.SendNow(RTMPStream::SendUSR(7, Bit::btohl(next.data + 2))); // send UCM PingResponse (7)
+            break;
+          case 7: MEDIUM_MSG("CTRL: UCM PingResponse %" PRIu32, Bit::btohl(next.data + 2)); break;
+          default: MEDIUM_MSG("CTRL: UCM Unknown (%" PRId16 ")", ucmtype); break;
         }
       }break;
       case 5: // window size of other end
         MEDIUM_MSG("CTRL: Window size");
-        RTMPStream::rec_window_size = Bit::btohl(next.data.data());
+        RTMPStream::rec_window_size = Bit::btohl(next.data);
         RTMPStream::rec_window_at = RTMPStream::rec_cnt;
         myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); // send ack (msg 3)
         lastAck = Util::bootSecs();
@@ -1919,7 +1912,7 @@ namespace Mist {
       case 6:
         MEDIUM_MSG("CTRL: Set peer bandwidth");
         // 4 bytes window size, 1 byte limit type (ignored)
-        RTMPStream::snd_window_size = Bit::btohl(next.data.data());
+        RTMPStream::snd_window_size = Bit::btohl(next.data);
         myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); // send window acknowledgement size (msg 5)
         break;
       case 8:    // audio data
@@ -2040,13 +2033,13 @@ namespace Mist {
         MEDIUM_MSG("Received AMF3 command message");
         if (next.data[0] == 0) {
           MEDIUM_MSG("Received AMF3 command message");
-          amfdata = AMF::parse(next.data.c_str() + 1, next.data.size() - 1);
+          amfdata = AMF::parse(next.data + 1, next.data.size() - 1);
           parseAMFCommand(amfdata, 17, next.msg_stream_id);
         } // parsing AMF0-style
       }break;
       case 19: MEDIUM_MSG("Received AMF0 shared object"); break;
       case 20:{// AMF0 command message
-        amfdata = AMF::parse(next.data);
+        amfdata = AMF::parse(next.data, next.data.size());
         parseAMFCommand(amfdata, 20, next.msg_stream_id);
       }break;
       case 22: MEDIUM_MSG("Received aggregate message"); break;

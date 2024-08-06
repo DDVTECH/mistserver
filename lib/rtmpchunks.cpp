@@ -1,11 +1,12 @@
 /// \file rtmpchunks.cpp
 /// Holds all code for the RTMPStream namespace.
 
+#include "rtmpchunks.h"
+
 #include "auth.h"
+#include "bitfields.h"
 #include "defines.h"
 #include "flv_tag.h"
-#include "rtmpchunks.h"
-#include "timing.h"
 
 std::string RTMPStream::handshake_in;  ///< Input for the handshake.
 std::string RTMPStream::handshake_out; ///< Output for the handshake.
@@ -154,7 +155,7 @@ std::string &RTMPStream::Chunk::Pack(){
   while (len_left < len){
     tmpi = len - len_left;
     if (tmpi > RTMPStream::chunk_snd_max){tmpi = RTMPStream::chunk_snd_max;}
-    output.append(data, len_left, tmpi);
+    output.append(data + len_left, tmpi);
     len_left += tmpi;
     if (len_left < len){
       if (cs_id <= 63){
@@ -194,8 +195,21 @@ RTMPStream::Chunk::Chunk(){
   len_left = 0;
   msg_type_id = 0;
   msg_stream_id = 0;
-  data = "";
 }// constructor
+
+// Assigns all values from another Chunk, except data pointers.
+void RTMPStream::Chunk::assignWithoutData(const Chunk & rhs) {
+  headertype = rhs.headertype;
+  cs_id = rhs.cs_id;
+  timestamp = rhs.timestamp;
+  ts_delta = rhs.ts_delta;
+  ts_header = rhs.ts_header;
+  len = rhs.len;
+  real_len = rhs.real_len;
+  len_left = rhs.len_left;
+  msg_type_id = rhs.msg_type_id;
+  msg_stream_id = rhs.msg_stream_id;
+}
 
 /// Packs up a chunk with the given arguments as properties.
 std::string &RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id,
@@ -208,7 +222,7 @@ std::string &RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id
   ch.len_left = 0;
   ch.msg_type_id = msg_type_id;
   ch.msg_stream_id = msg_stream_id;
-  ch.data = data;
+  ch.data.assign(data);
   return ch.Pack();
 }// constructor
 
@@ -226,7 +240,7 @@ std::string &RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char *dat
   ch.len_left = 0;
   ch.msg_type_id = msg_type_id;
   ch.msg_stream_id = 1;
-  ch.data = std::string((char *)data, (size_t)len);
+  ch.data.assign(data, len);
   return ch.Pack();
 }// SendMedia
 
@@ -242,7 +256,7 @@ std::string &RTMPStream::SendMedia(FLV::Tag &tag){
   ch.len_left = 0;
   ch.msg_type_id = (unsigned char)tag.data[0];
   ch.msg_stream_id = 1;
-  ch.data = std::string(tag.data + 11, (size_t)(tag.len - 15));
+  ch.data.assign(tag.data + 11, tag.len - 15);
   ch.len = ch.data.size();
   ch.real_len = ch.len;
   return ch.Pack();
@@ -256,17 +270,18 @@ std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data){
   ch.msg_type_id = type;
   ch.msg_stream_id = 0;
   ch.len_left = 0;
+
+  char tmpData[] = {0, 0, 0, 0, 0};
   if (type == 6){
     ch.len = 5;
     ch.real_len = 5;
-    ch.data.resize(5);
-    ((char *)ch.data.data())[4] = 0;
   }else{
     ch.len = 4;
     ch.real_len = 4;
-    ch.data.resize(4);
   }
-  *(int *)((char *)ch.data.data()) = htonl(data);
+  Bit::htobl(tmpData, data);
+  ch.data.assign(tmpData, ch.len);
+
   lastsend.erase(2u);
   return ch.Pack();
 }// SendCTL
@@ -281,9 +296,12 @@ std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned
   ch.len_left = 0;
   ch.msg_type_id = type;
   ch.msg_stream_id = 0;
-  ch.data.resize(5);
-  *(unsigned int *)((char *)ch.data.c_str()) = htonl(data);
-  ch.data[4] = data2;
+
+  char tmpData[] = {0, 0, 0, 0, 0};
+  Bit::htobl(tmpData, data);
+  tmpData[4] = data2;
+  ch.data.assign(tmpData, 5);
+
   lastsend.erase(2u);
   return ch.Pack();
 }// SendCTL
@@ -298,10 +316,13 @@ std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data){
   ch.len_left = 0;
   ch.msg_type_id = 4;
   ch.msg_stream_id = 0;
-  ch.data.resize(6);
-  *(unsigned int *)(((char *)ch.data.c_str()) + 2) = htonl(data);
-  ch.data[0] = 0;
-  ch.data[1] = type;
+
+  char tmpData[] = {0, 0, 0, 0, 0, 0};
+  tmpData[0] = 0;
+  tmpData[1] = type;
+  Bit::htobl(tmpData + 2, data);
+  ch.data.assign(tmpData, 6);
+
   lastsend.erase(2u);
   return ch.Pack();
 }// SendUSR
@@ -316,11 +337,14 @@ std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned
   ch.len_left = 0;
   ch.msg_type_id = 4;
   ch.msg_stream_id = 0;
-  ch.data.resize(10);
-  *(unsigned int *)(((char *)ch.data.c_str()) + 2) = htonl(data);
-  *(unsigned int *)(((char *)ch.data.c_str()) + 6) = htonl(data2);
-  ch.data[0] = 0;
-  ch.data[1] = type;
+
+  char tmpData[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  tmpData[0] = 0;
+  tmpData[1] = type;
+  Bit::htobl(tmpData + 2, data);
+  Bit::htobl(tmpData + 6, data2);
+  ch.data.assign(tmpData, 10);
+
   lastsend.erase(2u);
   return ch.Pack();
 }// SendUSR
@@ -334,166 +358,160 @@ std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned
 /// \warning This function will destroy the current data in this chunk!
 /// \returns True if a whole chunk could be read, false otherwise.
 bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
-  gettimeofday(&RTMPStream::lastrec, 0);
-  unsigned int i = 0;
-  if (!buffer.available(3)){return false;}// we want at least 3 bytes
-  std::string indata = buffer.copy(3);
+  while (true) {
+    gettimeofday(&RTMPStream::lastrec, 0);
+    unsigned int i = 0;
 
-  unsigned char chunktype = indata[i++];
-  // read the chunkstream ID properly
-  switch (chunktype & 0x3F){
-  case 0: cs_id = indata[i++] + 64; break;
-  case 1:
-    cs_id = indata[i++] + 64;
-    cs_id += indata[i++] * 256;
-    break;
-  default: cs_id = chunktype & 0x3F; break;
-  }
+    inData.truncate(0);
+    size_t rBytes = buffer.copy(inData, 18); // Maximum possible header size is 18 bytes, incl extended timestamp
 
-  bool allow_short = lastrecv.count(cs_id);
-  RTMPStream::Chunk prev = lastrecv[cs_id];
-
-  // process the rest of the header, for each chunk type
-  headertype = chunktype & 0xC0;
-
-  DONTEVEN_MSG("Parsing RTMP chunk header (%#.2hhX) at offset %#zx", chunktype, RTMPStream::rec_cnt);
-
-  switch (headertype){
-  case 0x00:
-    if (!buffer.available(i + 11)){
-      DONTEVEN_MSG("Cannot read whole header");
-      return false;
-    }// can't read whole header
-    indata = buffer.copy(i + 11);
-    timestamp = indata[i++] * 256 * 256;
-    timestamp += indata[i++] * 256;
-    timestamp += indata[i++];
-    ts_delta = timestamp;
-    ts_header = timestamp;
-    len = indata[i++] * 256 * 256;
-    len += indata[i++] * 256;
-    len += indata[i++];
-    len_left = 0;
-    msg_type_id = indata[i++];
-    msg_stream_id = indata[i++];
-    msg_stream_id += indata[i++] * 256;
-    msg_stream_id += indata[i++] * 256 * 256;
-    msg_stream_id += indata[i++] * 256 * 256 * 256;
-    break;
-  case 0x40:
-    if (!buffer.available(i + 7)){
-      DONTEVEN_MSG("Cannot read whole header");
-      return false;
-    }// can't read whole header
-    indata = buffer.copy(i + 7);
-    if (!allow_short){WARN_MSG("Warning: Header type 0x40 with no valid previous chunk!");}
-    timestamp = indata[i++] * 256 * 256;
-    timestamp += indata[i++] * 256;
-    timestamp += indata[i++];
-    ts_header = timestamp;
-    if (timestamp != 0x00ffffff){
-      ts_delta = timestamp;
-      timestamp = prev.timestamp + ts_delta;
+    // we want at least 3 bytes to read the chunk ID
+    if (rBytes < 3) { return false; }
+    unsigned char chunktype = inData[i++];
+    // read the chunkstream ID properly
+    switch (chunktype & 0x3F) {
+      case 0: cs_id = inData[i++] + 64; break;
+      case 1:
+        cs_id = inData[i++] + 64;
+        cs_id += inData[i++] * 256;
+        break;
+      default: cs_id = chunktype & 0x3F; break;
     }
-    len = indata[i++] * 256 * 256;
-    len += indata[i++] * 256;
-    len += indata[i++];
-    len_left = 0;
-    msg_type_id = indata[i++];
-    msg_stream_id = prev.msg_stream_id;
-    break;
-  case 0x80:
-    if (!buffer.available(i + 3)){
-      DONTEVEN_MSG("Cannot read whole header");
-      return false;
-    }// can't read whole header
-    indata = buffer.copy(i + 3);
-    if (!allow_short){WARN_MSG("Warning: Header type 0x80 with no valid previous chunk!");}
-    timestamp = indata[i++] * 256 * 256;
-    timestamp += indata[i++] * 256;
-    timestamp += indata[i++];
-    ts_header = timestamp;
-    if (timestamp != 0x00ffffff){
-      ts_delta = timestamp;
-      timestamp = prev.timestamp + ts_delta;
+    headertype = chunktype & 0xC0;
+    DONTEVEN_MSG("Parsing RTMP chunk header (%#.2hhX) at offset %#zx", chunktype, RTMPStream::rec_cnt);
+
+    // Look up previously received chunk, if any (for header types other than 0x00)
+    bool allow_short = lastrecv.count(cs_id);
+    RTMPStream::Chunk & prev = lastrecv[cs_id];
+
+    // process the rest of the header, for each chunk type
+    switch (headertype) {
+      case 0x00:
+        if (rBytes < i + 11) {
+          DONTEVEN_MSG("Cannot read whole header");
+          return false;
+        } // can't read whole header
+        timestamp = inData[i++] << 16;
+        timestamp |= inData[i++] << 8;
+        timestamp |= inData[i++];
+        ts_delta = timestamp;
+        ts_header = timestamp;
+        len = inData[i++] << 16;
+        len |= inData[i++] << 8;
+        len |= inData[i++];
+        len_left = 0;
+        msg_type_id = inData[i++];
+        msg_stream_id = inData[i++];
+        msg_stream_id |= inData[i++] << 8;
+        msg_stream_id |= inData[i++] << 16;
+        msg_stream_id |= inData[i++] << 24;
+        break;
+      case 0x40:
+        if (rBytes < i + 7) {
+          DONTEVEN_MSG("Cannot read whole header");
+          return false;
+        } // can't read whole header
+        if (!allow_short) { WARN_MSG("Warning: Header type 0x40 with no valid previous chunk!"); }
+        timestamp = inData[i++] << 16;
+        timestamp |= inData[i++] << 8;
+        timestamp |= inData[i++];
+        ts_header = timestamp;
+        if (timestamp != 0x00ffffff) {
+          ts_delta = timestamp;
+          timestamp = prev.timestamp + ts_delta;
+        }
+        len = inData[i++] << 16;
+        len |= inData[i++] << 8;
+        len |= inData[i++];
+        len_left = 0;
+        msg_type_id = inData[i++];
+        msg_stream_id = prev.msg_stream_id;
+        break;
+      case 0x80:
+        if (rBytes < i + 3) {
+          DONTEVEN_MSG("Cannot read whole header");
+          return false;
+        } // can't read whole header
+        if (!allow_short) { WARN_MSG("Warning: Header type 0x80 with no valid previous chunk!"); }
+        timestamp = inData[i++] << 16;
+        timestamp |= inData[i++] << 8;
+        timestamp |= inData[i++];
+        ts_header = timestamp;
+        if (timestamp != 0x00ffffff) {
+          ts_delta = timestamp;
+          timestamp = prev.timestamp + ts_delta;
+        }
+        len = prev.len;
+        len_left = prev.len_left;
+        msg_type_id = prev.msg_type_id;
+        msg_stream_id = prev.msg_stream_id;
+        break;
+      case 0xC0:
+        if (!allow_short) { WARN_MSG("Warning: Header type 0xC0 with no valid previous chunk!"); }
+        timestamp = prev.timestamp + prev.ts_delta;
+        ts_header = prev.ts_header;
+        ts_delta = prev.ts_delta;
+        len = prev.len;
+        len_left = prev.len_left;
+        if (len_left > 0) { timestamp = prev.timestamp; }
+        msg_type_id = prev.msg_type_id;
+        msg_stream_id = prev.msg_stream_id;
+        break;
     }
-    len = prev.len;
-    len_left = prev.len_left;
-    msg_type_id = prev.msg_type_id;
-    msg_stream_id = prev.msg_stream_id;
-    break;
-  case 0xC0:
-    if (!allow_short){WARN_MSG("Warning: Header type 0xC0 with no valid previous chunk!");}
-    timestamp = prev.timestamp + prev.ts_delta;
-    ts_header = prev.ts_header;
-    ts_delta = prev.ts_delta;
-    len = prev.len;
-    len_left = prev.len_left;
-    if (len_left > 0){timestamp = prev.timestamp;}
-    msg_type_id = prev.msg_type_id;
-    msg_stream_id = prev.msg_stream_id;
-    break;
-  }
-  // calculate chunk length, real length, and length left till complete
-  if (len_left > 0){
-    real_len = len_left;
-    len_left -= real_len;
-  }else{
-    real_len = len;
-  }
-  if (real_len > RTMPStream::chunk_rec_max){
-    len_left += real_len - RTMPStream::chunk_rec_max;
-    real_len = RTMPStream::chunk_rec_max;
-  }
+    // calculate chunk length, real length, and length left till complete
+    if (len_left > 0) {
+      real_len = len_left;
+      len_left -= real_len;
+    } else {
+      real_len = len;
+    }
+    if (real_len > RTMPStream::chunk_rec_max) {
+      len_left += real_len - RTMPStream::chunk_rec_max;
+      real_len = RTMPStream::chunk_rec_max;
+    }
 
-  DONTEVEN_MSG("Parsing RTMP chunk result: len_left=%d, real_len=%d", len_left, real_len);
+    DONTEVEN_MSG("Parsing RTMP chunk result: len_left=%d, real_len=%d", len_left, real_len);
 
-  // read extended timestamp, if necessary
-  if (ts_header == 0x00ffffff){
-    if (!buffer.available(i + 4)){
-      DONTEVEN_MSG("Cannot read timestamp");
-      return false;
-    }// can't read timestamp
-    indata = buffer.copy(i + 4);
-    timestamp = indata[i++] * 256 * 256 * 256;
-    timestamp += indata[i++] * 256 * 256;
-    timestamp += indata[i++] * 256;
-    timestamp += indata[i++];
-    ts_delta = timestamp;
-    DONTEVEN_MSG("Extended timestamp: %" PRIu64, timestamp);
-  }
+    // read extended timestamp, if necessary
+    if (ts_header == 0x00ffffff) {
+      if (rBytes < i + 4) {
+        DONTEVEN_MSG("Cannot read timestamp");
+        return false;
+      } // can't read timestamp
+      timestamp = inData[i++] << 24;
+      timestamp |= inData[i++] << 16;
+      timestamp |= inData[i++] << 8;
+      timestamp |= inData[i++];
+      ts_delta = timestamp;
+      DONTEVEN_MSG("Extended timestamp: %" PRIu64, timestamp);
+    }
 
-  // read data if length > 0, and allocate it
-  if (real_len > 0){
+    // read data if length > 0, and allocate it
     if (!buffer.available(i + real_len)){
       DONTEVEN_MSG("Cannot read all data yet");
       return false;
     }// can't read all data (yet)
-    buffer.remove(i);                                      // remove the header
-    if (prev.len_left > 0){
-      data = prev.data + buffer.remove(real_len); // append the data and remove from buffer
-    }else{
-      data = buffer.remove(real_len); // append the data and remove from buffer
+    buffer.skip(i); // remove the header
+    data.truncate(0);
+    if (real_len) {
+      // If there was previous data left, swap it into our buffer here to continue on from where we left off.
+      if (prev.len_left) { data.swap(prev.data); }
+      buffer.remove(data, real_len);
     }
-    lastrecv[cs_id] = *this;
+
+    // We only need to copy the data if it's incomplete
+    prev.assignWithoutData(*this);
+    // In fact, we need not copy at all - since we will never use incomplete data.
+    // Let's just swap the pointers, instead!
+    if (len_left) { prev.data.swap(data); }
+
     RTMPStream::rec_cnt += i + real_len;
     if (RTMPStream::rec_cnt >= 0xf0000000){
       INFO_MSG("Resetting receive window due to impending rollover");
       RTMPStream::rec_cnt -= 0xf0000000;
       RTMPStream::rec_window_at = 0;
     }
-    if (len_left == 0){
-      return true;
-    }else{
-      return Parse(buffer);
-    }
-  }else{
-    buffer.remove(i); // remove the header
-    data = "";
-    indata = indata.substr(i + real_len);
-    lastrecv[cs_id] = *this;
-    RTMPStream::rec_cnt += i + real_len;
-    return true;
+    if (!real_len || !len_left) { return true; }
   }
 }// Parse
 

@@ -59,11 +59,13 @@ namespace RTMPStream{
     unsigned int len_left;      ///< Length not yet received, out of complete chunk.
     unsigned char msg_type_id;  ///< Message Type ID
     unsigned int msg_stream_id; ///< Message Stream ID
-    std::string data;           ///< Payload of chunk.
+    Util::ResizeablePointer data; ///< Payload of chunk.
 
     Chunk();
     bool Parse(Socket::Buffer &data);
+    Util::ResizeablePointer inData;
     std::string &Pack();
+    void assignWithoutData(const Chunk & rhs);
   };
   // RTMPStream::Chunk
 

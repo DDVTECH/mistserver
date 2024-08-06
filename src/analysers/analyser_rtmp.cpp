@@ -76,58 +76,43 @@ bool AnalyserRTMP::parsePacket(){
     return 0;
     break; // happens when connection breaks unexpectedly
   case 1:  // set chunk size
-    RTMPStream::chunk_rec_max = ntohl(*(int *)next.data.c_str());
+    RTMPStream::chunk_rec_max = ntohl(*(int *)(char *)next.data);
     DETAIL_MED("CTRL: Set chunk size: %zu", RTMPStream::chunk_rec_max);
     break;
   case 2: // abort message - we ignore this one
-    DETAIL_MED("CTRL: Abort message: %" PRIu32, Bit::btohl(next.data.data()));
+    DETAIL_MED("CTRL: Abort message: %" PRIu32, Bit::btohl(next.data));
     // 4 bytes of stream id to drop
     break;
   case 3: // ack
-    RTMPStream::snd_window_at = Bit::btohl(next.data.data());
+    RTMPStream::snd_window_at = Bit::btohl(next.data);
     DETAIL_MED("CTRL: Acknowledgement: %zu", RTMPStream::snd_window_at);
     break;
   case 4:{
-    int16_t ucmtype = Bit::btohs(next.data.data());
+    int16_t ucmtype = Bit::btohs(next.data);
     switch (ucmtype){
-    case 0:
-      DETAIL_MED("CTRL: User control message: stream begin %" PRIu32, Bit::btohl(next.data.data() + 2));
-      break;
-    case 1:
-      DETAIL_MED("CTRL: User control message: stream EOF %" PRIu32, Bit::btohl(next.data.data() + 2));
-      break;
-    case 2:
-      DETAIL_MED("CTRL: User control message: stream dry %" PRIu32, Bit::btohl(next.data.data() + 2));
-      break;
-    case 3:
-      DETAIL_MED("CTRL: User control message: setbufferlen %" PRIu32, Bit::btohl(next.data.data() + 2));
-      break;
-    case 4:
-      DETAIL_MED("CTRL: User control message: streamisrecorded %" PRIu32, Bit::btohl(next.data.data() + 2));
-      break;
-    case 6:
-      DETAIL_MED("CTRL: User control message: pingrequest %" PRIu32, Bit::btohl(next.data.data() + 2));
-      break;
-    case 7:
-      DETAIL_MED("CTRL: User control message: pingresponse %" PRIu32, Bit::btohl(next.data.data() + 2));
-      break;
-    case 31:
-    case 32:
-      // don't know, but not interes ting anyway
-      break;
-    default:
-      DETAIL_LOW("CTRL: User control message: UNKNOWN %" PRId16 " - %" PRIu32, ucmtype,
-                 Bit::btohl(next.data.data() + 2));
-      break;
+      case 0: DETAIL_MED("CTRL: User control message: stream begin %" PRIu32, Bit::btohl(next.data + 2)); break;
+      case 1: DETAIL_MED("CTRL: User control message: stream EOF %" PRIu32, Bit::btohl(next.data + 2)); break;
+      case 2: DETAIL_MED("CTRL: User control message: stream dry %" PRIu32, Bit::btohl(next.data + 2)); break;
+      case 3: DETAIL_MED("CTRL: User control message: setbufferlen %" PRIu32, Bit::btohl(next.data + 2)); break;
+      case 4: DETAIL_MED("CTRL: User control message: streamisrecorded %" PRIu32, Bit::btohl(next.data + 2)); break;
+      case 6: DETAIL_MED("CTRL: User control message: pingrequest %" PRIu32, Bit::btohl(next.data + 2)); break;
+      case 7: DETAIL_MED("CTRL: User control message: pingresponse %" PRIu32, Bit::btohl(next.data + 2)); break;
+      case 31:
+      case 32:
+        // don't know, but not interes ting anyway
+        break;
+      default:
+        DETAIL_LOW("CTRL: User control message: UNKNOWN %" PRId16 " - %" PRIu32, ucmtype, Bit::btohl(next.data + 2));
+        break;
     }
   }break;
   case 5: // window size of other end
-    RTMPStream::rec_window_size = Bit::btohl(next.data.data());
+    RTMPStream::rec_window_size = Bit::btohl(next.data);
     RTMPStream::rec_window_at = RTMPStream::rec_cnt;
     DETAIL_MED("CTRL: Window size: %zu", RTMPStream::rec_window_size);
     break;
   case 6:
-    RTMPStream::snd_window_size = Bit::btohl(next.data.data());
+    RTMPStream::snd_window_size = Bit::btohl(next.data);
     // 4 bytes window size, 1 byte limit type (ignored)
     DETAIL_MED("CTRL: Set peer bandwidth: %zu", RTMPStream::snd_window_size);
     break;
@@ -145,18 +130,18 @@ bool AnalyserRTMP::parsePacket(){
   case 17:{
     DETAIL_MED("Received AFM3 command message:");
     char soort = next.data[0];
-    next.data = next.data.substr(1);
+    next.data.shift(1);
     if (soort == 0){
-      amfdata = AMF::parse(next.data);
+      amfdata = AMF::parse(next.data, next.data.size());
       DETAIL_MED("%s", amfdata.Print().c_str());
     }else{
-      amf3data = AMF::parse3(next.data);
+      amf3data = AMF::parse3(next.data, next.data.size());
       DETAIL_MED("%s", amf3data.Print().c_str());
     }
   }break;
   case 18:{
     DETAIL_MED("Received AFM0 data message (metadata):");
-    amfdata = AMF::parse(next.data);
+    amfdata = AMF::parse(next.data, next.data.size());
     DETAIL_MED("%s", amfdata.Print().c_str());
     if (reconstruct.good()){
       F.ChunkLoader(next);
@@ -166,11 +151,11 @@ bool AnalyserRTMP::parsePacket(){
   case 19: DETAIL_MED("Received AFM0 shared object"); break;
   case 20:{// AMF0 command message
     DETAIL_MED("Received AFM0 command message:");
-    amfdata = AMF::parse(next.data);
+    amfdata = AMF::parse(next.data, next.data.size());
     DETAIL_MED("%s", amfdata.Print().c_str());
   }break;
   case 22:
-    if (reconstruct.good()){reconstruct << next.data;}
+    if (reconstruct.good()) { reconstruct.write(next.data, next.data.size()); }
     break;
   default:
     FAIL_MSG(

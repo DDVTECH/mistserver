@@ -651,7 +651,7 @@ Socket::Buffer::Buffer(){
 /// The back is popped as long as it is empty, first - this way this function is
 /// guaranteed to return 0 if the buffer is empty.
 unsigned int Socket::Buffer::size(){
-  while (data.size() > 0 && data.back().empty()){data.pop_back();}
+  while (data.size() && data.back().empty()) { data.pop_back(); }
   return data.size();
 }
 
@@ -763,12 +763,26 @@ bool Socket::Buffer::available(unsigned int count) const{
   return false;
 }
 
+/// Removes count bytes from the buffer, erasing them.
+void Socket::Buffer::skip(size_t count) {
+  size_t i = 0;
+  while (data.size()) {
+    if (i + data.back().size() <= count) {
+      i += data.back().size();
+      data.pop_back();
+    } else {
+      data.back().erase(0, count - i);
+      return;
+    }
+  }
+}
+
 /// Removes count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
-std::string Socket::Buffer::remove(unsigned int count){
+std::string Socket::Buffer::remove(size_t count) {
   size();
   if (!available(count)){return "";}
-  unsigned int i = 0;
+  size_t i = 0;
   std::string ret;
   ret.reserve(count);
   for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
@@ -787,7 +801,7 @@ std::string Socket::Buffer::remove(unsigned int count){
 
 /// Removes count bytes from the buffer, appending them to the given ptr.
 /// Does nothing if not all count bytes are available.
-void Socket::Buffer::remove(Util::ResizeablePointer & ptr, unsigned int count){
+void Socket::Buffer::remove(Util::ResizeablePointer & ptr, size_t count) {
   size();
   if (!available(count)){return;}
   unsigned int i = 0;
@@ -806,7 +820,7 @@ void Socket::Buffer::remove(Util::ResizeablePointer & ptr, unsigned int count){
 
 /// Copies count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
-std::string Socket::Buffer::copy(unsigned int count) {
+std::string Socket::Buffer::copy(size_t count) {
   size();
   if (!available(count)){return "";}
   unsigned int i = 0;
@@ -824,6 +838,23 @@ std::string Socket::Buffer::copy(unsigned int count) {
   return ret;
 }
 
+/// Copies up to count bytes from the buffer, appending them to the given ptr.
+/// Returns actual data copied, which may be a short count.
+size_t Socket::Buffer::copy(Util::ResizeablePointer & ptr, size_t count) {
+  size_t i = 0;
+  ptr.allocate(ptr.size() + count);
+  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it) {
+    size_t toAppend = it->size();
+    if (i + toAppend > count) { toAppend = count - i; }
+    ptr.append(it->data(), toAppend);
+    i += toAppend;
+    if (i >= count) { return i; }
+  }
+  return i;
+}
+
+/// Copies count bytes from the buffer, returning them by value.
+/// Returns an empty string if not all count bytes are available.
 /// Gets a reference to the back of the internal std::deque of std::string objects.
 std::string &Socket::Buffer::get(){
   size();

@@ -410,12 +410,14 @@ namespace Mist{
 
     for (std::set<size_t>::iterator idx = tracks.begin(); idx != tracks.end(); idx++){
       size_t i = *idx;
+      if (!M.trackLoaded(i)){continue;}
       if (M.getType(i) == "video"){
         if (M.getFirstms(i) < videoFirstms){videoFirstms = M.getFirstms(i);}
       }
     }
     for (std::set<size_t>::iterator idx = tracks.begin(); idx != tracks.end(); idx++){
       size_t i = *idx;
+      if (!M.trackLoaded(i)){continue;}
       if (M.hasEmbeddedFrames(i)){continue;}
       std::string type = M.getType(i);
       DTSC::Keys keys(M.keys(i));

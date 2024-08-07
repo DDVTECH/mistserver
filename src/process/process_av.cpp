@@ -263,7 +263,10 @@ namespace Mist{
 
         if (Util::bootSecs() - statTimer > 1){
           // Connect to stats for INPUT detection
-          if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+          if (!statComm && !getenv("NOSESS")) {
+            statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(),
+                            "INPUT:" + capa["name"].asStringRef(), "");
+          }
           if (statComm){
             if (!statComm){
               config->is_active = false;
@@ -301,6 +304,10 @@ namespace Mist{
           // Add a single track and init some metadata
           meta.reInit(streamName, false);
           trkIdx = meta.addTrack();
+          if (trkIdx == INVALID_TRACK_ID) {
+            FAIL_MSG("Could not add track to metadata");
+            return;
+          }
           meta.setType(trkIdx, "video");
           meta.setCodec(trkIdx, codecOut);
           meta.setID(trkIdx, 1);
@@ -315,6 +322,10 @@ namespace Mist{
         } else if (codecOut == "JPEG"){
           meta.reInit(streamName, false);
           trkIdx = meta.addTrack();
+          if (trkIdx == INVALID_TRACK_ID) {
+            FAIL_MSG("Could not add track to metadata");
+            return;
+          }
           meta.setType(trkIdx, "video");
           meta.setCodec(trkIdx, codecOut);
           meta.setID(trkIdx, 1);
@@ -343,6 +354,10 @@ namespace Mist{
           // Add a single track and init some metadata
           meta.reInit(streamName, false);
           trkIdx = meta.addTrack();
+          if (trkIdx == INVALID_TRACK_ID) {
+            FAIL_MSG("Could not add track to metadata");
+            return;
+          }
           meta.setType(trkIdx, "video");
           meta.setCodec(trkIdx, "H264");
           meta.setID(trkIdx, 1);
@@ -365,6 +380,10 @@ namespace Mist{
         }else{
           // Other cases: standard track mode
           trkIdx = meta.addTrack();
+        }
+        if (trkIdx == INVALID_TRACK_ID) {
+          FAIL_MSG("Could not add track to metadata");
+          return;
         }
         meta.markUpdated(trkIdx);
         meta.setType(trkIdx, "video");
@@ -546,6 +565,10 @@ namespace Mist{
           codec_out = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
         }
       }
+      if (!codec_out) {
+        FAIL_MSG("Could not find encoder: %s", encoder.size() ? encoder.c_str() : "H264 generic");
+        return false;
+      }
       AVCodecContext * tmpCtx = avcodec_alloc_context3(codec_out);
       if (!tmpCtx) {
         ERROR_MSG("Could not allocate %s %s encode context", encoder.c_str(), codecOut.c_str());
@@ -565,7 +588,7 @@ namespace Mist{
         reqHeight = strtol(opt["resolution"].asString().substr(opt["resolution"].asString().find("x") + 1).c_str(), NULL, 0);
       }
       tmpCtx->bit_rate = Mist::opt["bitrate"].asInt();
-      tmpCtx->rc_max_rate = 1.20 * Mist::opt["bitrate"].asInt();
+      tmpCtx->rc_max_rate = Mist::opt["bitrate"].asInt();
       tmpCtx->rc_min_rate = 0;
       tmpCtx->rc_buffer_size = 2 * Mist::opt["bitrate"].asInt();
       tmpCtx->time_base.num = 1000;
@@ -585,9 +608,15 @@ namespace Mist{
 #endif
       }else if (codecOut == "H264"){
 #if defined(LIBAVCODEC_VERSION_MAJOR) && LIBAVCODEC_VERSION_MAJOR >= 61
-        tmpCtx->profile = AV_PROFILE_H264_HIGH;
+        if (Mist::opt.isMember("profile")) {
+          if (Mist::opt["profile"].asStringRef() == "main") { tmpCtx->profile = AV_PROFILE_H264_MAIN; }
+          if (Mist::opt["profile"].asStringRef() == "baseline") { tmpCtx->profile = AV_PROFILE_H264_BASELINE; }
+        }
 #elif defined(FF_PROFILE_H264_HIGH)
-        tmpCtx->profile = FF_PROFILE_H264_HIGH;
+        if (Mist::opt.isMember("profile")) {
+          if (Mist::opt["profile"].asStringRef() == "main") { tmpCtx->profile = FF_PROFILE_H264_MAIN; }
+          if (Mist::opt["profile"].asStringRef() == "baseline") { tmpCtx->profile = FF_PROFILE_H264_BASELINE; }
+        }
 #endif
       }
       tmpCtx->gop_size = Mist::opt["gopsize"].asInt();
@@ -651,19 +680,43 @@ namespace Mist{
         }
         av_dict_set(&avDict, "rc", "cbr", 0);
         if (codecOut == "H264"){
-          av_dict_set(&avDict, "profile", "high", 0);
+#if defined(LIBAVCODEC_VERSION_MAJOR) && LIBAVCODEC_VERSION_MAJOR >= 61
+          if (tmpCtx->profile == AV_PROFILE_H264_BASELINE) { av_dict_set(&avDict, "profile", "0", 0); }
+          if (tmpCtx->profile == AV_PROFILE_H264_MAIN) { av_dict_set(&avDict, "profile", "1", 0); }
+          if (tmpCtx->profile == AV_PROFILE_H264_HIGH) { av_dict_set(&avDict, "profile", "2", 0); }
+#elif defined(FF_PROFILE_H264_BASELINE)
+          if (tmpCtx->profile == FF_PROFILE_H264_BASELINE) { av_dict_set(&avDict, "profile", "0", 0); }
+          if (tmpCtx->profile == FF_PROFILE_H264_MAIN) { av_dict_set(&avDict, "profile", "1", 0); }
+          if (tmpCtx->profile == FF_PROFILE_H264_HIGH) { av_dict_set(&avDict, "profile", "2", 0); }
+#endif
         }
         ret = avcodec_open2(tmpCtx, codec_out, &avDict);
       }else if (hwDev == AV_HWDEVICE_TYPE_QSV){
         AVDictionary *avDict = NULL;
         if (codecOut == "H264"){
           av_dict_set(&avDict, "preset", "medium", 0);
+#if defined(LIBAVCODEC_VERSION_MAJOR) && LIBAVCODEC_VERSION_MAJOR >= 61
+          if (tmpCtx->profile == AV_PROFILE_H264_BASELINE) { av_dict_set(&avDict, "profile", "66", 0); }
+          if (tmpCtx->profile == AV_PROFILE_H264_MAIN) { av_dict_set(&avDict, "profile", "77", 0); }
+          if (tmpCtx->profile == AV_PROFILE_H264_HIGH) { av_dict_set(&avDict, "profile", "100", 0); }
+#elif defined(FF_PROFILE_H264_BASELINE)
+          if (tmpCtx->profile == FF_PROFILE_H264_BASELINE) { av_dict_set(&avDict, "profile", "66", 0); }
+          if (tmpCtx->profile == FF_PROFILE_H264_MAIN) { av_dict_set(&avDict, "profile", "77", 0); }
+          if (tmpCtx->profile == FF_PROFILE_H264_HIGH) { av_dict_set(&avDict, "profile", "100", 0); }
+#endif
         }
         av_dict_set(&avDict, "look_ahead", "0", 0);
         ret = avcodec_open2(tmpCtx, codec_out, &avDict);
       }else{
         AVDictionary *avDict = NULL;
         if (codecOut == "H264"){
+          // x264 has basically 2 useful encode modes:
+          // - average bit rate (default)
+          // - constant quality (if crf is set greater than zero)
+          // In both cases the max bit rate setting is obeyed
+          if (Mist::opt.isMember("crf") && Mist::opt["crf"].asInt()) {
+            av_dict_set(&avDict, "crf", std::to_string(Mist::opt["crf"].asInt()).c_str(), 0);
+          }
           if (Mist::opt["tune"] == "zerolatency-lq"){Mist::opt["tune"] = "zerolatency";}
           if (Mist::opt["tune"] == "zerolatency-hq"){Mist::opt["tune"] = "zerolatency";}
           av_dict_set(&avDict, "tune", Mist::opt["tune"].asString().c_str(), 0);
@@ -760,6 +813,7 @@ namespace Mist{
 
         // Retrieve audio sample rate
         tmpCtx->sample_rate = M.getRate(getMainSelectedTrack());
+        if (Mist::opt.isMember("sample_rate")) { tmpCtx->sample_rate = Mist::opt["sample_rate"].asInt(); }
 
         // Retrieve audio channel count / layout
         #if (LIBAVUTIL_VERSION_MAJOR < 57 || (LIBAVUTIL_VERSION_MAJOR == 57 && LIBAVUTIL_VERSION_MINOR < 24))
@@ -810,9 +864,17 @@ namespace Mist{
         if (codecOut == "AAC"){
           tmpCtx->sample_fmt = AV_SAMPLE_FMT_FLTP;
 #if defined(LIBAVCODEC_VERSION_MAJOR) && LIBAVCODEC_VERSION_MAJOR >= 61
-          tmpCtx->profile = AV_PROFILE_AAC_MAIN;
+          tmpCtx->profile = AV_PROFILE_AAC_LOW;
+          if (Mist::opt.isMember("profile")) {
+            if (Mist::opt["profile"].asStringRef() == "main") { tmpCtx->profile = AV_PROFILE_AAC_MAIN; }
+            if (Mist::opt["profile"].asStringRef() == "he") { tmpCtx->profile = AV_PROFILE_AAC_HE; }
+          }
 #elif defined(FF_PROFILE_AAC_MAIN)
-          tmpCtx->profile = FF_PROFILE_AAC_MAIN;
+          tmpCtx->profile = FF_PROFILE_AAC_LOW;
+          if (Mist::opt.isMember("profile")) {
+            if (Mist::opt["profile"].asStringRef() == "main") { tmpCtx->profile = FF_PROFILE_AAC_MAIN; }
+            if (Mist::opt["profile"].asStringRef() == "he") { tmpCtx->profile = FF_PROFILE_AAC_HE; }
+          }
 #endif
           depth = 16;
         }else if (codecOut == "opus"){
@@ -926,7 +988,10 @@ namespace Mist{
       int ret = avcodec_open2(tmpCtx, codec_in, 0);
 
       if (ret < 0) {
-        if (hw_decode_ctx){av_buffer_unref(&hw_decode_ctx);}
+        if (hw_decode_ctx) {
+          av_buffer_unref(&hw_decode_ctx);
+          hw_decode_ctx = NULL;
+        }
         if (frameDecodeHW){av_frame_free(&frameDecodeHW);}
         avcodec_free_context(&tmpCtx);
         printError("Could not open " + codecOut + " codec context", ret);
@@ -1128,6 +1193,10 @@ namespace Mist{
       // Retrieve RAW packet from decoding context
       if (frameDecodeHW){
         ret = avcodec_receive_frame(context_in, frameDecodeHW);
+        if (!frameDecodeHW->width || !frameDecodeHW->height) {
+          INFO_MSG("Ignoring invalid frame");
+          return false;
+        }
         if (frameDecodeHW->format == AV_PIX_FMT_NV12){
           pixelFormat = AV_PIX_FMT_NV12;
           frame_RAW = frameDecodeHW;
@@ -1705,47 +1774,7 @@ namespace Mist{
       }
 
       // Allocate encoding/decoding contexts and decode the input if not RAW
-      if (isVideo){
-        if (frame_RAW && frame_RAW->width && frame_RAW->height){
-          // If resolution changes, destruct FRAME_RAW and SCALE
-          uint64_t inWidth = M.getWidth(getMainSelectedTrack());
-          uint64_t inHeight = M.getHeight(getMainSelectedTrack());
-          if (inWidth != frame_RAW->width || inHeight != frame_RAW->height){
-            WARN_MSG("Input resolution changed from %ix%i to %lux%lu. Reallocating contexts...", frame_RAW->width, frame_RAW->height, inWidth, inHeight);
-            // Make sure a new RAW frame and scaling context get allocated
-            if (frame_RAW != frameDecodeHW){av_frame_free(&frame_RAW);}
-            frame_RAW = 0;
-            sws_freeContext(convertCtx);
-            convertCtx = NULL;
-            context_in->height = inHeight;
-            context_in->width = inWidth;
-            // Realloc HW frame
-            if (frameDecodeHW){
-              AVBufferRef *oldBuffer = context_in->hw_frames_ctx;
-
-              INFO_MSG("Creating hw frame context");
-              AVBufferRef *newBuffer = av_hwframe_ctx_alloc(hw_decode_ctx);
-
-              AVHWFramesContext *frames_ctx;
-              frames_ctx = (AVHWFramesContext *)(newBuffer->data);
-              frames_ctx->initial_pool_size = 1;
-              frames_ctx->format    = hw_decode_fmt;
-              frames_ctx->sw_format = hw_decode_sw_fmt;
-              frames_ctx->width     = inWidth;
-              frames_ctx->height    = inHeight;
-
-              av_hwframe_ctx_init(newBuffer);
-              context_in->hw_frames_ctx = av_buffer_ref(newBuffer);
-              av_buffer_unref(&oldBuffer);
-
-              INFO_MSG("Creating hw frame memory");
-
-              av_frame_free(&frameDecodeHW);
-              frameDecodeHW = av_frame_alloc();
-              av_hwframe_get_buffer(context_in->hw_frames_ctx, frameDecodeHW, 0);
-            }
-          }
-        }
+      if (isVideo) {
         allocateVideoEncoder();
         if (!configVideoDecoder()){ return; }
         uint64_t startTime = Util::getMicros();
@@ -1755,7 +1784,7 @@ namespace Mist{
         uint64_t transformTime = Util::getMicros();
         totalDecode += decodeTime - startTime;
         totalTransform += transformTime - decodeTime;
-      }else{
+      } else {
         if (!configAudioDecoder()){ return; }
         // Since PCM has a 'codec' in LibAV, handle all decoding using the generic function
         if (!decodeFrame(thisData, thisDataLen)) { return; }
@@ -1869,11 +1898,10 @@ void sourceThread(){
   opt["default"] = "";
   opt["arg_num"] = 1;
   conf.addOption("target", opt);
-  std::string video_select = "maxbps";
-  if (Mist::opt.isMember("source_track") && Mist::opt["source_track"].isString() && Mist::opt["source_track"]){
-    video_select = Mist::opt["source_track"].asStringRef();
-  }
   conf.getOption("target", true).append("-");
+  if (Mist::opt.isMember("track_select")) {
+    conf.getOption("target", true).append("-?" + Mist::opt["track_select"].asString());
+  }
   Socket::Connection S;
   Mist::ProcessSource out(S, conf, capa);
   MEDIUM_MSG("Running source thread...");
@@ -2092,6 +2120,18 @@ int main(int argc, char *argv[]){
     capa["optional"]["preset"]["default"] = "faster";
     capa["optional"]["preset"]["sort"] = "ccb";
 
+    capa["optional"]["profile"]["name"] = "Transcode profile";
+    capa["optional"]["profile"]["help"] = "Preset for encoding speed and compression ratio";
+    capa["optional"]["profile"]["type"] = "select";
+    capa["optional"]["profile"]["select"][0u][0u] = "main";
+    capa["optional"]["profile"]["select"][0u][1u] = "main";
+    capa["optional"]["profile"]["select"][1u][0u] = "baseline";
+    capa["optional"]["profile"]["select"][1u][1u] = "baseline";
+    capa["optional"]["profile"]["select"][2u][0u] = "high";
+    capa["optional"]["profile"]["select"][2u][1u] = "high";
+    capa["optional"]["profile"]["default"] = "high";
+    capa["optional"]["profile"]["sort"] = "ccba";
+
     capa["optional"]["bitrate"]["name"] = "Bitrate";
     capa["optional"]["bitrate"]["help"] = "Set the target bitrate in bits per second";
     capa["optional"]["bitrate"]["type"] = "uint";
@@ -2105,6 +2145,13 @@ int main(int argc, char *argv[]){
     capa["optional"]["bitrate"]["unit"][3u][0u] = "1000000000";
     capa["optional"]["bitrate"]["unit"][3u][1u] = "Gbit/s";
 
+    capa["optional"]["sample_rate"]["name"] = "Sample rate";
+    capa["optional"]["sample_rate"]["help"] = "Output sample rate in Hz (by default copies input rate if possible)";
+    capa["optional"]["sample_rate"]["type"] = "uint";
+    capa["optional"]["sample_rate"]["unit"][0u][0u] = "1";
+    capa["optional"]["sample_rate"]["unit"][0u][1u] = "Hz";
+    capa["optional"]["sample_rate"]["unit"][1u][0u] = "1000";
+    capa["optional"]["sample_rate"]["unit"][1u][1u] = "kHz";
 
     capa["optional"]["resolution"]["name"] = "resolution";
     capa["optional"]["resolution"]["help"] = "Resolution of the output stream, e.g. 1920x1080";

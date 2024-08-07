@@ -416,52 +416,67 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
   return true;
 }
 
-bool Util::Config::hasOption(const std::string &optname){
+bool Util::Config::hasOption(const std::string & optname) const {
   return vals.isMember(optname);
 }
 
 /// Returns a reference to the current value of an option or default if none was set.
 /// If the option does not exist, this exits the application with a return code of 37.
-JSON::Value &Util::Config::getOption(std::string optname, bool asArray){
-  if (!vals.isMember(optname)){
+JSON::Value & Util::Config::getOption(std::string optname, bool asArray) {
+  if (!vals.isMember(optname)) {
     std::cout << "Fatal error: a non-existent option '" << optname << "' was accessed." << std::endl;
     exit(37);
   }
-  if (!vals[optname].isMember("value") || !vals[optname]["value"].isArray()){
+  if (!vals[optname].isMember("value") || !vals[optname]["value"].isArray()) {
     vals[optname]["value"].append(JSON::Value());
     vals[optname]["value"].shrink(0);
   }
-  if (asArray){return vals[optname]["value"];}
+  if (asArray) { return vals[optname]["value"]; }
   int n = vals[optname]["value"].size();
-  if (!n){
+  if (!n) {
     static JSON::Value empty = "";
     return empty;
   }
   return vals[optname]["value"][n - 1];
 }
 
+/// Returns a reference to the current value of an option or default if none was set.
+/// If the option does not exist, this exits the application with a return code of 37.
+const JSON::Value & Util::Config::getOption(std::string optname, bool asArray) const {
+  static JSON::Value empty = "";
+  if (!vals.isMember(optname)) {
+    std::cout << "Fatal error: a non-existent option '" << optname << "' was accessed." << std::endl;
+    exit(37);
+  }
+  if (!vals[optname].isMember("value") || !vals[optname]["value"].isArray()) { return empty; }
+  if (asArray) { return vals[optname]["value"]; }
+  int n = vals[optname]["value"].size();
+  if (!n) { return empty; }
+  return vals[optname]["value"][n - 1];
+}
+
 /// Returns the current value of an option or default if none was set as a string.
 /// Calls getOption internally.
-std::string Util::Config::getString(std::string optname){
+std::string Util::Config::getString(std::string optname) const {
   return getOption(optname).asString();
 }
 
 /// Returns the current value of an option or default if none was set as a long long int.
 /// Calls getOption internally.
-int64_t Util::Config::getInteger(std::string optname){
+int64_t Util::Config::getInteger(std::string optname) const {
   return getOption(optname).asInt();
 }
 
 /// Returns the current value of an option or default if none was set as a bool.
 /// Calls getOption internally.
-bool Util::Config::getBool(std::string optname){
+bool Util::Config::getBool(std::string optname) const {
   return getOption(optname).asBool();
 }
 
 /// Reads out the current configuration and puts any options passed into the argument string.
 /// Note: Only the last-set option is included for each option (no multi-select support)
 /// Any argument that is unset or set to its default is not included.
-void Util::Config::fillEffectiveArgs(std::deque<std::string> & args, bool longForm) {
+void Util::Config::fillEffectiveArgs(std::deque<std::string> & args, bool longForm) const {
   jsonForEachConst (vals, opt) {
     // Positional arguments, ignore
     if (opt->isMember("arg_num")) { continue; }

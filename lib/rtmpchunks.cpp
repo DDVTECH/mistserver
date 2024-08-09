@@ -187,6 +187,8 @@ RTMPStream::Chunk::Chunk(){
   headertype = 0;
   cs_id = 0;
   timestamp = 0;
+  ts_delta = 0;
+  ts_header = 0;
   len = 0;
   real_len = 0;
   len_left = 0;

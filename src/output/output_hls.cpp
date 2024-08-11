@@ -141,7 +141,7 @@ namespace Mist{
       totalDuration -= durations.back();
       durations.pop_back();
       // skip the first two segments when live, unless that brings us under 4 target durations
-      while ((totalDuration - durations.front()) > (targetDuration * 4000) && skippedLines < 2){
+      while (durations.size() && (totalDuration - durations.front()) > (targetDuration * 4000) && skippedLines < 2){
         lines.pop_front();
         totalDuration -= durations.front();
         durations.pop_front();

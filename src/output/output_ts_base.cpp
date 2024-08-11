@@ -168,7 +168,10 @@ namespace Mist{
           /*LTS-END*/
         }
         size_t lenSize = 4;
-        if (codec == "H264"){lenSize = (M.getInit(thisIdx)[4] & 3) + 1;}
+        if (codec == "H264"){
+          std::string init = M.getInit(thisIdx);
+          if (init.size() > 4){lenSize = (init[4] & 3) + 1;}
+        }
         while (i + lenSize < (unsigned int)dataLen){
           if (lenSize == 4){
             ThisNaluSize = Bit::btohl(dataPointer + i);

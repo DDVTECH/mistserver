@@ -742,6 +742,7 @@ namespace Mist{
     curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
     if (!(curPage[trackId].mapped)){
       FAIL_MSG("Initializing page %s failed", curPage[trackId].name.c_str());
+      curPage.erase(trackId);
       currentPage.erase(trackId);
       return;
     }
@@ -2095,6 +2096,13 @@ namespace Mist{
     // but the currentPage map must also load keys as needed
     for (std::map<size_t, uint32_t>::iterator it = tmp_currentPage.begin(); it != tmp_currentPage.end(); ++it){
       loadPageForKey(it->first, it->second);
+      if (!curPage.count(it->first) || !curPage[it->first].mapped){
+        //Sometimes the page load fails, drop it it such cases, only print an error if still trying to play
+        if (keepGoing()){
+          WARN_MSG("Dropping track due to getKeyFrame re-seek failure in track %zu", it->first);
+        }
+        userSelect.erase(it->first);
+      }
     }
     // now we are back to normal and can return safely
     return ret;
@@ -2201,7 +2209,7 @@ namespace Mist{
       }
 
       // if we're going to read past the end of the data page...
-      if (nxt.offset >= curPage[nxt.tid].len ||
+      if (nxt.offset >= curPage[nxt.tid].len || !curPage.count(nxt.tid) ||
           (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
         // For non-live, we may have just reached the end of the track. That's normal and fine, drop it.
         if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
@@ -2209,7 +2217,7 @@ namespace Mist{
           return false;
         }
         // Check if there is a next page for the timestamp we're looking for.
-        if (M.getLastms(nxt.tid) >= nxt.time && M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
+        if (M.getLastms(nxt.tid) >= nxt.time && (!currentPage.count(nxt.tid) || M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid])){
           loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
           nxt.offset = 0;
           //Only read the next time if the page load succeeded and there is a packet to read from

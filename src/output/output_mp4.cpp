@@ -387,8 +387,6 @@ namespace Mist{
   bool OutMP4::mp4Header(Util::ResizeablePointer & headOut, uint64_t &size, int fragmented){
     uint32_t mainTrack = M.mainTrack();
     if (mainTrack == INVALID_TRACK_ID){return false;}
-    if (M.getLive()){needsLookAhead = 5000;}
-    if (webSock){needsLookAhead = 0;} 
     // Clear size if it was set before the function was called, just in case
     size = 0;
     // Determines whether the outputfile is larger than 4GB, in which case we need to use 64-bit
@@ -1363,6 +1361,12 @@ namespace Mist{
 
   }
 
+  void OutMP4::initialSeek(bool dryRun){
+    if (M.getLive()){needsLookAhead = 250;}
+    if (webSock){needsLookAhead = 0;} 
+    HTTPOutput::initialSeek(dryRun);
+  }
+
   void OutMP4::sendHeader(){
 
     if (webSock) {
@@ -1431,7 +1435,7 @@ namespace Mist{
   }
 
   void OutMP4::onWebsocketConnect() {
-    capa["maxdelay"] = 5000;
+    capa["maxdelay"] = 250;
     fragSeqNum = 0;
     maxSkipAhead = 0;
     if (M.getLive()){dataWaitTimeout = 450;}

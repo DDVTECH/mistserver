@@ -1087,10 +1087,6 @@ namespace Mist{
         bool good = true;
         // check if all tracks have data for this point in time
         for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
-          if (meta.getNowms(ti->first) < seekPos + needsLookAhead){
-            good = false;
-            break;
-          }
           if (mainTrack == ti->first){continue;}// skip self
           if (!M.trackValid(ti->first)){
             HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
@@ -1134,7 +1130,7 @@ namespace Mist{
     /*LTS-START*/
     if (isRecordingToFile){
       if (M.getLive()){
-        MEDIUM_MSG("Stream currently contains data from %" PRIu64 " ms to %" PRIu64 " ms", startTime(), endTime());
+        MEDIUM_MSG("Stream currently contains data from " PRETTY_PRINT_MSTIME " to " PRETTY_PRINT_MSTIME, PRETTY_ARG_MSTIME(startTime()), PRETTY_ARG_MSTIME(endTime()));
       }
       // Overwrite recstart/recstop with recstartunix/recstopunix if set
       if (M.getLive() && (
@@ -1265,9 +1261,9 @@ namespace Mist{
         }
       }
       // Print calculated start and stop time
-      INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", seekPos); 
+      INFO_MSG("Recording will start at timestamp " PRETTY_PRINT_MSTIME, PRETTY_ARG_MSTIME(seekPos)); 
       if (targetParams.count("recstop")){
-        INFO_MSG("Recording will stop at timestamp %llu ms", atoll(targetParams["recstop"].c_str()));
+        INFO_MSG("Recording will stop at timestamp " PRETTY_PRINT_MSTIME, PRETTY_ARG_MSTIME(atoll(targetParams["recstop"].c_str())));
       }
       // If we have a stop position and it's within available range,
       // apply a limiter to the stream to make it appear like a VoD asset
@@ -1420,7 +1416,7 @@ namespace Mist{
       MEDIUM_MSG("Initial seek to " PRETTY_PRINT_MSTIME " / " PRETTY_PRINT_MSTIME, PRETTY_ARG_MSTIME(seekPos), PRETTY_ARG_MSTIME(endTime()));
       seek(seekPos);
     }else{
-      ERROR_MSG("Aborting seek to %" PRIu64 " since stream only has available from %" PRIu64 " ms to %" PRIu64 " ms", seekPos, startTime(), endTime());
+      ERROR_MSG("Aborting seek to " PRETTY_PRINT_MSTIME " since stream only has available from " PRETTY_PRINT_MSTIME " to " PRETTY_PRINT_MSTIME, PRETTY_ARG_MSTIME(seekPos), PRETTY_ARG_MSTIME(startTime()), PRETTY_ARG_MSTIME(endTime()));
     }
   }
 

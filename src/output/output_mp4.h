@@ -82,6 +82,7 @@ namespace Mist{
   public:
     OutMP4(Socket::Connection &conn);
     ~OutMP4();
+    virtual void initialSeek(bool dryRun = false);
     static void init(Util::Config *cfg);
 
     uint64_t mp4HeaderSize(uint64_t &fileSize, int fragmented = 0) const;

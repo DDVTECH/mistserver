@@ -205,7 +205,7 @@ static inline void show_stackframe(){}
 #define COMMS_USERS_INITSIZE 512 * 1024
 
 #define COMMS_SESSIONS "/MstSession%s"
-#define COMMS_SESSIONS_INITSIZE 8 * 1024 * 1024
+#define COMMS_SESSIONS_INITSIZE 1 * 1024 * 1024
 
 #define CUSTOM_VARIABLES_INITSIZE 64 * 1024
 

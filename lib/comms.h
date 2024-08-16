@@ -6,13 +6,15 @@
 
 #define COMM_LOOP(comm, onActive, onDisconnect) \
   {\
-    for (size_t id = 0; id < comm.recordCount(); id++){\
-      if (comm.getStatus(id) == COMM_STATUS_INVALID){continue;}\
-      if (!(comm.getStatus(id) & COMM_STATUS_DISCONNECT) && comm.getPid(id) && !Util::Procs::isRunning(comm.getPid(id))){\
-        comm.setStatus(COMM_STATUS_DISCONNECT | comm.getStatus(id), id);\
+    size_t rc = comm.recordCount();\
+    for (size_t id = 0; id < rc; ++id){\
+      uint8_t s = comm.getStatus(id);\
+      if (s == COMM_STATUS_INVALID){continue;}\
+      if (!(s & COMM_STATUS_DISCONNECT) && comm.getPid(id) && !Util::Procs::isRunning(comm.getPid(id))){\
+        comm.setStatus(COMM_STATUS_DISCONNECT | s, id);\
       }\
       onActive;\
-      if (comm.getStatus(id) & COMM_STATUS_DISCONNECT){\
+      if (s & COMM_STATUS_DISCONNECT){\
         onDisconnect;\
         comm.setStatus(COMM_STATUS_INVALID, id);\
       }\

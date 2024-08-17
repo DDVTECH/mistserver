@@ -8,7 +8,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <sys/mman.h>
-#include <sys/sem.h>
+#include <semaphore.h>
 #include <unistd.h>
 
 namespace IPC{

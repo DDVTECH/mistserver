@@ -1,4 +1,4 @@
-project('mistserver', 'cpp', default_options: ['cpp_std=c++98'])
+project('mistserver', 'cpp', default_options: ['cpp_std=c++11'])
 add_project_arguments(['-funsigned-char', '-D_LARGEFILE_SOURCE','-Wno-sign-compare', '-Wparentheses', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing'], language: 'cpp')
 
 # Ensures the "mist" directory is in the include path

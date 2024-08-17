@@ -338,7 +338,7 @@ namespace Mist{
         static JSON::Value thisPack;
         thisPack.null();
         thisPack["trackid"] = srtTrack;
-        thisPack["bpos"] = srtSource.tellg();
+        thisPack["bpos"] = (uint64_t)srtSource.tellg();
         thisPack["data"] = data;
         thisPack["index"] = index;
         thisPack["time"] = timestamp;

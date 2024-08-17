@@ -46,7 +46,7 @@ namespace HLS{
                      const size_t trackIdx, const uint64_t streamStartTime){
     std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
     uint64_t maxJitter = 0;
-    u_int64_t minKeepAway = 0;
+    uint64_t minKeepAway = 0;
     for (; it != userSelect.end(); it++){
       minKeepAway = M.getMinKeepAway(it->first);
       if (minKeepAway > maxJitter){maxJitter = minKeepAway;}
@@ -684,7 +684,7 @@ namespace HLS{
   }
 
   /// This is a hack to ensure the LLHLS playback starts as close as possible to the live edge
-  u_int16_t getLiveLengthLimit(const MasterData &masterData){
+  uint16_t getLiveLengthLimit(const MasterData &masterData){
     // NOTE:
     // TL;DR: Apple cleints receive the shortest media playlist to ensure a consistent playback at
     // least possible latency.
@@ -696,11 +696,11 @@ namespace HLS{
   }
 
   /// Get the first fragment number to be printed in the playlist
-  u_int64_t getInitFragment(const DTSC::Meta &M, const MasterData &masterData){
+  uint64_t getInitFragment(const DTSC::Meta &M, const MasterData &masterData){
     if (M.getLive()){
       DTSC::Fragments fragments(M.fragments(masterData.mainTrack));
       DTSC::Keys keys(M.getKeys(masterData.mainTrack));
-      u_int64_t iFrag = std::max(fragments.getEndValid() -
+      uint64_t iFrag = std::max(fragments.getEndValid() -
                                      (masterData.noLLHLS ? 10 : getLiveLengthLimit(masterData)),
                                  fragments.getFirstValid());
       uint64_t minDur =

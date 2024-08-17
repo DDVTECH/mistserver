@@ -1,6 +1,8 @@
 /// \file controller.cpp
 /// Contains all code for the controller executable.
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "controller_api.h"
 #include "controller_external_writers.h"
 #include "controller_capabilities.h"
@@ -25,7 +27,6 @@
 #include <mist/tinythread.h>
 #include <mist/util.h>
 #include <stdio.h>
-#include <sys/stat.h>
 #include <sys/statvfs.h> //for shm space check
 #include <sys/wait.h>
 #include "controller_updater.h"
@@ -354,11 +355,11 @@ int main_loop(int argc, char **argv){
 
   {// spawn thread that reads stderr of process
     std::string logPipe = Util::getTmpFolder() + "MstLog";
-    if (mkfifo(logPipe.c_str(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH) != 0){
-      if (errno != EEXIST){
-        ERROR_MSG("Could not create log message pipe %s: %s", logPipe.c_str(), strerror(errno));
-      }
-    }
+    //if (mkfifo(logPipe.c_str(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH) != 0){
+    //  if (errno != EEXIST){
+    //    ERROR_MSG("Could not create log message pipe %s: %s", logPipe.c_str(), strerror(errno));
+    //  }
+    //}
     int inFD = -1;
     if ((inFD = open(logPipe.c_str(), O_RDONLY | O_NONBLOCK)) == -1){
       ERROR_MSG("Could not open log message pipe %s: %s; falling back to unnamed pipe",

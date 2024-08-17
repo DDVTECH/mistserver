@@ -2055,48 +2055,7 @@ namespace Mist{
   /// timestamp. Sets thisPacket to that frame, and then undoes the seek. The next call to
   /// prepareNext continues as if this function was never called.
   bool Output::getKeyFrame(){
-    // store copy of current state
-    Util::packetSorter tmp_buffer = buffer;
-    std::map<size_t, Comms::Users> tmp_userSelect = userSelect;
-    std::map<size_t, uint32_t> tmp_currentPage = currentPage;
-
-    // reset the current packet to null, assuming failure
-    thisPacket.null();
-
-    // find the main track, check if it is video. Abort if not.
-    size_t mainTrack = getMainSelectedTrack();
-    if (mainTrack == INVALID_TRACK_ID || M.getType(mainTrack) != "video"){return false;}
-
-    // we now know that mainTrack is a video track - let's do some work!
-    // first, we remove all selected tracks and the buffer. Then we select only the main track.
-    uint64_t currTime = currentTime();
-    buffer.clear();
-    userSelect.clear();
-    userSelect[mainTrack].reload(streamName, mainTrack);
-    // now, seek to the exact timestamp of the keyframe
-    DTSC::Keys keys(M.getKeys(mainTrack));
-    bool ret = false;
-    if (!keys.getValidCount()){
-      FAIL_MSG("No keyframes available on track %zu", mainTrack);
-    }else{
-      seek(keys.getTime(keys.getIndexForTime(currTime)));
-      // attempt to load the key into thisPacket
-      ret = prepareNext();
-      if (!ret){
-        WARN_MSG("Failed to load keyframe for %" PRIu64 "ms - continuing without it", currTime);
-      }
-    }
-
-    // restore state to before the seek/load
-    // most of these can simply be copied back...
-    buffer = tmp_buffer;
-    userSelect = tmp_userSelect;
-    // but the currentPage map must also load keys as needed
-    for (std::map<size_t, uint32_t>::iterator it = tmp_currentPage.begin(); it != tmp_currentPage.end(); ++it){
-      loadPageForKey(it->first, it->second);
-    }
-    // now we are back to normal and can return safely
-    return ret;
+    return false;
   }
 
   /// Attempts to prepare a new packet for output.

@@ -1572,9 +1572,23 @@ var UI = {
           }
           fs.push(f);
         }
+        
+        //add standard html5 validation
+        if ("checkValidity" in $field[0]) {
+          fs.push(function(val,me){
+            if ("checkValidity" in me) {
+              if (me.checkValidity() == false) {
+                return {
+                  msg: "validationMessage" in me ? me.validationMessage : "This value ("+val+") is invalid." ,
+                  classes: ["red"]
+                };
+              }
+            }
+          });
+        }
+
         $field.data('validate_functions',fs).data('help_container',$ihc).data('validate',function(me,focusonerror){
           if ((!$(me).is(":visible")) && (!$(me).is("input[type=\"hidden\"]"))) { return; }
-          
           var val = $(me).getval();
           var fs = $(me).data('validate_functions');
           var $ihc = $(me).data('help_container');
@@ -1594,7 +1608,7 @@ var UI = {
           return false;
         }).addClass('hasValidate').on('change keyup',function(){
           var f = $(this).data('validate');
-          f($(this));
+          f(this);
         });
         if ($field.getval() != '') {
           $field.trigger('change');
@@ -10344,6 +10358,9 @@ var mist = {
           }
           default:
             obj.type = 'str';
+            if ("minlength" in ele) { obj.minlength = ele.minlength; }
+            if ("maxlength" in ele) { obj.maxlength = ele.maxlength; }
+            break;
         }
       }
       else {

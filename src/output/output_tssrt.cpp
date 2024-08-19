@@ -279,6 +279,9 @@ namespace Mist{
     addStrOpt(pp["srtopts_main"]["options"], "streamid", "Stream ID", "Stream ID to transmit to the other side. MistServer uses this field for the stream name, but the field is entirely free-form and may contain anything.");
     addStrOpt(pp["srtopts_main"]["options"], "passphrase", "Encryption passphrase", "Enables encryption with the given passphrase.");
 
+    pp["srtopts_main"]["options"]["passphrase"]["minlength"] = 10;
+    pp["srtopts_main"]["options"]["passphrase"]["maxlength"] = 79;
+
 
     pp["srtopts"]["name"] = "More SRT options";
     pp["srtopts"]["help"] = "Control the SRT connection";
@@ -400,6 +403,8 @@ namespace Mist{
     capa["optional"]["passphrase"]["option"] = "--passphrase";
     capa["optional"]["passphrase"]["short"] = "P";
     capa["optional"]["passphrase"]["default"] = "";
+    capa["optional"]["passphrase"]["minlength"] = 10;
+    capa["optional"]["passphrase"]["maxlength"] = 79;
 
     opt.null();
     opt["long"] = "passphrase";

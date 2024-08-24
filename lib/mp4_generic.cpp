@@ -579,7 +579,7 @@ namespace MP4{
     size_t count = getSPSCount();
     for (size_t i = 0; i < count; i++){
       char *sps = getSPS(i);
-      if (!memcmp("\000\000\000\001", sps, 4) || !memcmp("\000\000\001", sps, 3)){
+      if (!sps || !memcmp("\000\000\000\001", sps, 4) || !memcmp("\000\000\001", sps, 3)){
         needSanitization = true;
         break;
       }
@@ -588,7 +588,7 @@ namespace MP4{
       count = getPPSCount();
       for (size_t i = 0; i < count; i++){
         char *pps = getPPS(i);
-        if (!memcmp("\000\000\000\001", pps, 4) || !memcmp("\000\000\001", pps, 3)){
+        if (!pps || !memcmp("\000\000\000\001", pps, 4) || !memcmp("\000\000\001", pps, 3)){
           needSanitization = true;
           break;
         }
@@ -605,6 +605,7 @@ namespace MP4{
     sanitized.setSPSCount(count);
     for (size_t i = 0; i < count; i++){
       char *sps = getSPS(i);
+      if (!sps){break;}
       size_t len = getSPSLen(i);
       bool modded = true;
       while (modded && len >= 4){
@@ -626,6 +627,7 @@ namespace MP4{
     sanitized.setPPSCount(count);
     for (size_t i = 0; i < count; i++){
       char *pps = getPPS(i);
+      if (!pps){break;}
       size_t len = getPPSLen(i);
       bool modded = true;
       while (modded && len >= 4){

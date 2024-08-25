@@ -409,14 +409,16 @@ namespace Controller{
 
   /// Gives a list of all currently active pushes
   void listPush(JSON::Value &output){
-    tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
-    output.null();
     std::set<pid_t> toWipe;
-    for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
-      if (Util::Procs::isActive(it->first)){
-        output.append(it->second);
-      }else{
-        toWipe.insert(it->first);
+    {
+      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      output.null();
+      for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
+        if (Util::Procs::isActive(it->first)){
+          output.append(it->second);
+        }else{
+          toWipe.insert(it->first);
+        }
       }
     }
     while (toWipe.size()){

@@ -1201,7 +1201,7 @@ namespace Mist{
       uint64_t streamAvail = endTime();
       uint64_t lastUpdated = Util::getMS();
       if (seekPos > streamAvail){
-        INFO_MSG("Waiting for stream to reach recording starting point. Recording will start in " PRETTY_PRINT_TIME, PRETTY_ARG_TIME((atoll(targetParams["recstart"].c_str()) - streamAvail) / 1000));
+        INFO_MSG("Waiting for stream to reach recording starting point. Recording will start in " PRETTY_PRINT_TIME, PRETTY_ARG_TIME((seekPos - streamAvail) / 1000));
         while (Util::getMS() - lastUpdated < 10000 && seekPos > streamAvail && keepGoing()){
           Util::sleep(250);
           meta.reloadReplacedPagesIfNeeded();
@@ -1389,8 +1389,8 @@ namespace Mist{
       ERROR_MSG("Aborting seek to %" PRIu64 " since the output is shutting down", seekPos);
       return;
     }
-    if (endTime() >= atoll(targetParams["recstart"].c_str())) {
-      MEDIUM_MSG("Initial seek to %" PRIu64 "ms", seekPos);
+    if (endTime() >= seekPos) {
+      MEDIUM_MSG("Initial seek to " PRETTY_PRINT_MSTIME " / " PRETTY_PRINT_MSTIME, PRETTY_ARG_MSTIME(seekPos), PRETTY_ARG_MSTIME(endTime()));
       seek(seekPos);
     }else{
       ERROR_MSG("Aborting seek to %" PRIu64 " since stream only has available from %" PRIu64 " ms to %" PRIu64 " ms", seekPos, startTime(), endTime());
@@ -1426,6 +1426,7 @@ namespace Mist{
     uint64_t lMs = meta.getLastms(mainTrack);
     uint64_t cTime = thisPacket.getTime();
     uint64_t mKa = getMinKeepAway();
+    INSANE_MSG("Timing: " PRETTY_PRINT_MSTIME "/" PRETTY_PRINT_MSTIME " (~%" PRIu64 "ms, -%" PRIu64 "ms LA)", PRETTY_ARG_MSTIME(cTime), PRETTY_ARG_MSTIME(lMs), mKa, needsLookAhead);
     if (!maxSkipAhead){
       bool noReturn = false;
       uint64_t newSpeed = 1000;
@@ -1444,7 +1445,7 @@ namespace Mist{
         }
       }
       if (realTime != newSpeed){
-        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA)", realTime, newSpeed, needsLookAhead, mKa);
+        VERYHIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA)", realTime, newSpeed, needsLookAhead, mKa);
         firstTime = thisBootMs - (cTime * newSpeed / 1000);
         realTime = newSpeed;
       }

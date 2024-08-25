@@ -1377,15 +1377,17 @@ namespace Mist{
 
     if (M.getLive()){
       bool reSeek = false;
-      DTSC::Parts parts(M.parts(vidTrack));
-      uint64_t firstPart = parts.getFirstValid();
-      uint64_t endPart = parts.getEndValid();
-      for (size_t i = firstPart; i < endPart; i++){
-        uint32_t pDur = parts.getDuration(i);
-        // Make sure we always look ahead at least a single frame
-        if (pDur > needsLookAhead){
-          needsLookAhead = pDur;
-          reSeek = true;
+      if (vidTrack != INVALID_TRACK_ID){
+        DTSC::Parts parts(M.parts(vidTrack));
+        uint64_t firstPart = parts.getFirstValid();
+        uint64_t endPart = parts.getEndValid();
+        for (size_t i = firstPart; i < endPart; i++){
+          uint32_t pDur = parts.getDuration(i);
+          // Make sure we always look ahead at least a single frame
+          if (pDur > needsLookAhead){
+            needsLookAhead = pDur;
+            reSeek = true;
+          }
         }
       }
       if (reSeek){

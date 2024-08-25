@@ -554,6 +554,7 @@ namespace MP4{
   void Box::setBox(Box &newEntry, size_t index){
     int oldlen = getBoxLen(index);
     int newlen = newEntry.boxedSize();
+    if (newlen > newEntry.data_size){return;}
     if (oldlen != newlen && !reserve(index + payloadOffset, oldlen, newlen)){return;}
     memcpy(data + index + payloadOffset, newEntry.asBox(), newlen);
   }

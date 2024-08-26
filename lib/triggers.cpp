@@ -70,6 +70,7 @@ namespace Triggers{
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && (!sync || DL.isOk())){
         submitTriggerStat(trigger, tStartMs, true);
+        if (!sync){return defaultResponse;}
         return DL.data();
       }
       FAIL_MSG("Trigger failed to execute (%s), using default response: %s",

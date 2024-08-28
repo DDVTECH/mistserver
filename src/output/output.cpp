@@ -1058,10 +1058,32 @@ namespace Mist{
       // seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
       uint32_t firstKey = keys.getFirstValid();
       uint32_t lastKey = keys.getEndValid() - 1;
+      uint64_t mKa = M.getMinKeepAway(mainTrack);
+      bool waitForKey = targetParams.count("waitkey");
+      if (waitForKey){
+        maxSkipAhead = 1;
+        while (keys.getTime(lastKey) + needsLookAhead + mKa + 100 < meta.getNowms(mainTrack) && keepGoing()){
+          Util::wait(25);
+          firstKey = keys.getFirstValid();
+          lastKey = keys.getEndValid() - 1;
+        }
+      }
       // Seek to approx middle if desync mode, seek to approx end for sync mode
       for (int64_t i = sync ? lastKey : (lastKey - (lastKey - firstKey) / 2); i >= firstKey; i--) {
         seekPos = keys.getTime(i);
-        if (seekPos < 5000){continue;}// if we're near the start, skip back
+        // if we're near the start, go further back if possible
+        if (!waitForKey && seekPos < 5000){continue;}
+        // If this keyframe is too close to the live point, go further back if possible
+        if (meta.getNowms(mainTrack) < seekPos + needsLookAhead + mKa){
+          if (!waitForKey){continue;}
+          // Sleep until needsLookAhead and mKa are satisfied.
+          int64_t sleepTime = 0;
+          do {
+            Util::wait(sleepTime);
+            sleepTime = (seekPos + needsLookAhead + mKa) - meta.getNowms(mainTrack);
+          } while(sleepTime > 0 && keepGoing());
+          firstKey = keys.getFirstValid();
+        }
         bool good = true;
         // check if all tracks have data for this point in time
         for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
@@ -1074,17 +1096,22 @@ namespace Mist{
             HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
             continue;
           }// ignore missing tracks
-          if (M.getNowms(ti->first) < seekPos + needsLookAhead + M.getMinKeepAway(ti->first)){
-            good = false;
-            break;
-          }
           if (meta.getNowms(ti->first) == M.getFirstms(ti->first)){
             HIGH_MSG("Skipping track %zu, last equals first", ti->first);
             continue;
           }// ignore point-tracks
-          if (meta.getNowms(ti->first) < seekPos){
-            good = false;
-            break;
+          if (M.getNowms(ti->first) < seekPos + needsLookAhead + M.getMinKeepAway(ti->first)){
+            if (!waitForKey){
+              good = false;
+              break;
+            }
+            // Sleep until needsLookAhead and mKa are satisfied.
+            int64_t sleepTime = 0;
+            do {
+              Util::wait(sleepTime);
+              sleepTime = (seekPos + needsLookAhead + mKa) - meta.getNowms(mainTrack);
+            } while(sleepTime > 0 && keepGoing());
+            firstKey = keys.getFirstValid();
           }
           HIGH_MSG("Track %zu is good", ti->first);
         }

@@ -170,7 +170,7 @@ var UI = {
       }
       //they will remove themselves from the list in the onclose call, defined in websockets.create
     },
-    create: function(url){
+    create: function(url,error_callback){
       var ws = new WebSocket(url);
       var me = this;
       this.list.push(ws);
@@ -179,7 +179,8 @@ var UI = {
         for (var i = me.list.length - 1; i >=0; i--) {
           if (me.list[i] == ws) { me.list.splice(i,1); }
         }
-      })
+      });
+      ws.addEventListener("error",error_callback);
       return ws;
     }
   },
@@ -2986,7 +2987,16 @@ var UI = {
             pointer: {
               main: mist.user,
               index: 'host'
-            }
+            },
+            validate: [function(val,me){
+              if (val.slice(0,5) != location.href.slice(0,5)) {
+                return {
+                  msg: "It looks like you're attempting to connect to a host using "+parseURL(val).protocol+", while this page has been loaded over "+parseURL(location.href).protocol+". Your browser may refuse this because it is insecure.",
+                  "break": false,
+                  classes: ['orange']
+                }
+              }
+            }]
           },{
             label: 'Username',
             help: 'Please enter your username here.',
@@ -7770,6 +7780,17 @@ var UI = {
       findMist: function(on_success_callback,url_rewriter,fullsearch){
         var cont = $("<div>").addClass("findMist").hide();
 
+        var debug = false; 
+        //debug = true; //activates logging of found urls
+
+        function makeUnique(ret) {
+          var unique = [];
+          for (var i = 0; i < ret.length; i++) {
+            if (ret.indexOf(ret[i]) == i) { unique.push(ret[i]); }
+          }
+          return unique;
+        }
+
         //find http output for info json
         //return an array with possible urls, try first url first
         function findHTTP(callback){
@@ -7778,15 +7799,22 @@ var UI = {
           var http = result.HTTP;
           var https = result.HTTPS;
 
+          if (debug) console.log("Attempting to find urls to reach MistServer's HTTP output..");
+
           if (UI.sockets.http_host) {
             if (fullsearch) { 
               http.push(UI.sockets.http_host);
               https.push(UI.sockets.http_host);
+              if (debug) console.log("Found previously used urls to MistServer's HTTP output, but performing a full search; adding it to both the result lists",UI.sockets.http_host);
             }
-            else return callback([UI.sockets.http_host]); 
+            else { 
+              if (debug) console.log("Found a previously used url to MistServer's HTTP output, using that one",UI.sockets.http_host);
+              return callback([UI.sockets.http_host]); 
+            }
           }
 
           if (!mist.data.capabilities) {
+            if (debug) console.log("I don't know MistServer's capabilities yet, retrieving those first.. brb")
             // Request capabilities first
             mist.send(function(){
               findHTTP(callback);
@@ -7797,9 +7825,13 @@ var UI = {
 
 
           var stored = mist.stored.get();
-          if ("HTTPurl" in stored) {
-            if (stored.HTTPurl.slice(0,5) == "https") https.push(stored.HTTPurl);
-            else http.push(stored.HTTPurl);
+          if ("HTTPUrl" in stored) {
+            if (debug) console.log("Found a previously valid HTTP url stored in MistServer's config, adding it to the HTTP list",stored.HTTPUrl);
+            http.push(stored.HTTPUrl);
+          }
+          if ("HTTPSUrl" in stored) {
+            if (debug) console.log("Found a previously valid HTTPS url stored in MistServer's config, adding it to the HTTPS list",stored.HTTPSUrl);
+            https.push(stored.HTTPSUrl);
           }
           //scan http(s) protocol config
           for (var i in mist.data.config.protocols) {
@@ -7812,8 +7844,22 @@ var UI = {
                 //pubadr
                 if (connector.pubaddr) {
                   for (var j in connector.pubaddr) {
-                    var protocol = connector.pubaddr[j].split(":")[0].toUpperCase();
-                    result[protocol].push(connector.pubaddr[j]);
+                    var protocol;
+                    if (connector.pubaddr[j].slice(0,2) == "//") {
+                      protocol = location.protocol;
+                      //connector.pubaddr[j] = protocol+connector.pubaddr[j];
+                      protocol = protocol.replace(":","").toUpperCase();
+                    }
+                    else {
+                      protocol = connector.pubaddr[j].split(":")[0].toUpperCase();
+                    }
+                    if (protocol in result) {
+                      result[protocol].push(connector.pubaddr[j]);
+                      if (debug) console.log("Found a public address in the protocol config, adding it to the "+protocol+" list",connector.pubaddr[j]);
+                    }
+                    else {
+                      console.warn("Unknown protocol in public address configuration for "+connector.connector+": ",connector.pubaddr[j]);
+                    }
                   }
                 }
                 //port
@@ -7824,7 +7870,9 @@ var UI = {
                   }
                 }
                 if (port) {
-                  result[connector.connector].push(parseURL(mist.user.host,{port:port,pathname:'',protocol:name.toLowerCase()+":"}).full)
+                  var u = parseURL(mist.user.host,{port:port,pathname:'',protocol:name.toLowerCase()+":"}).full;
+                  result[connector.connector].push(u);
+                  if (debug) console.log("Found a port in the protocol config, adding it to the "+connector.connector+" list",u);
                 }
 
                 break;
@@ -7834,30 +7882,28 @@ var UI = {
 
             
           if (!http.length) { 
-            http.push(parseURL(mist.user.host,{port:8080,pathname:''}).full); 
+            var u = parseURL(mist.user.host,{port:8080,pathname:''}).full;
+            if (debug) console.log("Haven't found any HTTP urls yet, adding the default to the HTTP list",u);
+            http.push(u);
           }
           if (!https.length) {
-            https = http;
-          }
-
-          function makeUnique(ret) {
-            var unique = [];
-            for (var i = 0; i < ret.length; i++) {
-              if (ret.indexOf(ret[i]) == i) { unique.push(ret[i]); }
-            }
-            return unique;
+            if (debug) console.log("Haven't found any HTTPS urls yet, copying the HTTP list to HTTPS: it's worth a try",http);
+            result.HTTPS = http;
+            https = result.HTTPS;
           }
 
           http = makeUnique(http);
           https = makeUnique(https);
 
           cont.urls = result;
-
-          return callback(location.protocol == "https:" ? https : http);
+          if (debug) console.log("Full scan result:",result);
+          var r = location.protocol == "https:" ? https : http;
+          if (debug) console.log("Returning:",r);
+          return callback(r);
         }
 
         function retrieveInfo(urls,attempt) {
-          if (attempt >= urls.length) { return on_fail(); }
+          if (attempt >= urls.length) { return on_fail(urls); }
           try {
             if (!url_rewriter) {
               url_rewriter = function(hosturl){
@@ -7865,6 +7911,9 @@ var UI = {
               };
             }
             url = url_rewriter(urls[attempt]);
+            if (url.slice(0,2) == "//") {
+              url = location.protocol + url;
+            }
             if (url.slice(0,4) == "http") {
               $.ajax({
                 type: "GET",
@@ -7873,8 +7922,9 @@ var UI = {
                   cont.hide();
                   on_success(urls[attempt],d);
                 },
-                error: function(){
+                error: function(jqXHR,textstatus,e){
                   retrieveInfo(urls,attempt+1);
+                  if (debug) console.log("Could not reach "+url,e);
                 }
               });
             }
@@ -7893,7 +7943,11 @@ var UI = {
               throw "I'm not sure how to contact MistServer with this protocol. (at "+url+")";
             }
           }
-          catch (e) { on_fail(urls); }
+          catch (e) { 
+            if (debug) console.warn("Something went wrong while testing urls:",e,"attempt:",attempt,"url:",urls[attempt]);
+            //on_fail(urls); 
+            retrieveInfo(urls,attempt+1)
+          }
         }
         function on_fail(urls) {
           if ((urls.length == 1) && (urls[0] == UI.sockets.http_host)) { 
@@ -7905,22 +7959,71 @@ var UI = {
             });
           }
 
+          var $attempts;
+          var $morehelp;
+          if (urls.length) {
+            $attempts = $("<div>");
+            var $ul = $("<ul>");
+            for (var i in urls) {
+              var $li = $("<li>").html(
+                $("<a>").attr("href",urls[i]).text(urls[i]).attr("target","MistURL")
+              );
+              $ul.append($li);
+            }
+            $attempts.html($ul);
+            $morehelp = $("<div>").append(
+              $("<span>").text("ℹ️").css("position","absolute").css("margin","1em 0 0 2em")
+            ).append(
+              $("<div>").css({border:"1px solid #bbb",padding:"0.5em 1em 0 3em",margin:"0 1em"}).append(
+                $("<h2>").text("Why am I seeing this?")
+              ).append(
+                $("<p>").html("If you think one of the urls above should have worked, try clicking the link. <br>If something went wrong, your browser may give you more information about what it is. <br>If you see something like this:")
+              ).append(
+                $("<div>").css("margin-left","2em").html("<h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.")
+              ).append(
+                $("<p>").html("then MistServer <i>can</i> be reached there but it couldn't be called from this page, possibly because of mixed content (if you're on an https website, your browser will refuse to load http content: create an https output) or CORS issues (if the HTTP output is accessible on a domain other than '"+location.origin+"' and that is not configured to allow cross-domain requests: check your proxy configuration).")
+              )
+            );
+
+          }
+          else {
+            $attempts = $("<span>").text("I've not tried anything yet. I'm cluessless. Please help.")
+          }
+
           //if request fails, allow user to enter url and save
           var save= {};
+          var S = location.protocol == "https:" ? "S" : "";
           cont.show().html(
-            $("<p>").text("Could not locate the MistHTTP output url. Where can it be reached?")
+            $("<p>").text("Something went wrong: I could not locate MistServer's HTTP"+S+" output url. Where can it be reached?")
           ).append(
             $("<div>").addClass("description").append(
-              $("<p>").text("Attempts:")
+              $("<p>").text("I've attempted:")
             ).append(
-              $("<ul>").html("<li>"+(urls.join("</li><li>"))+"</li>")
-            )
+              $attempts
+            )          
           ).append(
             UI.buildUI([{
-              label: "MistServer HTTP endpoint",
+              label: "MistServer's HTTP"+S+" endpoint",
               type: "datalist",
               datalist: urls,
-              help: "Please specify the url at which MistServer's HTTP endpoint can be reached.",
+              help: "Please specify the url at which MistServer's HTTP"+S+" endpoint can be reached.",
+              validate: ["required",function(val,me){
+                if (val.length < 4) { return; }
+                if (val.slice(0,4) != "http") {
+                  return {
+                    msg: "The url to MistServer should probably start with "+location.protocol+"//, for example: <br>"+parseURL(location.origin,{port:location.protocol == "https:" ? 4433 : 8080,pathname:""}).full,
+                    "break": false,
+                    classes: ['orange']
+                  }
+                }
+                if (val.slice(0,5) != location.href.slice(0,5)) {
+                  return {
+                    msg: "It looks like you're attempting to connect to MistServer using "+parseURL(val).protocol+", while this page has been loaded over "+parseURL(location.href).protocol+". Your browser may refuse this because it is insecure.",
+                    "break": false,
+                    classes: ['orange']
+                  }
+                }
+              }],
               pointer: { main: save, index: "url" }
             },{
               type: "buttons",
@@ -7928,13 +8031,14 @@ var UI = {
                 type: "save",
                 label: "Connect",
                 "function": function(){
+                  if (save.url[save.url.length-1] != "/") { urls.unshift(save.url+"/"); }
                   urls.unshift(save.url);
+                  urls = makeUnique(urls);
                   retrieveInfo(urls,0);
                 }
               }]
             }])
-          );
-
+          ).append($morehelp);
         }
 
 
@@ -7943,7 +8047,7 @@ var UI = {
           
           if (url != UI.sockets.http_host) {
             UI.sockets.http_host = url;
-            mist.stored.set("HTTPUrl",url);
+            mist.stored.set("HTTP"+(url.slice(0,5) == "https" ? "S" : "")+"Url",url);
           }
 
           on_success_callback.call(cont,url,handler);
@@ -8183,6 +8287,11 @@ var UI = {
                 else { activestream.livestreamhint.hide(); }
               }
 
+            }
+          }
+          else if (type == "error") {
+            if (options.status) {
+              activestream.status.attr("data-streamstatus",6).text(data)
             }
           }
         });
@@ -9508,6 +9617,10 @@ var UI = {
             }
 
           }
+          else if (type == "error") {
+            var $msg = $("<div>").text(data);
+            $logs.append($msg);
+          }
         });
         
         return $("<section>").addClass("logs").append(
@@ -9573,6 +9686,10 @@ var UI = {
             }
 
           }
+          else if (type == "error") {
+            var $msg = $("<div>").text(data);
+            $accesslogs.append($msg);
+          }
         });
 
         return $("<section>").addClass("accesslogs").append(
@@ -9601,7 +9718,73 @@ var UI = {
           mistPlay(streamname,{
             target: $preview_cont[0],
             host: UI.sockets.http_host,
-            skin: {inherit:"dev",colors:{accent:"var(--accentColor)"}},
+            skin: {
+              inherit: "dev",
+              colors:{accent:"var(--accentColor)"},
+              blueprints: {
+                protocol_mismatch_warning: function(){
+                  var MistVideo = this;
+                  var ele = document.createElement("div");
+                  MistUtil.event.addListener(MistVideo.options.target,"initializeFailed",function(){
+                    if (MistVideo.info && MistVideo.info.source) {
+                      var msg = "";
+                      var html = false;
+                      if (MistVideo.info.source.length == 0) {
+                        msg = "No stream sources were found.";
+                      }
+                      else {
+                        var protomatch = false;
+                        var myprot = location.protocol;
+                        for (var i in MistVideo.info.source) {
+                          var url = MistVideo.info.source[i].url;
+                          url = url.replace(/^ws/,"http");
+                          if (url.slice(0,myprot.length) == myprot) {
+                            protomatch = true;
+                            break;
+                          }
+                          if (url.slice(0,2) == "//") {
+                            protomatch = true;
+                            break;
+                          }
+                        }
+                        if (!protomatch) {
+                          myprot = myprot.replace(":","").toUpperCase();
+                          msg = "No stream sources using "+myprot+" were found. You should configure "+myprot+" to play media from a "+myprot+" webpage.";
+                          if (myprot == "HTTPS") {
+                            html = document.createElement("a");
+                            html.setAttribute("href","https://docs.mistserver.org/howto/https/");
+                            html.setAttribute("target","_blank");
+                            html.appendChild(document.createTextNode("Documentation about HTTPS"));
+                          }
+                        }
+                      }
+                      if (msg != "") {
+                        ele.className = "err_balloon orange";
+                        ele.style.position = "static";
+                        ele.style.margin = "2em 0 3em";
+                        ele.appendChild(document.createTextNode("Warning:"));
+                        ele.appendChild(document.createElement("br"));
+                        ele.appendChild(document.createTextNode(msg));
+                        ele.appendChild(document.createElement("br"));
+                        if (html) { 
+                          ele.appendChild(html);
+                          ele.appendChild(document.createElement("br"));
+                        }
+                        var button = document.createElement("button");
+                        button.style.marginTop = "1em";
+                        button.appendChild(document.createTextNode("Configure protocols"));
+                        ele.appendChild(button);
+                        button.addEventListener("click",function(){
+                          UI.navto("Protocols");
+                        });
+                      }
+                    }
+                  },MistVideo.video);
+
+                  return ele;
+                }
+              }
+            },
             loop: true,
             MistVideoObject: MistVideoObject
           });
@@ -9653,7 +9836,8 @@ var UI = {
             classes: ["mistvideo-column","mistvideo-devcontrols"],
             children: [
               {
-
+                type: "protocol_mismatch_warning"
+              },{
                 type: "text",
                 text: "Player control"
               },{
@@ -10367,10 +10551,10 @@ var UI = {
         ws: false,
         listeners: [],
         messages: [],
-        init: function(){
+        init: function(error_callback){
           var url = parseURL(mist.user.host);
           url = parseURL(mist.user.host,{pathname:url.pathname.replace(/\/api$/,"")+"/ws",search:"?logs=100&accs=100&streams=1"});
-          var apiWs = UI.websockets.create(url.full.replace(/^http/,"ws"));
+          var apiWs = UI.websockets.create(url.full.replace(/^http/,"ws"),error_callback);
           this.ws = apiWs;
           var me = this;
           apiWs.authState = 0;
@@ -10428,6 +10612,14 @@ var UI = {
           if (!this.ws || (this.ws.readyState > 1)) { this.init(); }
           for (var i in this.messages) {
             callback(this.messages[i][0],this.messages[i][1]);
+          }
+          var me = this;
+          if (!this.ws || (this.ws.readyState > 1)) { 
+            this.init(function(){
+              for (var i in me.listeners) {
+                me.listeners[i]("error","An error occured: failed to connect to the active streams api websocket.");
+              }
+            }); 
           }
           this.listeners.push(callback);
         }

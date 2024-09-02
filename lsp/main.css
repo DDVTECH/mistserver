@@ -637,6 +637,68 @@ input[type=radio] {
   margin-bottom: 1em;
   margin-left: 1em;
 }
+.input_container .itemgroup .input_container:first-child > b {
+  cursor: pointer;
+  margin-right: 0.5em;
+}
+.input_container .itemgroup.expanded .input_container:first-child > b:before {
+  content: '▼';
+}
+.input_container .itemgroup .input_container:first-child > b:before {
+  content: '▲';
+  color: var(--accentColor);
+  opacity: 0.5;
+  transform: translateY(-0.1em);
+  display: inline-block;
+}
+.input_container .itemgroup .input_container:first-child:hover > b:before {
+  opacity: 1;
+}
+.input_container .itemgroup .description {
+  display: none;
+}
+.input_container .itemgroup.expanded .description {
+  display: block;
+}
+
+.input_container .itemgroup .summary {
+  font-size: 0.8em;
+  margin: 0;
+  padding-inline: 1.75em;
+}
+.input_container .itemgroup .summary li::marker {
+  margin: 0 0.25em 0 0;
+}
+.input_container .itemgroup .summary:empty {
+  display: flex;
+  flex-flow: row wrap;
+  list-style: none;
+  padding: 0;
+}
+.input_container .itemgroup .summary:empty:after {
+  content: '(Default settings)';
+}
+.input_container .itemgroup .summary:empty {
+  opacity: 0.5;
+}
+.input_container .itemgroup.expanded .summary {
+  display: none;
+}
+.input_container .itemgroup .UIelement {
+  display: none;
+}
+.input_container .itemgroup.expanded .UIelement {
+  display: flex;
+}
+.input_container .itemgroup:not(.expanded) .input_container:has(.summary:empty) {
+  flex-direction: row;
+  align-items: baseline;
+  margin: 0;
+}
+.input_container .itemgroup.expanded .input_container {
+  flex-direction: column;
+  margin: 0.5em 0;
+}
 .input_container .subitem {
   font-size: 0.9em;
   color: #777;

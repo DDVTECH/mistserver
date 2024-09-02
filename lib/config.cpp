@@ -763,6 +763,7 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["track_selectors"]["type"] = "group";
   pp["track_selectors"]["name"] = "Track selectors";
   pp["track_selectors"]["help"] = "Control which tracks are part of the output";
+  pp["track_selectors"]["sort"] = "v";
   {
     JSON::Value & o = pp["track_selectors"]["options"];
     o["audio"]["name"] = "Audio track(s)";
@@ -787,6 +788,7 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["trackwait_opts"]["type"] = "group";
   pp["trackwait_opts"]["name"] = "Wait for tracks";
   pp["trackwait_opts"]["help"] = "Before starting, ensure the available tracks satisfy certain conditions";
+  pp["trackwait_opts"]["sort"] = "w";
   {
     JSON::Value & o = pp["trackwait_opts"]["options"];
     o["waittrackcount"]["name"] = "Wait for tracks count";
@@ -823,37 +825,10 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
     o["maxwaittrackms"]["sort"] = "bdad";
   }
 
-  pp["pls_opts"]["type"] = "group";
-  pp["pls_opts"]["name"] = "Playlist writing options";
-  pp["pls_opts"]["help"] = "Control the writing of a playlist file when recording to a segmented format";
-  {
-    JSON::Value & o = pp["pls_opts"]["options"];
-    o["noendlist"]["name"] = "Don't end playlist";
-    o["noendlist"]["help"] = "If set, does not write #X-EXT-ENDLIST when finalizing the playlist on exit";
-    o["noendlist"]["type"] = "bool";
-    o["noendlist"]["format"] = "set_or_unset";
-    o["noendlist"]["sort"] = "bfa";
-
-    o["m3u8"]["name"] = "Playlist path (relative to segments)";
-    o["m3u8"]["help"] = "If set, will write a m3u8 playlist file for the segments to the given path (relative from the first segment path). When this parameter is used, at least one of the variables $segmentCounter or $currentMediaTime must be part of the segment path (to keep segments from overwriting each other). The \"Split interval\" parameter will default to 60 seconds when using this option.";
-    o["m3u8"]["type"] = "string";
-    o["m3u8"]["sort"] = "apa";
-
-    o["targetAge"]["name"] = "Playlist target age";
-    o["targetAge"]["help"] = "When writing a playlist, delete segment entries that are more than this many seconds old from the playlist (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
-    o["targetAge"]["type"] = "int";
-    o["targetAge"]["unit"] = "s";
-    o["targetAge"]["sort"] = "apb";
-
-    o["maxEntries"]["name"] = "Playlist max entries";
-    o["maxEntries"]["help"] = "When writing a playlist, delete oldest segment entries once this entry count has been reached (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
-    o["maxEntries"]["type"] = "int";
-    o["maxEntries"]["sort"] = "apc";
-  }
-
   pp["time_opts"]["type"] = "group";
   pp["time_opts"]["name"] = "Timing options";
   pp["time_opts"]["help"] = "Control speed and the start/stop timing";
+  pp["time_opts"]["sort"] = "x";
   {
     JSON::Value & o = pp["time_opts"]["options"];
     o["rate"]["name"] = "Playback rate";
@@ -917,17 +892,55 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
     o["split"]["sort"] = "bh";
   }
 
-  pp["unmask"]["name"] = "Unmask tracks";
-  pp["unmask"]["help"] = "If set to any value, removes any applied track masking before selecting tracks, acting as if no mask was applied at all";
-  pp["unmask"]["type"] = "bool";
-  pp["unmask"]["format"] = "set_or_unset";
-  pp["unmask"]["sort"] = "bc";
+  pp["pls_opts"]["type"] = "group";
+  pp["pls_opts"]["name"] = "Playlist writing options";
+  pp["pls_opts"]["help"] = "Control the writing of a playlist file when recording to a segmented format";
+  pp["pls_opts"]["sort"] = "y";
+  {
+    JSON::Value & o = pp["pls_opts"]["options"];
+    o["noendlist"]["name"] = "Don't end playlist";
+    o["noendlist"]["help"] = "If set, does not write #X-EXT-ENDLIST when finalizing the playlist on exit";
+    o["noendlist"]["type"] = "bool";
+    o["noendlist"]["format"] = "set_or_unset";
+    o["noendlist"]["sort"] = "bfa";
 
-  pp["append"]["name"] = "Append to file";
-  pp["append"]["help"] = "If set to any value, will (if possible) append to an existing file, rather than overwriting it";
-  pp["append"]["type"] = "bool";
-  pp["append"]["format"] = "set_or_unset";
-  pp["append"]["sort"] = "bf";
+    o["m3u8"]["name"] = "Playlist path (relative to segments)";
+    o["m3u8"]["help"] = "If set, will write a m3u8 playlist file for the segments to the given path (relative from the first segment path). When this parameter is used, at least one of the variables $segmentCounter or $currentMediaTime must be part of the segment path (to keep segments from overwriting each other). The \"Split interval\" parameter will default to 60 seconds when using this option.";
+    o["m3u8"]["type"] = "string";
+    o["m3u8"]["sort"] = "apa";
+
+    o["targetAge"]["name"] = "Playlist target age";
+    o["targetAge"]["help"] = "When writing a playlist, delete segment entries that are more than this many seconds old from the playlist (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+    o["targetAge"]["type"] = "int";
+    o["targetAge"]["unit"] = "s";
+    o["targetAge"]["sort"] = "apb";
+
+    o["maxEntries"]["name"] = "Playlist max entries";
+    o["maxEntries"]["help"] = "When writing a playlist, delete oldest segment entries once this entry count has been reached (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+    o["maxEntries"]["type"] = "int";
+    o["maxEntries"]["sort"] = "apc";
+  }
+
+
+
+  pp["misc_genopts"]["type"] = "group";
+  pp["misc_genopts"]["name"] = "Miscellaneous options";
+  pp["misc_genopts"]["sort"] = "z";
+  {
+    JSON::Value & o = pp["misc_genopts"]["options"];
+
+    o["unmask"]["name"] = "Unmask tracks";
+    o["unmask"]["help"] = "If set to any value, removes any applied track masking before selecting tracks, acting as if no mask was applied at all";
+    o["unmask"]["type"] = "bool";
+    o["unmask"]["format"] = "set_or_unset";
+    o["unmask"]["sort"] = "bc";
+
+    o["append"]["name"] = "Append to file";
+    o["append"]["help"] = "If set to any value, will (if possible) append to an existing file, rather than overwriting it";
+    o["append"]["type"] = "bool";
+    o["append"]["format"] = "set_or_unset";
+    o["append"]["sort"] = "bf";
+  }
 
 }
 

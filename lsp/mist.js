@@ -619,6 +619,9 @@ var UI = {
                 
                 var $ic = $(this).closest('.input_container');
                 
+                //ensure any grouped options (with non-default settings) are expanded
+                $ic.find(".itemgroup:has(.summary:not(:empty))").addClass("expanded");
+
                 //skip any hidden fields
                 
                 //validate
@@ -5795,7 +5798,8 @@ var UI = {
           var $autopush = $("<div>");
           var push_parameters, full_list_of_push_parameters;
           if (other == "auto") {
-            $autopush.css("margin","1em 0").html(UI.buildUI([{
+            $autopush.css("margin","1em 0").html(UI.buildUI([
+              $("<h3>").text("Automatic push options"),{
               label: "This push should be active",
               help: "When 'based on server time' is selected, a start and/or end timestamp can be configured. When it's 'based on a variable', the push will be activated while the specified variable matches the specified value.",
               type: "select",
@@ -6042,37 +6046,39 @@ var UI = {
                     }
                   }
                 }
-              if (!match) {
-                $additional_params.html(
-                  $("<h4>").addClass("red").text("Unrecognized target.")
-                ).append(
-                  $("<span>").text("Please edit the push target.")
-                );
-                return;
-              }
-              if (!("friendly" in mist.data.capabilities.connectors[match])) { mist.data.capabilities.connectors[match].friendly = mist.data.capabilities.connectors[match].name; }
+                if ($(this).data("last_match") == match) { return; }
+                $(this).data("last_match",match);
+                if (!match) {
+                  $additional_params.html(
+                    $("<h4>").addClass("red").text("Unrecognized target.")
+                  ).append(
+                    $("<span>").text("Please edit the push target.")
+                  );
+                  return;
+                }
+                if (!("friendly" in mist.data.capabilities.connectors[match])) { mist.data.capabilities.connectors[match].friendly = mist.data.capabilities.connectors[match].name; }
                 $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
-              push_parameters = $.extend({},mist.data.capabilities.connectors[match].push_parameters);
-              full_list_of_push_parameters = {};
-              function processPushParam(param,key) {
-                //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
-                if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { 
-                  delete push_parameters[key];
-                  return;
-                }
-                if (param.file_only && (val[0] != "/")) {
-                  delete push_parameters[key];
-                  return;
-                }
-                if (param.type == "group") {
-                  for (var i in param.options) {
-                    processPushParam(param.options[i],i);
+                push_parameters = $.extend({},mist.data.capabilities.connectors[match].push_parameters);
+                full_list_of_push_parameters = {};
+                function processPushParam(param,key) {
+                  //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
+                  if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { 
+                    delete push_parameters[key];
+                    return;
+                  }
+                  if (param.file_only && (val[0] != "/")) {
+                    delete push_parameters[key];
+                    return;
+                  }
+                  if (param.type == "group") {
+                    for (var i in param.options) {
+                      processPushParam(param.options[i],i);
+                    }
+                  }
+                  else {
+                    full_list_of_push_parameters[key] = param;
                   }
                 }
-                else {
-                  full_list_of_push_parameters[key] = param;
-                }
-              }
                 for (var i in mist.data.capabilities.connectors[match].push_parameters) {
                   processPushParam(mist.data.capabilities.connectors[match].push_parameters[i],i);
                 }
@@ -6083,13 +6089,14 @@ var UI = {
                   sort: "sort"
                 };
                 var capaform = mist.convertBuildOptions(capa,saveas.params);
+                if (capaform[1].is("h4")) capaform.splice(1,1);
 
                 //find left over url params that are not covered by this connector's capabilities
                 var custom_params = [];
                 for (var i in params) {
                   var p = params[i].split("=");
                   var name = p[0];
-                  if (!(name in push_parameters)) {
+                  if (!(name in full_list_of_push_parameters)) {
                     custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
                   }
                 }
@@ -6115,45 +6122,9 @@ var UI = {
                 $additional_params.append(UI.buildUI(capaform)); 
               }
             },
-            $autopush,
-            $additional_params
+            $additional_params,
+            $autopush
           ];
-          
-          
-          
-          /*
-          if (other == "auto") { //options only for automatic pushes
-            
-            build.push($("<h4>").text("Optional parameters"),{
-              type: "unix",
-              label: "Schedule time",
-              min: 0,
-              help: "The time where the push will become active. The default is to start immediately.",
-              pointer: {
-                main: saveas,
-                index: "scheduletime"
-              }
-            },{
-              type: "unix",
-              label: "Recording start time",
-              min: 0,
-              help: "Where in the media buffer the recording will start. Defaults to the most recently received keyframe.<br>Only makes sense for live streams.",
-              pointer: {
-                main: saveas,
-                index: "recstartunix"
-              }
-            },{
-              type: "unix",
-              label: "Complete time",
-              min: 0,
-              help: "The time where the push will stop. Defaults to never stop automatically.<br>Only makes sense for live streams.",
-              pointer: {
-                main: saveas,
-                index: "completetime"
-              }
-            });
-            
-          }*/
           
           build.push({
             type: 'buttons',
@@ -6192,7 +6163,7 @@ var UI = {
                     delete params[i];
                   }
                   else if (!(i in full_list_of_push_parameters)) {
-                    //remove any params that are not supported by this protocol (they will have been duplicatec to saveas.custom_url_parameters if the user wanted to keep them)
+                    //remove any params that are not supported by this protocol (they will have been duplicated to saveas.custom_url_parameters if the user wanted to keep them)
                     delete params[i];
                   }
                 }
@@ -6214,28 +6185,14 @@ var UI = {
                   params["recstartunix"] = saveas.scheduletime;
                 }
                 if (Object.keys(params).length || (saveas.custom_url_params && saveas.custom_url_params.length)) {
-                  var append = "?";
-                  var curparams = saveas.target.split("?");
-                  if (curparams.length > 1) {
-                    append = "&";
-                    curparams = curparams[curparams.length-1];
-                    curparams = curparams.split("&");
-                    for (var i in curparams) {
-                      var key = curparams[i].split("=")[0];
-                      if (key in params) { delete params[key]; }
-                    }
+                  var str = [];
+                  for (var i in params) { //the MistServer settings as entered in "Optional parameters"
+                    str.push(i+"="+params[i]);
                   }
-                  if (Object.keys(params).length || (saveas.custom_url_params && saveas.custom_url_params.length)) {
-                    var str = [];
-                    for (var i in params) {
-                      str.push(i+"="+params[i]);
-                    }
-                    for (var i in saveas.custom_url_params) {
-                      str.push(saveas.custom_url_params[i]);
-                    }
-                    append += str.join("&");
-                    saveas.target += append;
+                  for (var i in saveas.custom_url_params) { //the MistServer settings custom url parameters
+                    str.push(saveas.custom_url_params[i]);
                   }
+                  saveas.target += "?"+str.join("&");
                 }
                 delete saveas.params; //these are now part of the target url and we don't need them separately
                 delete saveas.custom_url_params;
@@ -10310,10 +10267,13 @@ var mist = {
             break;
           }
           case 'group': {
+            var $cont = $("<div>").addClass("itemgroup");
             var children = mist.convertBuildOptions({
               optional: ele.options
             },saveas);
             children = children.slice(1); //remove h4 "Optional parameters"
+            var $summary = $("<ul>").addClass("summary");
+            children.unshift($summary);
             if ("help" in ele) {
               children.unshift(
                 $("<span>").addClass("description").text(ele.help)
@@ -10321,10 +10281,51 @@ var mist = {
             }
             if ("name" in ele) {
               children.unshift(
-                $("<b>").text(ele.name)
+                $("<b>").text(ele.name).click(function(){
+                  $cont.toggleClass("expanded")
+                }).attr("title","Click to show / hide these options")
               );
             }
-            return $("<div>").addClass("itemsettings").append(UI.buildUI(children));
+            if (ele.expand || (!(ele.expand === false) && Object.keys(ele.options).length < 2)) {
+              //do not collapse fields on creation if expand: true is passed
+              //always collapse fields if expand: false is passed
+              //otherwise, collapse if group contains 2 fields or more
+              $cont.addClass("expanded"); 
+            }
+            return $cont.change(function(){
+              $summary.html("");
+              $(this).find(".isSetting, input[type=\"hidden\"].isSetting").each(function(){ 
+                var val = $(this).getval();
+                if (val == "") { return; }
+                var opts = $(this).data('opts');
+                if (val != opts['default']) {
+                  var label = opts["label"]+": ";
+                  switch (opts.type) {
+                    case "select": {
+                      val = opts.select.filter(function(v){ if (v[0] == val) return true; return false; })[0][1]; break;
+                    }
+                    case "unix": {
+                      val = UI.format.dateTime(val); break;
+                    }
+                    case "checkbox": {
+                      val = ""; 
+                      label = label.slice(0,-2);
+                      break;
+                    }
+                  }
+                  $summary.append(
+                    $("<li>").addClass("setting").append(
+                      $("<span>").addClass("label").text(label)
+                    ).append(
+                      $("<span>").text(val)
+                    ).append(
+                      $("<span>").addClass("unit").text(typeof opts.unit  == "string" ? opts["unit"] : "")
+                    )
+                  );
+                }
+              });
+            }).append(UI.buildUI(children)).trigger("change");
+
             
           }
           case 'bool': {

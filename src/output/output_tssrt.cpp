@@ -182,11 +182,14 @@ namespace Mist{
     seek(seekPos);
   }
 
-  static void addIntOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, size_t def = 0){
+  static void addIntOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, size_t def = 0,const std::string unit = ""){
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "int";
     pp[param]["default"] = (uint64_t)def;
+    if (unit != "") {
+      pp[param]["unit"] = unit;
+    }
   }
 
   static void addStrOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, const std::string & def = ""){
@@ -200,15 +203,15 @@ namespace Mist{
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "select";
-    pp[param]["select"][0u][0u] = 0;
-    pp[param]["select"][0u][1u] = "False";
-    pp[param]["select"][1u][0u] = 1;
-    pp[param]["select"][1u][1u] = "True";
+    pp[param]["select"][0u][0u] = "";
+    pp[param]["select"][0u][1u] = def?"Default (true)":"Default (false)";
+    pp[param]["select"][1u][0u] = 0;
+    pp[param]["select"][1u][1u] = "False";
+    pp[param]["select"][2u][0u] = 1;
+    pp[param]["select"][2u][1u] = "True";
     pp[param]["type"] = "select";
-    pp[param]["default"] = def?1:0;
 
   }
-
 
   void OutTSSRT::init(Util::Config *cfg){
     Output::init(cfg);
@@ -266,61 +269,104 @@ namespace Mist{
     config->addStandardPushCapabilities(capa);
     JSON::Value & pp = capa["push_parameters"];
 
-    pp["mode"]["name"] = "Mode";
-    pp["mode"]["help"] = "The connection mode. Can be listener, caller, or rendezvous. By default is listener if the host is missing from the URL, and is caller otherwise.";
-    pp["mode"]["type"] = "select";
-    pp["mode"]["select"][0u][0u] = "default";
-    pp["mode"]["select"][0u][1u] = "Default";
-    pp["mode"]["select"][1u][0u] = "listener";
-    pp["mode"]["select"][1u][1u] = "Listener";
-    pp["mode"]["select"][2u][0u] = "caller";
-    pp["mode"]["select"][2u][1u] = "Caller";
-    pp["mode"]["select"][3u][0u] = "rendezvous";
-    pp["mode"]["select"][3u][1u] = "Rendezvous";
-    pp["mode"]["type"] = "select";
+    pp["srtopts_main"]["name"] = "Commonly used SRT options";
+    pp["srtopts_main"]["help"] = "Control the SRT connection";
+    pp["srtopts_main"]["type"] = "group";
+    pp["srtopts_main"]["sort"] = "aaa";
+    pp["srtopts_main"]["expand"] = true;
 
-    pp["transtype"]["name"] = "Transmission type";
-    pp["transtype"]["help"] = "This should be set to live (the default) unless you know what you're doing.";
-    pp["transtype"]["type"] = "select";
-    pp["transtype"]["select"][0u][0u] = "";
-    pp["transtype"]["select"][0u][1u] = "Live";
-    pp["transtype"]["select"][1u][0u] = "file";
-    pp["transtype"]["select"][1u][1u] = "File";
-    pp["transtype"]["type"] = "select";
+    addIntOpt(pp["srtopts_main"]["options"], "latency", "Latency", "Socket latency, in milliseconds.", 120,"ms");
+    addStrOpt(pp["srtopts_main"]["options"], "streamid", "Stream ID", "Stream ID to transmit to the other side. MistServer uses this field for the stream name, but the field is entirely free-form and may contain anything.");
+    addStrOpt(pp["srtopts_main"]["options"], "passphrase", "Encryption passphrase", "Enables encryption with the given passphrase.");
+
+
+    pp["srtopts"]["name"] = "More SRT options";
+    pp["srtopts"]["help"] = "Control the SRT connection";
+    pp["srtopts"]["type"] = "group";
+    pp["srtopts"]["sort"] = "ab";
+
+    pp["srtopts"]["options"]["mode"]["name"] = "Mode";
+    pp["srtopts"]["options"]["mode"]["help"] = "The connection mode. Can be listener, caller, or rendezvous. By default is listener if the host is missing from the URL, and is caller otherwise.";
+    pp["srtopts"]["options"]["mode"]["type"] = "select";
+    pp["srtopts"]["options"]["mode"]["select"][0u][0u] = "";
+    pp["srtopts"]["options"]["mode"]["select"][0u][1u] = "Default (listener)";
+    pp["srtopts"]["options"]["mode"]["select"][1u][0u] = "listener";
+    pp["srtopts"]["options"]["mode"]["select"][1u][1u] = "Listener";
+    pp["srtopts"]["options"]["mode"]["select"][2u][0u] = "caller";
+    pp["srtopts"]["options"]["mode"]["select"][2u][1u] = "Caller";
+    pp["srtopts"]["options"]["mode"]["select"][3u][0u] = "rendezvous";
+    pp["srtopts"]["options"]["mode"]["select"][3u][1u] = "Rendezvous";
+
+    pp["srtopts"]["options"]["transtype"]["name"] = "Transmission type";
+    pp["srtopts"]["options"]["transtype"]["help"] = "This should be set to live (the default) unless you know what you're doing.";
+    pp["srtopts"]["options"]["transtype"]["select"][0u][0u] = "";
+    pp["srtopts"]["options"]["transtype"]["select"][0u][1u] = "Default (live)";
+    pp["srtopts"]["options"]["transtype"]["select"][1u][0u] = "live";
+    pp["srtopts"]["options"]["transtype"]["select"][1u][1u] = "Live";
+    pp["srtopts"]["options"]["transtype"]["select"][2u][0u] = "file";
+    pp["srtopts"]["options"]["transtype"]["select"][2u][1u] = "File";
+    pp["srtopts"]["options"]["transtype"]["type"] = "select";
+    
     
     //addStrOpt(pp, "adapter", "", "");
     //addIntOpt(pp, "timeout", "", "");
     //addIntOpt(pp, "port", "", "");
-    addBoolOpt(pp, "tsbpd", "Timestamp-based Packet Delivery mode", "In this mode the packet's time is assigned at the sending time (or allowed to be predefined), transmitted in the packet's header, and then restored on the receiver side so that the time intervals between consecutive packets are preserved when delivering to the application.", true);
-    addBoolOpt(pp, "linger", "Linger closed sockets", "Whether to keep closed sockets around for 180 seconds of linger time or not.", true);
-    addIntOpt(pp, "maxbw", "Maximum send bandwidth", "Maximum send bandwidth in bytes per second, -1 for infinite, 0 for relative to input bandwidth.", -1);
-    addIntOpt(pp, "pbkeylen", "Encryption key length", "May be 0 (auto), 16 (AES-128), 24 (AES-192) or 32 (AES-256).", 0);
-    addStrOpt(pp, "passphrase", "Encryption passphrase", "Enables encryption with the given passphrase.");
-    addIntOpt(pp, "mss", "Maximum Segment Size", "Maximum size for packets including all headers, in bytes. The default of 1500 is generally the maximum value you can use in most networks.", 1500);
-    addIntOpt(pp, "fc", "Flight Flag Size", "Maximum packets that may be 'in flight' without being acknowledged.", 25600);
-    addIntOpt(pp, "sndbuf", "Send Buffer Size", "Size of the send buffer, in bytes");
-    addIntOpt(pp, "rcvbuf", "Receive Buffer Size", "Size of the receive buffer, in bytes");
-    addIntOpt(pp, "ipttl", "TTL", "Time To Live for IPv4 connections or unicast hops for IPv6 connections. Defaults to system default.");
-    addIntOpt(pp, "iptos", "Type of Service", "TOS for IPv4 connections or Traffic Class for IPv6 connections. Defaults to system default.");
-    addIntOpt(pp, "inputbw", "Input bandwidth", "Estimated bandwidth of data to be sent. Default of 0 means automatic.");
-    addIntOpt(pp, "oheadbw", "Recovery Bandwidth Overhead", "Percentage of bandwidth to use for recovery.", 25);
-    addIntOpt(pp, "latency", "Latency", "Socket latency, in milliseconds.", 120);
+    
+    addBoolOpt(pp["srtopts"]["options"], "tsbpd", "Timestamp-based Packet Delivery mode", "In this mode the packet's time is assigned at the sending time (or allowed to be predefined), transmitted in the packet's header, and then restored on the receiver side so that the time intervals between consecutive packets are preserved when delivering to the application.", true);
+
+    addBoolOpt(pp["srtopts"]["options"], "linger", "Linger closed sockets", "Whether to keep closed sockets around for 180 seconds of linger time or not.", true);
+    addIntOpt(pp["srtopts"]["options"], "maxbw", "Maximum send bandwidth", "Maximum send bandwidth in bytes per second, -1 for infinite, 0 for relative to input bandwidth.", -1,"bytes/s");
+
+
+    pp["srtopts"]["options"]["pbkeylen"]["name"] = "Encryption key length";
+    pp["srtopts"]["options"]["pbkeylen"]["help"] = "The encryption key length. Default: auto.";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][0u][0u] = "";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][0u][1u] = "Default (auto)";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][1u][0u] = "0";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][1u][1u] = "Auto";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][2u][0u] = "16";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][2u][1u] = "AES-128";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][3u][0u] = "24";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][3u][1u] = "AES-192";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][4u][0u] = "32";
+    pp["srtopts"]["options"]["pbkeylen"]["select"][4u][1u] = "AES-256";
+    pp["srtopts"]["options"]["pbkeylen"]["default"] = "0"; 
+    pp["srtopts"]["options"]["pbkeylen"]["type"] = "select";
+
+
+
+    addIntOpt(pp["srtopts"]["options"], "mss", "Maximum Segment Size", "Maximum size for packets including all headers, in bytes. The default of 1500 is generally the maximum value you can use in most networks.", 1500,"bytes");
+    addIntOpt(pp["srtopts"]["options"], "fc", "Flight Flag Size", "Maximum packets that may be 'in flight' without being acknowledged.", 25600,"packets");
+    addIntOpt(pp["srtopts"]["options"], "sndbuf", "Send Buffer Size", "Size of the send buffer, in bytes",0,"bytes");
+    addIntOpt(pp["srtopts"]["options"], "rcvbuf", "Receive Buffer Size", "Size of the receive buffer, in bytes",0,"bytes");
+    addIntOpt(pp["srtopts"]["options"], "ipttl", "TTL", "Time To Live for IPv4 connections or unicast hops for IPv6 connections. Defaults to system default.",0,"hops");
+    addIntOpt(pp["srtopts"]["options"], "iptos", "Type of Service", "TOS for IPv4 connections or Traffic Class for IPv6 connections. Defaults to system default.");
+    addIntOpt(pp["srtopts"]["options"], "inputbw", "Input bandwidth", "Estimated bandwidth of data to be sent. Default of 0 means automatic.",0,"bytes/s");
+    addIntOpt(pp["srtopts"]["options"], "oheadbw", "Recovery Bandwidth Overhead", "Percentage of bandwidth to use for recovery.",25,"%");
     //addIntOpt(pp, "rcvlatency", "Receive Latency", "Latency in receive mode, in milliseconds", 120);
     //addIntOpt(pp, "peerlatency", "", "");
-    addBoolOpt(pp, "tlpktdrop", "Too-late Packet Drop", "Skips packets that cannot (sending) or have not (receiving) been delivered in time", true);
-    addIntOpt(pp, "snddropdelay", "Send Drop Delay", "Extra delay before Too-late packet drop on sender side is triggered, in milliseconds.");
-    addBoolOpt(pp, "nakreport", "Repeat loss reports", "When enabled, repeats loss reports every time the retransmission timeout has expired.", true);
-    addIntOpt(pp, "conntimeo", "Connect timeout", "Milliseconds to wait before timing out a connection attempt for caller and rendezvous modes.", 3000);
-    addIntOpt(pp, "lossmaxttl", "Reorder Tolerance", "Maximum amount of packets that may be out of order, or 0 to disable this mechanism.");
-    addIntOpt(pp, "minversion", "Minimum SRT version", "Minimum SRT version to require the other side of the connection to support.");
-    addStrOpt(pp, "streamid", "Stream ID", "Stream ID to transmit to the other side. MistServer uses this field for the stream name, but the field is entirely free-form and may contain anything.");
-    addStrOpt(pp, "congestion", "Congestion controller", "May be set to 'live' or 'file'", "live");
-    addBoolOpt(pp, "messageapi", "Message API", "When true, uses the default Message API. When false, uses the Stream API", true);
+    addBoolOpt(pp["srtopts"]["options"], "tlpktdrop", "Too-late Packet Drop", "Skips packets that cannot (sending) or have not (receiving) been delivered in time", true);
+    addIntOpt(pp["srtopts"]["options"], "snddropdelay", "Send Drop Delay", "Extra delay before Too-late packet drop on sender side is triggered, in milliseconds.",0,"ms");
+    addBoolOpt(pp["srtopts"]["options"], "nakreport", "Repeat loss reports", "When enabled, repeats loss reports every time the retransmission timeout has expired.", true);
+    addIntOpt(pp["srtopts"]["options"], "conntimeo", "Connect timeout", "Milliseconds to wait before timing out a connection attempt for caller and rendezvous modes.", 3000,"ms");
+    addIntOpt(pp["srtopts"]["options"], "lossmaxttl", "Reorder Tolerance", "Maximum amount of packets that may be out of order, or 0 to disable this mechanism.",0,"packets");
+    addIntOpt(pp["srtopts"]["options"], "minversion", "Minimum SRT version", "Minimum SRT version to require the other side of the connection to support.");
+
+    addStrOpt(pp["srtopts"]["options"], "congestion", "Congestion controller", "May be set to 'live' or 'file'", "live");
+    pp["srtopts"]["options"]["congestion"]["select"][0u][0u] = "";
+    pp["srtopts"]["options"]["congestion"]["select"][0u][1u] = "Default (live)";
+    pp["srtopts"]["options"]["congestion"]["select"][1u][0u] = "live";
+    pp["srtopts"]["options"]["congestion"]["select"][1u][1u] = "Live";
+    pp["srtopts"]["options"]["congestion"]["select"][2u][0u] = "file";
+    pp["srtopts"]["options"]["congestion"]["select"][2u][1u] = "File";
+    pp["srtopts"]["options"]["congestion"]["type"] = "select";
+
+    addBoolOpt(pp["srtopts"]["options"], "messageapi", "Message API", "When true, uses the default Message API. When false, uses the Stream API", true);
     //addIntOpt(pp, "kmrefreshrate", "", "");
     //addIntOpt(pp, "kmreannounce", "", "");
-    addBoolOpt(pp, "enforcedencryption", "Enforced Encryption", "If enabled, enforces that both sides either set no passphrase, or set the same passphrase. When disabled, falls back to no passphrase if the passphrases do not match.", true);
-    addIntOpt(pp, "peeridletimeo", "Peer Idle Timeout", "Time to wait, in milliseconds, before the connection is considered broken if the peer does not respond.", 5000);
-    addStrOpt(pp, "packetfilter", "Packet Filter", "Sets the SRT packet filter string, see SRT library documentation for details.");
+    addBoolOpt(pp["srtopts"]["options"], "enforcedencryption", "Enforced Encryption", "If enabled, enforces that both sides either set no passphrase, or set the same passphrase. When disabled, falls back to no passphrase if the passphrases do not match.", true);
+    addIntOpt(pp["srtopts"]["options"], "peeridletimeo", "Peer Idle Timeout", "Time to wait, in milliseconds, before the connection is considered broken if the peer does not respond.", 5000,"ms");
+    addStrOpt(pp["srtopts"]["options"], "packetfilter", "Packet Filter", "Sets the SRT packet filter string, see SRT library documentation for details.");
 
     JSON::Value opt;
     opt["arg"] = "string";

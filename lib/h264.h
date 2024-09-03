@@ -62,16 +62,27 @@ namespace h264{
     void analyzePPS();
   };
 
-  class sequenceParameterSet{
-  public:
-    sequenceParameterSet(const char *_data = NULL, size_t _dataLen = 0);
-    void fromDTSCInit(const std::string &dtscInit);
-    SPSMeta getCharacteristics() const;
-    bool validate() const;
+  class sequenceParameterSet {
+    public:
+      sequenceParameterSet(const char *ptr, size_t len);
+      operator bool() const { return valid; }
+      SPSMeta chars;
+      bool valid;
+  };
 
-  private:
-    const char *data;
-    size_t dataLen;
+  class initData {
+    public:
+      initData(const std::string & data) : initData(data.data(), data.size()) {}
+      initData(const char *ptr, size_t len);
+      operator bool() const { return valid; }
+      uint8_t profile;
+      uint8_t constraints;
+      uint8_t level;
+      uint8_t NALULen;
+      uint32_t width;
+      uint32_t height;
+      double fps;
+      bool valid;
   };
 
   bool isKeyframe(const char *data, uint32_t len);

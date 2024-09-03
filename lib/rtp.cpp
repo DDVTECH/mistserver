@@ -960,8 +960,7 @@ namespace RTP{
       spsData.assign(avccbox.getSPS(), avccbox.getSPSLen());
       ppsData[curPicParameterSetId].assign(avccbox.getPPS(), avccbox.getPPSLen());
       h264::sequenceParameterSet sps(spsData.data(), spsData.size());
-      h264::SPSMeta hMeta = sps.getCharacteristics();
-      fps = hMeta.fps;
+      if (sps) { fps = sps.chars.fps; }
     }
   }
 
@@ -1400,16 +1399,15 @@ namespace RTP{
     case 6: // SEI
       return;
     case 7: // SPS
-      if (spsData.size() != len - 4 || memcmp(buffer + 4, spsData.data(), len - 4) != 0){
+      if (spsData.size() != len - 4 || memcmp(buffer + 4, spsData.data(), len - 4) != 0) {
         h264::sequenceParameterSet sps(buffer + 4, len - 4);
-        if (!sps.validate()){
-          WARN_MSG("Ignoring invalid SPS packet! (%" PRIu32 "b)", len-4);
+        if (!sps) {
+          WARN_MSG("Ignoring invalid SPS packet! (%" PRIu32 "b)", len - 4);
           return;
         }
-        HIGH_MSG("Updated SPS from RTP data: %" PRIu32 "b", len-4);
+        HIGH_MSG("Updated SPS from RTP data: %" PRIu32 "b", len - 4);
         spsData.assign(buffer + 4, len - 4);
-        h264::SPSMeta hMeta = sps.getCharacteristics();
-        fps = hMeta.fps;
+        fps = sps.chars.fps;
       }
       return;
     case 8: // PPS

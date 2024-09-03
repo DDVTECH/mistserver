@@ -1089,7 +1089,6 @@ namespace TS{
         // First generate needed data
         std::string tmpBuffer = spsInfo[it->first];
         h264::sequenceParameterSet sps(tmpBuffer.data(), tmpBuffer.size());
-        h264::SPSMeta spsChar = sps.getCharacteristics();
 
         MP4::AVCC avccBox;
         avccBox.setVersion(1);
@@ -1105,9 +1104,11 @@ namespace TS{
         addNewTrack = true;
         type = "video";
         codec = "H264";
-        width = spsChar.width;
-        height = spsChar.height;
-        fpks = spsChar.fps * 1000;
+        if (sps) {
+          width = sps.chars.width;
+          height = sps.chars.height;
+          fpks = sps.chars.fps * 1000;
+        }
         init.assign(avccBox.payload(), avccBox.payloadSize());
       }break;
       case H265:{

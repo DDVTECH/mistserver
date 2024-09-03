@@ -288,7 +288,7 @@ namespace Mist{
         }
       }
       if (idx != INVALID_TRACK_ID){
-        if (tag.DTSCVideoInit(meta, idx)){
+        if (tag.DTSCVideoInit(meta.getCodec(idx), meta.getInit(idx))) {
           tag.tagTime(mstime);
           H.Chunkify(tag.data, tag.len, myConn);
         }

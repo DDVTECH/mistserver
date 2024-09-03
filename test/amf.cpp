@@ -1,6 +1,8 @@
 #include <mist/amf.h>
 #include <mist/json.h>
 
+#include <iostream>
+
 // Helper functions for TAP
 size_t testCount = 0;
 void testRes(bool success, std::string desc, std::function<void()> onFail) {

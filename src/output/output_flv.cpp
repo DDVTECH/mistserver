@@ -63,7 +63,7 @@ namespace Mist{
             INFO_MSG("Track selection changed - resending headers and continuing");
             for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin();
                  it != userSelect.end(); it++){
-              if (M.getType(it->first) == "video" && tag.DTSCVideoInit(meta, it->first)){
+              if (M.getType(it->first) == "video" && tag.DTSCVideoInit(meta.getCodec(it->first), meta.getInit(it->first))) {
                 tag.tagTime(thisTime);
                 myConn.SendNow(tag.data, tag.len);
               }
@@ -119,7 +119,7 @@ namespace Mist{
     tag.tagTime(startTime());
     myConn.SendNow(tag.data, tag.len);
     for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (M.getType(*it) == "video" && tag.DTSCVideoInit(meta, *it)){
+      if (M.getType(*it) == "video" && tag.DTSCVideoInit(meta.getCodec(*it), meta.getInit(*it))) {
         tag.tagTime(startTime());
         myConn.SendNow(tag.data, tag.len);
       }

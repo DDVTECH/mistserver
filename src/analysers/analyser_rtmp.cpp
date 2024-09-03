@@ -2,7 +2,11 @@
 /// Debugging tool for RTMP data.
 
 #include "analyser_rtmp.h"
+
 #include <mist/bitfields.h>
+#include <mist/util.h>
+
+#include <sstream>
 
 void AnalyserRTMP::init(Util::Config &conf){
   Analyser::init(conf);
@@ -131,8 +135,13 @@ bool AnalyserRTMP::parsePacket(){
     if (detail >= 4 || reconstruct.good() || validate){
       F.ChunkLoader(next);
       mediaTime = F.tagTime();
-      DETAIL_VHI("[%" PRIu64 "+%" PRId64 "] %s", F.tagTime(), F.offset(), F.tagType().c_str());
+      DETAIL_VHI("[%" PRIu64 "+%" PRId32 "] %s", F.tagTime(), F.offset(), F.tagType().c_str());
       if (reconstruct.good()){reconstruct.write(F.data, F.len);}
+      if (detail >= 10) {
+        std::stringstream hDmp;
+        Util::hexDump(hDmp, F.getData(), F.getDataLen(), 2);
+        DETAIL_XTR("Hex dump of packet data: %s", hDmp.str().c_str());
+      }
     }
     break;
   case 15: DETAIL_MED("Received AFM3 data message"); break;

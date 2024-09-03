@@ -336,13 +336,8 @@ namespace TS{
 
     if (detailLevel & 64){
       output << std::string(indent + 2, ' ') << "Raw data bytes:";
-
-      for (unsigned int i = 0; i < size; ++i){
-        if (!(i % 32)){output << std::endl << std::string(indent + 4, ' ');}
-        output << std::hex << std::setw(2) << std::setfill('0')
-               << (unsigned int)(strBuf + 188 - size)[i] << " ";
-        if ((i % 4) == 3){output << " ";}
-      }
+      unsigned int size = getDataSize();
+      Util::hexDump(output, strBuf + 188 - size, size, indent + 4);
       output << std::endl;
     }
 

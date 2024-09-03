@@ -64,6 +64,12 @@ namespace Mist{
     // Gets the next ADTS frame in AAC file. Loops if EOF reached
     void calcNextFrameInfo();
 
+    // Enhanced RTMP related
+    std::set<uint32_t> enhancedCodecs;
+    uint64_t enhancedCaps;
+    std::map<size_t, uint8_t> vidMultiMap;
+    std::map<size_t, uint8_t> audMultiMap;
+
 #ifdef SSL
     // TLS-related
     mbedtls_entropy_context entropy;

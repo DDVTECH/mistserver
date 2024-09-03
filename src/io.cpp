@@ -527,10 +527,12 @@ namespace Mist{
         }
         uint8_t nalType = (packData[offset+4] & 0x1F);
         if (nalType == 7){//SPS, update width/height/FPS
-          h264::SPSMeta hMeta =  h264::sequenceParameterSet(packData+offset+4, nalLen).getCharacteristics();
-          aMeta.setWidth(packTrack, hMeta.width);
-          aMeta.setHeight(packTrack, hMeta.height);
-          aMeta.setFpks(packTrack, hMeta.fps*1000);
+          h264::sequenceParameterSet sps = h264::sequenceParameterSet(packData + offset + 4, nalLen);
+          if (sps) {
+            aMeta.setWidth(packTrack, sps.chars.width);
+            aMeta.setHeight(packTrack, sps.chars.height);
+            aMeta.setFpks(packTrack, sps.chars.fps * 1000);
+          }
         }
         offset += nalLen+4;
       }

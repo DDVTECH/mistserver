@@ -328,7 +328,6 @@ namespace Mist{
           if (!spsInfo.size() || !ppsInfo.size()){return;}
           // First generate needed data
           h264::sequenceParameterSet sps(spsInfo, spsInfo.size());
-          h264::SPSMeta spsChar = sps.getCharacteristics();
 
           MP4::AVCC avccBox;
           avccBox.setVersion(1);
@@ -347,8 +346,8 @@ namespace Mist{
           meta.setCodec(trkIdx, "H264");
           meta.setID(trkIdx, 1);
           if (avccBox.payloadSize()){meta.setInit(trkIdx, avccBox.payload(), avccBox.payloadSize());}
-          meta.setWidth(trkIdx, spsChar.width);
-          meta.setHeight(trkIdx,  spsChar.height);
+          meta.setWidth(trkIdx, sps.chars.width);
+          meta.setHeight(trkIdx, sps.chars.height);
           meta.setFpks(trkIdx, inFpks);
           if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
             userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);

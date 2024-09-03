@@ -433,28 +433,6 @@ namespace MP4{
     return payload() + offset + 2;
   }
 
-  std::string AVCC::hexSPS(size_t index){
-    if (index >= getPPSCount()){return "INVALID INDEX";}
-    std::stringstream res;
-    char *data = getSPS(index);
-    uint32_t len = getSPSLen(index);
-    for (int i = 0; i < len; i++){
-      res << std::hex << std::setw(2) << std::setfill('0') << (int)data[i];
-    }
-    return res.str();
-  }
-
-  std::string AVCC::hexPPS(size_t index){
-    if (index >= getPPSCount()){return "INVALID INDEX";}
-    std::stringstream res;
-    char *data = getPPS(index);
-    uint32_t len = getPPSLen(index);
-    for (int i = 0; i < len; i++){
-      res << std::hex << std::setw(2) << std::setfill('0') << (int)data[i];
-    }
-    return res.str();
-  }
-
   size_t AVCC::PPSCountOffset(){
     size_t offset = 6;
     size_t spsCount = getSPSCount();
@@ -542,12 +520,16 @@ namespace MP4{
     size_t spsCount = getSPSCount();
     r << std::string(indent + 1, ' ') << "SPS Count: " << spsCount << std::endl;
     for (size_t i = 0; i < spsCount; i++){
-      r << std::string(indent + 2, ' ') << getSPSLen(i) << " bytes of SPS data: " << hexSPS(i) << std::endl;
+      r << std::string(indent + 2, ' ') << getSPSLen(i) << " bytes of SPS data: ";
+      Util::hexDump(r, getSPS(i), getSPSLen(i), indent + 2);
+      r << std::endl;
     }
     size_t ppsCount = getPPSCount();
     r << std::string(indent + 1, ' ') << "PPS Count: " << ppsCount << std::endl;
     for (size_t i = 0; i < ppsCount; i++){
-      r << std::string(indent + 2, ' ') << getPPSLen(i) << " bytes of PPS data: " << hexPPS(i) << std::endl;
+      r << std::string(indent + 2, ' ') << getPPSLen(i) << " bytes of PPS data: ";
+      Util::hexDump(r, getPPS(i), getPPSLen(i), indent + 2);
+      r << std::endl;
     }
     return r.str();
   }

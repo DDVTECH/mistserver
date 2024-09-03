@@ -1,12 +1,12 @@
-#include "adts.h"
+#include "sdp.h"
+
 #include "defines.h"
 #include "encode.h"
 #include "h264.h"
 #include "h265.h"
 #include "http_parser.h"
-#include "sdp.h"
 #include "url.h"
-#include "util.h"
+
 #include <sys/socket.h>
 
 // Dynamic types we hardcode:
@@ -788,7 +788,6 @@ namespace SDP{
   void State::updateH264Init(uint64_t tid){
     SDP::Track &RTrk = tracks[tid];
     h264::sequenceParameterSet sps(RTrk.spsData.data(), RTrk.spsData.size());
-    h264::SPSMeta hMeta = sps.getCharacteristics();
     MP4::AVCC avccBox;
     avccBox.setVersion(1);
     avccBox.setProfile(RTrk.spsData[1]);
@@ -798,10 +797,12 @@ namespace SDP{
     avccBox.setSPS(RTrk.spsData);
     avccBox.setPPSCount(1);
     avccBox.setPPS(RTrk.ppsData);
-    RTrk.fpsMeta = hMeta.fps;
-    myMeta->setWidth(tid, hMeta.width);
-    myMeta->setHeight(tid, hMeta.height);
-    myMeta->setFpks(tid, hMeta.fps * 1000);
+    if (sps) {
+      RTrk.fpsMeta = sps.chars.fps;
+      myMeta->setWidth(tid, sps.chars.width);
+      myMeta->setHeight(tid, sps.chars.height);
+      myMeta->setFpks(tid, sps.chars.fps * 1000);
+    }
     myMeta->setInit(tid, avccBox.payload(), avccBox.payloadSize());
     tConv[tid].setProperties(*myMeta, tid);
   }

@@ -1,22 +1,22 @@
 /// \file flv_tag.cpp
 /// Holds all code for the FLV namespace.
 
-#include "adts.h"
-#include "defines.h"
 #include "flv_tag.h"
+
+#include "adts.h"
+#include "bitfields.h"
+#include "defines.h"
 #include "mp4_generic.h"
 #include "rtmpchunks.h"
 #include "timing.h"
 #include "util.h"
-#include "adts.h"
+
 #include <fcntl.h> //for Tag::FileLoader
 #include <sstream>
-#include <stdio.h>  //for Tag::FileLoader
+#include <stdio.h> //for Tag::FileLoader
 #include <stdlib.h> //malloc
 #include <string.h> //memcpy
 #include <unistd.h> //for Tag::FileLoader
-
-#include "h264.h" //Needed for init data parsing in case of invalid values from FLV init
 
 /// Holds the last FLV header parsed.
 /// Defaults to a audio+video header on FLV version 0x01 if no header received yet.
@@ -93,48 +93,134 @@ bool FLV::seekToTagType(FILE *f, uint8_t t){
 /// Will always return false if the tag type is not 0x08 or 0x09.
 /// Returns true for H263, AVC (H264), AAC.
 /// \todo Check if MP3 does or does not require init data...
-bool FLV::Tag::needsInitData(){
-  switch (data[0]){
-  case 0x09:
-    switch (data[11] & 0x0F){
-    case 2: return true; break;   // H263 requires init data
-    case 7: return true; break;   // AVC requires init data
-    default: return false; break; // other formats do not
-    }
-    break;
-  case 0x08:
-    switch (data[11] & 0xF0){
-    case 0x20: return false; break; // MP3 does not...? Unsure.
-    case 0xA0: return true; break;  // AAC requires init data
-    case 0xE0: return false; break; // MP38kHz does not...?
-    default: return false; break;   // other formats do not
-    }
-    break;
+bool FLV::Tag::needsInitData() {
+  switch (data[0]) {
+    case 0x09:
+      if (data[11] & 0x80) {
+        // ExVideoHeader
+        size_t o = skipModEx(11);
+        if ((data[o] & 0x0F) == 6) {
+          ++o;
+          // Multitrack 2 = many tracks, many codecs. No 4CC.
+          if ((data[o] & 0xF0) == 0x20) {
+            /// \TODO Implement many tracks, many codecs
+            return false;
+          }
+          // Other cases have a 4CC.
+        }
+        if ((data[o] & 0x0F) == 4) { return false; }
+        return true; // All types we know of need init data
+      }
+      switch (data[11] & 0x0F) {
+        case 2: return true; break; // H263 requires init data
+        case 7: return true; break; // AVC requires init data
+        default: return false; break; // other formats do not
+      }
+      break;
+    case 0x08:
+      switch (data[11] & 0xF0) {
+        case 0x20: return false; break; // MP3 does not...? Unsure.
+        case 0xA0: return true; break; // AAC requires init data
+        case 0xE0: return false; break; // MP38kHz does not...?
+        case 0x90: {
+          // ExAudioHeader
+          size_t o = skipModEx(11);
+          // Multitrack
+          if ((data[o] & 0x0F) == 5) {
+            ++o;
+            // Multitrack 2 = many tracks, many codecs. No 4CC.
+            if ((data[o] & 0xF0) == 0x20) {
+              /// \TODO Implement many tracks, many codecs
+              return false;
+            }
+            // Other cases have a 4CC.
+          }
+          // Not multitrack, has a 4CC value
+          std::string fourcc(data + o + 1, 4);
+          if (fourcc == "Opus") { return true; }
+          if (fourcc == "fLaC") { return true; }
+          if (fourcc == "mp4a") { return true; }
+          return false; // Others, no init data
+        }
+        default: return false; break; // other formats do not
+      }
+      break;
   }
   return false; // only audio/video can require init data
 }
 
 /// True if current tag is init data for this media type.
-bool FLV::Tag::isInitData(){
-  switch (data[0]){
-  case 0x09:
-    switch (data[11] & 0xF0){
-    case 0x50: return true; break;
-    }
-    if ((data[11] & 0x0F) == 7){
-      switch (data[12]){
-      case 0: return true; break;
+bool FLV::Tag::isInitData() {
+  switch (data[0]) {
+    case 0x09:
+      // ExVideoHeader; lower nibble is videoPacketType, where 0 means SequenceStart and 5 means MPEG2TSSequenceStart
+      // Any other values are not init data.
+      if (data[11] & 0x80) {
+        size_t o = skipModEx(11);
+        if ((data[o] & 0x0F) == 6) { // Multitrack
+          ++o; // Shift by one byte to get actual frame type
+        }
+        return (data[o] & 0x0F) == 0 || (data[o] & 0x0F) == 5;
       }
-    }
-    break;
-  case 0x08:
-    if ((data[12] == 0) && ((data[11] & 0xF0) == 0xA0)){return true;}
-    break;
+      // Command frames are init data..? I guess?
+      if ((data[11] & 0xF0) == 0x50) { return true; }
+      // H264; AVCPacketType 0 is AVC sequence header
+      if ((data[11] & 0x0F) == 7) { return data[12] == 0; }
+      break;
+    case 0x08:
+      // ExAudioHeader handling. 0 is SequenceStart, others are not init
+      if ((data[11] & 0xF0) == 0x90) {
+        size_t o = skipModEx(11);
+        if ((data[o] & 0x0F) == 5) { // Multitrack
+          ++o; // Shift by one byte to get actual frame type
+        }
+        return (data[o] & 0x0F) == 0;
+      }
+      // Old-school AAC init
+      if ((data[11] & 0xF0) == 0xA0 && !data[12]) { return true; }
+      break;
   }
   return false;
 }
 
-const char *FLV::Tag::getVideoCodec(){
+/// Skips ModEx packets at the given offset and returns the offset after the ModEx packets.
+size_t FLV::Tag::skipModEx(size_t o) const {
+  size_t pktTyp = data[o] & 0xF;
+  // Parse ModEx packets
+  while (pktTyp == 7) {
+    size_t dLen = data[++o] + 1;
+    if (dLen == 256) {
+      dLen = data[++o] * 256;
+      dLen += data[++o] + 1;
+    }
+    o += dLen + 1;
+    pktTyp = data[o] & 0xF;
+  }
+  return o;
+}
+
+const char *FLV::Tag::getVideoCodec() const {
+  if ((data[11] & 0x80) == 0x80) {
+    size_t o = skipModEx(11);
+    if ((data[o] & 0x0F) == 6) {
+      ++o;
+      // Multitrack 2 = many tracks, many codecs. No 4CC.
+      if ((data[o] & 0xF0) == 0x20) {
+        /// \TODO Implement many tracks, many codecs
+        return "Multitrack";
+      }
+      // Other cases have a 4CC.
+    }
+    if ((data[o] & 0x0F) == 4) { return "Metadata"; }
+    // Not metadata and not multitrack, has a 4CC value
+    std::string fourcc(data + o + 1, 4);
+    if (fourcc == "av01") { return "AV1"; }
+    if (fourcc == "avc1") { return "H264"; }
+    if (fourcc == "hvc1") { return "HEVC"; }
+    if (fourcc == "vp08") { return "VP8"; }
+    if (fourcc == "vp09") { return "VP9"; }
+    return "unknown";
+  }
   switch (data[11] & 0x0F){
   case 1: return "JPEG";
   case 2: return "H263";
@@ -147,28 +233,73 @@ const char *FLV::Tag::getVideoCodec(){
   }
 }
 
-const char *FLV::Tag::getAudioCodec(){
-  switch (data[11] & 0xF0){
-  case 0x00:
-    if (data[11] & 0x02){
-      return "PCMPE"; // unknown endianness
-    }else{
-      return "PCM"; // 8 bit is always regular PCM
+const char *FLV::Tag::getAudioCodec() const {
+  switch (data[11] & 0xF0) {
+    case 0x00:
+      if (data[11] & 0x02) {
+        return "PCMPE"; // unknown endianness
+      } else {
+        return "PCM"; // 8 bit is always regular PCM
+      }
+    case 0x10: return "ADPCM";
+    case 0x20: return "MP3";
+    case 0x30: return "PCM";
+    case 0x40:
+    case 0x50:
+    case 0x60: return "Nellymoser";
+    case 0x70: return "ALAW";
+    case 0x80: return "ULAW";
+    case 0x90: {
+      size_t o = skipModEx(11);
+      // Multitrack
+      if ((data[o] & 0x0F) == 5) {
+        ++o;
+        // Multitrack 2 = many tracks, many codecs. No 4CC.
+        if ((data[o] & 0xF0) == 0x20) {
+          /// \TODO Implement many tracks, many codecs
+          return "Multitrack";
+        }
+        // Other cases have a 4CC.
+      }
+      // Not multitrack, has a 4CC value
+      std::string fourcc(data + o + 1, 4);
+      if (fourcc == "ac-3") { return "AC3"; }
+      if (fourcc == "ec-3") { return "EAC-3"; }
+      if (fourcc == "Opus") { return "opus"; }
+      if (fourcc == ".mp3") { return "MP3"; }
+      if (fourcc == "fLaC") { return "FLAC"; }
+      if (fourcc == "mp4a") { return "AAC"; }
+      return "unknown";
     }
-  case 0x10: return "ADPCM";
-  case 0x20: return "MP3";
-  case 0x30: return "PCM";
-  case 0x40:
-  case 0x50:
-  case 0x60: return "Nellymoser";
-  case 0x70: return "ALAW";
-  case 0x80: return "ULAW";
-  case 0x90: return "reserved";
-  case 0xA0: return "AAC";
-  case 0xB0: return "Speex";
-  case 0xE0: return "MP3";
-  case 0xF0: return "DeviceSpecific";
-  default: return "unknown";
+    case 0xA0: return "AAC";
+    case 0xB0: return "Speex";
+    case 0xE0: return "MP3";
+    case 0xF0: return "DeviceSpecific";
+    default: return "unknown";
+  }
+}
+
+static const char *getVidPktType(uint8_t pktTyp) {
+  switch (pktTyp) {
+    case 0x0: return "SequenceStart";
+    case 0x1: return "CodedFrames";
+    case 0x2: return "SequenceEnd";
+    case 0x3: return "CodedFramesX";
+    case 0x4: return "Metadata";
+    case 0x5: return "MPEG2TSSequenceStart";
+    case 0x6: return "Multitrack";
+    default: return "Unknown";
+  }
+}
+
+static const char *getAudPktType(uint8_t pktTyp) {
+  switch (pktTyp) {
+    case 0: return "initdata";
+    case 1: return ""; // "normal" data
+    case 2: return "sequence end";
+    case 4: return "multichannel config";
+    case 5: return "multitrack";
+    default: return "UNKNOWN PACKET TYPE";
   }
 }
 
@@ -182,39 +313,112 @@ std::string FLV::Tag::tagType(){
   switch (data[0]){
   case 0x09:
     R << getVideoCodec() << " video ";
-    switch (data[11] & 0xF0){
-    case 0x10: R << "keyframe"; break;
-    case 0x20: R << "iframe"; break;
-    case 0x30: R << "disposableiframe"; break;
-    case 0x40: R << "generatedkeyframe"; break;
-    case 0x50: R << "videoinfo"; break;
+    if (isInitData()) { R << "init "; }
+    switch (data[11] & 0x70) {
+      case 0x10: R << "keyframe"; break;
+      case 0x20: R << "iframe"; break;
+      case 0x30: R << "disposableiframe"; break;
+      case 0x40: R << "generatedkeyframe"; break;
+      case 0x50: R << "videoinfo"; break;
     }
-    if ((data[11] & 0x0F) == 7){
-      switch (data[12]){
-      case 0: R << " header"; break;
-      case 1: R << " NALU"; break;
-      case 2: R << " endofsequence"; break;
+    if (data[11] & 0x80) {
+      size_t o = 11;
+      size_t pktTyp = data[o] & 0xF;
+      // Parse ModEx packets
+      while (pktTyp == 7) {
+        size_t dLen = data[++o] + 1;
+        if (dLen == 256) {
+          dLen = data[++o] * 256;
+          dLen += data[++o] + 1;
+        }
+        o += dLen + 1;
+        R << " [ModEx " << (size_t)((data[o] & 0xF0) >> 4) << ", " << dLen << "b]";
+        pktTyp = data[o] & 0xF;
+      }
+      R << " " << getVidPktType(pktTyp);
+      if (pktTyp == 0x6) { // Multitrack
+        switch (data[o + 1] & 0xF0) {
+          case 0x00:
+            R << " OneTrack " << getVidPktType(data[o + 1] & 0x0F);
+            ++o;
+            R << " TrackID=" << (size_t)data[o + 5];
+            break;
+          case 0x10:
+            R << " ManyTracks " << getVidPktType(data[o + 1] & 0x0F);
+            ++o;
+            R << " TrackID=" << (size_t)data[o + 5];
+            break;
+          case 0x20: R << " ManyTracksManyCodecs " << getVidPktType(data[o + 1] & 0x0F); break;
+          default: R << " UnknownMultiTrackType(" << ((data[o + 1] & 0xF0) >> 4) << ")";
+        }
+      }
+      // Not metadata and not (a bad type of) multitrack
+      if ((data[o] & 0x0F) != 4 && (data[o] & 0x0F) != 6) { R << " 4CC=" << std::string(data + o + 1, 4); }
+    } else {
+      if ((data[11] & 0x0F) == 7) {
+        switch (data[12]) {
+          case 0: R << " header"; break;
+          case 1: R << " NALU"; break;
+          case 2: R << " endofsequence"; break;
+        }
       }
     }
     break;
   case 0x08:
     R << getAudioCodec();
-    switch (data[11] & 0x0C){
-    case 0x0: R << " 5.5kHz"; break;
-    case 0x4: R << " 11kHz"; break;
-    case 0x8: R << " 22kHz"; break;
-    case 0xC: R << " 44kHz"; break;
-    }
-    switch (data[11] & 0x02){
-    case 0: R << " 8bit"; break;
-    case 2: R << " 16bit"; break;
-    }
-    switch (data[11] & 0x01){
-    case 0: R << " mono"; break;
-    case 1: R << " stereo"; break;
+    if ((data[11] & 0xF0) != 0x90) {
+      switch (data[11] & 0x0C) {
+        case 0x0: R << " 5.5kHz"; break;
+        case 0x4: R << " 11kHz"; break;
+        case 0x8: R << " 22kHz"; break;
+        case 0xC: R << " 44kHz"; break;
+      }
+      switch (data[11] & 0x02) {
+        case 0: R << " 8bit"; break;
+        case 2: R << " 16bit"; break;
+      }
+      switch (data[11] & 0x01) {
+        case 0: R << " mono"; break;
+        case 1: R << " stereo"; break;
+      }
     }
     R << " audio";
-    if ((data[12] == 0) && ((data[11] & 0xF0) == 0xA0)){R << " initdata";}
+    if ((data[11] & 0xF0) == 0x90) {
+      size_t o = 11;
+      size_t pktTyp = data[o] & 0xF;
+      // Parse ModEx packets
+      while (pktTyp == 7) {
+        size_t dLen = data[++o] + 1;
+        if (dLen == 256) {
+          dLen = data[++o] * 256;
+          dLen += data[++o] + 1;
+        }
+        o += dLen + 1;
+        R << " [ModEx " << (size_t)((data[o] & 0xF0) >> 4) << ", " << dLen << "b]";
+        pktTyp = data[o] & 0xF;
+      }
+      R << " " << getAudPktType(pktTyp);
+      if (pktTyp == 0x5) { // Multitrack
+        switch (data[o + 1] & 0xF0) {
+          case 0x00:
+            R << " OneTrack " << getAudPktType(data[o + 1] & 0x0F);
+            ++o;
+            R << " TrackID=" << (size_t)data[o + 5];
+            break;
+          case 0x10:
+            R << " ManyTracks " << getAudPktType(data[o + 1] & 0x0F);
+            ++o;
+            R << " TrackID=" << (size_t)data[o + 5];
+            break;
+          case 0x20: R << " ManyTracksManyCodecs " << getAudPktType(data[o + 1] & 0x0F); break;
+          default: R << " UnknownMultiTrackType(" << ((data[o + 1] & 0xF0) >> 4) << ")";
+        }
+      }
+      // Not metadata and not (a bad type of) multitrack
+      if ((data[o] & 0x0F) != 5) { R << " 4CC=" << std::string(data + o + 1, 4); }
+    } else {
+      if ((data[12] == 0) && ((data[11] & 0xF0) == 0xA0)) { R << " initdata"; }
+    }
     break;
   case 0x12:{
     R << "(meta)data: ";
@@ -227,12 +431,31 @@ std::string FLV::Tag::tagType(){
   return R.str();
 }// FLV::Tag::tagtype
 
-/// Returns the 24-bit offset of this tag.
+/// Returns the signed 24-bit offset of this tag.
 /// Returns 0 if the tag isn't H264
-int64_t FLV::Tag::offset(){
-  if ((data[11] & 0x0F) != 7){return 0;}
-  return (((data[13] << 16) + (data[14] << 8) + data[15]) << 8) >> 8;
-}// offset getter
+int32_t FLV::Tag::offset() {
+  if ((data[11] & 0x80) == 0x80) {
+    size_t o = skipModEx(11);
+    // Only CodedFrames (1) has an offset, Multitrack (6) may contain CodedFrames as well.
+    if ((data[o] & 0x0F) != 1 && (data[o] & 0x0F) != 6) { return 0; }
+    if ((data[o] & 0x0F) == 6) {
+      ++o;
+      // Only CodedFrames has optional offset data.
+      if ((data[o] & 0x0F) != 1) { return 0; }
+    }
+    // Has a 4CC value
+    std::string fourcc(data + o + 1, 4);
+    if (fourcc == "avc1" || fourcc == "hvc1") {
+      // Shift 8 up and down to ensure signing bit is interpreted.
+      return ((int32_t)Bit::btoh24(data + o + 6) << 8) >> 8;
+    }
+    // Other codecs have no offset
+    return 0;
+  }
+  if ((data[11] & 0x0F) != 7) { return 0; }
+  // Shift 8 up and down to ensure signing bit is interpreted.
+  return ((int32_t)Bit::btoh24(data + 13) << 8) >> 8;
+}
 
 /// Sets the 24-bit offset of this tag.
 /// Ignored if the tag isn't H264
@@ -439,59 +662,157 @@ void FLV::Tag::setLen(){
 }
 
 /// FLV Video init data loader function from metadata.
-bool FLV::Tag::DTSCVideoInit(DTSC::Meta &meta, uint32_t vTrack){
-  // Unknown? Assume H264.
-  len = 0;
-  if (meta.getCodec(vTrack) == "?"){meta.setCodec(vTrack, "H264");}
-  std::string initData = meta.getInit(vTrack);
-  if (meta.getCodec(vTrack) == "H264"){len = initData.size() + 20;}
-  if (len <= 0 || !checkBufferSize()){return false;}
-  memcpy(data + 16, initData.c_str(), len - 20);
-  data[12] = 0; // H264 sequence header
-  data[13] = 0;
-  data[14] = 0;
-  data[15] = 0;
-  data[11] = 0x17; // H264 keyframe (0x07 & 0x10)
-  setLen();
-  data[0] = 0x09;
-  data[1] = ((len - 15) >> 16) & 0xFF;
-  data[2] = ((len - 15) >> 8) & 0xFF;
-  data[3] = (len - 15) & 0xFF;
-  data[8] = 0;
-  data[9] = 0;
-  data[10] = 0;
-  tagTime(0);
-  return true;
+bool FLV::Tag::DTSCVideoInit(const std::string & codec, const std::string & initData, int multiTrack) {
+  if (multiTrack >= 0) {
+    if (codec == "AV1" || codec == "VP8" || codec == "VP9" || codec == "HEVC" || codec == "H264") {
+      len = initData.size() + 22;
+      if (!checkBufferSize()) { return false; }
+      data[0] = 0x09; // Packet type video
+      data[1] = ((len - 15) >> 16) & 0xFF;
+      data[2] = ((len - 15) >> 8) & 0xFF;
+      data[3] = (len - 15) & 0xFF;
+      tagTime(0); // bytes 4/5/6/7
+      data[8] = 0; // StreamID
+      data[9] = 0; // StreamID
+      data[10] = 0; // StreamID
+      data[11] = 0x96; // VideoHeaderEx, keyframe, multitrack data (0x80 | 0x10 | 0x06)
+      data[12] = 0; // OneTrack, init data
+      if (codec == "AV1") { memcpy(data + 13, "av01", 4); }
+      if (codec == "VP8") { memcpy(data + 13, "vp08", 4); }
+      if (codec == "VP9") { memcpy(data + 13, "vp09", 4); }
+      if (codec == "HEVC") { memcpy(data + 13, "hvc1", 4); }
+      if (codec == "H264") { memcpy(data + 13, "avc1", 4); }
+      data[17] = multiTrack;
+      memcpy(data + 18, initData.data(), initData.size());
+      setLen();
+      return true;
+    }
+    return false;
+  }
+
+  if (codec == "H264") {
+    len = initData.size() + 20;
+    if (!checkBufferSize()) { return false; }
+    data[0] = 0x09; // Packet type video
+    data[1] = ((len - 15) >> 16) & 0xFF;
+    data[2] = ((len - 15) >> 8) & 0xFF;
+    data[3] = (len - 15) & 0xFF;
+    tagTime(0); // bytes 4/5/6/7
+    data[8] = 0; // StreamID
+    data[9] = 0; // StreamID
+    data[10] = 0; // StreamID
+    data[11] = 0x17; // H264 keyframe (0x07 & 0x10)
+    data[12] = 0; // H264 sequence header
+    data[13] = 0; // Offset zero
+    data[14] = 0; // Offset zero
+    data[15] = 0; // Offset zero
+    memcpy(data + 16, initData.data(), initData.size());
+    setLen();
+    return true;
+  }
+
+  if (codec == "AV1" || codec == "VP8" || codec == "VP9" || codec == "HEVC") {
+    len = initData.size() + 20;
+    if (!checkBufferSize()) { return false; }
+    data[0] = 0x09; // Packet type video
+    data[1] = ((len - 15) >> 16) & 0xFF;
+    data[2] = ((len - 15) >> 8) & 0xFF;
+    data[3] = (len - 15) & 0xFF;
+    tagTime(0); // bytes 4/5/6/7
+    data[8] = 0; // StreamID
+    data[9] = 0; // StreamID
+    data[10] = 0; // StreamID
+    data[11] = 0x90; // VideoHeaderEx, keyframe, init data (0x80 | 0x10 | 0x00)
+    if (codec == "AV1") { memcpy(data + 12, "av01", 4); }
+    if (codec == "VP8") { memcpy(data + 12, "vp08", 4); }
+    if (codec == "VP9") { memcpy(data + 12, "vp09", 4); }
+    if (codec == "HEVC") { memcpy(data + 12, "hvc1", 4); }
+    memcpy(data + 16, initData.data(), initData.size());
+    setLen();
+    return true;
+  }
+
+  return false;
 }
 
 /// FLV Audio init data loader function from metadata.
-bool FLV::Tag::DTSCAudioInit(const std::string & codec, unsigned int sampleRate, unsigned int sampleSize, unsigned int channels, const std::string & initData){
-  len = 0;
-  if (codec == "AAC"){len = initData.size() + 17;}
-  if (len <= 0 || !checkBufferSize()){return false;}
-  memcpy(data + 13, initData.c_str(), len - 17);
-  data[12] = 0; // AAC sequence header
-  // Contains: SoundFormat = AAC = 1010(4b), SoundRate (2b), SoundSize (1b), SoundType(1b) = 1010 0000
-  data[11] = 0xA0; 
-  if (sampleRate >= 44100){
-    data[11] |= 0x0C;
-  }else if (sampleRate >= 22050){
-    data[11] |= 0x08;
-  }else if (sampleRate >= 11025){
-    data[11] |= 0x04;
+bool FLV::Tag::DTSCAudioInit(const std::string & codec, unsigned int sampleRate, unsigned int sampleSize,
+                             unsigned int channels, const std::string & initData, int multiTrack) {
+  if (multiTrack >= 0) {
+    if (codec == "opus" || codec == "AC3" || codec == "FLAC" || codec == "AAC") {
+      len = initData.size() + 22;
+      if (!checkBufferSize()) { return false; }
+      data[0] = 0x08; // Packet type audio
+      data[1] = ((len - 15) >> 16) & 0xFF;
+      data[2] = ((len - 15) >> 8) & 0xFF;
+      data[3] = (len - 15) & 0xFF;
+      tagTime(0); // bytes 4/5/6/7
+      data[8] = 0; // StreamID
+      data[9] = 0; // StreamID
+      data[10] = 0; // StreamID
+      data[11] = 0x95; // AudioHeaderEx multitrack (0x90 & 0x05)
+      data[12] = 0; // OneTrack, init data
+      if (codec == "opus") { memcpy(data + 13, "Opus", 4); }
+      if (codec == "AC3") { memcpy(data + 13, "ac-3", 4); }
+      if (codec == "FLAC") { memcpy(data + 13, "fLaC", 4); }
+      if (codec == "AAC") { memcpy(data + 13, "mp4a", 4); }
+      data[17] = multiTrack;
+      memcpy(data + 18, initData.data(), initData.size());
+      setLen();
+      return true;
+    }
+    return false;
   }
-  if (sampleSize != 8){data[11] += 0x02;}
-  if (channels > 1){data[11] += 0x01;}
-  setLen();
-  data[0] = 0x08;
-  data[1] = ((len - 15) >> 16) & 0xFF;
-  data[2] = ((len - 15) >> 8) & 0xFF;
-  data[3] = (len - 15) & 0xFF;
-  data[8] = 0;
-  data[9] = 0;
-  data[10] = 0;
-  tagTime(0);
-  return true;
+
+  if (codec == "AAC") {
+    len = initData.size() + 17;
+    if (!checkBufferSize()) { return false; }
+    data[0] = 0x08; // Packet type audio
+    data[1] = ((len - 15) >> 16) & 0xFF;
+    data[2] = ((len - 15) >> 8) & 0xFF;
+    data[3] = (len - 15) & 0xFF;
+    tagTime(0); // bytes 4/5/6/7
+    data[8] = 0; // StreamID
+    data[9] = 0; // StreamID
+    data[10] = 0; // StreamID
+    // Contains: SoundFormat = AAC = 10(4b), SoundRate (2b), SoundSize (1b), SoundType(1b) = 1010 0000
+    data[11] = 0xA0;
+    if (sampleSize != 8) { data[11] |= 0x02; }
+    if (channels > 1) { data[11] |= 0x01; }
+    if (sampleRate >= 44100) {
+      data[11] |= 0x0C;
+    } else if (sampleRate >= 22050) {
+      data[11] |= 0x08;
+    } else if (sampleRate >= 11025) {
+      data[11] |= 0x04;
+    }
+    data[12] = 0; // AAC sequence header
+    memcpy(data + 13, initData.data(), initData.size());
+    setLen();
+    return true;
+  }
+
+  if (codec == "opus" || codec == "AC3" || codec == "FLAC") {
+    len = initData.size() + 20;
+    if (!checkBufferSize()) { return false; }
+    data[0] = 0x08; // Packet type audio
+    data[1] = ((len - 15) >> 16) & 0xFF;
+    data[2] = ((len - 15) >> 8) & 0xFF;
+    data[3] = (len - 15) & 0xFF;
+    tagTime(0); // bytes 4/5/6/7
+    data[8] = 0; // StreamID
+    data[9] = 0; // StreamID
+    data[10] = 0; // StreamID
+    data[11] = 0x90; // AudioHeaderEx init data (0x90 & 0x00)
+    if (codec == "opus") { memcpy(data + 12, "Opus", 4); }
+    if (codec == "AC3") { memcpy(data + 12, "ac-3", 4); }
+    if (codec == "FLAC") { memcpy(data + 12, "fLaC", 4); }
+    memcpy(data + 16, initData.data(), initData.size());
+    setLen();
+    return true;
+  }
+
+  return false;
 }
 
 bool FLV::Tag::DTSCMetaInit(const DTSC::Meta &M, std::set<size_t> &selTracks){
@@ -604,7 +925,7 @@ bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk &O){
   data[2] = (O.len >> 8) & 0xFF;
   data[1] = (O.len >> 16) & 0xFF;
   tagTime(O.timestamp);
-  isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
+  calcKeyframe();
   return true;
 }
 
@@ -680,7 +1001,7 @@ bool FLV::Tag::MemLoader(const char *D, unsigned int S, unsigned int &P){
     // read tag body
     if (MemReadUntil(data, len, sofar, D, S, P)){
       // calculate keyframeness, next time read header again, return true
-      isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
+      calcKeyframe();
       done = true;
       sofar = 0;
       return true;
@@ -763,7 +1084,7 @@ bool FLV::Tag::FileLoader(FILE *f){
     // read tag body
     if (FileReadUntil(data, len, sofar, f)){
       // calculate keyframeness, next time read header again, return true
-      isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
+      calcKeyframe();
       done = true;
       sofar = 0;
       fcntl(fileno(f), F_SETFL, preflags);
@@ -777,41 +1098,92 @@ bool FLV::Tag::FileLoader(FILE *f){
 }// FLV_GetPacket
 
 /// Returns 1 for video, 2 for audio, 3 for meta, 0 otherwise.
-unsigned int FLV::Tag::getTrackID(){
-  switch (data[0]){
-  case 0x08: return 2; // audio track
-  case 0x09: return 1; // video track
-  case 0x12: return 3; // meta track
-  default: return INVALID_TRACK_ID;
+unsigned int FLV::Tag::getTrackID() {
+  switch (data[0]) {
+    case 0x08: // audio track
+      if ((data[11] & 0xF0) == 0x90) {
+        size_t o = skipModEx(11);
+        if ((data[o] & 0x0F) == 5) { // Multitrack
+          if ((data[o + 1] & 0xF0) == 0x20) { return 0; } // Many Tracks Many Codecs, unimplemented
+          return 100 + data[o + 6];
+        }
+      }
+      return 2;
+    case 0x09: // video track
+      if ((data[11] & 0x80) == 0x80) {
+        size_t o = skipModEx(11);
+        if ((data[o] & 0x0F) == 6) { // Multitrack
+          if ((data[o + 1] & 0xF0) == 0x20) { return 0; } // Many Tracks Many Codecs, unimplemented
+          return 400 + data[o + 6];
+        }
+      }
+      return 1;
+    case 0x12: return 3; // meta track
+    default: return INVALID_TRACK_ID;
   }
 }
 
 /// Returns a pointer to the raw media data for this packet.
-char *FLV::Tag::getData(){
-  if (data[0] == 0x08 && (data[11] & 0xF0) == 0xA0){return data + 13;}
-  if (data[0] == 0x09 && (data[11] & 0x0F) == 7){return data + 16;}
-  return data + 12;
+char *FLV::Tag::getData() {
+  return data + getDataOffset();
 }
 
 /// Returns the length of the raw media data for this packet.
-unsigned int FLV::Tag::getDataLen(){
-  if (data[0] == 0x08 && (data[11] & 0xF0) == 0xA0){
-    if (len < 17){return 0;}
-    return len - 17;
-  }
-  if (data[0] == 0x09 && (data[11] & 0x0F) == 7){
-    if (len < 20){return 0;}
-    return len - 20;
-  }
-  if (len < 16){return 0;}
-  return len - 16;
+unsigned int FLV::Tag::getDataLen() const {
+  size_t dOff = getDataOffset();
+  if (len < dOff + 4) { return 0; }
+  return len - 4 - dOff;
 }
 
-void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage){
+size_t FLV::Tag::getDataOffset() const {
+  if (data[0] == 0x09 && (data[11] & 0x80) == 0x80) {
+    size_t o = skipModEx(11);
+    switch (data[o] & 0x0F) {
+      case 4: // metadata
+      case 0: // SequenceStart
+      case 5: // MpegTSSequenceStart
+      case 2: // SequenceEnd
+      case 3: // CodedFramesX
+        // Has a fourcc to skip, nothing else
+        return o + 5;
+      case 6: // multitrack
+        if ((data[o + 1] & 0xF0) == 0x20) { return o + 1; } // Many Tracks Many Codecs, unimplemented
+        if ((data[o + 1] & 0x0F) == 1) {
+          const std::string fourcc(data + o + 2, 4);
+          // These have a 24-bit offset to skip when CodedFrames
+          if (fourcc == "hvc1" || fourcc == "avc1") { return o + 10; }
+        }
+        // Skip multitracktype, 4CC and trackId
+        return o + 7;
+      case 1: { // CodedFrames
+        const std::string fourcc(data + o + 1, 4);
+        // These have a 24-bit offset and a fourcc to skip
+        if (fourcc == "hvc1" || fourcc == "avc1") { return o + 8; }
+        // Only a fourcc to skip
+        return o + 5;
+      }
+      default: return o + 1; // Unknown
+    }
+  }
+  if (data[0] == 0x08 && (data[11] & 0xF0) == 0xA0) { return 13; }
+  if (data[0] == 0x08 && (data[11] & 0xF0) == 0x90) {
+    size_t o = skipModEx(11);
+    if ((data[o] & 0x0F) == 5) { // Multitrack
+      if ((data[o + 1] & 0xF0) == 0x20) { return o + 5; } // Many Tracks Many Codecs, unimplemented
+      return o + 7; // Skip extra trackID byte
+    }
+    return o + 5;
+  }
+  if (data[0] == 0x09 && (data[11] & 0x0F) == 7) { return 16; }
+  return 12;
+}
+
+void FLV::Tag::toMeta(DTSC::Meta & meta, AMF::Object & amf_storage) {
   size_t reTrack = INVALID_TRACK_ID;
   std::map<std::string, std::string> targetParams;
   toMeta(meta, amf_storage, reTrack, targetParams);
 }
+
 void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack, const std::map<std::string, std::string> &targetParams){
   std::string trackType;
   switch (data[0]){
@@ -850,9 +1222,10 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
 
   std::string codec = meta.getCodec(reTrack);
   if (data[0] == 0x08 && (codec == "" || codec != getAudioCodec() || (needsInitData() && isInitData()))){
+    codec = getAudioCodec();
     char audiodata = data[11];
     meta.setType(reTrack, "audio");
-    meta.setCodec(reTrack, getAudioCodec());
+    meta.setCodec(reTrack, codec);
 
     switch (audiodata & 0x0C){
     case 0x0: meta.setRate(reTrack, 5512); break;
@@ -872,11 +1245,7 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
       meta.setChannels(reTrack, amf_storage.getContentP("stereo")->NumValue() == 1 ? 2 : 1);
     }
     if (needsInitData() && isInitData()){
-      if ((audiodata & 0xF0) == 0xA0){
-        meta.setInit(reTrack, data + 13, len - 17);
-      }else{
-        meta.setInit(reTrack, data + 12, len - 16);
-      }
+      meta.setInit(reTrack, getData(), getDataLen());
       if (meta.getCodec(reTrack) == "AAC"){
         meta.setRate(reTrack, aac::AudSpecConf::rate(meta.getInit(reTrack)));
         meta.setChannels(reTrack, aac::AudSpecConf::channels(meta.getInit(reTrack)));
@@ -885,8 +1254,8 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
   }
 
   if (data[0] == 0x09 && ((needsInitData() && isInitData()) || !codec.size())){
-    char videodata = data[11];
-    meta.setCodec(reTrack, getVideoCodec());
+    codec = getVideoCodec();
+    meta.setCodec(reTrack, codec);
     meta.setType(reTrack, "video");
     if (amf_storage.getContentP("width")){
       meta.setWidth(reTrack, amf_storage.getContentP("width")->NumValue());
@@ -902,28 +1271,14 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
       }
     }
     if (needsInitData() && isInitData()){
-      if ((videodata & 0x0F) == 7){//H264
+      if (codec == "H264") { // H264
         if (len < 21){return;}
         MP4::AVCC avccBox;
-        avccBox.setPayload(data + 16, len - 20);
+        avccBox.setPayload(getData(), getDataLen());
         avccBox.sanitize();
-        std::string oldInit = meta.getInit(reTrack);
         meta.setInit(reTrack, avccBox.payload(), avccBox.payloadSize());
-
-        //Read the metadata from the init data, because we don't trust the metadata
-        std::string init = meta.getInit(reTrack);
-        if (oldInit.size() && init != oldInit){
-          WARN_MSG("Initialization data for video track changed! Updating stream to match, but there may be some glitches for a bit.");
-        }
-        h264::sequenceParameterSet sps;
-        sps.fromDTSCInit(init);
-        h264::SPSMeta spsChar = sps.getCharacteristics();
-        meta.setWidth(reTrack, spsChar.width);
-        meta.setHeight(reTrack, spsChar.height);
-        meta.setFpks(reTrack, spsChar.fps * 1000);
-      }else{//non-H264
-        if (len < 17){return;}
-        meta.setInit(reTrack, data+12, len-16);
+      } else { // non-H264
+        meta.setInit(reTrack, getData(), getDataLen());
       }
     }
   }
@@ -945,4 +1300,15 @@ bool FLV::Tag::checkBufferSize(){
     }
   }
   return true;
+}
+
+void FLV::Tag::calcKeyframe() {
+  isKeyframe = false;
+  // only video has keyframes
+  if (data[0] != 0x09) { return; }
+  // Check if keyframe flag is set
+  if ((data[11] & 0x70) == 0x10) {
+    isKeyframe = true;
+    return;
+  }
 }

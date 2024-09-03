@@ -2140,6 +2140,21 @@ namespace DTSC{
   /// Sets the given track's init data.
   void Meta::setInit(size_t trackIdx, const char *init, size_t initLen){
     DTSC::Track &t = tracks.at(trackIdx);
+    std::string codec = t.track.getPointer(t.trackCodecField);
+    if (codec == "H264") {
+      h264::initData iData(init, initLen);
+      if (!iData) {
+        WARN_MSG("Invalid H264 init data received!");
+      } else {
+        if (!t.track.getInt(t.trackWidthField) || !t.track.getInt(t.trackHeightField)) {
+          t.track.setInt(t.trackWidthField, iData.width);
+          t.track.setInt(t.trackHeightField, iData.height);
+        }
+        if (iData.fps >= 1 && !t.track.getInt(t.trackFpksField)) {
+          t.track.setInt(t.trackFpksField, iData.fps * 1000.0);
+        }
+      }
+    }
     if (initLen > t.trackInitField.size){
       FAIL_MSG("Attempting to store %zu bytes of init data, but we only have room for %" PRIu32 " bytes!", initLen, t.trackInitField.size);
       initLen = t.trackInitField.size;

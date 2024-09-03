@@ -145,7 +145,6 @@ namespace MP4{
     void setSPS(const char *data, size_t len, size_t index = 0);
     uint32_t getSPSLen(size_t index = 0);
     char *getSPS(size_t index = 0);
-    std::string hexSPS(size_t index = 0);
 
     size_t PPSCountOffset();
     void setPPSCount(uint32_t _count);
@@ -155,7 +154,6 @@ namespace MP4{
     uint32_t getPPSLen(size_t index = 0);
     char *getPPS(size_t index = 0);
     void multiplyPPS(size_t newAmount);
-    std::string hexPPS(size_t index = 0);
     std::string asAnnexB();
     void setPayload(std::string newPayload);
     void setPayload(const char *data, size_t len);

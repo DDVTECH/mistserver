@@ -146,11 +146,11 @@ bool AnalyserDTSC::parsePacket(){
           track["height"] = M.getHeight(*it);
           track["fpks"] = M.getFpks(*it);
           if (codec == "H264"){
-            h264::sequenceParameterSet sps;
-            sps.fromDTSCInit(M.getInit(*it));
-            h264::SPSMeta spsData = sps.getCharacteristics();
-            track["h264"]["profile"] = spsData.profile;
-            track["h264"]["level"] = spsData.level;
+            h264::initData iData(M.getInit(*it));
+            if (iData) {
+              track["h264"]["profile"] = iData.profile;
+              track["h264"]["level"] = iData.level;
+            }
           }
         }
         result[M.getTrackIdentifier(*it)] = track;

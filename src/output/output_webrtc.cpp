@@ -2512,23 +2512,18 @@ namespace Mist{
       return;
     }
 
-    MP4::AVCC avccbox;
-    avccbox.setPayload(initData);
-    if (avccbox.getSPSLen() == 0 || avccbox.getPPSLen() == 0){
-      WARN_MSG("Received init data, but partially. SPS nbytes: %u, PPS nbytes: %u.",
-               avccbox.getSPSLen(), avccbox.getPPSLen());
+    if (M.getCodec(trackId) == "H264") {
+      MP4::AVCC avccbox;
+      avccbox.setPayload(initData);
+      if (avccbox.getSPSLen() == 0 || avccbox.getPPSLen() == 0) {
+        WARN_MSG("Received init data, but partially. SPS nbytes: %u, PPS nbytes: %u.", avccbox.getSPSLen(), avccbox.getPPSLen());
+        return;
+      }
+      avccbox.multiplyPPS(57); // Inject all possible PPS packets into init
+      meta.setInit(idx, avccbox.payload(), avccbox.payloadSize());
       return;
     }
-
-    h264::sequenceParameterSet sps(avccbox.getSPS(), avccbox.getSPSLen());
-    h264::SPSMeta hMeta = sps.getCharacteristics();
-
-    meta.setWidth(idx, hMeta.width);
-    meta.setHeight(idx, hMeta.height);
-    meta.setFpks(idx, hMeta.fps * 1000);
-
-    avccbox.multiplyPPS(57); // Inject all possible PPS packets into init
-    meta.setInit(idx, avccbox.payload(), avccbox.payloadSize());
+    meta.setInit(idx, initData);
   }
 
   // This function will be called when we're sending RTP/RTCP data to the peer

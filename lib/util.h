@@ -39,6 +39,8 @@ namespace Util{
 
   void nameThread(const std::string & name);
 
+  void hexDump(std::ostream & ostrm, const char *ptr, size_t len, size_t indent = 0);
+
   class DataCallback{
   public:
     virtual void dataCallback(const char *ptr, size_t size){

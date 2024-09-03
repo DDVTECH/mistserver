@@ -1450,4 +1450,13 @@ namespace Util{
 #endif
   }
 
+  void hexDump(std::ostream & o, const char *ptr, size_t len, size_t indent) {
+    for (size_t i = 0; i < len; ++i) {
+      if (!(i % 32)) { o << std::endl << std::string(indent, ' '); }
+      o << std::hex << std::setw(2) << std::setfill('0') << (size_t)ptr[i] << " ";
+      if ((i % 4) == 3) { o << " "; }
+    }
+    o << std::dec;
+  }
+
 }// namespace Util

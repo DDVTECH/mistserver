@@ -82,12 +82,11 @@ namespace Mist{
         if (nalType == 8){ppsInfo = NAL.substr(0, nalSize);}
         if (!meta.getInit(tNumber).size() && spsInfo.size() && ppsInfo.size()){
           h264::sequenceParameterSet sps(spsInfo.data(), spsInfo.size());
-          h264::SPSMeta spsChar = sps.getCharacteristics();
-          meta.setWidth(tNumber, spsChar.width);
-          meta.setHeight(tNumber, spsChar.height);
-          meta.setFpks(tNumber, spsChar.fps * 1000);
-          if (M.getFpks(tNumber) < 100 || M.getFpks(tNumber) > 1000000){
-            meta.setFpks(tNumber, 0);
+          if (sps) {
+            meta.setWidth(tNumber, sps.chars.width);
+            meta.setHeight(tNumber, sps.chars.height);
+            meta.setFpks(tNumber, sps.chars.fps * 1000);
+            if (M.getFpks(tNumber) < 100 || M.getFpks(tNumber) > 1000000) { meta.setFpks(tNumber, 0); }
           }
           MP4::AVCC avccBox;
           avccBox.setVersion(1);

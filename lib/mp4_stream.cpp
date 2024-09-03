@@ -166,11 +166,11 @@ namespace MP4{
       if (initBox.isType("avcC")){initData.assign(initBox.payload(), initBox.payloadSize());}
       // Read metadata from init data if not set
       if (!vidWidth){
-        h264::sequenceParameterSet sps;
-        sps.fromDTSCInit(initData);
-        h264::SPSMeta spsChar = sps.getCharacteristics();
-        vidWidth = spsChar.width;
-        vidHeight = spsChar.height;
+        h264::initData iData(initData);
+        if (iData) {
+          vidWidth = iData.width;
+          vidHeight = iData.height;
+        }
       }
     }
     if (sType == "hev1" || sType == "hvc1"){

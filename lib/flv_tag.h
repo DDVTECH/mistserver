@@ -4,7 +4,7 @@
 #pragma once
 #include "amf.h"
 #include "dtsc.h"
-#include "socket.h"
+
 #include <string>
 
 // forward declaration of RTMPStream::Chunk to avoid circular dependencies.
@@ -35,12 +35,12 @@ namespace FLV{
     char *data;                  ///< Pointer to tag buffer.
     bool needsInitData();        ///< True if this media type requires init data.
     bool isInitData();           ///< True if current tag is init data for this media type.
-    const char *getAudioCodec(); ///< Returns a c-string with the audio codec name.
-    const char *getVideoCodec(); ///< Returns a c-string with the video codec name.
+    const char *getAudioCodec() const; ///< Returns a c-string with the audio codec name.
+    const char *getVideoCodec() const; ///< Returns a c-string with the video codec name.
     std::string tagType();       ///< Returns a std::string describing the tag in detail.
     uint64_t tagTime();
     void tagTime(uint64_t T);
-    int64_t offset();
+    int32_t offset();
     void offset(int64_t o);
     Tag();                        ///< Constructor for a new, empty, tag.
     Tag(const Tag &O);            ///< Copy constructor, copies the contents of an existing tag.
@@ -50,8 +50,9 @@ namespace FLV{
     // loader functions
     bool ChunkLoader(const RTMPStream::Chunk &O);
     bool DTSCLoader(DTSC::Packet &packData, const DTSC::Meta &M, size_t idx);
-    bool DTSCVideoInit(DTSC::Meta &meta, uint32_t vTrack);
-    bool DTSCAudioInit(const std::string & codec, unsigned int sampleRate, unsigned int sampleSize, unsigned int channels, const std::string & initData);
+    bool DTSCVideoInit(const std::string & codec, const std::string & initData, int multiTrack = -1);
+    bool DTSCAudioInit(const std::string & codec, unsigned int sampleRate, unsigned int sampleSize,
+                       unsigned int channels, const std::string & initData, int multiTrack = -1);
     bool DTSCMetaInit(const DTSC::Meta &M, std::set<size_t> &selTracks);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack, const std::map<std::string, std::string> &targetParams);
@@ -59,7 +60,8 @@ namespace FLV{
     bool FileLoader(FILE *f);
     unsigned int getTrackID();
     char *getData();
-    unsigned int getDataLen();
+    unsigned int getDataLen() const;
+    size_t getDataOffset() const;
 
   protected:
     int buf;            ///< Maximum length of buffer space.
@@ -71,6 +73,8 @@ namespace FLV{
     bool MemReadUntil(char *buffer, unsigned int count, unsigned int &sofar, const char *D,
                       unsigned int S, unsigned int &P);
     bool FileReadUntil(char *buffer, unsigned int count, unsigned int &sofar, FILE *f);
+    size_t skipModEx(size_t offset) const;
+    void calcKeyframe();
   };
   // Tag
 

@@ -167,6 +167,9 @@ namespace Mist {
 #endif
 
   void OutRTMP::startPushOut(const char *args) {
+    didPublish = false;
+    parseData = false;
+
     RTMPStream::chunk_rec_max = 128;
     RTMPStream::chunk_snd_max = 128;
     RTMPStream::rec_window_size = 2500000;
@@ -209,6 +212,14 @@ namespace Mist {
     // You can specify `?stream=<name>` to change the RTMP stream
     // key, (rmtp://host:port/app/<stream>)
     if (targetParams.count("stream")) { streamOut = targetParams["stream"]; }
+
+    if (pushUrl.getPort() == 1935) {
+      targetParams["tcUrl"] = pushUrl.protocol + "://" + pushUrl.host + "/" + app;
+    } else {
+      targetParams["tcUrl"] = pushUrl.protocol + "://" + pushUrl.host + ":" + std::to_string(pushUrl.getPort()) + "/" + app;
+    }
+    targetParams["stream"] = streamOut;
+    targetParams["app"] = app;
 
     INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(),
              remoteHost.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
@@ -287,20 +298,47 @@ namespace Mist {
     setBlocking(false);
     VERYHIGH_MSG("Push out handshake completed");
     setHupHandler(); // Install SIGHUP handler
-    std::string pushHost = pushUrl.protocol + "://" + pushUrl.host + "/";
-    if (pushUrl.getPort() != 1935){
-      pushHost = pushUrl.protocol + "://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/";
-    }
 
-    AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-    amfReply.addContent(AMF::Object("", "connect")); // command
-    amfReply.addContent(AMF::Object("", (double)1)); // transaction ID
-    amfReply.addContent(AMF::Object(""));            // options
-    amfReply.getContentP(2)->addContent(AMF::Object("app", app + args));
-    amfReply.getContentP(2)->addContent(AMF::Object("type", "nonprivate"));
-    amfReply.getContentP(2)->addContent(
-        AMF::Object("flashVer", "FMLE/3.0 (compatible; " APPNAME ")"));
-    amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", pushHost + app + args));
+    AMF::Object amfReply;
+    amfReply.addContent("connect"); // command
+    amfReply.addContent(1.0); // transaction ID
+    AMF::Object *opts = amfReply.addContent(AMF::AMF0_OBJECT); // options
+    opts->addContent("app", app + args);
+    opts->addContent("type", "nonprivate");
+    opts->addContent("flashVer", "FMLE/3.0 (compatible; " APPNAME ")");
+    opts->addContent("tcUrl", targetParams["tcUrl"] + args);
+    opts->addContent("capsEx", 15.0);
+    {
+      AMF::Object *ccList = opts->addContent("fourCcList", AMF::AMF0_STRICT_ARRAY);
+      ccList->addContent("av01");
+      ccList->addContent("avc1");
+      ccList->addContent("hvc1");
+      ccList->addContent("vp08");
+      ccList->addContent("vp09");
+      ccList->addContent("ac-3");
+      ccList->addContent("ec-3");
+      ccList->addContent("Opus");
+      ccList->addContent(".mp3");
+      ccList->addContent("fLaC");
+      ccList->addContent("mp4a");
+    }
+    {
+      AMF::Object *ccList = opts->addContent("audioFourCcInfoMap", AMF::AMF0_OBJECT);
+      ccList->addContent("ac-3", 7.0);
+      ccList->addContent("ec-3", 7.0);
+      ccList->addContent("Opus", 7.0);
+      ccList->addContent(".mp3", 7.0);
+      ccList->addContent("fLaC", 7.0);
+      ccList->addContent("mp4a", 7.0);
+    }
+    {
+      AMF::Object *ccList = opts->addContent("videoFourCcInfoMap", AMF::AMF0_OBJECT);
+      ccList->addContent("av01", 7.0);
+      ccList->addContent("avc1", 7.0);
+      ccList->addContent("hvc1", 7.0);
+      ccList->addContent("vp08", 7.0);
+      ccList->addContent("vp09", 7.0);
+    }
     sendCommand(amfReply, 20, 0);
 
     RTMPStream::chunk_snd_max = 65536;                                 // 64KiB
@@ -324,40 +362,42 @@ namespace Mist {
     if (!myConn) { return false; }
 
     if (isRecording()) {
-      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "deleteStream")); // status reply
-      amfreply.addContent(AMF::Object("", (double)6)); // transaction ID
-      amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object("", (double)1)); // No clue. But OBS sends this, too.
-      sendCommand(amfreply, 20, 1);
+      AMF::Object amfReply;
+      amfReply.addContent("deleteStream"); // status reply
+      amfReply.addContent(6.0); // transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      amfReply.addContent(1.0); // No clue. But OBS sends this, too.
+      sendCommand(amfReply, 20, 1);
       myConn.close();
       return false;
     }
 
     myConn.SendNow(RTMPStream::SendUSR(1, 1)); // send UCM StreamEOF (1), stream 1
-
-    AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-    amfreply.addContent(AMF::Object("", "onStatus")); // status reply
-    amfreply.addContent(AMF::Object("", 0.0)); // transaction ID
-    amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-    amfreply.addContent(AMF::Object("")); // info
-    amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-    amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Stop"));
-    amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
-    amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-    amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-    sendCommand(amfreply, 20, 1);
-
-    amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
-    amfreply.addContent(AMF::Object("", "onStatus")); // status reply
-    amfreply.addContent(AMF::Object("", 0.0)); // transaction ID
-    amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-    amfreply.addContent(AMF::Object("")); // info
-    amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-    amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.UnpublishNotify"));
-    amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
-    amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-    sendCommand(amfreply, 20, 1);
+    {
+      AMF::Object amfReply;
+      amfReply.addContent("onStatus"); // status reply
+      amfReply.addContent(0.0); // transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+      info->addContent("level", "status");
+      info->addContent("code", "NetStream.Play.Stop");
+      info->addContent("description", "Stream stopped");
+      info->addContent("details", "DDV");
+      info->addContent("clientid", 1337.0);
+      sendCommand(amfReply, 20, 1);
+    }
+    {
+      AMF::Object amfReply;
+      amfReply.addContent("onStatus"); // status reply
+      amfReply.addContent(0.0); // transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+      info->addContent("level", "status");
+      info->addContent("code", "NetStream.Play.UnpublishNotify");
+      info->addContent("description", "Stream stopped");
+      info->addContent("clientid", 1337.0);
+      sendCommand(amfReply, 20, 1);
+    }
 
     myConn.close();
 
@@ -387,6 +427,19 @@ namespace Mist {
     capa["codecs"][0u][1u].append("ADPCM");
     capa["codecs"][0u][1u].append("ALAW");
     capa["codecs"][0u][1u].append("ULAW");
+    capa["codecs"][0u][2u].append("JSON");
+
+    /// Enhanced RTMP codec list
+    capa["codecs"][1u] = capa["codecs"][0u];
+    capa["codecs"][1u][0u].append("AV1");
+    capa["codecs"][1u][0u].append("HEVC");
+    capa["codecs"][1u][0u].append("VP8");
+    capa["codecs"][1u][0u].append("VP9");
+    capa["codecs"][1u][1u].append("opus");
+    capa["codecs"][1u][1u].append("AC3");
+    capa["codecs"][1u][1u].append("EAC-3");
+    capa["codecs"][1u][1u].append("FLAC");
+
     capa["methods"][0u]["handler"] = "rtmp";
     capa["methods"][0u]["type"] = "flash/10";
     capa["methods"][0u]["hrn"] = "RTMP";
@@ -745,6 +798,14 @@ namespace Mist {
   
   
   void OutRTMP::sendNext(){
+    if (pushState == "ReconnectRequest" && thisIdx == getMainSelectedTrack()) {
+      if (M.getType(thisIdx) != "video" || thisPacket.getFlag("keyframe")) {
+        INFO_MSG("At next keyframe (timestamp %" PRIu64 ") - reconnecting as requested!", thisTime);
+        targetParams["start"] = std::to_string(thisTime);
+        startPushOut("");
+      }
+    }
+
     //Every 5s, check if the track selection should change in live streams, and do it.
     if (M.getLive()){
       static uint64_t lastMeta = 0;
@@ -759,11 +820,11 @@ namespace Mist {
       if (liveSeek()){return;}
     }
 
-    uint64_t timestamp = thisPacket.getTime() - rtmpOffset;
+    uint64_t timestamp = thisTime - rtmpOffset;
     // make sure we don't go negative
-    if (rtmpOffset > (int64_t)thisPacket.getTime()){
+    if (rtmpOffset > (int64_t)thisTime) {
       timestamp = 0;
-      rtmpOffset = (int64_t)thisPacket.getTime();
+      rtmpOffset = (int64_t)thisTime;
     }
 
     // Send silence packets if needed
@@ -796,82 +857,177 @@ namespace Mist {
       lastAudioInserted = timestamp;
     }
 
-    char rtmpheader[] ={ 0,              // byte 0 = cs_id | ch_type
-                         0,    0, 0,     // bytes 1-3 = timestamp
-                         0,    0, 0,     // bytes 4-6 = length
-                         0x12,           // byte 7 = msg_type_id
-                         1,    0, 0, 0,  // bytes 8-11 = msg_stream_id = 1
-                         0,    0, 0, 0}; // bytes 12-15 = extended timestamp
-    char dataheader[] ={0, 0, 0, 0, 0};
-    unsigned int dheader_len = 1;
+    if (!M.trackLoaded(thisIdx)) { return; }
+    std::string type = M.getType(thisIdx);
+    std::string codec = M.getCodec(thisIdx);
+
+    // byte 0 = cs_id | ch_type
+    // bytes 1-3 = timestamp
+    // bytes 4-6 = length
+    // byte 7 = msg_type_id
+    // bytes 8-11 = msg_stream_id = 1
+    // bytes 12-15 = extended timestamp
+    char rtmpheader[] = {0, 0, 0, 0, 0, 0, 0, 0x12, 1, 0, 0, 0, 0, 0, 0, 0};
+    char dataheader[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    size_t dheader_len = 0;
     static Util::ResizeablePointer swappy;
     char *tmpData = 0;   // pointer to raw media data
     size_t data_len = 0; // length of processed media data
     thisPacket.getString("data", tmpData, data_len);
-    
-    std::string type = M.getType(thisIdx);
-    std::string codec = M.getCodec(thisIdx);
 
     // set msg_type_id
     if (type == "video"){
+      dheader_len = 1; // 4 bits frame type, 4 bits codec ID
       rtmpheader[7] = 0x09;
-      if (codec == "H264"){
-        dheader_len += 4;
-        dataheader[0] = 7;
-        dataheader[1] = 1;
-        int64_t offset = thisPacket.getInt("offset");
+      int64_t offset = thisPacket.getInt("offset");
+
+      auto mapped = vidMultiMap.find(thisIdx);
+      if (mapped != vidMultiMap.end()) {
+        dheader_len = offset ? 10 : 7; // add fourcc, and optionally 3 bytes 24-bit offset
+        dataheader[0] = 0x86; // 0x80 = VideoHeaderEx present, multitrack
+        // 0x00 = OneTrack, plus either CodedFrames or CodedFramesx:
+        dataheader[1] = offset ? 1 : 3; // 1 = CodedFrames, 3 = CodedFramesx (implied zero offset)
+        if (codec == "AV1") { memcpy(dataheader + 2, "av01", 4); }
+        if (codec == "VP8") { memcpy(dataheader + 2, "vp08", 4); }
+        if (codec == "VP9") { memcpy(dataheader + 2, "vp09", 4); }
+        if (codec == "HEVC") { memcpy(dataheader + 2, "hvc1", 4); }
+        if (codec == "H264") { memcpy(dataheader + 2, "avc1", 4); }
+        dataheader[6] = mapped->second; // trackId
         if (offset){
-          dataheader[2] = (offset >> 16) & 0xFF;
-          dataheader[3] = (offset >> 8) & 0xFF;
-          dataheader[4] = offset & 0xFF;
+          // 3 bytes int24 offset
+          dataheader[7] = (offset >> 16) & 0xFF;
+          dataheader[8] = (offset >> 8) & 0xFF;
+          dataheader[9] = offset & 0xFF;
         }
-      }
-      if (codec == "H263"){dataheader[0] = 2;}
-      dataheader[0] |= (thisPacket.getFlag("keyframe") ? 0x10 : 0x20);
-      if (thisPacket.getFlag("disposableframe")){dataheader[0] |= 0x30;}
-    }
-
-    if (type == "audio"){
-      if (!M.trackLoaded(thisIdx)){return;}
-      uint32_t rate = M.getRate(thisIdx);
-      rtmpheader[7] = 0x08;
-      if (codec == "AAC"){
-        dataheader[0] += 0xA0;
-        dheader_len += 1;
-        dataheader[1] = 1; // raw AAC data, not sequence header
-      }
-      if (codec == "MP3"){
-        dataheader[0] += 0x20;
-        dataheader[0] |= (rate == 8000 ? 0xE0 : 0x20);
-      }
-      if (codec == "ADPCM"){dataheader[0] |= 0x10;}
-      if (codec == "PCM"){
-        if (M.getSize(thisIdx) == 16 && swappy.allocate(data_len)){
-          for (uint32_t i = 0; i < data_len; i += 2){
-            swappy[i] = tmpData[i + 1];
-            swappy[i + 1] = tmpData[i];
+      } else {
+        if (codec == "H264") {
+          dheader_len = 5;
+          dataheader[0] = 7; // codec ID 7 = H264
+          dataheader[1] = 1; // AVCPacketType 1 = NALU
+          if (offset) {
+            // 3 bytes int24 offset
+            dataheader[2] = (offset >> 16) & 0xFF;
+            dataheader[3] = (offset >> 8) & 0xFF;
+            dataheader[4] = offset & 0xFF;
           }
-          tmpData = swappy;
         }
-        dataheader[0] |= 0x30;
+        if (codec == "AV1" || codec == "VP8" || codec == "VP9" || codec == "HEVC") {
+          dheader_len = offset ? 8 : 5; // add fourcc, and optionally 3 bytes 24-bit offset
+          dataheader[0] = 0x80; // 0x80 = VideoHeaderEx present,
+          dataheader[0] |= offset ? 1 : 3; // 1 = CodedFrames, 3 = CodedFramesx (implied zero offset)
+          if (codec == "AV1") { memcpy(dataheader + 1, "av01", 4); }
+          if (codec == "VP8") { memcpy(dataheader + 1, "vp08", 4); }
+          if (codec == "VP9") { memcpy(dataheader + 1, "vp09", 4); }
+          if (codec == "HEVC") { memcpy(dataheader + 1, "hvc1", 4); }
+          if (offset) {
+            // 3 bytes int24 offset
+            dataheader[5] = (offset >> 16) & 0xFF;
+            dataheader[6] = (offset >> 8) & 0xFF;
+            dataheader[7] = offset & 0xFF;
+          }
+        }
+        if (codec == "H263") {
+          dataheader[0] = 2; // codec ID 2 = H263
+        }
       }
-      if (codec == "Nellymoser"){
-        dataheader[0] |= (rate == 8000 ? 0x50 : (rate == 16000 ? 0x40 : 0x60));
-      }
-      if (codec == "ALAW"){dataheader[0] |= 0x70;}
-      if (codec == "ULAW"){dataheader[0] |= 0x80;}
-      if (codec == "Speex"){dataheader[0] |= 0xB0;}
-
-      if (rate >= 44100){
-        dataheader[0] |= 0x0C;
-      }else if (rate >= 22050){
-        dataheader[0] |= 0x08;
-      }else if (rate >= 11025){
-        dataheader[0] |= 0x04;
-      }
-      if (M.getSize(thisIdx) != 8){dataheader[0] |= 0x02;}
-      if (M.getChannels(thisIdx) > 1){dataheader[0] |= 0x01;}
+      // Set upper nibble (frame type): 1 = key frame, 2 = inter frame
+      dataheader[0] |= (thisPacket.getFlag("keyframe") ? 0x10 : 0x20);
+      // 3 = disposable frame; OR is still okay since the above line only sets 1 or 2, and 3 is both of those bits set
+      if (thisPacket.getFlag("disposableframe")) { dataheader[0] |= 0x30; }
     }
+
+    if (type == "audio") {
+      rtmpheader[7] = 0x08;
+      auto mapped = audMultiMap.find(thisIdx);
+      if (mapped != audMultiMap.end()) {
+        dheader_len = 7; // add fourcc
+        dataheader[0] = 0x95; // 0x90 = AudioHeaderEx present, 5 = Multitrack
+        dataheader[1] = 5; // OneTrack, CodedFrames
+        if (codec == "opus") { memcpy(dataheader + 2, "Opus", 4); }
+        if (codec == "AC3") { memcpy(dataheader + 2, "ac-3", 4); }
+        if (codec == "FLAC") { memcpy(dataheader + 2, "fLaC", 4); }
+        if (codec == "AAC") { memcpy(dataheader + 2, "mp4a", 4); }
+        dataheader[6] = mapped->second; // trackId
+      } else {
+        dheader_len = 1; // 4 bits sound format, 2 bits rate, 1 bit size, 1 bit channels
+        uint32_t rate = M.getRate(thisIdx);
+        bool useLowerNibble = true;
+        if (codec == "AAC") {
+          dheader_len = 2; // AAC has an extra byte of header signalling media data vs init data
+          dataheader[0] = 0xA0; // Format 10 = AAC
+          dataheader[1] = 1; // raw AAC data, not sequence header
+        }
+        if (codec == "opus" || codec == "AC3" || codec == "FLAC") {
+          useLowerNibble = false; // Disable filling of the lower nibble - it carries the frame type instead
+          dheader_len = 5; // add fourcc
+          dataheader[0] = 0x91; // 0x90 = AudioHeaderEx present, 1 = Coded frames
+          if (codec == "opus") { memcpy(dataheader + 1, "Opus", 4); }
+          if (codec == "AC3") { memcpy(dataheader + 1, "ac-3", 4); }
+          if (codec == "FLAC") { memcpy(dataheader + 1, "fLaC", 4); }
+        }
+        if (codec == "MP3") {
+          if (rate == 8000) {
+            dataheader[0] = 0xE0; // Format 14 = 8kHz MP3
+          } else {
+            dataheader[0] = 0x20; // Format 2 = MP3
+          }
+        }
+        if (codec == "ADPCM") { dataheader[0] = 0x10; } // Format 1 = ADPCM
+        if (codec == "PCM") {
+          // We store PCM big-endian, but FLV wants it little-endian or platform-endian.
+          // Since platform-endian is the path of insanity, we always send big-endian.
+          if (M.getSize(thisIdx) == 16 && swappy.allocate(data_len)) {
+            for (uint32_t i = 0; i < data_len; i += 2) {
+              swappy[i] = tmpData[i + 1];
+              swappy[i + 1] = tmpData[i];
+            }
+            tmpData = swappy;
+          }
+          dataheader[0] = 0x30; // Format 3 = Little-endian PCM
+        }
+        if (codec == "Nellymoser") {
+          // Format 4 = Nellymoser 16kHz
+          // Format 5 = Nellymoser 8kHz
+          // Format 6 = Nellymoser
+          dataheader[0] |= (rate == 8000 ? 0x50 : (rate == 16000 ? 0x40 : 0x60));
+        }
+        if (codec == "ALAW") { dataheader[0] |= 0x70; } // Format 7 = ALAW
+        if (codec == "ULAW") { dataheader[0] |= 0x80; } // Format 8 = ULAW
+        if (codec == "Speex") { dataheader[0] |= 0xB0; } // Format 11 = Speex
+
+        if (useLowerNibble) {
+          // 2 bits rate: 0 = 5.5Khz, 1 = 11Khz, 2 = 22Khz, 3 = 44Khz (according to spec, anyway)
+          // We actually use:
+          // - 0 for under 11025 Hz
+          // - 1 for under 22050 Hz
+          // - 2 for under 44100 Hz
+          // - 3 for 44100 Hz and higher
+          if (rate >= 44100) {
+            dataheader[0] |= 0x0C;
+          } else if (rate >= 22050) {
+            dataheader[0] |= 0x08;
+          } else if (rate >= 11025) {
+            dataheader[0] |= 0x04;
+          }
+          // 1 bit size: 0 = 8-bit, 1 = 16-bit (we transmit anything that isn't 8 as 16)
+          if (M.getSize(thisIdx) != 8) { dataheader[0] |= 0x02; }
+          // 1 bit channel: 0 = mono, 1 = stereo (we transmit anything > 1 as stereo)
+          if (M.getChannels(thisIdx) > 1) { dataheader[0] |= 0x01; }
+        }
+      }
+    }
+
+    if (type == "meta") {
+      rtmpheader[7] = 0x12;
+
+      static std::string amfData;
+      AMF::Object amf = AMF::fromJSON(tmpData, data_len);
+      amfData = amf.Pack();
+
+      tmpData = (char *)amfData.c_str();
+      data_len = amfData.size();
+    }
+
     data_len += dheader_len;
 
     bool allow_short = RTMPStream::lastsend.count(4);
@@ -979,7 +1135,7 @@ namespace Mist {
 
   void OutRTMP::sendHeader(){
     FLV::Tag tag;
-    std::set<size_t> selectedTracks;
+    std::set<size_t> selectedTracks, vidTracks, audTracks;
     // Will contain the full audio=<> parameter in it, which should be CSV's of
     // {path, url, filename, silent, silence}1..*
     std::string audioParameterBuffer;
@@ -991,10 +1147,96 @@ namespace Mist {
     HTTP::URIReader inAAC;
     char *tempBuffer;
     size_t bytesRead;
-    
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      selectedTracks.insert(it->first);
+
+    for (const auto & it : userSelect) {
+      selectedTracks.insert(it.first);
+      const std::string & type = M.getType(it.first);
+      if (type == "video") {
+        vidTracks.insert(it.first);
+      } else if (type == "audio") {
+        audTracks.insert(it.first);
+      }
     }
+
+    // Parse manual video/audio mapping overrides
+    std::set<uint8_t> vidUsed, audUsed;
+    vidMultiMap.clear();
+    audMultiMap.clear();
+    if (targetParams.count("vidmap")) {
+      JSON::Value vidMap = JSON::fromString(targetParams["vidmap"]);
+      jsonForEachConst (vidMap, it) {
+        int k = atoi(it.key().c_str());
+        if (vidTracks.count(k)) {
+          vidMultiMap[k] = it->asInt();
+          vidUsed.insert(it->asInt());
+        }
+      }
+    }
+    if (targetParams.count("audmap")) {
+      JSON::Value audMap = JSON::fromString(targetParams["audmap"]);
+      jsonForEachConst (audMap, it) {
+        int k = atoi(it.key().c_str());
+        if (audTracks.count(k)) {
+          audMultiMap[k] = it->asInt();
+          audUsed.insert(it->asInt());
+        }
+      }
+    }
+
+    // Check if tracks need to be mapped
+    if (vidTracks.size() > 1) {
+      bool firstTrack = true;
+      for (const size_t T : vidTracks) {
+        if (!vidMultiMap.count(T)) {
+          // The first unmapped track need not be mapped
+          if (firstTrack) {
+            firstTrack = false;
+            continue;
+          }
+          for (uint8_t i = 1; i < 255; ++i) {
+            if (!vidUsed.count(i)) {
+              vidUsed.insert(i);
+              vidMultiMap[T] = i;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (Util::printDebugLevel >= DLVL_INFO) {
+      if (audMultiMap.size()) {
+        JSON::Value mapping;
+        for (const auto & it : vidMultiMap) { mapping[std::to_string(it.first)] = it.second; }
+        INFO_MSG("%zu video tracks: E-RTMP mapping: %s", vidTracks.size(), mapping.toString().c_str());
+      }
+    }
+    if (audTracks.size() > 1) {
+      bool firstTrack = true;
+      for (const size_t T : audTracks) {
+        if (!audMultiMap.count(T)) {
+          // The first unmapped track need not be mapped
+          if (firstTrack) {
+            firstTrack = false;
+            continue;
+          }
+          for (uint8_t i = 1; i < 255; ++i) {
+            if (!audUsed.count(i)) {
+              audUsed.insert(i);
+              audMultiMap[T] = i;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (Util::printDebugLevel >= DLVL_INFO) {
+      if (audMultiMap.size()) {
+        JSON::Value mapping;
+        for (const auto & it : audMultiMap) { mapping[std::to_string(it.first)] = it.second; }
+        INFO_MSG("%zu audio tracks: E-RTMP mapping: %s", audTracks.size(), mapping.toString().c_str());
+      }
+    }
+
     //GO-RTMP can't handle the complexity of our metadata, but also doesn't need it... so let's not.
     if (UA != "GO-RTMP/0,0,0,0"){
       tag.DTSCMetaInit(meta, selectedTracks);
@@ -1004,19 +1246,19 @@ namespace Mist {
       myConn.SendNow(RTMPStream::SendMedia(tag));
     }
 
-    for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      std::string type = M.getType(*it);
-      if (type == "video"){
-        if (tag.DTSCVideoInit(meta, *it)){
-          tag.tagTime(currentTime() - rtmpOffset);
-          myConn.SendNow(RTMPStream::SendMedia(tag));
-        }
+    for (const size_t T : vidTracks) {
+      auto mapped = vidMultiMap.find(T);
+      if (tag.DTSCVideoInit(meta.getCodec(T), meta.getInit(T), mapped == vidMultiMap.end() ? -1 : mapped->second)) {
+        tag.tagTime(currentTime() - rtmpOffset);
+        myConn.SendNow(RTMPStream::SendMedia(tag));
       }
-      if (type == "audio"){
-        if (tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){
-          tag.tagTime(currentTime() - rtmpOffset);
-          myConn.SendNow(RTMPStream::SendMedia(tag));
-        }
+    }
+    for (const size_t T : audTracks) {
+      auto mapped = audMultiMap.find(T);
+      if (tag.DTSCAudioInit(meta.getCodec(T), meta.getRate(T), meta.getSize(T), meta.getChannels(T), meta.getInit(T),
+                            mapped == audMultiMap.end() ? -1 : mapped->second)) {
+        tag.tagTime(currentTime() - rtmpOffset);
+        myConn.SendNow(RTMPStream::SendMedia(tag));
       }
     }
     // Insert silent init data if audio set to silent or loop a custom AAC file
@@ -1182,21 +1424,62 @@ namespace Mist {
     HIGH_MSG("AMF0 command: %s", amfData.getContentP(0)->StrValue().c_str());
     if (amfData.getContentP(0)->StrValue() == "xsbwtest"){
       // send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_error")); // result success
+      AMF::Object amfReply;
+      amfReply.addContent("_error"); // result success
       amfReply.addContent(amfData.getContent(1));     // same transaction ID
-      amfReply.addContent(AMF::Object("", amfData.getContentP(0)->StrValue())); // null - command info
-      amfReply.addContent(AMF::Object("", "Hai XSplit user!"));                 // stream ID?
+      amfReply.addContent(amfData.getContentP(0)->StrValue()); // null - command info
+      amfReply.addContent("Hai XSplit user!"); // stream ID?
       sendCommand(amfReply, messageType, streamId);
       return;
     }
     if (amfData.getContentP(0)->StrValue() == "connect"){
+      AMF::Object *cmd = amfData.getContentP(2);
       double objencoding = 0;
-      if (amfData.getContentP(2)->getContentP("objectEncoding")){
-        objencoding = amfData.getContentP(2)->getContentP("objectEncoding")->NumValue();
+      if (cmd->getContentP("objectEncoding")) { objencoding = cmd->getContentP("objectEncoding")->NumValue(); }
+      if (cmd->getContentP("flashVer")) { UA = cmd->getContentP("flashVer")->StrValue(); }
+      enhancedCaps = 0;
+      bool hasCaps = false;
+      if (cmd->getContentP("capsEx")) {
+        hasCaps = true;
+        enhancedCaps = cmd->getContentP("capsEx")->NumValue();
       }
-      if (amfData.getContentP(2)->getContentP("flashVer")){
-        UA = amfData.getContentP(2)->getContentP("flashVer")->StrValue();
+      bool hasCcList = false, hasAudioCc = false, hasVideoCc = false;
+      if (cmd->getContentP("fourCcList")) {
+        hasCcList = true;
+        for (auto & it : *(cmd->getContentP("fourCcList"))) {
+          const std::string & fourcc = it.StrValue();
+          if (fourcc == "av01") { capa["codecs"][0u][0u].append("AV1"); }
+          if (fourcc == "hvc1") { capa["codecs"][0u][0u].append("HEVC"); }
+          if (fourcc == "vp08") { capa["codecs"][0u][0u].append("VP8"); }
+          if (fourcc == "vp09") { capa["codecs"][0u][0u].append("VP9"); }
+          if (fourcc == "Opus") { capa["codecs"][0u][1u].append("opus"); }
+          if (fourcc == "ac-3") { capa["codecs"][0u][1u].append("AC3"); }
+          if (fourcc == "ec-3") { capa["codecs"][0u][1u].append("EAC-3"); }
+          if (fourcc == "fLaC") { capa["codecs"][0u][1u].append("FLAC"); }
+          if (fourcc == "*") { capa["codecs"][0u] = capa["codecs"][1u]; }
+        }
+      }
+      if (cmd->getContentP("audioFourCcInfoMap")) {
+        hasAudioCc = true;
+        for (auto & it : *(cmd->getContentP("audioFourCcInfoMap"))) {
+          const std::string & fourcc = it.Indice();
+          if (fourcc == "Opus") { capa["codecs"][0u][1u].append("opus"); }
+          if (fourcc == "ac-3") { capa["codecs"][0u][1u].append("AC3"); }
+          if (fourcc == "ec-3") { capa["codecs"][0u][1u].append("EAC-3"); }
+          if (fourcc == "fLaC") { capa["codecs"][0u][1u].append("FLAC"); }
+          if (fourcc == "*") { capa["codecs"][0u][1u] = capa["codecs"][1u][1u]; }
+        }
+      }
+      if (cmd->getContentP("videoFourCcInfoMap")) {
+        hasVideoCc = true;
+        for (auto & it : *(cmd->getContentP("videoFourCcInfoMap"))) {
+          const std::string & fourcc = it.Indice();
+          if (fourcc == "av01") { capa["codecs"][0u][0u].append("AV1"); }
+          if (fourcc == "hvc1") { capa["codecs"][0u][0u].append("HEVC"); }
+          if (fourcc == "vp08") { capa["codecs"][0u][0u].append("VP8"); }
+          if (fourcc == "vp09") { capa["codecs"][0u][0u].append("VP9"); }
+          if (fourcc == "*") { capa["codecs"][0u][0u] = capa["codecs"][1u][0u]; }
+        }
       }
       reqUrl = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       app_name = HTTP::URL(reqUrl).path;
@@ -1208,19 +1491,54 @@ namespace Mist {
         myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); // send chunk size max (msg 1)
       }
       // send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_result")); // result success
-      amfReply.addContent(amfData.getContent(1));      // same transaction ID
-      amfReply.addContent(AMF::Object(""));            // server properties
-      amfReply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,5,2004"));
-      amfReply.getContentP(2)->addContent(AMF::Object("capabilities", 31.0));
-      amfReply.getContentP(2)->addContent(AMF::Object("mode", 1.0));
-      amfReply.addContent(AMF::Object("")); // info
-      amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfReply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
-      amfReply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
-      amfReply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      amfReply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding));
+      AMF::Object amfReply;
+      amfReply.addContent("_result"); // result success
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      AMF::Object *props = amfReply.addContent(AMF::AMF0_OBJECT); // server properties
+      props->addContent("fmsVer", "FMS/3,5,5,2004");
+      props->addContent("capabilities", 31.0);
+      props->addContent("mode", 1.0);
+      AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+      info->addContent("level", "status");
+      info->addContent("code", "NetConnection.Connect.Success");
+      info->addContent("description", "Connection succeeded.");
+      info->addContent("clientid", 1337.0);
+      info->addContent("objectEncoding", objencoding);
+      if (hasCaps) {
+        // Report that we support Reconnect (1), ModEx (4) and TimestampNanoOffset (8)
+        info->addContent("capsEx", 15.0);
+      }
+      if (hasCcList) {
+        AMF::Object *ccList = info->addContent("fourCcList", AMF::AMF0_STRICT_ARRAY);
+        ccList->addContent("av01");
+        ccList->addContent("avc1");
+        ccList->addContent("hvc1");
+        ccList->addContent("vp08");
+        ccList->addContent("vp09");
+        ccList->addContent("ac-3");
+        ccList->addContent("ec-3");
+        ccList->addContent("Opus");
+        ccList->addContent(".mp3");
+        ccList->addContent("fLaC");
+        ccList->addContent("mp4a");
+      }
+      if (hasAudioCc) {
+        AMF::Object *ccList = info->addContent("audioFourCcInfoMap", AMF::AMF0_OBJECT);
+        ccList->addContent("ac-3", 7.0);
+        ccList->addContent("ec-3", 7.0);
+        ccList->addContent("Opus", 7.0);
+        ccList->addContent(".mp3", 7.0);
+        ccList->addContent("fLaC", 7.0);
+        ccList->addContent("mp4a", 7.0);
+      }
+      if (hasVideoCc) {
+        AMF::Object *ccList = info->addContent("videoFourCcInfoMap", AMF::AMF0_OBJECT);
+        ccList->addContent("av01", 7.0);
+        ccList->addContent("avc1", 7.0);
+        ccList->addContent("hvc1", 7.0);
+        ccList->addContent("vp08", 7.0);
+        ccList->addContent("vp09", 7.0);
+      }
       // amfReply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
       // amfReply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
       sendCommand(amfReply, messageType, streamId);
@@ -1238,40 +1556,40 @@ namespace Mist {
       // sendCommand(amfReply, messageType, streamId);
       return;
     }// connect
-    if (amfData.getContentP(0)->StrValue() == "createStream"){
+    if (amfData.getContentP(0)->StrValue() == "createStream") {
       // send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_result"));           // result success
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object("", 1.0));                 // stream ID - we use 1
+      AMF::Object amfReply;
+      amfReply.addContent("_result"); // result success
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      amfReply.addContent(1.0); // stream ID - we use 1
       sendCommand(amfReply, messageType, streamId);
       // myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       return;
-    }// createStream
+    } // createStream
     if (amfData.getContentP(0)->StrValue() == "ping"){
       // send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_result"));           // result success
+      AMF::Object amfReply;
+      amfReply.addContent("_result"); // result success
       amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object("", "Pong!"));             // stream ID - we use 1
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      amfReply.addContent("Pong!"); // stream ID - we use 1
       sendCommand(amfReply, messageType, streamId);
       return;
     }// createStream
     if (amfData.getContentP(0)->StrValue() == "closeStream"){
       myConn.SendNow(RTMPStream::SendUSR(1, 1)); // send UCM StreamEOF (1), stream 1
-      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfreply.addContent(AMF::Object("", 0.0));                 // transaction ID
-      amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object(""));                      // info
-      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Stop"));
-      amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
-      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-      amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      sendCommand(amfreply, 20, 1);
+      AMF::Object amfReply;
+      amfReply.addContent("onStatus"); // status reply
+      amfReply.addContent(0.0); // transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+      info->addContent("level", "status");
+      info->addContent("code", "NetStream.Play.Stop");
+      info->addContent("description", "Stream stopped");
+      info->addContent("details", "DDV");
+      info->addContent("clientid", 1337.0);
+      sendCommand(amfReply, 20, 1);
       stop();
       return;
     }
@@ -1285,68 +1603,62 @@ namespace Mist {
       // ignored
       return;
     }
-    if ((amfData.getContentP(0)->StrValue() == "FCSubscribe")){
+    if (amfData.getContentP(0)->StrValue() == "FCSubscribe") {
       // send a FCPublish reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "onFCSubscribe"));     // status reply
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object(""));                      // info
-      amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Start"));
-      amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfReply.getContentP(3)->addContent(
-          AMF::Object("description",
-                      "Please follow up with play or publish command, as we ignore this command."));
+      AMF::Object amfReply;
+      amfReply.addContent("onFCSubscribe"); // status reply
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+      info->addContent("code", "NetStream.Play.Start");
+      info->addContent("level", "status");
+      info->addContent("description", "Please follow up with play or publish command, as we ignore this command.");
       sendCommand(amfReply, messageType, streamId);
       return;
-    }// FCPublish
-    if ((amfData.getContentP(0)->StrValue() == "FCPublish")){
+    } // FCPublish
+    if (amfData.getContentP(0)->StrValue() == "FCPublish") {
       // send a FCPublish reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "onFCPublish"));       // status reply
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object(""));                      // info
-      amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Start"));
-      amfReply.getContentP(3)->addContent(AMF::Object(
-          "description", "Please follow up with publish command, as we ignore this command."));
+      AMF::Object amfReply;
+      amfReply.addContent("onFCPublish"); // status reply
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+      info->addContent("code", "NetStream.Publish.Start");
+      info->addContent("description", "Please follow up with publish command, as we ignore this command.");
       sendCommand(amfReply, messageType, streamId);
       return;
-    }// FCPublish
-    if (amfData.getContentP(0)->StrValue() == "releaseStream"){
+    } // FCPublish
+    if (amfData.getContentP(0)->StrValue() == "releaseStream") {
       // send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_result"));           // result success
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object("", AMF::AMF0_UNDEFINED)); // stream ID?
+      AMF::Object amfReply;
+      amfReply.addContent("_result"); // result success
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      amfReply.addContent(AMF::AMF0_UNDEFINED); // stream ID?
       sendCommand(amfReply, messageType, streamId);
       return;
-    }// releaseStream
-    if ((amfData.getContentP(0)->StrValue() == "getStreamLength") ||
-        (amfData.getContentP(0)->StrValue() == "getMovLen")){
+    } // releaseStream
+    if ((amfData.getContentP(0)->StrValue() == "getStreamLength") || (amfData.getContentP(0)->StrValue() == "getMovLen")) {
       // send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_result"));           // result success
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object("", 0.0));                 // zero length
+      AMF::Object amfReply;
+      amfReply.addContent("_result"); // result success
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      amfReply.addContent(0.0); // zero length
       sendCommand(amfReply, messageType, streamId);
       return;
-    }// getStreamLength
+    } // getStreamLength
     if ((amfData.getContentP(0)->StrValue() == "publish")){
-      if (config->getInteger("acceptable") == 1){// Only allow outgoing ( = 1)? Abort!
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "_error"));                  // result success
-        amfReply.addContent(amfData.getContent(1));                      // same transaction ID
-        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); // null - command info
-        amfReply.addContent(AMF::Object(""));                            // info
-        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Rejected"));
-        amfReply.getContentP(3)->addContent(AMF::Object(
-            "description", "Publish rejected: this interface does not allow publishing"));
+      if (config->getInteger("acceptable") == 1) { // Only allow outgoing ( = 1)? Abort!
+        AMF::Object amfReply;
+        amfReply.addContent("_error"); // result error
+        amfReply.addContent(amfData.getContent(1)); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("code", "NetStream.Publish.Rejected");
+        info->addContent("description", "Publish rejected: this interface does not allow publishing");
         sendCommand(amfReply, messageType, streamId);
-        INFO_MSG("Push from %s rejected - connector configured to only allow outgoing streams",
-                 getConnectedHost().c_str());
+        INFO_MSG("Push from %s rejected - connector configured to only allow outgoing streams", getConnectedHost().c_str());
         onFinish();
         return;
       }
@@ -1441,17 +1753,18 @@ namespace Mist {
         Util::mRExitReason = (char*)ER_UNKNOWN;
         Util::exitReason[0] = 0;
       }
-      // send a status reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object(""));                      // info
-      amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Start"));
-      amfReply.getContentP(3)->addContent(AMF::Object("description", "Stream is now published!"));
-      amfReply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      sendCommand(amfReply, messageType, streamId);
+      { // send a status reply
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(amfData.getContent(1)); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Publish.Start");
+        info->addContent("description", "Stream is now published!");
+        info->addContent("clientid", 1337.0);
+        sendCommand(amfReply, messageType, streamId);
+      }
       /*
       //send a _result reply
       amfReply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
@@ -1464,16 +1777,16 @@ namespace Mist {
       myConn.SendNow(RTMPStream::SendUSR(0, 1)); // send UCM StreamBegin (0), stream 1
       return;
     }// getStreamLength
-    if (amfData.getContentP(0)->StrValue() == "checkBandwidth"){
+    if (amfData.getContentP(0)->StrValue() == "checkBandwidth") {
       // send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_result"));           // result success
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
+      AMF::Object amfReply;
+      amfReply.addContent("_result"); // result success
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
+      amfReply.addContent(AMF::AMF0_NULL); // null - command info
       sendCommand(amfReply, messageType, streamId);
       return;
-    }// checkBandwidth
+    } // checkBandwidth
     if (amfData.getContentP(0)->StrValue() == "onBWDone"){return;}
     if ((amfData.getContentP(0)->StrValue() == "play") ||
         (amfData.getContentP(0)->StrValue() == "play2")){
@@ -1503,77 +1816,75 @@ namespace Mist {
       Util::sanitizeName(streamName);
       Util::setStreamName(streamName);
 
-      if (config->getInteger("acceptable") == 2){// Only allow incoming ( = 2)? Abort!
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "_error"));                  // result success
-        amfReply.addContent(amfData.getContent(1));                      // same transaction ID
-        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); // null - command info
-        amfReply.addContent(AMF::Object(""));                            // info
-        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Rejected"));
-        amfReply.getContentP(3)->addContent(
-            AMF::Object("description", "Play rejected: this interface does not allow playback"));
+      if (config->getInteger("acceptable") == 2) { // Only allow incoming ( = 2)? Abort!
+        AMF::Object amfReply;
+        amfReply.addContent("_error"); // result success
+        amfReply.addContent(amfData.getContent(1)); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("code", "NetStream.Play.Rejected");
+        info->addContent("description", "Play rejected: this interface does not allow playback");
         sendCommand(amfReply, messageType, streamId);
-        INFO_MSG("Play of %s by %s rejected - connector configured to only allow incoming streams",
-                 streamName.c_str(), getConnectedHost().c_str());
+        INFO_MSG("Play of %s by %s rejected - connector configured to only allow incoming streams", streamName.c_str(),
+                 getConnectedHost().c_str());
         onFinish();
         return;
       }
 
       initialize();
       //Abort if stream could not be opened
-      if (!M){
+      if (!M) {
         INFO_MSG("Could not open stream, aborting");
         // send a _result reply
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "_error"));                           // result success
-        amfReply.addContent(amfData.getContent(1));                               // same transaction ID
-        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); // null - command info
-        amfReply.addContent(AMF::Object(""));                            // info
-        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Rejected"));
-        amfReply.getContentP(3)->addContent(
-            AMF::Object("description", "Play rejected: could not initialize stream"));
+        AMF::Object amfReply;
+        amfReply.addContent("_error"); // result success
+        amfReply.addContent(amfData.getContent(1)); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("code", "NetStream.Play.Rejected");
+        info->addContent("description", "Play rejected: could not initialize stream");
         sendCommand(amfReply, messageType, streamId);
         onFinish();
         return;
       }
 
-      // send a status reply
-      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfreply.addContent(AMF::Object("", playTransaction));     // same transaction ID
-      amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object(""));                      // info
-      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Reset"));
-      amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing and resetting..."));
-      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-      amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      sendCommand(amfreply, playMessageType, playStreamId);
+      { // send a status reply
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(playTransaction); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Play.Reset");
+        info->addContent("description", "Playing and resetting...");
+        info->addContent("details", "DDV");
+        info->addContent("clientid", 1337.0);
+        sendCommand(amfReply, playMessageType, playStreamId);
+      }
       // send streamisrecorded if stream, well, is recorded.
       if (M.getVod()){// isMember("length") && Strm.metadata["length"].asInt() > 0){
         myConn.SendNow(RTMPStream::SendUSR(4, 1)); // send UCM StreamIsRecorded (4), stream 1
       }
       // send streambegin
       myConn.SendNow(RTMPStream::SendUSR(0, 1)); // send UCM StreamBegin (0), stream 1
-      // and more reply
-      amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfreply.addContent(AMF::Object("", playTransaction));     // same transaction ID
-      amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object(""));                      // info
-      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Start"));
-      amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
-      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-      amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
+
       initialSeek();
-      if (targetParams.count("keepts")){
-        rtmpOffset = 0;
-      }else{
-        rtmpOffset = currentTime();
+      rtmpOffset = targetParams.count("keepts") ? 0 : currentTime();
+
+      { // and more reply
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(playTransaction); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Play.Start");
+        info->addContent("description", "Playing!");
+        info->addContent("details", "DDV");
+        info->addContent("clientid", 1337.0);
+        info->addContent("timecodeOffset", (double)rtmpOffset);
+        sendCommand(amfReply, playMessageType, playStreamId);
       }
-      amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
-      sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 65536;                                 // 64KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); // send chunk size max (msg 1)
       // send dunno?
@@ -1588,54 +1899,57 @@ namespace Mist {
       int8_t playMessageType = messageType;
       int32_t playStreamId = streamId;
 
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfReply.addContent(amfData.getContent(1));                // same transaction ID
-      amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfReply.addContent(AMF::Object(""));                      // info
-      amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Seek.Notify"));
-      amfReply.getContentP(3)->addContent(
-          AMF::Object("description", "Seeking to the specified time"));
-      amfReply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-      amfReply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      sendCommand(amfReply, playMessageType, playStreamId);
-      seek((long long int)amfData.getContentP(3)->NumValue());
+      {
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(amfData.getContent(1)); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Seek.Notify");
+        info->addContent("description", "Seeking to the specified time");
+        info->addContent("details", "DDV");
+        info->addContent("clientid", 1337.0);
+        sendCommand(amfReply, playMessageType, playStreamId);
+      }
+      seek(amfData.getContentP(3)->NumValue());
 
-      // send a status reply
-      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfreply.addContent(AMF::Object("", playTransaction));     // same transaction ID
-      amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object(""));                      // info
-      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Reset"));
-      amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing and resetting..."));
-      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-      amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      sendCommand(amfreply, playMessageType, playStreamId);
+      { // send a status reply
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(playTransaction); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Play.Reset");
+        info->addContent("description", "Playing and resetting...");
+        info->addContent("details", "DDV");
+        info->addContent("clientid", 1337.0);
+        sendCommand(amfReply, playMessageType, playStreamId);
+      }
       // send streamisrecorded if stream, well, is recorded.
       if (M.getVod()){// isMember("length") && Strm.metadata["length"].asInt() > 0){
         myConn.SendNow(RTMPStream::SendUSR(4, 1)); // send UCM StreamIsRecorded (4), stream 1
       }
       // send streambegin
       myConn.SendNow(RTMPStream::SendUSR(0, 1)); // send UCM StreamBegin (0), stream 1
-      // and more reply
-      amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfreply.addContent(AMF::Object("", playTransaction));     // same transaction ID
-      amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object(""));                      // info
-      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Start"));
-      amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
-      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-      amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      if (M.getLive()){
-        rtmpOffset = currentTime();
-        amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
+      { // and more reply
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(playTransaction); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Play.Start");
+        info->addContent("description", "Playing!");
+        info->addContent("details", "DDV");
+        info->addContent("clientid", 1337.0);
+        if (M.getLive()) {
+          rtmpOffset = currentTime();
+          info->addContent("timecodeOffset", (double)rtmpOffset);
+        }
+        sendCommand(amfReply, playMessageType, playStreamId);
       }
-      sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 65536;                                 // 64KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); // send chunk size max (msg 1)
       // send dunno?
@@ -1646,33 +1960,33 @@ namespace Mist {
     if ((amfData.getContentP(0)->StrValue() == "pauseRaw") || (amfData.getContentP(0)->StrValue() == "pause")){
       int8_t playMessageType = messageType;
       int32_t playStreamId = streamId;
-      if (amfData.getContentP(3)->NumValue()){
+      if (amfData.getContentP(3)->NumValue()) {
         parseData = false;
         // send a status reply
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "onStatus"));          // status reply
-        amfReply.addContent(amfData.getContent(1));                // same transaction ID
-        amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-        amfReply.addContent(AMF::Object(""));                      // info
-        amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
-        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Pause.Notify"));
-        amfReply.getContentP(3)->addContent(AMF::Object("description", "Pausing playback"));
-        amfReply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-        amfReply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(amfData.getContent(1)); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Pause.Notify");
+        info->addContent("description", "Pausing playback");
+        info->addContent("details", "DDV");
+        info->addContent("clientid", 1337.0);
         sendCommand(amfReply, playMessageType, playStreamId);
-      }else{
+      } else {
         parseData = true;
         // send a status reply
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "onStatus"));          // status reply
-        amfReply.addContent(amfData.getContent(1));                // same transaction ID
-        amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-        amfReply.addContent(AMF::Object(""));                      // info
-        amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
-        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Unpause.Notify"));
-        amfReply.getContentP(3)->addContent(AMF::Object("description", "Resuming playback"));
-        amfReply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-        amfReply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
+        AMF::Object amfReply;
+        amfReply.addContent("onStatus"); // status reply
+        amfReply.addContent(amfData.getContent(1)); // same transaction ID
+        amfReply.addContent(AMF::AMF0_NULL); // null - command info
+        AMF::Object *info = amfReply.addContent(AMF::AMF0_OBJECT); // info
+        info->addContent("level", "status");
+        info->addContent("code", "NetStream.Unpause.Notify");
+        info->addContent("description", "Resuming playback");
+        info->addContent("details", "DDV");
+        info->addContent("clientid", 1337.0);
         sendCommand(amfReply, playMessageType, playStreamId);
       }
       return;
@@ -1771,36 +2085,82 @@ namespace Mist {
           UA = amfData.getContentP(2)->getContentP("fmsVer")->StrValue();
           INFO_MSG("Server version: %s", UA.c_str());
         }
-        {
-          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-          amfReply.addContent(AMF::Object("", "releaseStream"));     // command
-          amfReply.addContent(AMF::Object("", 2.0));                 // transaction ID
-          amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // options
-          amfReply.addContent(AMF::Object("", streamOut));           // stream name
+        AMF::Object *connInfo = amfData.getContentP(3);
+        if (connInfo) {
+          if (connInfo->getContentP("capsEx")) { enhancedCaps = connInfo->getContentP("capsEx")->NumValue(); }
+          bool moreCodecs = false;
+          if (connInfo->getContentP("fourCcList")->GetType() == AMF::AMF0_STRICT_ARRAY) {
+            moreCodecs = true;
+            for (auto & it : *(connInfo->getContentP("fourCcList"))) {
+              const std::string & fourcc = it.StrValue();
+              if (fourcc == "av01") { capa["codecs"][0u][0u].append("AV1"); }
+              if (fourcc == "hvc1") { capa["codecs"][0u][0u].append("HEVC"); }
+              if (fourcc == "vp08") { capa["codecs"][0u][0u].append("VP8"); }
+              if (fourcc == "vp09") { capa["codecs"][0u][0u].append("VP9"); }
+              if (fourcc == "Opus") { capa["codecs"][0u][1u].append("opus"); }
+              if (fourcc == "ac-3") { capa["codecs"][0u][1u].append("AC3"); }
+              if (fourcc == "ec-3") { capa["codecs"][0u][1u].append("EAC-3"); }
+              if (fourcc == "fLaC") { capa["codecs"][0u][1u].append("FLAC"); }
+              if (fourcc == "*") { capa["codecs"][0u] = capa["codecs"][1u]; }
+            }
+          }
+          if (connInfo->getContentP("audioFourCcInfoMap")->GetType() == AMF::AMF0_OBJECT) {
+            moreCodecs = true;
+            for (auto & it : *(connInfo->getContentP("audioFourCcInfoMap"))) {
+              const std::string & fourcc = it.Indice();
+              if (fourcc == "Opus") { capa["codecs"][0u][1u].append("opus"); }
+              if (fourcc == "ac-3") { capa["codecs"][0u][1u].append("AC3"); }
+              if (fourcc == "ec-3") { capa["codecs"][0u][1u].append("EAC-3"); }
+              if (fourcc == "fLaC") { capa["codecs"][0u][1u].append("FLAC"); }
+              if (fourcc == "*") { capa["codecs"][0u][1u] = capa["codecs"][1u][1u]; }
+            }
+          }
+          if (connInfo->getContentP("videoFourCcInfoMap")->GetType() == AMF::AMF0_OBJECT) {
+            moreCodecs = true;
+            for (auto & it : *(connInfo->getContentP("videoFourCcInfoMap"))) {
+              const std::string & fourcc = it.Indice();
+              if (fourcc == "av01") { capa["codecs"][0u][0u].append("AV1"); }
+              if (fourcc == "hvc1") { capa["codecs"][0u][0u].append("HEVC"); }
+              if (fourcc == "vp08") { capa["codecs"][0u][0u].append("VP8"); }
+              if (fourcc == "vp09") { capa["codecs"][0u][0u].append("VP9"); }
+              if (fourcc == "*") { capa["codecs"][0u][0u] = capa["codecs"][1u][0u]; }
+            }
+          }
+          if (moreCodecs) {
+            INFO_MSG("Re-selecting tracks because compatible codec list was updated");
+            selectDefaultTracks();
+          }
+        }
+        if (connInfo && connInfo->getContentP("")) {
+          AMF::Object amfReply;
+          amfReply.addContent("releaseStream"); // command
+          amfReply.addContent(2.0); // transaction ID
+          amfReply.addContent(AMF::AMF0_NULL); // options
+          amfReply.addContent(streamOut); // stream name
           sendCommand(amfReply, 20, 0);
         }
         {
-          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-          amfReply.addContent(AMF::Object("", "FCPublish"));         // command
-          amfReply.addContent(AMF::Object("", 3.0));                 // transaction ID
-          amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // options
-          amfReply.addContent(AMF::Object("", streamOut));           // stream name
+          AMF::Object amfReply;
+          amfReply.addContent("FCPublish"); // command
+          amfReply.addContent(3.0); // transaction ID
+          amfReply.addContent(AMF::AMF0_NULL); // options
+          amfReply.addContent(streamOut); // stream name
           sendCommand(amfReply, 20, 0);
         }
         {
-          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-          amfReply.addContent(AMF::Object("", "createStream"));      // command
-          amfReply.addContent(AMF::Object("", 4.0));                 // transaction ID
-          amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // options
+          AMF::Object amfReply;
+          amfReply.addContent("createStream"); // command
+          amfReply.addContent(4.0); // transaction ID
+          amfReply.addContent(AMF::AMF0_NULL); // options
           sendCommand(amfReply, 20, 0);
         }
         {
-          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-          amfReply.addContent(AMF::Object("", "publish"));           // command
-          amfReply.addContent(AMF::Object("", 5.0));                 // transaction ID
-          amfReply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // options
-          amfReply.addContent(AMF::Object("", streamOut));           // stream name
-          amfReply.addContent(AMF::Object("", "live"));              // stream name
+          AMF::Object amfReply;
+          amfReply.addContent("publish"); // command
+          amfReply.addContent(5.0); // transaction ID
+          amfReply.addContent(AMF::AMF0_NULL); // options
+          amfReply.addContent(streamOut); // stream name
+          amfReply.addContent("live"); // stream name
           sendCommand(amfReply, 20, 1);
         }
 
@@ -1828,11 +2188,27 @@ namespace Mist {
         return;
       }
 
+      // Handle reconnect request
+      if (isRecording() && amfData.getContentP(0)->StrValue() == "onStatus" &&
+          amfData.getContentP(3)->getContentP("code")->StrValue() == "NetConnection.Connect.ReconnectRequest") {
+        std::string tcUrl = amfData.getContentP(3)->getContentP("tcUrl")->StrValue();
+        std::string desc = amfData.getContentP(3)->getContentP("description")->StrValue();
+        HTTP::URL newUrl(targetParams["tcUrl"]);
+        if (tcUrl.size()) {
+          newUrl = newUrl.link(tcUrl);
+          targetParams["app"] = newUrl.path;
+          config->getOption("target", true).append(newUrl.getUrl() + "/" + targetParams["stream"]);
+        }
+        INFO_MSG("Received reconnect request to %s: %s", config->getString("target").c_str(), desc.c_str());
+        pushState = "ReconnectRequest";
+        return;
+      }
+
       // Handling generic errors remotely triggered errors.
       if (amfData.getContentP(0)->StrValue() == "onStatus" &&
           amfData.getContentP(3)->getContentP("level")->StrValue() == "error"){
         const std::string & errorCode = amfData.getContentP(3)->getContentP("code")->StrValue();
-        const std::string & errorDesc = amfData.getContentP(3)->getContentP("code")->StrValue();
+        const std::string & errorDesc = amfData.getContentP(3)->getContentP("description")->StrValue();
         Util::logExitReason(ER_FORMAT_SPECIFIC, "received %s during %s: %s", errorCode.c_str(), pushState.c_str(),
                             errorDesc.c_str());
         return;
@@ -1843,13 +2219,14 @@ namespace Mist {
     }
 
     WARN_MSG("AMF0 command not processed: %s", amfData.Print().c_str());
-    // send a _result reply
-    AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-    amfReply.addContent(AMF::Object("", "_error"));                           // result success
-    amfReply.addContent(amfData.getContent(1));                               // same transaction ID
-    amfReply.addContent(AMF::Object("", amfData.getContentP(0)->StrValue())); // null - command info
-    amfReply.addContent(AMF::Object("", "Command not implemented or recognized")); // stream ID?
-    sendCommand(amfReply, messageType, streamId);
+    { // send a _result reply
+      AMF::Object amfReply;
+      amfReply.addContent("_error"); // result success
+      amfReply.addContent(amfData.getContent(1)); // same transaction ID
+      amfReply.addContent(amfData.getContentP(0)->StrValue()); // null - command info
+      amfReply.addContent("Command not implemented or recognized"); // stream ID?
+      sendCommand(amfReply, messageType, streamId);
+    }
   }// parseAMFCommand
 
   ///\brief Gets and parses one RTMP chunk at a time.
@@ -1860,10 +2237,10 @@ namespace Mist {
     // for chunk parsing
     static RTMPStream::Chunk next;
     static FLV::Tag F;
-    static AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
-    static AMF::Object amfelem("empty", AMF::AMF0_DDV_CONTAINER);
-    static AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
-    static AMF::Object3 amf3elem("empty", AMF::AMF3_DDV_CONTAINER);
+    static AMF::Object amfdata;
+    static AMF::Object amfelem;
+    static AMF::Object3 amf3data;
+    static AMF::Object3 amf3elem;
     static bool warned = false;
 
     while (next.Parse(inputBuffer)){
@@ -1964,7 +2341,7 @@ namespace Mist {
           amf_storage = &(pushMeta.begin()->second);
         }
 
-        size_t reTrack = next.cs_id * 3 + (F.data[0] == 0x09 ? 1 : (F.data[0] == 0x08 ? 2 : 3));
+        size_t reTrack = (next.cs_id * 1000) + F.getTrackID();
         if (!reTrackToID.count(reTrack)){reTrackToID[reTrack] = INVALID_TRACK_ID;}
         F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
         if ((F.getDataLen() || (amf_storage && amf_storage->hasContent())) && !(F.needsInitData() && F.isInitData())){
@@ -2037,7 +2414,7 @@ namespace Mist {
           ltt = tagTime;
           if (ltt){
             for (std::map<size_t, uint64_t>::iterator it = lastTagTime.begin(); it != lastTagTime.end(); ++it){
-              if (it->second == reTrack){continue;}
+              if (it->first == reTrack) { continue; }
               size_t iIdx = reTrackToID[it->first];
               if (it->second + 100 < ltt){
                 meta.setNowms(iIdx, ltt-100);

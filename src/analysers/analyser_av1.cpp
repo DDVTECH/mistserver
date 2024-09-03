@@ -27,7 +27,7 @@ bool AnalyserAV1::parsePacket() {
   while (isOpen() && dataBuffer.size() < neededBytes()) {
     uint64_t needed = neededBytes();
     dataBuffer.reserve(needed);
-    for (uint64_t i = dataBuffer.size(); i < needed; ++i) {
+    for (uint64_t i = dataBuffer.size(); i < needed && isOpen(); ++i) {
       dataBuffer += std::cin.get();
       ++curPos;
       if (!std::cin.good()) { dataBuffer.erase(dataBuffer.size() - 1, 1); }
@@ -35,10 +35,12 @@ bool AnalyserAV1::parsePacket() {
   }
 
   AV1::OBU obu(dataBuffer.data(), dataBuffer.size());
-  HIGH_MSG("Read a %zu-byte OBU unit at position %" PRIu64, obu.getSize(), prePos);
+  size_t s = obu.getSize();
+  HIGH_MSG("Read a %zu-byte OBU unit at position %" PRIu64, s, prePos);
   if (detail >= 2) { std::cout << obu.toString() << std::endl; }
-  prePos += obu.getSize();
-  dataBuffer.erase(0, obu.getSize()); // erase the NAL unit we just read
+  prePos += s;
+  dataBuffer.erase(0, s); // erase the NAL unit we just read
+  if (!s) { *isActive = false; }
   return true;
 }
 

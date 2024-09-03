@@ -943,6 +943,7 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
+      if (!M.trackLoaded(subIt->first)){continue;}
       keysCache[subIt->first] = new DTSC::Keys(M.getKeys(subIt->first));
       DTSC::Keys & keys = *keysCache[subIt->first];
       DTSC::Parts parts(M.parts(subIt->first));

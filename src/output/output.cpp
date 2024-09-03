@@ -1391,7 +1391,7 @@ namespace Mist{
       bool good = true;
       // check if all tracks have data for this point in time
       for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
-        if (ti->first == INVALID_TRACK_ID){
+        if (ti->first == INVALID_TRACK_ID || !M.trackLoaded(ti->first)){
           HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
           continue;
         }// ignore missing tracks
@@ -1785,6 +1785,7 @@ namespace Mist{
                 bool lookReady = true;
                 for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin();
                      it != userSelect.end(); it++){
+                  if (!meta.trackLoaded(it->first)){continue;}
                   if (meta.getNowms(it->first) <= needsTime){
                     if (timeoutTries == 1){
                       WARN_MSG("Track %zu: %" PRIu64 " <= %" PRIu64, it->first,

@@ -734,6 +734,7 @@ namespace Mist{
     }
 
     if (type == "audio"){
+      if (!M.trackLoaded(thisIdx)){return;}
       uint32_t rate = M.getRate(thisIdx);
       rtmpheader[7] = 0x08;
       if (codec == "AAC"){

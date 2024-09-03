@@ -2229,7 +2229,7 @@ namespace DTSC{
     }
   }
   uint64_t Meta::getLastms(size_t trackIdx) const{
-    const DTSC::Track &t = tracks.find(trackIdx)->second;
+    const DTSC::Track &t = tracks.at(trackIdx);
     if (isLimited && limitMax < t.track.getInt(t.trackLastmsField)){return limitMax;}
     return t.track.getInt(t.trackLastmsField);
   }

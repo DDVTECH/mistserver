@@ -1,9 +1,9 @@
-project('SRT', 'cpp', 'c', version: '1.5.1')
+project('SRT', 'cpp', 'c', version: '1.5.3')
 
 if host_machine.system() == 'cygwin'
-  add_project_arguments(['-DENABLE_LOGGING=1', '-O3', '-DNDEBUG', '-DENABLE_MONOTONIC_CLOCK=1', '-DENABLE_NEW_RCVBUFFER=1', '-DENABLE_SOCK_CLOEXEC=1', '-DHAI_ENABLE_SRT=1', '-DHAI_PATCH=1', '-DHAVE_INET_PTON=1', '-DHAVE_PTHREAD_GETNAME_NP=1', '-DHAVE_PTHREAD_SETNAME_NP=1', '-DCYGWIN=1', '-DCYGWIN_USE_POSIX', '-DNDEBUG', '-DSRT_DYNAMIC', '-DSRT_ENABLE_APP_READER', '-DSRT_ENABLE_CLOSE_SYNCH', '-DSRT_ENABLE_ENCRYPTION', '-DSRT_EXPORTS', '-DSRT_VERSION="1.5.1"', '-DUSE_MBEDTLS=1', '-D_GNU_SOURCE'], language: ['cpp','c'])
+  add_project_arguments(['-DENABLE_LOGGING=1', '-O3', '-DNDEBUG', '-DENABLE_MONOTONIC_CLOCK=1', '-DENABLE_NEW_RCVBUFFER=1', '-DENABLE_SOCK_CLOEXEC=1', '-DHAI_ENABLE_SRT=1', '-DHAI_PATCH=1', '-DHAVE_INET_PTON=1', '-DHAVE_PTHREAD_GETNAME_NP=1', '-DHAVE_PTHREAD_SETNAME_NP=1', '-DCYGWIN=1', '-DCYGWIN_USE_POSIX', '-DNDEBUG', '-DSRT_DYNAMIC', '-DSRT_ENABLE_APP_READER', '-DSRT_ENABLE_CLOSE_SYNCH', '-DSRT_ENABLE_ENCRYPTION', '-DSRT_EXPORTS', '-DSRT_VERSION="1.5.3"', '-DUSE_MBEDTLS=1', '-D_GNU_SOURCE'], language: ['cpp','c'])
 else
-  add_project_arguments(['-DENABLE_LOGGING=1', '-O3', '-DNDEBUG', '-DENABLE_MONOTONIC_CLOCK=1', '-DENABLE_NEW_RCVBUFFER=1', '-DENABLE_SOCK_CLOEXEC=1', '-DHAI_ENABLE_SRT=1', '-DHAI_PATCH=1', '-DHAVE_INET_PTON=1', '-DHAVE_PTHREAD_GETNAME_NP=1', '-DHAVE_PTHREAD_SETNAME_NP=1', '-DLINUX=1', '-DNDEBUG', '-DSRT_DYNAMIC', '-DSRT_ENABLE_APP_READER', '-DSRT_ENABLE_BINDTODEVICE', '-DSRT_ENABLE_CLOSE_SYNCH', '-DSRT_ENABLE_ENCRYPTION', '-DSRT_EXPORTS', '-DSRT_VERSION="1.5.1"', '-DUSE_MBEDTLS=1', '-D_GNU_SOURCE'], language: ['cpp','c'])
+  add_project_arguments(['-DENABLE_LOGGING=1', '-O3', '-DNDEBUG', '-DENABLE_MONOTONIC_CLOCK=1', '-DENABLE_NEW_RCVBUFFER=1', '-DENABLE_SOCK_CLOEXEC=1', '-DHAI_ENABLE_SRT=1', '-DHAI_PATCH=1', '-DHAVE_INET_PTON=1', '-DHAVE_PTHREAD_GETNAME_NP=1', '-DHAVE_PTHREAD_SETNAME_NP=1', '-DLINUX=1', '-DNDEBUG', '-DSRT_DYNAMIC', '-DSRT_ENABLE_APP_READER', '-DSRT_ENABLE_BINDTODEVICE', '-DSRT_ENABLE_CLOSE_SYNCH', '-DSRT_ENABLE_ENCRYPTION', '-DSRT_EXPORTS', '-DSRT_VERSION="1.5.3"', '-DUSE_MBEDTLS=1', '-D_GNU_SOURCE'], language: ['cpp','c'])
 endif
 
 
@@ -24,7 +24,8 @@ subdir('srt')
 
 srt_src = files(
   'srtcore/api.cpp',
-  'srtcore/buffer.cpp',
+  'srtcore/buffer_snd.cpp',
+  'srtcore/buffer_tools.cpp',
   'srtcore/buffer_rcv.cpp',
   'srtcore/cache.cpp',
   'srtcore/channel.cpp',
@@ -71,7 +72,8 @@ libsrt = library(
   'srt',
   sources: [srt_src, versionfile],
   dependencies: [mbedtls_lib, mbedx509_lib, mbedcrypto_lib, thread_dep],
-  include_directories: ['srt', 'haicrypt', 'srtcore']
+  include_directories: ['srt', 'haicrypt', 'srtcore'],
+  install: true
 )
 
 srt_dep = declare_dependency(
@@ -80,4 +82,12 @@ srt_dep = declare_dependency(
   sources: [header_tgts],
   include_directories: include_directories('.'),
 )
+
+pkg = import('pkgconfig')
+pkg.generate(libraries : libsrt,
+             subdirs : ['.', 'srt'],
+             version : '1.5.3',
+             name : 'srt',
+             filebase : 'srt',
+             description : 'Haivision SRT library')
 

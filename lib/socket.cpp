@@ -738,7 +738,6 @@ void Socket::Connection::clear(){
   down = 0;
   conntime = Util::bootSecs();
   Error = false;
-  Blocking = false;
   skipCount = 0;
   memset(&remoteaddr, 0, sizeof(remoteaddr));
 #ifdef SSL
@@ -791,14 +790,7 @@ bool isFDBlocking(int FD){
 void Socket::Connection::setBlocking(bool blocking){
 #ifdef SSL
   if (sslConnected){
-    if (blocking == Blocking){return;}
-    if (blocking){
-      mbedtls_net_set_block(server_fd);
-      Blocking = true;
-    }else{
-      mbedtls_net_set_nonblock(server_fd);
-      Blocking = false;
-    }
+    if (server_fd->fd >= 0){setFDBlocking(server_fd->fd, blocking);}
     return;
   }
 #endif
@@ -809,7 +801,7 @@ void Socket::Connection::setBlocking(bool blocking){
 /// Set this socket to be blocking (true) or nonblocking (false).
 bool Socket::Connection::isBlocking(){
 #ifdef SSL
-  if (sslConnected){return Blocking;}
+  if (sslConnected){return isFDBlocking(server_fd->fd);}
 #endif
   if (sSend >= 0){return isFDBlocking(sSend);}
   if (sRecv >= 0){return isFDBlocking(sRecv);}
@@ -974,7 +966,6 @@ bool Socket::Connection::sslAccept(mbedtls_ssl_config * sslConf, mbedtls_ctr_drb
   // Inform mbedtls how we'd like to use the connection (uses default bio handlers)
   // We tell it to use non-blocking IO here
   mbedtls_net_set_nonblock(server_fd);
-  Blocking = false;
   mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
   // do the SSL handshake
   while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
@@ -1030,16 +1021,90 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
       return;
     }
     DONTEVEN_MSG("SSL connect");
+#endif
+  }
+
+  isTrueSocket = true;
+  struct addrinfo *result, *rp, hints;
+  std::stringstream ss;
+  ss << port;
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG;
+  int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
+  if (s != 0){
+    lastErr = gai_strmagic(s);
+    FAIL_MSG("Could not connect to %s:%i! Error: %s", host.c_str(), port, lastErr.c_str());
+    close();
+    return;
+  }
+
+  lastErr = "";
+  for (rp = result; rp; rp = rp->ai_next){
+    sSend = socket(rp->ai_family, SOCK_STREAM | SOCK_NONBLOCK, rp->ai_protocol);
+    if (sSend < 0){continue;}
+    //Ensure we can handle interrupted system call case
     int ret = 0;
-    std::string portStr = uint2string(port);
-    if ((ret = mbedtls_net_connect(server_fd, host.c_str(), portStr.c_str(), MBEDTLS_NET_PROTO_TCP)) != 0){
-      char estr[200];
-      mbedtls_strerror(ret, estr, 200);
-      lastErr = estr;
-      FAIL_MSG("SSL connect failed: %d: %s", ret, lastErr.c_str());
-      close();
-      return;
+    do{
+      ret = connect(sSend, rp->ai_addr, rp->ai_addrlen);
+    }while(ret && errno == EINTR);
+    int sockErr;
+    socklen_t sockErrLen = sizeof sockErr;
+    sockErr = errno;
+    size_t waitTime = 5;
+    while (ret && sockErr == EINPROGRESS && waitTime){
+      struct timeval timeout;
+      timeout.tv_sec = 1;
+      timeout.tv_usec = 0;
+      fd_set wList, eList;
+      FD_ZERO(&wList);
+      FD_ZERO(&eList);
+      FD_SET(sSend, &wList);
+      FD_SET(sSend, &eList);
+      int r = select(sSend+1,NULL,&wList,&eList,&timeout);
+      if (r < 0 && errno != EINTR){
+        sockErr = errno;
+        break;
+      }
+      if (r > 0){
+        getsockopt(sSend, SOL_SOCKET, SO_ERROR, &sockErr, &sockErrLen);
+        ret = sockErr;
+      }
+      --waitTime;
     }
+    if (!ret){
+      HIGH_MSG("Connect success!");
+      memcpy(&remoteaddr, rp->ai_addr, rp->ai_addrlen);
+      break;
+    }
+    if (!waitTime){
+      HIGH_MSG("Connect timeout!");
+      lastErr += "connect timeout";
+    }else{
+      HIGH_MSG("Connect error: %s", strerror(sockErr));
+      lastErr += strerror(sockErr);
+    }
+    ::close(sSend);
+  }
+  freeaddrinfo(result);
+
+  if (rp == 0){
+    FAIL_MSG("Could not connect to %s! Error: %s", host.c_str(), lastErr.c_str());
+    close();
+    return;
+  }
+  if (!nonblock){setFDBlocking(sSend, true);}
+  int optval = 1;
+  setsockopt(sSend, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
+  setBoundAddr();
+
+  if (with_ssl){
+#ifdef SSL
+    server_fd->fd = sSend;
+    sSend = -1;
+    int ret = 0;
     if ((ret = mbedtls_ssl_config_defaults(conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
                                            MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
       char estr[200];
@@ -1080,65 +1145,13 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
       }
     }
     sslConnected = true;
-    isTrueSocket = true;
-    setBoundAddr();
-    Blocking = true;
-    if (nonblock){setBlocking(false);}
     DONTEVEN_MSG("SSL connect success");
     return;
 #endif
     FAIL_MSG("Attempted to open SSL socket without SSL support compiled in!");
     return;
   }
-  isTrueSocket = true;
-  struct addrinfo *result, *rp, hints;
-  std::stringstream ss;
-  ss << port;
 
-  memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_ADDRCONFIG;
-  int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
-  if (s != 0){
-    lastErr = gai_strmagic(s);
-    FAIL_MSG("Could not connect to %s:%i! Error: %s", host.c_str(), port, lastErr.c_str());
-    close();
-    return;
-  }
-
-  lastErr = "";
-  for (rp = result; rp != NULL; rp = rp->ai_next){
-    sSend = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (sSend < 0){continue;}
-    //Ensure we can handle interrupted system call case
-    int ret = 0;
-    do{
-      ret = connect(sSend, rp->ai_addr, rp->ai_addrlen);
-    }while(ret && errno == EINTR);
-    if (!ret){
-      memcpy(&remoteaddr, rp->ai_addr, rp->ai_addrlen);
-      break;
-    }
-    lastErr += strerror(errno);
-    ::close(sSend);
-  }
-  freeaddrinfo(result);
-
-  if (rp == 0){
-    FAIL_MSG("Could not connect to %s! Error: %s", host.c_str(), lastErr.c_str());
-    close();
-  }else{
-    if (nonblock){
-      int flags = fcntl(sSend, F_GETFL, 0);
-      flags |= O_NONBLOCK;
-      fcntl(sSend, F_SETFL, flags);
-    }
-    int optval = 1;
-    int optlen = sizeof(optval);
-    setsockopt(sSend, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
-    setBoundAddr();
-  }
 }
 
 /// Returns the connected-state for this socket.

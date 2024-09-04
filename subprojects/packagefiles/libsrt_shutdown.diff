@@ -1,0 +1,27 @@
+diff --git a/srtcore/api.cpp b/srtcore/api.cpp
+index bb5dd64f..21983748 100644
+--- a/srtcore/api.cpp
++++ b/srtcore/api.cpp
+@@ -106,6 +106,8 @@ SRT_SOCKSTATUS srt::CUDTSocket::getStatus()
+     // In this case m_bConnected is also false. Both checks are required to avoid hitting
+     // a regular state transition from CONNECTING to CONNECTED.
+
++    if (m_UDT.m_bShutdown) { return SRTS_SHUTDOWN; }
++
+     if (m_UDT.m_bBroken)
+         return SRTS_BROKEN;
+
+diff --git a/srtcore/srt.h b/srtcore/srt.h
+index 614a85ae..0aa1cffc 100644
+--- a/srtcore/srt.h
++++ b/srtcore/srt.h
+@@ -159,7 +159,8 @@ typedef enum SRT_SOCKSTATUS {
+    SRTS_BROKEN,
+    SRTS_CLOSING,
+    SRTS_CLOSED,
+-   SRTS_NONEXIST
++   SRTS_NONEXIST,
++   SRTS_SHUTDOWN
+ } SRT_SOCKSTATUS;
+
+ // This is a duplicate enum. Must be kept in sync with the original UDT enum for

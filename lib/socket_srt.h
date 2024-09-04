@@ -24,6 +24,9 @@ namespace Socket{
       enum Type{STRING = 0, INT, INT64, BOOL, ENUM};
       enum Binding{PRE = 0, POST};
     }// namespace SockOpt
+
+    std::string configureSocketLoop(SRTSOCKET _sock, const paramList & _params, SRT::SockOpt::Binding _binding);
+
   }// namespace SRT
 
   //Advance declaration so we can make it a friend of SRTConnection
@@ -78,6 +81,8 @@ namespace Socket{
 
     Socket::Address remoteaddr;
     std::string getBinHost();
+    paramList params;
+
   private:
     SRTSOCKET sock;
     bool open();
@@ -88,6 +93,8 @@ namespace Socket{
     int32_t prev_pktseq;
     uint64_t lastGood;
     bool timedOut;
+    bool closedByRemote{false};
+    void *ptrs[3]; ///< For srt_listen_callback
 
     uint32_t chunkTransmitSize;
 
@@ -97,12 +104,10 @@ namespace Socket{
     int timeout;
     int rejectReason;
     bool tsbpdMode;
-    paramList params;
 
     void initializeEmpty();
     void handleConnectionParameters(const std::string &_host, const paramList &_params);
     int preConfigureSocket();
-    std::string configureSocketLoop(SRT::SockOpt::Binding _binding);
 
     bool blocking;
   };

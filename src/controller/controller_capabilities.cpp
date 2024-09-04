@@ -373,6 +373,15 @@ namespace Controller{
         "If non-empty, overrides the full RTMP url to the response value. If empty, denies the "
         "incoming RTMP push.";
 
+    trgs["SRT_ACCEPT"]["when"] = "Whenever an incoming SRT connection is accepted";
+    trgs["SRT_ACCEPT"]["stream_specific"] = false;
+    trgs["SRT_ACCEPT"]["payload"] = "local host:port (string)\nremote host:port (string)\nstreamid (string)";
+    trgs["SRT_ACCEPT"]["response"] = "always";
+    trgs["SRT_ACCEPT"]["response_action"] =
+      "If empty, rejects the connection. Otherwise, response is parsed as local SRT socket option overrides and "
+      "applied to the newly accepted connection only. This can be used to set the passphrase of the connection after "
+      "receiving the streamid, for example.";
+
     trgs["PUSH_REWRITE"]["when"] =
         "On all incoming pushes on any protocol, allows parsing the push URL to/from custom formatting to an internal stream name";
     trgs["PUSH_REWRITE"]["stream_specific"] = false;

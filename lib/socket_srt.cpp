@@ -1,10 +1,12 @@
 #include "socket_srt.h"
 
+#include "config.h"
 #include "defines.h"
 #include "http_parser.h"
 #include "json.h"
 #include "procs.h"
 #include "timing.h"
+#include "triggers.h"
 
 #include <cstdlib>
 #include <sstream>
@@ -53,6 +55,18 @@ namespace Socket{
       }
       return true;
     }
+
+    std::string configureSocketLoop(SRTSOCKET _sock, const paramList & _params, SRT::SockOpt::Binding _binding) {
+      std::string errMsg;
+      std::vector<SocketOption> allSrtOptions = srtOptions();
+      for (std::vector<SocketOption>::iterator it = allSrtOptions.begin(); it != allSrtOptions.end(); it++) {
+        if (it->binding == _binding && _params.count(it->name)) {
+          if (!it->apply(_sock, _params.at(it->name))) { errMsg += it->name + " "; }
+        }
+      }
+      return errMsg;
+    }
+
   }// namespace SRT
 
   template <typename T> std::string asString(const T &val){
@@ -154,6 +168,25 @@ namespace Socket{
     connect(_host, _port, _direction, _params);
   }
 
+  int local_listen_callback(void *ptrs, SRTSOCKET ns, int hs_version, const struct sockaddr *peeraddr, const char *streamid) {
+    ((void **)ptrs)[2] = ((char *)0) + ns;
+    if (Triggers::shouldTrigger("SRT_ACCEPT")) {
+      paramList & P = *((paramList *)((void **)ptrs)[0]);
+      const Socket::Address & localAddr = ((UDPConnection *)((void **)ptrs)[1])->getLocalAddr();
+      const Socket::Address & remoteAddr = ((UDPConnection *)((void **)ptrs)[1])->getRemoteAddr();
+      std::string sid(streamid);
+      Util::replace(sid, "\n", "\\n");
+      std::string payload = localAddr.toString() + "\n" + remoteAddr.toString() + "\n" + sid;
+      std::string newArgs;
+      Triggers::doTrigger("SRT_ACCEPT", payload, "", false, newArgs);
+      if (!newArgs.size()) { return -1; }
+      HTTP::parseVars(newArgs, P);
+      std::string errMsg = SRT::configureSocketLoop(ns, P, SRT::SockOpt::PRE);
+      if (errMsg.size()) { WARN_MSG("Failed to set the following options: %s", errMsg.c_str()); }
+    }
+    return 0;
+  }
+
   SRTConnection::SRTConnection(Socket::UDPConnection & _udpsocket, const std::string &_direction, const paramList &_params){
     initializeEmpty();
     direction = "output";
@@ -187,12 +220,28 @@ namespace Socket{
 
     lastGood = Util::bootMS();
     if (_direction == "rendezvous"){return;}
-
-    srt_listen(sock, 1);
-    SRTSOCKET tmpSock = srt_accept_bond(&sock, 1, 10000);
-    HIGH_MSG("Opened SRT socket %d", tmpSock);
-    close();
-    sock = tmpSock;
+    {
+      // Install callback for handling SRT_ACCEPT trigger
+      ptrs[0] = &params;
+      ptrs[1] = &_udpsocket;
+      ptrs[2] = 0;
+      srt_listen_callback(sock, local_listen_callback, ptrs);
+      srt_listen(sock, 1);
+      SRTSOCKET tmpSock = srt_accept_bond(&sock, 1, 10000);
+      if (tmpSock == INVALID_SRT_SOCKET) {
+        INFO_MSG("Did not accept: %s", srt_getlasterror_str());
+        sock = -1;
+        if (ptrs[2]) {
+          Util::logExitReason(ER_CLEAN_EOF, "rejected while establishing SRT connection");
+        } else {
+          Util::logExitReason(ER_CLEAN_EOF, "timeout while establishing SRT connection");
+        }
+        return;
+      }
+      HIGH_MSG("Opened SRT socket %d", tmpSock);
+      close();
+      sock = tmpSock;
+    }
 
     if (sock == SRT_INVALID_SOCK){
       FAIL_MSG("SRT error: %s", srt_getlasterror_str());
@@ -208,6 +257,7 @@ namespace Socket{
 
   const char * SRTConnection::getStateStr(){
     if (rejectReason){return srt_rejectreason_str(rejectReason);}
+    if (closedByRemote) { return "closed_by_remote"; }
     if (sock == INVALID_SRT_SOCKET){return "invalid / closed";}
     int state = srt_getsockstate(sock);
     switch (state){
@@ -220,6 +270,7 @@ namespace Socket{
       case SRTS_CLOSING: return "closing";
       case SRTS_CLOSED: return "closed";
       case SRTS_NONEXIST: return "does not exist";
+      case SRTS_SHUTDOWN: return "closed_by_remote";
     }
     return "unknown";
   }
@@ -279,6 +330,7 @@ namespace Socket{
       return 0;
     }
     if (receivedBytes == 0){
+      closedByRemote = true;
       close();
       return 0;
     }else{
@@ -371,6 +423,7 @@ namespace Socket{
       return 0;
     }
     if (receivedBytes == 0){
+      closedByRemote = true;
       INFO_MSG("SRT connection %d closed", sock);
       close();
       return 0;
@@ -557,6 +610,7 @@ namespace Socket{
     chunkTransmitSize = 1316;
     blocking = false;
     timedOut = false;
+    closedByRemote = false;
     timeout = 0;
   }
 
@@ -616,7 +670,7 @@ namespace Socket{
     lin.l_onoff = lin.l_linger ? 1 : 0;
     srt_setsockopt(sock, 0, SRTO_LINGER, &lin, sizeof(linger));
 
-    std::string errMsg = configureSocketLoop(SRT::SockOpt::PRE);
+    std::string errMsg = SRT::configureSocketLoop(sock, params, SRT::SockOpt::PRE);
     if (errMsg.size()){
       WARN_MSG("Failed to set the following options: %s", errMsg.c_str());
       return SRT_ERROR;
@@ -638,7 +692,7 @@ namespace Socket{
       if (srt_setsockopt(sock, 0, SRTO_SNDTIMEO, &timeout, sizeof timeout) == -1){return -1;}
       if (srt_setsockopt(sock, 0, SRTO_RCVTIMEO, &timeout, sizeof timeout) == -1){return -1;}
     }
-    std::string errMsg = configureSocketLoop(SRT::SockOpt::POST);
+    std::string errMsg = SRT::configureSocketLoop(sock, params, SRT::SockOpt::POST);
     if (errMsg.size()){
       WARN_MSG("Failed to set the following options: %s", errMsg.c_str());
       return SRT_ERROR;
@@ -646,22 +700,10 @@ namespace Socket{
     return 0;
   }
 
-  std::string SRTConnection::configureSocketLoop(SRT::SockOpt::Binding _binding){
-    std::string errMsg;
-
-    std::vector<SocketOption> allSrtOptions = srtOptions();
-    for (std::vector<SocketOption>::iterator it = allSrtOptions.begin(); it != allSrtOptions.end(); it++){
-      if (it->binding == _binding && params.count(it->name)){
-        std::string value = params.at(it->name);
-        if (!it->apply(sock, value)){errMsg += it->name + " ";}
-      }
-    }
-    return errMsg;
-  }
-
-  void SRTConnection::close(){
-    if (sock != INVALID_SRT_SOCKET){
-      HIGH_MSG("Closing SRT socket %d", sock);
+  void SRTConnection::close() {
+    if (sock != INVALID_SRT_SOCKET) {
+      if (srt_getsockstate(sock) == SRTS_SHUTDOWN) { closedByRemote = true; }
+      HIGH_MSG("Closing SRT socket %d (state = %s)", sock, getStateStr());
       setBlocking(true);
       srt_close(sock);
       sock = INVALID_SRT_SOCKET;

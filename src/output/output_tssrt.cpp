@@ -223,13 +223,39 @@ namespace Mist {
       parseData = true;
     } else {
       // Pull output configuration, In this case we have an srt connection in the second constructor parameter.
+
+      int64_t accTypes = config->getInteger("acceptable");
+      if (!accTypes) {
+        if (srtConn->params.count("play")) { accTypes = 1; }
+        if (srtConn->params.count("push")) { accTypes = 2; }
+        if (srtConn->params.count("dir")) {
+          if (srtConn->params["dir"] == "out") { accTypes = 1; }
+          if (srtConn->params["dir"] == "in") { accTypes = 2; }
+        }
+      }
       // Handle override / append of streamname options
       std::string sName = srtConn->getStreamName();
       if (!config->getBool("nostreamid")) {
-        if (sName != "") { streamName = sName; }
+        if (sName != "") {
+          size_t params = sName.find_first_of("&?");
+          if (params != std::string::npos) {
+            HTTP::parseVars(sName.substr(params + 1), targetParams);
+            if (!accTypes) {
+              if (targetParams.count("play")) { accTypes = 1; }
+              if (targetParams.count("push")) { accTypes = 2; }
+              if (targetParams.count("dir")) {
+                if (targetParams["dir"] == "out") { accTypes = 1; }
+                if (targetParams["dir"] == "in") { accTypes = 2; }
+              }
+            }
+            sName.erase(params);
+          }
+          streamName = sName;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+        }
       }
 
-      int64_t accTypes = config->getInteger("acceptable");
       if (accTypes == 0){//Allow both directions
         //Try to read the socket 10 times. If any reads succeed, assume they are pushing in
         size_t retries = 60;
@@ -428,6 +454,7 @@ namespace Mist {
     capa["optional"]["raw"]["name"] = "Raw input mode";
     capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
     capa["optional"]["raw"]["option"] = "--raw";
+    capa["optional"]["raw"]["default"] = false;
     capa["optional"]["raw"]["short"] = "R";
     capa["optional"]["raw"]["default"] = false;
 
@@ -451,6 +478,10 @@ namespace Mist {
 
     cfg->addStandardPushCapabilities(capa);
     JSON::Value & pp = capa["push_parameters"];
+
+    pp["noreconnect"]["name"] = "Do not reconnect";
+    pp["noreconnect"]["help"] = "If checked, disables reconnecting so that a single failure stops the push";
+    pp["noreconnect"]["type"] = "bool";
 
     pp["srtopts_main"]["name"] = "Commonly used SRT options";
     pp["srtopts_main"]["help"] = "Control the SRT connection";
@@ -659,13 +690,7 @@ namespace Mist {
     packetBuffer.append(tsData, len);
     if (packetBuffer.size() >= 1316){//7 whole TS packets
       if (!*srtConn){
-        if (!srtConn->rejected() && !targetParams.count("noreconnect") && config->getString("target").size()){
-          if (lastWorked + 5 < Util::bootSecs()){
-            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed, no reconnect success after 5s");
-            config->is_active = false;
-            parseData = false;
-            return;
-          }
+        if (!srtConn->rejected() && !targetParams.count("noreconnect") && config->getString("target").size()) {
           INFO_MSG("Reconnecting...");
           if (srtConn){
             srtConn->close();
@@ -678,11 +703,15 @@ namespace Mist {
           }
           srtConn->connect(target.host, target.getPort(), "output", targetParams);
           if (!*srtConn){Util::sleep(500);}
-        }else{
+        } else {
           if (srtConn->rejected()){
             Util::logExitReason(ER_FORMAT_SPECIFIC, "SRT connection rejected: %s", srtConn->getStateStr());
           }else{
-            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed (mid-send)");
+            if (srtConn->getStateStr() == std::string("closed_by_remote")) {
+              Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed by remote (mid-send)");
+            } else {
+              Util::logExitReason(ER_FORMAT_SPECIFIC, "SRT connection %s (mid-send)", srtConn->getStateStr());
+            }
           }
           config->is_active = false;
           parseData = false;
@@ -693,7 +722,11 @@ namespace Mist {
         srtConn->SendNow(packetBuffer, packetBuffer.size());
         if (!*srtConn){
           if (!config->getString("target").size()){
-            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed (post-send)");
+            if (srtConn->getStateStr() == std::string("closed_by_remote")) {
+              Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed by remote (post-send)");
+            } else {
+              Util::logExitReason(ER_FORMAT_SPECIFIC, "SRT connection %s (post-send)", srtConn->getStateStr());
+            }
             config->is_active = false;
             parseData = false;
           }
@@ -738,7 +771,11 @@ namespace Mist {
       }
     }
     if (!*srtConn){
-      Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection %s (in request handler)", srtConn->getStateStr());
+      if (srtConn->getStateStr() == std::string("closed_by_remote")) {
+        Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed by remote (in request handler)");
+      } else {
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "SRT connection %s (in request handler)", srtConn->getStateStr());
+      }
       config->is_active = false;
       srtConn->close();
       wantRequest = false;

@@ -182,7 +182,7 @@ namespace Mist{
     rtcpKeyFrameTimeoutInMillis = 0;
     videoBitrate = 6 * 1000 * 1000;
     videoConstraint = videoBitrate;
-    RTP::MAX_SEND = 1350 - 28;
+    RTP::MAX_SEND = config->getInteger("maxpktsize");
     didReceiveKeyFrame = false;
     syncedNTPClock = false;
     lastMediaSocket = 0;
@@ -345,6 +345,13 @@ namespace Mist{
     capa["optional"]["nacktimeout"]["short"] = "x";
     capa["optional"]["nacktimeout"]["type"] = "uint";
     capa["optional"]["nacktimeout"]["default"] = 5;
+
+    capa["optional"]["maxpktsize"]["name"] = "Max RTP packet size";
+    capa["optional"]["maxpktsize"]["help"] = "Maximum size of RTP packets. Note: this is -before- SRTP encryption is applied, so up to 28 bytes bigger is still possible.";
+    capa["optional"]["maxpktsize"]["option"] = "--maxpktsize";
+    capa["optional"]["maxpktsize"]["short"] = "M";
+    capa["optional"]["maxpktsize"]["type"] = "uint";
+    capa["optional"]["maxpktsize"]["default"] = (1350 - 28);
 
     capa["optional"]["losttimeout"]["name"] = "RTP lost timeout";
     capa["optional"]["losttimeout"]["help"] = "Amount of packets any track will wait for a packet to arrive before considering it lost";

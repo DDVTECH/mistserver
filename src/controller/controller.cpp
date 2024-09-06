@@ -345,10 +345,7 @@ int main_loop(int argc, char **argv){
       // Set the read end to blocking mode
       int inFDflags = fcntl(inFD, F_GETFL, 0);
       fcntl(inFD, F_SETFL, inFDflags & (~O_NONBLOCK));
-      // Start reading log messages from the named pipe
-      Util::Procs::socketList.insert(inFD); // Mark this FD as needing to be closed before forking
-      tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + inFD));
-      msghandler.detach();
+
       // Attempt to open and redirect log messages to named pipe
       int outFD = -1;
       if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
@@ -359,6 +356,11 @@ int main_loop(int argc, char **argv){
         dup2(outFD, STDERR_FILENO); // cause stderr to write to the pipe
         close(outFD);               // close the unneeded pipe file descriptor
       }
+
+      // Start reading log messages from the named pipe
+      Util::Procs::socketList.insert(inFD); // Mark this FD as needing to be closed before forking
+      tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + inFD));
+      msghandler.detach();
     }
     setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
   }

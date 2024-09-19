@@ -74,7 +74,7 @@ namespace Mist{
     virtual void getNext(size_t idx = INVALID_TRACK_ID){}
     virtual void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID){}
     virtual void finish();
-    virtual bool keepRunning();
+    virtual bool keepRunning(bool updateActCtr = true);
     virtual bool openStreamSource(){return readHeader();}
     virtual void closeStreamSource(){}
     virtual void parseStreamHeader(){}

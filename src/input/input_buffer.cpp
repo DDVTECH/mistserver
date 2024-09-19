@@ -258,6 +258,14 @@ namespace Mist{
     meta.setLive(true);
   }
 
+  bool InputBuffer::keepRunning(bool updateActCtr){
+    if (M.getLive()){
+      uint64_t currLastUpdate = M.getLastUpdated();
+      if (currLastUpdate > activityCounter){activityCounter = currLastUpdate;}
+    }
+    return Input::keepRunning(false);
+  }
+
   /// Checks if removing a key from this track is allowed/safe, and if so, removes it.
   /// Returns true if a key was actually removed, false otherwise
   /// Aborts if any of the following conditions are true (while active):

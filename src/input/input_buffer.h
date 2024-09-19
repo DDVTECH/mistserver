@@ -34,6 +34,7 @@ namespace Mist{
     bool needHeader(){return false;}
     void getNext(size_t idx = INVALID_TRACK_ID){};
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID){};
+    bool keepRunning(bool updateActCtr = true);
 
     void removeTrack(size_t tid);
 

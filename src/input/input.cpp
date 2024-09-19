@@ -894,13 +894,6 @@ namespace Mist{
         break;
       }
 
-      if (M.getLive() && !internalOnly){
-        uint64_t currLastUpdate = M.getLastUpdated();
-        if (currLastUpdate > activityCounter){activityCounter = currLastUpdate;}
-      }else{
-        if ((connectedUsers || isAlwaysOn()) && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
-      }
-
       inputServeStats();
       // if not shutting down, wait 1 second before looping
       preMs = Util::bootMS() - preMs;
@@ -944,7 +937,14 @@ namespace Mist{
   /// For live streams, this is twice the biggest fragment duration.
   /// For non-live streams this is INPUT_TIMEOUT seconds.
   /// The default Pro implementation also allows cancelling the shutdown through the STREAM_UNLOAD trigger.
-  bool Input::keepRunning(){
+  bool Input::keepRunning(bool updateActCtr){
+    // Default behaviour to stop an input when there's not activity after X seconds
+    // This is overriden by certain inputs (buffer, HLS, more) where there is different logic
+    // for updating 'activityCounter'
+    if (updateActCtr){
+      if ((connectedUsers || isAlwaysOn()) && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
+    }
+
     // We keep running in serve mode if the config is still active AND either
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,

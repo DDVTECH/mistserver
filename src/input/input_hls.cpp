@@ -1169,6 +1169,16 @@ namespace Mist{
     }
   }
 
+  bool InputHLS::keepRunning(bool updateActCtr){
+    if (isAlwaysOn()){
+      uint64_t currLastUpdate = M.getLastUpdated();
+      if (currLastUpdate > activityCounter){activityCounter = currLastUpdate;}
+      return Input::keepRunning(false);
+    }else{
+      return Input::keepRunning(true);
+    }
+  }
+
   /// \brief Applies any offset to the packets original timestamp
   /// \param packetTime: the original timestamp of the packet
   /// \param tid: the trackid corresponding to this track and playlist

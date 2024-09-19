@@ -147,6 +147,7 @@ namespace Mist{
     void postHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
+    bool keepRunning(bool updateActCtr = true);
 
     bool readIndex();
     bool initPlaylist(const std::string &uri, bool fullInit = true);

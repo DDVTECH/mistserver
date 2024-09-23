@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+<g style="fill:white;stroke-linejoin:round;stroke-width:2;stroke:#000">
+<circle cx="32" cy="32" r="25.82"/>
+<g style="fill:#bbb">
+<circle cx="32" cy="32" r="3.1649" />
+
+<path id="nuke_a" d="m35.089 26.907c1.7185 1.0445 2.8663 2.9346 2.866 5.0926h15.059c3.2e-5-7.7385-4.183-14.5-10.411-18.147z" />
+<use transform="rotate(120 32 32)" href="#nuke_a"/>
+<use transform="rotate(240 32 32)" href="#nuke_a"/>
+</g></g>
+</svg>

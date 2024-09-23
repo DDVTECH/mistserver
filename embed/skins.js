@@ -2555,7 +2555,6 @@ MistSkins["default"] = {
         if (!window.chrome || !window.chrome.cast || !window.chrome.cast.isAvailable || (tries > 5)) {
           if (ele.parentNode) { ele.parentNode.removeChild(ele); }
           MistVideo.log("Chromecast is not supported");
-          console.warn(chrome,chrome.cast,chrome.cast ? chrome.cast.isAvailable : undefined,cast);
           return;
         }
 

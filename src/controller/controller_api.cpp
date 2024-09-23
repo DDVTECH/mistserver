@@ -350,6 +350,7 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool au
         lastStrmStat.erase(strm);
       }
     }
+    W.readFrame();
     if (!sent){Util::sleep(500);}
   }
 }

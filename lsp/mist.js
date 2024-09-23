@@ -13,6 +13,62 @@ $(function(){
   UI.buildMenu();
   UI.stored.getOpts();
 
+  $("body").on("keydown",function(e){
+    switch (e.key) {
+      case "Escape": {
+        //if context menu, hide
+        if (UI.elements.context_menu) {
+          UI.elements.context_menu.hide();
+        }
+        break;
+      }
+    }
+  });
+
+  UI.elements.main.click(function(e){
+    //if context menu, hide
+    if (UI.elements.context_menu && !e.isDefaultPrevented()) {
+      UI.elements.context_menu.hide();
+    }
+  });
+  //add right click functionality for touch devices
+  var long_click = { timeout: false, delay: 1500 };
+  UI.elements.main.on("mousedown",function(e){
+    var ele = e.target;
+    long_click.timeout = setTimeout(function(){
+      long_click.timeout = false;
+      var event = new Event("contextmenu",{bubbles:true});
+      event.pageX = e.pageX;
+      event.pageY = e.pageY;
+      ele.dispatchEvent(event);
+
+      //prevent the click after mouseup that would remove the context menu when let go
+      function captureClick(e) {
+        e.preventDefault();
+      }
+      function cleanUp() {
+        window.removeEventListener('click',captureClick,true);
+        document.removeEventListener('mouseup',cleanUp);
+      }
+      window.addEventListener('click',captureClick,true);
+      document.addEventListener('mouseup',function(e){
+        requestAnimationFrame(cleanUp);
+      });
+    },long_click.delay);
+  });
+  UI.elements.main.on("mouseleave",function(e){
+    if (long_click.timeout) {
+      clearTimeout(long_click.timeout);
+      long_click.timeout = false;
+    }
+  });
+  UI.elements.main.on("mouseup",function(e){
+    if (long_click.timeout) {
+      clearTimeout(long_click.timeout);
+      long_click.timeout = false;
+    }
+  });
+
   //get stored login data
   try {
     if ('mistLogin' in sessionStorage) {
@@ -197,6 +253,402 @@ var UI = {
       },500);
     },
     element: $('<div>').attr('id','tooltip')
+  },
+  context_menu: function(){
+    var $ele = $("<section>").attr("id","context_menu");
+    $ele[0].style.display = "none";
+    this.ele = $ele;
+    UI.elements.context_menu = this;
+    
+    this.pos = function(pos){
+      var $parent = $ele.parent();
+      
+      var mh = $parent.height() - $ele.outerHeight();
+      var mw = $parent.width() - $ele.outerWidth();
+
+      
+      $ele.css('left',Math.min(pos.pageX - $parent.position().left,mw));
+      $ele.css('top',Math.min(pos.pageY - $parent.position().top,mh));
+    };
+    this.show = function(html,pos){
+      if ((typeof html == "string") || (html instanceof jQuery)) {
+        $ele.html(html);
+      }
+      else if (typeof html == "object") {
+        $ele.html("");
+        if (!Array.isArray(html)) {
+          html = [html];
+        }
+        for (var i in html) {
+          var section = html[i];
+          if (section instanceof jQuery) {
+            $ele.children().last().remove(); //remove previous <hr>
+            $ele.append(section); 
+            $ele.append($("<hr>")); //so that finishing code removes this <hr> and not the section we just inserted
+
+            continue;
+          }
+
+          for (var j in section) {
+            var entry = section[j];
+            var $entry = $("<div>");
+            if (typeof entry == "string") {
+              $entry.text(entry);
+            }
+            else if (entry instanceof jQuery) {
+              $ele.append(entry);
+              continue;
+            }
+            else {
+              if ((entry.length >= 2) && (typeof entry[1] == "function")) {
+                //onclick action
+                $entry.click(entry[1]);
+                $entry.on("keydown",function(e){
+                  switch (e.key) {
+                    case "Enter": {
+                      $(this).click();
+                      break;
+                    }
+                  }
+                });
+                $entry.attr("tabindex","0");
+              }
+
+              if (entry.length >=3) {
+                //icon
+                if (entry[2].length > 1) {
+                  //it's probably an image, not an asci icon
+                  $entry.append(
+                    $("<div>").addClass("icon").attr("data-icon",entry[2])
+                  );
+                }
+                else {
+                  $entry.attr("data-icon",entry[2]);
+                }
+
+
+                if (entry.length >= 4) {
+                  //title
+                  $entry.attr("title",entry[3]);
+                }
+              }
+
+              $entry.append(entry[0]);
+            }
+
+            $ele.append($entry);
+          }
+          $ele.append($("<hr>"));
+        }
+        $ele.children().last().remove();
+        $ele.find("[tabindex]").first().focus();
+      }
+
+      if (!$ele.parent()) { $("body").append($ele); }
+      if (pos) { this.pos(pos); }
+
+      $ele[0].style.display = "";
+    };
+    this.hide = function(){
+      $ele[0].style.display = "none";
+    };
+    this.remove = function(){
+      delete UI.element.context_menu;
+      $ele.remove();
+    };
+
+    $ele.on("keydown",function(e){
+      function getFocussed(dir) {
+        var focussed = $ele.find(":focus");
+        if (!focussed.length) {
+          $ele.find("[tabindex]").first().focus();
+          return;
+        }
+        if (dir == "down") {
+          var next = focussed.nextAll("[tabindex]");
+          if (!next.length) {
+            $ele.find("[tabindex]").first().focus();
+          }
+          else {
+            next.first().focus();
+          }
+        }
+        else {
+          var prev = focussed.prevAll("[tabindex]");
+          if (!prev.length) {
+            $ele.find("[tabindex]").last().focus();
+          }
+          else {
+            prev.first().focus();
+          }
+        }
+      }
+      switch (e.key) {
+        case "ArrowDown": {
+          getFocussed("down");
+          break;
+        }
+        case "ArrowUp": {
+          getFocussed("up");
+          break;
+        }
+      }
+    });
+
+    this.hide();
+  },
+  pagecontrol: function(page_ele,default_page_size){
+    //takes table / div of elements (page_ele)
+    //take into account hidden elements (class = hidden)
+    //add page-functions to paged element
+    //keep track of total amount of (non hidden) items
+    //update control buttons
+    //returns controls container
+
+    var controls = $("<div>").addClass("page_control");
+    controls.elements = {
+      prev: $("<button>").text("Previous").click(function(){
+        show_page("previous");
+      }),
+      next: $("<button>").text("Next").click(function(){
+        show_page("next");
+      }),
+      page_buttons: {},
+      page_button_cont: $("<div>").addClass("page_numbers"),
+      pagelength: $("<select>").append(
+        $("<option>").text(5)
+      ).append(
+        $("<option>").text(10)
+      ).append(
+        $("<option>").text(25)
+      ).append(
+        $("<option>").text(50)
+      ).append(
+        $("<option>").text(100)
+      ).change(function(){
+        controls.vars.page_size = $(this).val();
+        show_page();
+      }),
+      jumpto: $("<select>").addClass("jump_to").change(function(){
+        show_page($(this).val());
+      }),
+      summary: document.createElement("span"),
+      style: document.createElement("style")
+    };
+    controls.vars = {
+      currentpage: 1,
+      page_size: default_page_size || 25,
+      entries: 0,
+      uid: "paginated_"+(Math.random()+"").slice(2) //used for the css rule that controls which items are shown/hidden
+    };
+    controls.elements.pagelength.val(controls.vars.page_size);
+    controls.elements.summary.className = "summary";
+    controls.elements.summary.elements = {
+      start: document.createTextNode(""),
+      end: document.createTextNode(""),
+      total: document.createTextNode("")
+    };
+    controls.elements.summary.appendChild(document.createTextNode("Showing "));
+    controls.elements.summary.appendChild(controls.elements.summary.elements.start);
+    controls.elements.summary.appendChild(document.createTextNode("-"));
+    controls.elements.summary.appendChild(controls.elements.summary.elements.end);
+    controls.elements.summary.appendChild(document.createTextNode(" of "));
+    controls.elements.summary.appendChild(controls.elements.summary.elements.total);
+    controls.elements.summary.appendChild(document.createTextNode(" items."));
+    controls.elements.summary.update = function(){
+      this.elements.start.nodeValue = Math.max(0,(controls.vars.currentpage - 1) * controls.vars.page_size + 1);
+      this.elements.end.nodeValue = Math.min(controls.vars.currentpage * controls.vars.page_size,controls.vars.entries);
+      this.elements.total.nodeValue = controls.vars.entries;
+
+      var maxpage = Math.floor((controls.vars.entries-1)/controls.vars.page_size)+1;
+      while (controls.elements.jumpto.children().length < maxpage) {
+        controls.elements.jumpto.append(
+          $("<option>").text(controls.elements.jumpto.children().length + 1)
+        );
+      }
+      while (controls.elements.jumpto.children().length > maxpage) {
+        controls.elements.jumpto.children().last().remove();
+      }
+    };
+    page_ele.classList.add(controls.vars.uid);
+
+    function createPageButton(pagenumber) {
+      var button = document.createElement("button");
+      button.appendChild(document.createTextNode(pagenumber));
+      button.addEventListener("click",function(){
+        show_page(pagenumber);
+      });
+      controls.elements.page_buttons[pagenumber] = button;
+      controls.elements.page_button_cont.append(button);
+      return button;
+    }
+
+    var default_display_value = false;
+    function show_page(page){
+      perpage = controls.vars.page_size;
+      if (!page) page = controls.vars.currentpage;
+      if (page == "next") { page = controls.vars.currentpage + 1; }
+      if (page == "previous") { page = controls.vars.currentpage - 1; }
+
+      //count current elements
+      var l = page_ele.querySelectorAll(":scope > :not(.hidden)");
+      controls.vars.entries = l.length;
+
+      if (!default_display_value && (controls.vars.entries > 0)) {
+        default_display_value = getComputedStyle(l[0]).getPropertyValue("display");
+      }
+      l = l.length;
+
+      if (page instanceof HTMLElement) {
+        var n = Array.from(page_ele.children).indexOf(page);
+        page = Math.floor(n / perpage)+1;
+      }
+
+
+      page = Math.max(1,page);
+      //clamp to last page with content if above total entries
+      maxpage = Math.floor((l-1)/perpage)+1;
+      page = Math.min(page,maxpage);
+
+      //check if we need to add page buttons
+      //always show first page, last page, and pages around the current one
+      for (var i = 1; i <= maxpage; i++) {
+        if (!(i in controls.elements.page_buttons)) {
+          createPageButton(i);
+        }
+        //hide buttons except first, last and around current page
+        switch(i) {
+          case 1:
+          //case page-2:
+          case page-1:
+          case page:
+          case page+1:
+          //case page+2:
+          case maxpage: {
+            controls.elements.page_buttons[i].classList.remove("hidden");
+            break;
+          }
+          default: {
+            controls.elements.page_buttons[i].classList.add("hidden");
+          }
+        }
+      }
+      //hide buttons beyond the current page range
+      //NB: assumes buttons are created in order and their index matches their key-1
+      var button_indexes = Object.keys(controls.elements.page_buttons);
+      for (var i = maxpage; i < button_indexes.length; i++) {
+        controls.elements.page_buttons[button_indexes[i]].classList.add("hidden");
+      }
+
+      if (controls.vars.currentpage in controls.elements.page_buttons) controls.elements.page_buttons[controls.vars.currentpage].classList.remove("active");
+
+      //disable prev/next buttons if applicable
+      if (page == 1) { controls.elements.prev.attr("disabled",""); }
+      else { controls.elements.prev.removeAttr("disabled"); }
+      if (page == maxpage) { controls.elements.next.attr("disabled",""); }
+      else { controls.elements.next.removeAttr("disabled"); }
+
+      controls.vars.currentpage = page;
+      if (controls.vars.currentpage in controls.elements.page_buttons) controls.elements.page_buttons[page].classList.add("active");
+
+      //create css rules
+      //hide everything
+      var css = "."+controls.vars.uid+" > * { display: none !important; }\n";
+      //show everything but the pages before the current one
+      css += "."+controls.vars.uid+" > *:not(.hidden) ";
+      css += "~ *:not(.hidden) ".repeat(Math.max(0,perpage*(page-1)));
+      css += "{ display: "+(default_display_value ? default_display_value : "revert")+" !important; }\n";
+
+      //hide everthing after the pages including the current one
+      css += "."+controls.vars.uid+"> *:not(.hidden) ";
+      css += "~ *:not(.hidden) ".repeat(perpage*page);
+      css += "{ display: none !important; }\n";
+
+      controls.elements.style.textContent = css;
+      controls.elements.summary.update();
+
+      controls.elements.jumpto.val(page);
+
+    }
+    page_ele.show_page = show_page;
+    show_page();
+
+    controls.append(
+      $("<div>").addClass("pages").append(
+        controls.elements.prev
+      ).append(
+        controls.elements.page_button_cont
+      ).append(
+        controls.elements.next
+      )
+    ).append(
+      controls.elements.summary
+    ).append(
+      $("<label>").addClass("input_container").append(
+        $("<span>").text("Jump to page:")
+      ).append(
+        controls.elements.jumpto
+      )
+    ).append(
+      $("<label>").addClass("input_container").append(
+        $("<span>").text("Items per page:")
+      ).append(
+        controls.elements.pagelength
+      )
+    ).append(
+      controls.elements.style
+    );
+
+    return controls;
+  },
+  sortableItems: function(item_container,getVal,controls){
+
+    /*function getVal(row) {
+      return row._cells[sortby].raw;
+    }*/
+
+    var lastsortby;
+    var lastsortdir = 1;
+    if (controls) {
+      lastsortby = controls.getAttribute("data-sortby");
+      lastsortdir = controls.getAttribute("data-sortdir") ? controls.getAttribute("data-sortdir") : 1;
+    }
+
+    item_container.sort = function(sortby,sortdir){
+      if (!sortdir) {
+        sortdir = lastsortdir;
+        if (sortby == lastsortby) {
+          sortdir *= -1;
+        }
+      } 
+      sortby = sortby ? sortby : lastsortby;
+
+      lastsortby = sortby;
+      lastsortdir = sortdir;
+      if (controls) {
+        controls.setAttribute("data-sortby",sortby);
+        controls.setAttribute("data-sortdir",sortdir);
+        var old = controls.querySelector("[data-sorting]");
+        if (old) { old.removeAttribute("data-sorting"); }
+        controls.querySelector("[data-index=\""+sortby+"\"]").setAttribute("data-sorting","");
+      }
+
+      var compare = new Intl.Collator('en',{numeric:true, sensitivity:'accent'}).compare;
+      for (var i = 0; i < this.children.length-1; i++) {
+        var row = this.children[i];
+        var next = this.children[i+1];
+        if (sortdir * compare(getVal.call(row,sortby),getVal.call(next,sortby)) > 0) {
+          //the next row should be before the current one
+          //put it before and then check if it needs to go up further
+          this.insertBefore(next,row); 
+          if (i > 0) {
+            i = i-2;
+          }
+        }
+      }
+
+    };
+
   },
   humanMime: function (type) {
     var human = false;
@@ -433,6 +885,60 @@ var UI = {
     else {
       throw 'Request capabilities first';
     }
+  },
+  findFolderSubstreams: function(stream,callback){
+
+    function createWcStreamObject(streamname,parent) {
+      var wcstream = $.extend({},parent);
+      delete wcstream.meta;
+      delete wcstream.error;
+      wcstream.online = 2; //should either be available (2) or active (1)
+      wcstream.name = streamname;
+      wcstream.ischild = true;
+      return wcstream;
+    }
+
+    function hasMatchingInput(filename){
+      for (var j in mist.data.capabilities.inputs) {
+        if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
+        if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,"/"+filename)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    mist.send(function(d,opts){
+      var s = stream.name;
+      var matches = 0;
+      var output = {};
+      for (var i in d.browse.files) {
+        if (hasMatchingInput(d.browse.files[i])) {
+          var streamname = s+'+'+d.browse.files[i];
+          output[streamname] = createWcStreamObject(streamname,stream);
+          output[streamname].source = stream.source+d.browse.files[i];
+
+          matches++;
+          /*
+            if (matches >= 50) {
+              //stop retrieving more file names TODO properly display when this happens
+              output[s+"+zzzzzzzzz"] = {
+                name: "... (too many substreams found)",
+                online: -1
+              };
+              break;
+            }
+          */
+        }
+      }
+      if (('files' in d.browse) && (d.browse.files.length)) {
+        stream.filesfound = true;
+      }
+      else {
+        stream.filesfound = false;
+      }
+      callback(output);
+    },{browse:stream.source});
   },
   updateLiveStreamHint: function(streamname,source,$cont) {
 
@@ -1383,9 +1889,9 @@ var UI = {
         $ihc.append(
           $('<span>').addClass('ih_balloon').html(e.help)
         );
-        $field.on('focus mouseover',function(){
+        $field.on('focusin mouseover',function(){
           $(this).closest('label').addClass('active');
-        }).on('blur mouseout',function(){
+        }).on('focusout mouseout',function(){
           $(this).closest('label').removeClass('active');
         });
       }
@@ -1436,12 +1942,6 @@ var UI = {
                 f = function(val,me) {
                   if (val == "") { return; }
                   
-                  if (!isNaN(val.charAt(0))) {
-                    return {
-                      msg: 'The first character may not be a number.',
-                      classes: ['red']
-                    };
-                  }
                   if (val.toLowerCase() != val) {
                     return {
                       msg: 'Uppercase letters are not allowed.',
@@ -1476,12 +1976,6 @@ var UI = {
                   streampart = streampart[0];
                   
                   //validate streampart
-                  if (!isNaN(streampart.charAt(0))) {
-                    return {
-                      msg: 'The first character may not be a number.',
-                      classes: ['red']
-                    };
-                  }
                   if (streampart.toLowerCase() != streampart) {
                     return {
                       msg: 'Uppercase letters are not allowed in a stream name.',
@@ -1517,12 +2011,6 @@ var UI = {
                   streampart = streampart[0];
                   
                   //validate streampart
-                  if (!isNaN(streampart.charAt(0))) {
-                    return {
-                      msg: 'The first character may not be a number.',
-                      classes: ['red']
-                    };
-                  }
                   if (streampart.toLowerCase() != streampart) {
                     return {
                       msg: 'Uppercase letters are not allowed in a stream name.',
@@ -2955,7 +3443,7 @@ var UI = {
               }
               $errors.append(
                 $('<div>').append(
-                  $('<span>').append(UI.format.time(l[0]))
+                  $('<span>').append(UI.format.time(l[0])).css("margin-right","0.5em")
                 ).append(
                   $content
                 )
@@ -3834,7 +4322,7 @@ var UI = {
           }).css('clear','both')
         ).append(
           $('<table>').html(
-            $('<thead>').html(
+            $('<thead>').addClass("sticky").html(
               $('<tr>').html(
                 $('<th>').text('Protocol')
               ).append(
@@ -4031,473 +4519,585 @@ var UI = {
           $main.append(buildProtocolSettings(protocol.connector));
         }
         break;
-      case 'Streams':
+      case 'Streams': {
         if (!('capabilities' in mist.data)) {
           $main.html('Loading..');
           mist.send(function(){
-            UI.navto(tab);
+            UI.navto(tab,other);
           },{capabilities: true});
           return;
         }
-        
-        var $switchmode = $('<button>');
-        var $loading = $('<span>').text('Loading..');
-        $main.append(
-          UI.buildUI([{
-            type: 'help',
-            help: 'Here you can create, edit or delete new and existing streams. Go to stream preview or embed a video player on your website.'
-          },
-            $('<div>').css({
-              width: '45.25em',
-              display: 'flex',
-              'justify-content':'flex-end'
-            }).append(
-              $switchmode
-            ).append(
-              $('<button>').text('Create a new stream').click(function(){
-                UI.navto('Edit');
-              })
-            )
-          ])
-        ).append($loading);
+
+
+        var stored = mist.stored.get();
+        var sortstreams = {
+          by: name,
+          dir: 1
+        };
+        var pagesize;
         if (other == '') {
-          var s = mist.stored.get();
-          if ('viewmode' in s) {
-            other = s.viewmode;
+          if ('viewmode' in stored) {
+            other = stored.viewmode;
           }
         }
-        $switchmode.text('Switch to '+(other == 'thumbnails' ? 'list' : 'thumbnail')+' view').click(function(){
-          mist.stored.set('viewmode',(other == 'thumbnails' ? 'list' : 'thumbnails'));
-          UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
-        });
-        
-        var allstreams = $.extend(true,{},mist.data.streams);
-        function createWcStreamObject(streamname,parent) {
-          var wcstream = $.extend({},parent);
-          delete wcstream.meta;
-          delete wcstream.error;
-          wcstream.online = 2; //should either be available (2) or active (1)
-          wcstream.name = streamname;
-          wcstream.ischild = true;
-          return wcstream;
+        if ('sortstreams' in stored) {
+          sortstreams = stored.sortstreams;
         }
-        
-        function createPage(type,streams,folders) {
-          $loading.remove();
-          switch (type) {
-            case 'thumbnails': {
-              
-              var $shortcuts = $('<div>').addClass('preview_icons');
-              function selectastream(select,folders) {
-                folders = folders || [];
-                var saveas = {};
-                select.sort();
-                select.unshift('');
-                $loading.remove();
-                $main.append(
-                  $('<h2>').text(tab)
-                ).append(UI.buildUI([
-                  {
-                    label: 'Filter the streams',
-                    type: 'datalist',
-                    datalist: select,
-                    pointer: {
-                      main: saveas,
-                      index: 'stream'
-                    },
-                    help: 'If you type something here, the box below will only show streams with names that contain your text.',
-                    'function': function(){
-                      var val = $(this).val();
-                      $shortcuts.children().each(function(){
-                        $(this).hide();
-                        if ($(this).attr('data-stream').indexOf(val) > -1) {
-                          $(this).show();
-                        }
+        if ('streams_pagesize' in stored) {
+           pagesize = stored.streams_pagesize;
+        }
+
+
+
+        var $streams;
+
+        var $form = UI.buildUI([
+          {
+            type: 'help',
+            help: "This is an overview of the streams you\'ve currently configured.<br>You can left click a stream to "+(other == "thumbnails" ? "edit" : "preview")+" it"+(other == "thumbnails" ? ", or its thumbnail to preview it" : "")+". You can right click a stream for an action menu."
+          },
+          $('<div>').css({
+            width: '45.25em',
+            display: 'flex',
+            'justify-content':'flex-end'
+          }).append(
+            $("<button>").text('Switch to '+(other == 'thumbnails' ? 'list' : 'thumbnail')+' view').click(function(){
+              mist.stored.set('viewmode',(other == 'thumbnails' ? 'list' : 'thumbnails'));
+              UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
+            })
+          ).append(
+            $('<button>').text('Create a new stream').click(function(){
+              UI.navto('Edit');
+            })
+          ),
+          {
+            label: "Filter streams",
+            help: "Stream names that do not contain the text you enter here will be hidden.",
+            "function": function(e){
+              var val = $(this).getval();
+              if ($streams) $streams.filter(val);
+            },
+            css: {"margin-top":"3em"}
+          }
+        ]);
+
+        $main.append($form);
+
+
+        var current_streams = $.extend({},mist.data.streams);
+
+        if (other == "thumbnails") {
+          $streams = UI.dynamic({
+            create: function(){
+              var cont = document.createElement("div");
+              cont.className = "streams thumbnails";
+
+              UI.sortableItems(cont,function(sortby){
+                return this.sortValues[sortby];
+              },false); //add a sorting function to the container, but do not apply sort attributes
+
+              return cont;
+            },
+            values: current_streams,
+            add: {
+              create: function(id){
+                var stream = document.createElement("div");
+                stream.className = "stream";
+                stream.setAttribute("data-id",id);
+
+                var elements = ["thumbnail","actions"];
+                stream.elements = {};
+                stream.elements.header = document.createElement("a");
+                stream.elements.header.className = "header";
+                stream.appendChild(stream.elements.header);
+                for (var i in elements) {
+                  var e = elements[i];
+                  stream.elements[e] = document.createElement("div");
+                  stream.elements[e].className = e;
+                  stream.elements[e].raw = false;
+                  stream.appendChild(stream.elements[e]);
+                }
+                if (id.indexOf("+") >= 0) {
+                  stream.setAttribute("data-iswildcardstream","yes");
+                  var wildparent = document.createElement("span");
+                  wildparent.className = "wildparent";
+                  var parts = id.split("+");
+                  wildparent.appendChild(document.createTextNode(parts.shift()+"+"));
+                  stream.elements.header.appendChild(wildparent);
+                  stream.elements.header.appendChild(document.createTextNode(parts.join("+")));
+                }
+                else {
+                  stream.setAttribute("data-iswildcardstream","no");
+                  stream.elements.header.innerText = id;
+                }
+                stream.elements.header.addEventListener("click",function(){
+                  UI.navto("Edit",id);
+                });
+                stream.elements.thumbnail.addEventListener("click",function(){
+                  if (current_streams[id].isfolderstream) {
+                    if (!current_streams[id].filesfound) {
+                      UI.findFolderSubstreams(current_streams[id],function(result){
+                        $.extend(current_streams,result);
+                        $streams.update(current_streams);
+                        current_streams[id].filesfound = true;
+                        stream.setAttribute("data-showingsubstreams","yes");
+                        stream.setAttribute("title","This is a folder stream: it points to a folder with media files inside.")
                       });
                     }
-                  }
-                ]));
-                select.shift();
-                
-                
-                $main.append(
-                  $('<span>').addClass('description').text('Choose a stream below.')
-                ).append($shortcuts);
-                
-                //if there is a JPG output, add actual thumnails \o/
-                var thumbnails = false;
-                ///\todo activate this code when the backend is ready
-                
-                if (UI.findOutput('JPG')) {
-                  var jpgport = false;
-                  //find the http port and make sure JPG is enabled
-                  for (var i in mist.data.config.protocols) {
-                    var protocol = mist.data.config.protocols[i];
-                    if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-                      jpgport = (protocol.port ? ':'+protocol.port : ':8080');
+                    else {
+                      UI.navto("Edit",id);
                     }
-                    if ((protocol.connector == 'JPG') || (protocol.connector == 'JPG.exe')) {
-                      thumbnails = true;
-                    }
-                  }
-                  if ((thumbnails) && (jpgport)) {
-                    //now we get to use it as a magical function wheee!
-                    jpgport = parseURL(mist.user.host).host+jpgport;
-                    thumbnails = function(streamname) {
-                      return 'http://'+jpgport+'/'+encodeURIComponent(streamname)+'.jpg';
-                    }
-                  }
-                }
-                
-                
-                for (var i in select) {
-                  var streamname = select[i];
-                  var source = '';
-                  var $delete = $('<button>').text('Delete').click(function(){
-                    var streamname = $(this).closest('div').attr('data-stream');
-                    if (confirm('Are you sure you want to delete the stream "'+streamname+'"?')) {
-                      delete mist.data.streams[streamname];
-                      var send = {};
-                      send.deletestream = [streamname];
-                      mist.send(function(d){
-                        UI.navto('Streams');
-                      },send);
-                    }
-                  });
-                  var $edit = $('<button>').text('Settings').click(function(){
-                    UI.navto('Edit',$(this).closest('div').attr('data-stream'));
-                  });
-                  var $preview = $('<button>').text('Preview').click(function(){
-                    UI.navto('Preview',$(this).closest('div').attr('data-stream'));
-                  });
-                  var $embed = $('<button>').text('Embed').click(function(){
-                    UI.navto('Embed',$(this).closest('div').attr('data-stream'));
-                  });
-                  var $image = $('<span>').addClass('image');
-                  
-                  if ((thumbnails) && (folders.indexOf(streamname) == -1)) {
-                    //there is a JPG output and this isn't a folder
-                    $image.append(
-                      $('<img>').attr('src',thumbnails(streamname)).error(function(){
-                        $(this).hide();
-                      })
-                    );
-                  }
-                  
-                  //its a wildcard stream
-                  if (streamname.indexOf('+') > -1) {
-                    var streambits = streamname.split('+');
-                    source = mist.data.streams[streambits[0]].source+streambits[1];
-                    $delete = '';
-                    $edit = '';
-                    $image.addClass('wildcard');
                   }
                   else {
-                    source = mist.data.streams[streamname].source;
-                    //its a folder stream
-                    if (folders.indexOf(streamname) > -1) {
-                      $preview = '';
-                      $embed = '';
-                      $image.addClass('folder');
-                    }
+                    UI.navto("Preview",id);
                   }
-                  $shortcuts.append(
-                    $('<div>').append(
-                      $('<span>').addClass('streamname').text(streamname)
-                    ).append(
-                      $image
-                    ).append(
-                      $('<span>').addClass('description').text(source)
-                    ).append(
-                      $('<span>').addClass('button_container').append(
-                        $edit
-                      ).append(
-                        $delete
-                      ).append(
-                        $preview
-                      ).append(
-                        $embed
-                      )
-                    ).attr('title',streamname).attr('data-stream',streamname)
-                  );
-                }
-              }
-              
-              selectastream(streams,folders);
-              break;
-            }
-            case 'list':
-            default: {
-              var $tbody = $('<tbody>').append($('<tr>').append('<td>').attr('colspan',6).text('Loading..'));
-              var $table = $('<table>').html(
-                $('<thead>').html(
-                  $('<tr>').html(
-                    $('<th>').text('Stream name').attr('data-sort-type','string').addClass('sorting-asc')
-                  ).append(
-                    $('<th>')
-                  ).append(
-                    $('<th>').text('Source').attr('data-sort-type','string')
-                  ).append(
-                    $('<th>').text('Status').attr('data-sort-type','int')
-                  ).append(
-                    $('<th>').css('text-align','right').text('Connections').attr('data-sort-type','int')
-                  )
-                )
-              ).append($tbody);
-              $main.append($table);
-              $table.stupidtable();
-              
-              function buildStreamTable() {
-                var i = 0;
-                $tbody.html('');
-                
-                streams.sort();
-                for (var s in streams) {
-                  var streamname = streams[s];
-                  var stream;
-                  if (streamname in mist.data.streams) { stream = mist.data.streams[streamname]; }
-                  else { stream = allstreams[streamname]; }
-                  
-                  var $viewers = $('<td>').css('text-align','right').html($('<span>').addClass('description').text('Loading..'));
-                  var v = 0;
-                  if ((typeof mist.data.totals != 'undefined') && (typeof mist.data.totals[streamname] != 'undefined')) {
-                    var data = mist.data.totals[streamname].all_protocols.clients;
-                    var v = 0;
-                    //get the average value
-                    if (data.length) {
-                      for (var i in data) {
-                        v += data[i][1];
-                      }
-                      v = Math.round(v / data.length);
-                    }
-                  }
-                  $viewers.html(UI.format.number(v));
-                  if ((v == 0) && (stream.online == 1)) {
-                    stream.online = 2;
-                  }
-                  var $buttons = $('<td>').css('white-space','nowrap');
-                  if ((!('ischild' in stream)) || (!stream.ischild)) {
-                    $buttons.html(
-                      $('<button>').text('Settings').click(function(){
-                        UI.navto('Edit',$(this).closest('tr').data('index'));
-                      })
-                    ).append(
-                      $('<button>').text('Delete').click(function(){
-                        var index = $(this).closest('tr').data('index');
-                        if (confirm('Are you sure you want to delete the stream "'+index+'"?')) {
-                          delete mist.data.streams[index];
-                          var send = {};
-                          if (mist.data.LTS) {
-                            send.deletestream = [index];
-                          }
-                          else {
-                            send.streams = mist.data.streams;
-                          }
-                          mist.send(function(d){
-                            UI.navto('Streams');
-                          },send);
-                        }
-                      })
-                    );
-                  }
-                  
-                  var $streamnamelabel = $('<span>').text(stream.name);
-                  if (stream.ischild) {
-                    $streamnamelabel.css('padding-left','1em');
-                  }
-                  var $online = UI.format.status(stream);
-                  var $status = $("<button>").text("Status").click(function(){
-                    UI.navto('Status',$(this).closest('tr').data('index'));
-                  });
-                  var $preview = $('<button>').text('Preview').click(function(){
-                    UI.navto('Preview',$(this).closest('tr').data('index'));
-                  });
-                  var $embed = $('<button>').text('Embed').css("margin-right","1em").click(function(){
-                    UI.navto('Embed',$(this).closest('tr').data('index'));
-                  });
-                  if (('filesfound' in allstreams[streamname]) || (stream.online < 0)) {
-                    $online.html('');
-                    $viewers.html('');
-                    $preview.css({opacity: 0, pointerEvents: "none"});
-                    $embed.css({opacity: 0, pointerEvents: "none"});
-                  }
-                  $buttons.prepend($embed).prepend($status).prepend($preview);
-                  $tbody.append(
-                    $('<tr>').data('index',streamname).html(
-                      $('<td>').html($streamnamelabel).attr('title',(stream.name == "..." ? "The results were truncated" : stream.name)).addClass('overflow_ellipsis')
-                    ).append(
-                      $buttons
-                    ).append(
-                      $('<td>').text(stream.source).attr('title',stream.source).addClass('description').addClass('overflow_ellipsis').css('max-width','20em')
-                    ).append(
-                      $('<td>').data('sort-value',stream.online).html($online)
-                    ).append(
-                      $viewers
-                    )
-                  );
-                  i++;
-                }
-              }
-              
-              function updateStreams() {
-                var totals = [];
-                for (var i in mist.data.active_streams) {
-                  totals.push({
-                    streams: [mist.data.active_streams[i]],
-                    fields: ['clients'],
-                    start: -2
-                  });
-                }
-                mist.send(function(){
-                  $.extend(true,allstreams,mist.data.streams);
-                  buildStreamTable();
-                },{
-                  totals: totals,
-                  active_streams: true
                 });
-              }
-              
-              
-              //insert folder streams
-              var browserequests = 0;
-              var browsecomplete = 0;
-              for (var s in mist.data.streams) {
-                var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
-                if (!inputs_f) { break; }
-                if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
-                  //this is a folder stream
-                  allstreams[s].source += '*';
-                  allstreams[s].filesfound = null;
-                  mist.send(function(d,opts){
-                    var s = opts.stream;
-                    var matches = 0;
-                    outer:
-                    for (var i in d.browse.files) {
-                      inner:
-                      for (var j in mist.data.capabilities.inputs) {
-                        if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
-                        if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
-                          var streamname = s+'+'+d.browse.files[i];
-                          allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
-                          allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
-                          
-                          matches++;
-                          if (matches >= 500) {
-                            //stop retrieving more file names TODO properly display when this happens
-                            allstreams[s+"+zzzzzzzzz"] = {
-                              ischild: true,
-                              name: "...",
-                              online: -1
-                            };
-                            break outer;
-                          }
-                        }
-                      }
-                    }
-                    if (('files' in d.browse) && (d.browse.files.length)) {
-                      allstreams[s].filesfound = true;
+                stream.elements.actions.appendChild($("<button>").text("Actions").click(function(e){
+                  var pos = $(this).offset();
+                  context_menu.fill(id,{pageX:pos.left,pageY:pos.top});
+                  e.stopPropagation();
+                })[0]);
+
+                stream.insertBefore(
+                  UI.modules.stream.status(id,{thumbnail:false,tags:"readonly"})[0],
+                  stream.children[1]
+                );
+
+                stream.remove = function(){
+                  if (this.parentNode) {
+                    this.parentNode.removeChild(this);
+                  }
+                };
+
+                stream.addEventListener("contextmenu",function(e){
+                  e.preventDefault();
+                  context_menu.fill(id,e);
+                });
+
+                return stream;
+              },
+              update: function(data){
+                if ((data.online == 1) && (data.online != this.elements.thumbnail.raw)) {
+                  var $thumb = UI.modules.stream.thumbnail(data.name,{clone:true}); 
+                  this.elements.thumbnail.appendChild($thumb[0]);
+                  this.elements.thumbnail.raw = data.online;
+                }
+
+                //is it a folder stream?
+                if (data.source != this.raw_source) {
+                  this.raw_source = data.source;
+                  var inputs_f = UI.findInput("Folder");
+                  this.setAttribute("title",data.source);
+                  if (inputs_f) {
+                    if (mist.inputMatch(inputs_f.source_match,data.source)) {
+                      this.setAttribute("data-isfolderstream","yes");
+                      data.isfolderstream = true;
+                      this.setAttribute("title","This is a folder stream: it points to a folder with media files inside. Click to request its sub streams.");
                     }
                     else {
-                      mist.data.streams[s].filesfound = false;
+                      this.setAttribute("data-isfolderstream","no");
+                      this.setAttribute("title",data.source);
+                      data.isfolderstream = false;
                     }
-                    browsecomplete++;
-                    if (browserequests == browsecomplete) {
-                      mist.send(function(){
-                        updateStreams();
-                      },{active_streams: true});
-                      
-                      UI.interval.set(function(){
-                        updateStreams();
-                      },5e3);
+                  }
+                }
+
+                //translate state integer to something to sort to
+                //we want to see "Available" streams first, then by order of how far along it is in its boot sequence
+                var state_map = [
+                  0, //Offline
+                  1, //Initializing
+                  2, //Booting
+                  3, //Waiting for data
+                  5, //Available
+                  4, //Shutting down
+                  0 //Invalid state: treat as offline
+                ]; 
+
+                this.sortValues = {
+                  name: data.name,
+                  state: data.stats && (data.stats.length >= 2) ? (state_map.length > data.stats[1] ? state_map[data.stats[1]] : 0) : 0,
+                  viewers: data.stats && (data.stats.length >= 3) ? data.stats[2] : 0,
+                  inputs: data.stats && (data.stats.length >= 4) ? data.stats[3] : 0,
+                  outputs: data.stats && (data.stats.length >= 5) ? data.stats[4] : 0
+                };
+
+              }
+            },
+            update: function(){
+              this.sort();
+              if (this.show_page) this.show_page();
+            }
+          });
+          $main.append($streams);
+
+          var sort_index = sortstreams.by;
+          var sort_dir = {name: 1,viewers:-1,state:-1,inputs:-1,outputs:-1}; //for name, ascending is intuitive, but for viewers we prolably want to sort descending
+          var sort_reverse = sort_dir[sort_index]*sortstreams.dir;
+
+          $form.append(UI.buildUI([{
+            label: "Sort streams by",
+            help: "Choose by which attribute the streams listed below should be sorted",
+            type: "select",
+            select: [
+              ["name","Stream name"],
+              ["state","State (Online, offline, waiting etc.)"],
+              ["viewers","Viewers"],
+              ["inputs","Inputs"],
+              ["outputs","Outputs"]
+            ],
+            value: sortstreams.by,
+            "function": function(e){
+              sort_index = $(this).getval();
+              sortstreams.by = sort_index;
+              mist.stored.set('sortstreams',sortstreams);
+
+              if ($streams) $streams.sort(sort_index,sort_dir[sort_index]*sort_reverse);
+            },
+            "unit": $("<label>").append(
+              $("<input>").attr("type","checkbox").prop("checked",sort_reverse == -1).change(function(){
+                sort_reverse = $(this).is(":checked") ? -1 : 1;
+                sortstreams.dir = sort_reverse*sort_dir[sort_index];
+                mist.stored.set('sortstreams',sortstreams);
+
+                if ($streams) $streams.sort(sort_index,sort_dir[sort_index]*sort_reverse);
+              })
+            ).append(
+              $("<span>").text("Reverse")
+            )
+          }]).children());
+
+        }
+        else {
+          var $table = $("<table>").addClass("streams");
+          $main.append($table);
+          $table.layout = {
+            name: function(d,id){ 
+              if (id != this.raw) {
+                this.raw = id;
+                var td = this;
+                var a = $("<a>").text(d.name).click(function(){
+                  if (($(td).attr("data-iswildcard") == "no") && ($(td).attr("data-isfolderstream") == "yes")) {
+                    UI.navto("Edit",id);
+                  }
+                  else {
+                    UI.navto("Preview",id);
+                  }
+                });
+                if (id.indexOf("+") >= 0) {
+                  var split = id.split("+");
+                  var parentstream = split.shift();
+                  var substream = split.join("+");
+                  $(this).attr("data-iswildcard",parentstream+"+");
+                  a.attr("title","This is a wildcard stream: its config is inherited from its parent: '"+parentstream+"'.").html(
+                    $("<span>").addClass("wildparent").text(parentstream+"+")
+                  ).append(
+                    substream
+                  );
+                }
+                else {
+                  $(this).attr("data-iswildcard","no");
+                }
+                $(this).html(a);
+              }
+              if (d.source != this.raw_src) {
+                this.raw_src = d.source;
+                //check if this is a folder stream
+                if (mist.data.capabilities) {
+                  var inputs_f = UI.findInput("Folder");
+                  if (inputs_f) {
+                    if (mist.inputMatch(inputs_f.source_match,d.source)) {
+                      $(this).attr("data-isfolderstream","yes").attr("title","This is a folder stream: it points to a folder with media files inside. Click the '➕' to request its sub streams.");
+                      d.isfolderstream = true;
                     }
-                  },{browse:mist.data.streams[s].source},{stream: s});
-                  browserequests++;
+                    else {
+                      $(this).attr("data-isfolderstream","no").attr("title",d.source);
+                      d.isfolderstream = false;
+                    }
+                  }
                 }
               }
-              if (browserequests == 0) {
-                mist.send(function(){
-                  updateStreams();
-                },{active_streams: true});
-                
-                UI.interval.set(function(){
-                  updateStreams();
-                },5e3);
-              }
+            },
+            actions: function(d,streamname){
+              if (this.raw) return;
 
-              break;
+              $(this).html(
+                $("<button>").text("Actions").click(function(e){
+                  var pos = $(this).offset();
+                  context_menu.fill(streamname,{pageX:pos.left,pageY:pos.top});
+                  e.stopPropagation();
+                })
+              );
+
+              this.raw = true;
+            },
+            state: function(d){ 
+              var state = $("<div>").attr("data-streamstatus",0).text("Inactive");
+              if ("stats" in d) {
+                if (this.raw == d.stats[1]) { return; }
+                var s = ["Offline","Initializing","Booting","Waiting for data","Available","Shutting down","Invalid state"];
+                state = $("<div>").attr("data-streamstatus",d.stats[1]).text(s[d.stats[1]]);
+                this.raw = d.stats[1];
+              }
+              $(this).html(state).addClass("activestream");
+            },
+            viewers: function(d){
+              var out = "";
+              if ("stats" in d) {
+                if (this.raw == d.stats[2]) { return; }
+                out = d.stats[2];
+                this.raw = d.stats[2];
+              }
+              $(this).html(out);
+            },
+            inputs: function(d){
+              var out = "";
+              if ("stats" in d) {
+                if (this.raw == d.stats[3]) { return; }
+                out = d.stats[3];
+                this.raw = d.stats[3];
+              }
+              $(this).html(out);
+            },
+            outputs: function(d){
+              var out = "";
+              if ("stats" in d) {
+                if (this.raw == d.stats[4]) { return; }
+                out = d.stats[4];
+                this.raw = d.stats[4];
+              }
+              $(this).html(out);
+            }
+          };
+
+          var $tr = $("<tr>").attr("data-sortby","name");
+          $table.append($("<thead>").addClass("sticky").append($tr));
+          var headers = {
+            name: "Stream name",
+            actions: ""
+          };
+          for (var i in $table.layout) {
+            var label = i in headers ? headers[i] : UI.format.capital(i);
+            var $th = $("<th>").text(label);
+            if (label != "") {
+              $th.attr("data-index",i).click(function(){
+                var v = $(this).attr("data-index");
+                if (sortstreams.by == v) {
+                  sortstreams.dir *= -1;
+                }
+                else {
+                  sortstreams.by = v;
+                  sortstreams.dir = 1;
+                }
+                mist.stored.set("sortstreams",sortstreams);
+                $streams.sort($(this).attr("data-index"));
+              });
+            }
+            $tr.append($th);
+          }
+          $streams = UI.dynamic({
+            create: function(){
+              var tbody = document.createElement("tbody");
+
+              UI.sortableItems(tbody,function(sortby){
+                return this._cells[sortby].raw;
+              },$tr[0]);
+
+              tbody.remove = function(){
+                if (this.parentNode) {
+                  this.parentNode.removeChild(this);
+                }
+              };
+              return tbody;
+            },
+            values: current_streams,
+            add: {
+              create: function(streamname){
+                var row = document.createElement("tr");
+                row.setAttribute("data-id",streamname);
+
+                row._cells = {};
+                for (var i in $table.layout) {
+                  var td = document.createElement("td");
+                  row._cells[i] = td;
+                  row.append(td);
+                }
+
+                row.addEventListener("contextmenu",function(e){
+                  e.preventDefault();
+                  context_menu.fill(streamname,e);
+                });
+                row.addEventListener("click",function(e){
+                  if (current_streams[streamname].isfolderstream) {
+                    if ("filesfound" in current_streams[streamname]) {
+                      return;
+                    }
+                    else {
+                      UI.findFolderSubstreams(current_streams[streamname],function(result){
+                        $.extend(current_streams,result);
+                        $streams.update(current_streams);
+                        row.setAttribute("data-showingsubstreams","");
+                      });
+                    }
+
+                    $streams.show_page(this); //ensure current cell is visible
+                  }
+                });
+
+                row.remove = function(){
+                  if (this.parentNode) {
+                    this.parentNode.removeChild(this);
+                  }
+                };
+
+                return row;
+              },
+              update: function(data,allValues){
+                for (var i in $table.layout) {
+                  $table.layout[i].call(this._cells[i],data,this._id);
+                }
+              }
+            },
+            update: function(){
+              this.sort();
+              if (this.show_page) this.show_page();
+            }
+          });
+          $table.append($streams);
+        }
+
+
+        $streams.filter = function(str){
+          str = str.toLowerCase();
+          for (var i = 0; i < this.children.length; i++) {
+            var item = this.children[i];
+            if (item.getAttribute("data-id").toLowerCase().indexOf(str) >= 0) {
+              item.classList.remove("hidden");
+            }
+            else {
+              item.classList.add("hidden");
             }
           }
-        }
+          $streams.show_page();
+        };
+
+
+
+        var context_menu = new UI.context_menu();
+        $main.append(context_menu.ele);
+        context_menu.fill = function(streamname,e){
+          var header = [
+            $("<div>").addClass("header").text(streamname)
+          ];
+          var gototabs = [
+            ["<span>Edit "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")+"</span>",function(){ UI.navto("Edit",streamname); },"Edit","Change the settings of this stream."],
+            ["Stream status",function(){ UI.navto("Status",streamname); },"Status","See more details about the status of this stream."],
+            ["Preview stream",function(){ UI.navto("Preview",streamname); },"Preview","Watch the stream."],
+            ["Embed stream",function(){ UI.navto("Embed",streamname); },"Embed","Get urls to this stream or get code to embed it on your website."]
+          ];
+          var actions = [
+            ["Delete stream",function(){
+              if (confirm('Are you sure you want to delete the stream "'+streamname+'"?')) {
+                delete mist.data.streams[streamname];
+                mist.send(function(d){
+                  delete current_streams[streamname];
+                  $streams.update(current_streams);
+                },{deletestream: [streamname]});
+              }
+            },"trash","Remove this stream's settings."],
+            ["Stop sessions",function(){
+              if (confirm("Are you sure you want to disconnect all sessions (viewers, pushes and possibly the input) for the stream '"+streamname+"'?")) {
+                mist.send(function(){
+                  //done
+                },{stop_sessions:streamname});
+              }
+            },"stop","Disconnect sessions for this stream. Disconnecting a session will kill any currently open connections (viewers, pushes and possibly the input). If the USER_NEW trigger is in use, it will be triggered again by any reconnecting connections."],
+            ["Invalidate sessions",function(){
+              if (confirm("Are you sure you want to invalidate all sessions for the stream '"+streamname+"'?\nThis will re-trigger the USER_NEW trigger.")) {
+                mist.send(function(){
+                  //done
+                },{invalidate_sessions:streamname});
+              }
+            },"invalidate","Invalidate all the currently active sessions for this stream. This has the effect of re-triggering the USER_NEW trigger, allowing you to selectively close some of the existing connections after they have been previously allowed. If you don't have a USER_NEW trigger configured, this will not have any effect."],
+            ["Nuke stream",function(){
+              if (confirm("Are you sure you want to completely shut down the stream '"+streamname+"'?\nAll viewers will be disconnected.")) {
+                mist.send(function(){
+                  //done
+                },{nuke_stream:streamname});
+              }
+            },"nuke","Shut down a running stream completely and/or clean up any potentially left over stream data in memory. It attempts a clean shutdown of the running stream first, followed by a forced shut down, and then follows up by checking for left over data in memory and cleaning that up if any is found."]
+          ];
+          if (current_streams[streamname].isfolderstream) {
+            gototabs.pop();
+            gototabs.pop();
+            actions = [actions[0]];
+          }
+
+
+
+          var menu = [header];
+          if (current_streams[streamname].isfolderstream && !current_streams[streamname].filesfound) {
+            menu.push([
+              ["Scan folder for sub streams",function(){
+                UI.findFolderSubstreams(current_streams[streamname],function(result){
+                  $.extend(current_streams,result);
+                  $streams.update(current_streams);
+                });
+              },"folder"]
+            ]);
+          }
+          menu.push(gototabs);
+          menu.push(actions);
+
+          //let's not wake it up for this alone
+          if (current_streams[streamname].online == 1) {
+            menu.push(
+              $("<aside>").append(UI.modules.stream.thumbnail(streamname))
+            );
+          }
+
+          context_menu.show(menu,e);
+          context_menu.ele.find("[tabindex]").first().focus();
+        };
 
         
-        //browse into folder streams
-        var browserequests = 0;
-        var browsecomplete = 0;
-        var select = {};
-        var folders = [];
-        for (var s in mist.data.streams) {
-          var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
-          if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
-            //this is a folder stream
-            folders.push(s);
-            mist.send(function(d,opts){
-              var s = opts.stream;
-              var matches = 0;
-              outer:
-              for (var i in d.browse.files) {
-                inner:
-                for (var j in mist.data.capabilities.inputs) {
-                  if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
-                  if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
-                    select[s+'+'+d.browse.files[i]] = true;
 
-                    matches++;
-                    if (matches >= 500) {
-                      //stop retrieving more file names
-                      select[s+"+zzzzzzzzz"] = true;
-                      break outer;
-                    }
-                  }
-                }
-              }
-              browsecomplete++;
-              if (browserequests == browsecomplete) {
-                mist.send(function(){
-                  for (var i in mist.data.active_streams) {
-                    var split = mist.data.active_streams[i].split('+');
-                    if ((split.length > 1) && (split[0] in mist.data.streams)) {
-                      select[mist.data.active_streams[i]] = true;
-                      allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
-                    }
-                  }
-                  select = Object.keys(select);
-                  select = select.concat(Object.keys(mist.data.streams));
-                  select.sort();
-                  createPage(other,select,folders);
-                },{active_streams: true});
-              }
-            },{browse:mist.data.streams[s].source},{stream: s});
-            browserequests++;
-          }
-        }
-        if (browserequests == 0) {
-          mist.send(function(){
-            //var select = [];
-            for (var i in mist.data.active_streams) {
-              var split = mist.data.active_streams[i].split('+');
-              if ((split.length > 1) && (split[0] in mist.data.streams)) {
-                select[mist.data.active_streams[i]] = true;
-                allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
+
+        UI.sockets.ws.active_streams.subscribe(function(type,data){
+          if (type != "stream") return;
+          var streamname = data[0];
+          var streambase = streamname.split("+")[0];
+
+          if (streambase in mist.data.streams) {
+            if ((streambase != streamname) && !(streamname in current_streams)) {
+              //it's a new wildcard stream
+              current_streams[streamname] = $.extend({},mist.data.streams[streambase]);
+              current_streams[streamname].name = streamname;
+              if (current_streams[streambase].isfolderstream) {
+                current_streams[streamname].source += streamname.replace(streambase+"+");
               }
             }
-            select = Object.keys(select);
-            if (mist.data.streams) { select = select.concat(Object.keys(mist.data.streams)); }
-            select.sort();
-            createPage(other,select);
-          },{active_streams: true});
-        }
+            current_streams[streamname].stats = data;
+
+            $streams.update(current_streams);
+          }
+          else if (streamname in current_streams) {
+            current_streams[streamname].stats = data;
+          }
+          else { console.log("Received information about unknown stream",streamname,data) }
+
+        });
+        
+        var $pagecontrol = UI.pagecontrol($streams,pagesize);
+        $main.append($pagecontrol);
+
+        //save selected page size
+        $pagecontrol.elements.pagelength.change(function(){
+          mist.stored.set("streams_pagesize",$(this).val());
+        });
 
         break;
+      }
       case 'Edit':
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
@@ -4522,7 +5122,14 @@ var UI = {
           //editing
           var streamname = other.split("+")[0];
           var saveas = mist.data.streams[streamname];
-          $main.find('h2').append(' "'+streamname+'"');
+          $main.html(
+            UI.modules.stream.header(other,tab,streamname)
+          );
+          if (streamname != other) {
+            $main.append(
+              $("<div>").addClass("err_balloon").addClass("orange").css({position:"static",width:"54.65em",margin:"2em 0 3em"}).html("Note:<br>You are editing the settings of <b>"+streamname+"</b>, which is the parent of wildcard stream <b>"+other+"</b>. This will also affect other children of <b>"+streamname+"</b>.")
+            );
+          }
         }
         
         var filetypes = [];
@@ -4586,7 +5193,7 @@ var UI = {
           mist.send(function(){
             delete mist.data.streams[saveas.name].online;
             delete mist.data.streams[saveas.name].error;
-            UI.navto(tab,(tab == 'Preview' ? saveas.name : ''));
+            UI.navto(tab,(tab == 'Preview' ? (other.indexOf("+") < 0 ? saveas.name : other) : ''));
           },send);
           
           
@@ -4594,7 +5201,6 @@ var UI = {
         
         var $style = $('<style>').text('button.saveandpreview { display: none; }');
         var $livestreamhint = $('<span>');
-        
         var $processes = $('<div>');
         var newproc = {};
         var select = [];
@@ -4640,7 +5246,7 @@ var UI = {
             }
           ]));
         }
-        $main.append(UI.buildUI([
+        var $form = UI.buildUI([
           {
             label: 'Stream name',
             type: 'str',
@@ -4817,27 +5423,27 @@ var UI = {
                     }
                   }
                 }
-		$inputoptions.html(
-		  $('<h3>').text(input.name+' Input options')
-		);                
-		var build = mist.convertBuildOptions(input_options,saveas);
-		if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
-		  build.push({
-		    label: 'Always on',
-		    type: 'checkbox',
-		    help: 'Keep this input available at all times, even when there are no active viewers.',
-		    pointer: {
-		      main: saveas,
-		      index: 'always_on'
-		    },
-		    value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
-		  });
-		}
-		$inputoptions.append(UI.buildUI(build));
+                $inputoptions.html(
+                  $('<h3>').text(input.name+' Input options')
+                );                
+                var build = mist.convertBuildOptions(input_options,saveas);
+                if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
+                  build.push({
+                    label: 'Always on',
+                    type: 'checkbox',
+                    help: 'Keep this input available at all times, even when there are no active viewers.',
+                    pointer: {
+                      main: saveas,
+                      index: 'always_on'
+                    },
+                    value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
+                  });
+                }
+                $inputoptions.append(UI.buildUI(build));
                 $source_info.html("");
                 if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
                   //this input can enumerate supported devices, and the source string matches the specified static prefix
-                  
+
                   function display_sources() {
                     //add to source info container
                     $source_info.html(
@@ -4882,7 +5488,7 @@ var UI = {
               }
 
               if (input.name == 'Folder') {
-                $main.append($style);
+                if (other.indexOf("+") < 0) { $main.append($style); }
               }
               else if (['Buffer','Buffer.exe','TS','TS.exe','TSSRT','TSSRT.exe'].indexOf(input.name) > -1) {
                 var fields = [$("<br>"),$('<span>').text('Configure your source to push to:')];
@@ -4998,31 +5604,29 @@ var UI = {
               }
             ]
           }
-        ]));
+        ]);
+        $main.append($form);
+
+        //if the form contents have been changed, set a flag on the header: only ask for confirm to navigate away if there have been changes
+        $form.change(function(){
+          var $h = $main.find(".header");
+          if ($h.length) { $h.attr("data-changed","yes"); }
+        });
         
         $main.find('[name=name]').keyup(function(){
           UI.updateLiveStreamHint($(this).val(),$main.find('[name=source]').val(),$livestreamhint);
         });
         UI.updateLiveStreamHint($main.find('[name=name]').val(),$main.find('[name=source]').val(),$livestreamhint);
         $main.find('[name="source"]').attr("list","source_datalist");
-       
         break;
       case 'Status': {
         if (other == '') { UI.navto('Streams'); return; }
 
-        var $edit = '';
-        if (other.indexOf('+') == -1) {
-          $edit = $('<button>').text('Settings').addClass('settings').click(function(){
-            UI.navto('Edit',other);
-          });
-        }
 
         var $dashboard = $("<div>").addClass("dashboard");
 
         $main.html(
-          UI.modules.stream.bigbuttons(other,tab)
-        ).append(
-          $("<h2>").text('Status of "'+other+'"')
+          UI.modules.stream.header(other,tab)
         ).append(
           $dashboard
         );
@@ -5030,7 +5634,7 @@ var UI = {
         var $findMist = UI.modules.stream.findMist(function(url,data){
           //MistServer was found! build dashboard
 
-          $dashboard.append(UI.modules.stream.status(other));
+          $dashboard.append(UI.modules.stream.status(other,{status:false,stats:false}));
           $dashboard.append(UI.modules.stream.metadata(other));
           $dashboard.append(
             $("<section>").addClass("logcont").append(
@@ -5054,11 +5658,9 @@ var UI = {
         if (other == '') { UI.navto('Streams'); return; }
        
         var $dashboard = $('<div>').addClass("dashboard");
-        var $status = $("<div>");
+        var $status = $("<div>").text("Loading..");
         $main.html(
-          UI.modules.stream.bigbuttons(other,tab)
-        ).append(
-          $('<h2>').text('Preview of "'+other+'"')
+          UI.modules.stream.header(other,tab)
         ).append($status).append($dashboard);
 
         var $findMist = UI.modules.stream.findMist(function(url){
@@ -5067,7 +5669,7 @@ var UI = {
             throw "Player.js was not applied properly.";
           }
 
-          $status.replaceWith(UI.modules.stream.status(other,{tags:false,thumbnail:false}));
+          $status.replaceWith(UI.modules.stream.status(other,{tags:false,thumbnail:false,status:false,stats:false}));
 
           window.mv = {};
           $preview = UI.modules.stream.preview(other,window.mv);
@@ -5086,196 +5688,11 @@ var UI = {
 
 
         break;
-
-
-        var parsed = parseURL(mist.user.host);
-        var http_protocol = parsed.protocol;
-        var http_host = parsed.host;
-        var http_port = ':8080';
-        var embedbase = http_protocol+http_host+http_port+'/';
-        for (var i in mist.data.config.protocols) {
-          var protocol = mist.data.config.protocols[i];
-          if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            if (protocol.pubaddr && protocol.pubaddr.length) {
-              if (typeof protocol.pubaddr == "string") {
-                embedbase = protocol.pubaddr.replace(/\/$/,'')+"/";
-              }
-              else if (protocol.pubaddr.length) {
-                embedbase = protocol.pubaddr[0].replace(/\/$/,'')+"/";
-              }
-            }
-            else {
-              http_port = (protocol.port ? ':'+protocol.port : ':8080');
-              embedbase = http_protocol+http_host+http_port+'/';
-            }
-            break;
-          }
-        }
-        
-        var $cont = $('<div>').css({
-          'display':'flex',
-          'flex-flow':'row wrap',
-          'flex-shrink':1,
-          'min-width':'auto'
-        });
-        $main.html(
-          UI.modules.stream.bigbuttons(other,tab)
-        ).append(
-          $('<h2>').text('Preview of "'+other+'"')
-        ).append($cont);
-        var escapedstream = encodeURIComponent(other);
-        var $preview_cont = $('<div>').css("flex-shrink","1").css("min-width","auto").css("max-width","100%");
-        $cont.append($preview_cont);
-        var $title = $('<div>');
-        var $video = $('<div>').text('Loading player..').css("max-width","100%").css("flex-shrink","1").css("min-width","auto");
-        var $controls = $('<div>').addClass('controls');
-        $preview_cont.append($video).append($title).append($controls);//.append($switches);
-        
-        if (!$("link#devcss").length) {
-          $main.append(
-            $("<link>").attr("rel","stylesheet").attr("type","text/css").attr("href",embedbase+"skins/dev.css").attr("id","devcss")
-          );
-        }
-        
-        function initPlayer(streamname) {
-          if ((tab != "Preview") || (!other) || (other == "") || (streamname != other)) {
-            return;
-          }
-          
-          function afterInit() {
-            var MistVideo = MistVideoObject.reference;
-            
-            $controls.html("");
-            
-            $controls.append(MistVideo.UI.buildStructure({
-              type: "container",
-              classes: ["mistvideo-column"],
-              style: { flexShrink: 1 },
-              children: [
-                {
-                  "if": function(){
-                    return (this.playerName && this.source)
-                  },
-                  then: {
-                    type: "container",
-                    classes: ["mistvideo-description"],
-                    style: { display: "block" },
-                    children: [
-                      {type: "playername", style: { display: "inline" }},
-                      {type: "text", text: "is playing", style: {margin: "0 0.2em"}},
-                      {type: "mimetype"}
-                    ]
-                  }
-                },
-                {type:"decodingIssues", style: {"max-width":"30em","flex-flow":"column nowrap","margin":"0.5em 0"}},
-                {
-                  type: "container",
-                  classes: ["mistvideo-column","mistvideo-devcontrols"],
-                  children: [
-                    {
-                      type: "text",
-                      text: "Player control"
-                    },{
-                      type: "container",
-                      classes: ["mistvideo-devbuttons"],
-                      style: {"flex-wrap": "wrap"},
-                      children: [
-                        {
-                          "if": function(){ return !!(this.player && this.player.api); },
-                            then: {
-                              type: "button",
-                              title: "Reload the video source",
-                              label: "Reload video",
-                              onclick: function(){
-                                this.player.api.load();
-                              }
-                            }
-                        },{
-                          type: "button",
-                          title: "Build MistVideo again",
-                          label: "Reload player",
-                          onclick: function(){
-                            this.reload();
-                          }
-                        },{
-                          type: "button",
-                          title: "Switch to the next available player and source combination",
-                          label: "Try next combination",
-                          onclick: function(){
-                            this.nextCombo();
-                          }
-                        }
-                      ]
-                    },
-                    {type:"forcePlayer"},
-                    {type:"forceType"},
-                    {type:"forceSource"}
-                  ]
-                },
-                {type:"log"}
-              ]
-            }));
-          }
-          $video[0].addEventListener("initialized",afterInit);
-          $video[0].addEventListener("initializeFailed",afterInit);
-          
-          var options = {
-            target: $video[0],
-            host: embedbase,
-            skin: "dev",
-            loop: true,
-            MistVideoObject: MistVideoObject
-          };
-          MistVideoObject.reference = mistPlay(streamname,options);
-        }
-        
-        
-        //load the player js
-        function loadplayer() {
-          $title.text('');
-          var script = document.createElement('script');
-          $main.append(script);
-          script.src = embedbase+'player.js';
-          script.onerror = function(){
-            $video.html(
-              $("<p>").append('Failed to load <a href="'+embedbase+'player.js">'+embedbase+'player.js</a>.')
-            ).append(
-              $("<p>").append("Please check if you've activated the HTTP protocol, if your http port is blocked, or if you're trying to load HTTPS on an HTTP page.")
-            ).append(
-              $('<button>').text('Reload').css('display','block').click(function(){
-                loadplayer();
-              })
-            );
-          };
-          script.onload = function(){
-            initPlayer(other);
-            $main[0].removeChild(script);
-          };
-          
-          //allow destroying while this script is loading
-          MistVideoObject.reference = {
-            unload: function(){
-              script.onload = function(){
-                if (this.parentElement) {
-                  this.parentElement.removeChild(this);
-                }
-              };
-            }
-          };
-        }
-        loadplayer();
-        
-
-      
-                  
-        break;
       case 'Embed':
         if (other == '') { UI.navto('Streams'); return; }
         
         $main.html(
-          UI.modules.stream.bigbuttons(other,tab)
-        ).append(
-          $('<h2>').text('Embed "'+other+'"')
+          UI.modules.stream.header(other,tab)
         );
         
         var $embedlinks = $('<span>');
@@ -6304,7 +6721,7 @@ var UI = {
         
         var $tbody = $('<tbody>');
         var $table = $('<table>').html(
-          $('<thead>').html(
+          $('<thead>').addClass("sticky").html(
             $('<tr>').html(
               $('<th>').text('Trigger on').attr('data-sort-type','string').addClass('sorting-asc')
             ).append(
@@ -6661,6 +7078,7 @@ var UI = {
           $tbody.html('');
           for (var index in logs) {
             var $content = $('<span>').addClass('content');
+            if ((logs[index].length >= 4) && (logs[index][3] != "")) $content.append($("<span>").text("["+logs[index][3]+"] "));
             var split = logs[index][2].split('|');
             for (var i in split) {
               $content.append(
@@ -6668,11 +7086,12 @@ var UI = {
               );
             }
             
+            
             $tbody.append(
               $('<tr>').html(
                 $('<td>').text(UI.format.dateTime(logs[index][0],'long')).css('white-space','nowrap')
               ).append(
-                $('<td>').html(color(logs[index][1])).css('text-align','center')
+                $('<td>').html(color(logs[index][1])).css('text-:align','center')
               ).append(
                 $('<td>').html($content).css('text-align','left')
               )
@@ -7098,6 +7517,8 @@ var UI = {
         mist.user.password = '';
         delete mist.user.authstring;
         delete mist.user.loggedin;
+        mist.data = {};
+        UI.sockets.http_host = null;
         sessionStorage.removeItem('mistLogin');
         
         UI.navto('Login');
@@ -7135,7 +7556,6 @@ var UI = {
     //options.getEntries = func(data), convert input data to {id:child_data, ..} shape
     //options.add = func(id), -> this -> ele, returns child element, should have update func,
     //            = {create:()=>{},update:()=>{}}: pass dynamic creation options
-    
     options = Object.assign({},options); //prevent overwriting if create returns either a dynamic object or a normal element            
 
     var ele = options.create(id);
@@ -7180,7 +7600,7 @@ var UI = {
           delete ele._children[id];
         };
 
-        child.id = id;
+        child._id = id;
         ele._children[id] = child;
         if (child.customAdd) {
           child.customAdd(ele);
@@ -7192,7 +7612,7 @@ var UI = {
     }
 
     ele.update = function(values,allValues) {
-      var entries = options.getEntries(values,ele.id);
+      var entries = options.getEntries(values,ele._id);
       var raw = JSON.stringify(entries);
       if (this.raw == raw) {
         return;
@@ -7229,6 +7649,72 @@ var UI = {
   
   modules: {
     stream: {
+      header: function(streamname,currenttab,parentstream){
+        var $cont = $("<div>").addClass("header");
+        var $nav = $("<ul>").addClass("tabnav");
+
+        $cont.append(
+          $("<div>").css("display","flex").css("align-items","baseline").append(
+            $("<h2>").text("Stream \""+streamname+"\"")
+          ).append(
+            UI.modules.stream.status(streamname,{tags:false,thumbnail:false,livestreamhint:false})
+          )
+        ).append(
+          $nav
+        ).append(
+          $("<h2>").text(currenttab == "Edit" ? "Edit \""+parentstream+"\"" : currenttab)
+        );
+
+        var tabs = [["Settings","Edit"],"Status","Preview","Embed"]
+        
+        var isFolderStream = false;
+        if (streamname.indexOf("+") < 0) {
+          var config = mist.data.streams[streamname];
+          if (config.source && (config.source.match(/^\/.+\/$/) || config.source.match(/^folder:.+$/))) {
+            isFolderStream = true;
+          }
+        }
+        if (isFolderStream) {
+          tabs.pop();
+          tabs.pop();
+        }
+
+        tabs.push(false);
+        tabs.push(["Overview","Streams"]);
+
+        function buildTab(name) {
+          if (!name) {
+            return $("<span>").addClass("spacer");
+          }
+          var label = name;
+          if (typeof name != "string") {
+            label = name[0];
+            name = name[1];
+          }
+          return $("<li>").addClass("tab").addClass(
+            name == currenttab ? "active" : false
+          ).attr("tabindex",0).attr("data-icon",name).text(label).click(function(){
+            if ((currenttab == "Edit") && ($cont.attr("data-changed"))) { //we're on the edit stream tab, and the fields have triggered an onchange
+              if (!confirm("Your settings have not been saved. Are you sure you want to navigate away?")) {
+                return;
+              }
+            }
+            UI.navto(name,name == "Streams" ? "" : streamname);
+          });
+        }
+
+        $nav.append(
+          $("<span>").addClass("curtab-icon").attr("data-icon",currenttab)
+        );
+        for (var i in tabs) {
+          $nav.append(
+            buildTab(tabs[i])
+          );
+        }
+
+
+        return $cont;
+      },
       bigbuttons: function(streamname,currenttab){
         var $cont = $('<div>').addClass('bigbuttons');
 
@@ -7253,7 +7739,7 @@ var UI = {
 
         if (currenttab != "Status") {
           $cont.append(
-            $('<button>').text('Status').attr('data-icon','🚥').click(function(){
+            $('<button>').text('Status').addClass('status').click(function(){
               UI.navto('Status',streamname);
             })
           );
@@ -7287,6 +7773,7 @@ var UI = {
         //find http output for info json
         //return an array with possible urls, try first url first
         function findHTTP(callback){
+          //if (UI.sockets.http_host) { return callback([UI.sockets.http_host]); }
           var result = { HTTP: [], HTTPS: [] };
           var http = result.HTTP;
           var https = result.HTTPS;
@@ -7314,7 +7801,6 @@ var UI = {
             if (stored.HTTPurl.slice(0,5) == "https") https.push(stored.HTTPurl);
             else http.push(stored.HTTPurl);
           }
-
           //scan http(s) protocol config
           for (var i in mist.data.config.protocols) {
             var connector = mist.data.config.protocols[i];
@@ -7579,7 +8065,7 @@ var UI = {
           livestreamhint: true,
           status: true,
           stats: true,
-          tags: true,
+          tags: true, //use "readonly" to omit editing tags
           thumbnail: true
         };
         if (!options) {
@@ -7590,7 +8076,7 @@ var UI = {
         var activestream = {
           mode: 0,
           cont: $("<div>").addClass("activestream"),
-          status: options.status ? $("<div>").attr("data-streamstatus",0).text("Offline") : false,
+          status: options.status ? $("<div>").attr("data-streamstatus",0).text("Offline").hide() : false,
           viewers: options.stats ? $("<span>").attr("beforeifnotempty","Viewers: ") : false,
           inputs: options.stats ? $("<span>").attr("beforeifnotempty","Inputs: ") : false,
           outputs: options.stats? $("<span>").attr("beforeifnotempty","Outputs: ") : false,
@@ -7598,20 +8084,23 @@ var UI = {
             cont: $("<div>").attr("beforeifnotempty","Tags: "),
             children: {},
             ele: function(tag){
-              var $ele = $("<span>").addClass("tag").text(tag).append(
-                $("<button>").text("🗙").attr("title","Remove tag").click(function(){
-                  var $me = $(this);
-                  var untag = {};
-                  untag[streamname] = tag;
-                  $me.parent().text("Removing..");
-                  mist.send(function(){
-                    //done
-                    $me.parent().remove();
-                  },{
-                    untag_stream: untag
-                  });
-                })
-              );
+              var $ele = $("<span>").addClass("tag").text(tag);
+              if (options.tags != "readonly") {
+                $ele.append(
+                  $("<button>").text("🗙").attr("title","Remove tag").click(function(){
+                    var $me = $(this);
+                    var untag = {};
+                    untag[streamname] = tag;
+                    $me.parent().text("Removing..");
+                    mist.send(function(){
+                      //done
+                      $me.parent().remove();
+                    },{
+                      untag_stream: untag
+                    });
+                  })
+                );
+              }
               this.children[tag] = $ele;
               return $ele;
             },
@@ -7635,7 +8124,7 @@ var UI = {
               }
             }
           } : false,
-          addtag: options.tags ? $("<div>").html(
+          addtag: options.tags && (options.tags != "readonly") ? $("<div>").addClass("input_container").css("display","block").html(
             $("<input>").attr("placeholder","Tag name").on("keydown",function(e){
               switch (e.key) {
                 case " ": {
@@ -7676,10 +8165,11 @@ var UI = {
         ).append(activestream.livestreamhint);
 
         UI.sockets.ws.active_streams.subscribe(function(type,data){
+          if (options.status) activestream.status.css("display","");
           if (type == "stream") {
             if (data[0] == streamname) {
 
-              var s = ["Offline","Initializing","Booting","Waiting for data","Ready","Shutting down","Invalid state"];
+              var s = ["Offline","Initializing","Booting","Waiting for data","Available","Shutting down","Invalid state"];
               if (options.status) activestream.status.attr("data-streamstatus",data[1]).text(s[data[1]]);
               if (options.stats) {
                 activestream.viewers.text(data[2]);
@@ -7703,7 +8193,7 @@ var UI = {
       },
       actions: function(currenttab,streamname){
         return $("<section>").addClass("actions").addClass("bigbuttons").html(
-          $("<button>").text("Stop all sessions").attr("data-icon","✋").attr("title","Disconnect sessions for this stream. Disconnecting a session will kill any currently open connections (viewers, pushes and possibly the input). If the USER_NEW trigger is in use, it will be triggered again by any reconnecting connections.").click(function(){
+          $("<button>").text("Stop all sessions").attr("data-icon","stop").attr("title","Disconnect sessions for this stream. Disconnecting a session will kill any currently open connections (viewers, pushes and possibly the input). If the USER_NEW trigger is in use, it will be triggered again by any reconnecting connections.").click(function(){
             if (confirm("Are you sure you want to disconnect all sessions (viewers, pushes and possibly the input) from this stream?")) { 
               mist.send(function(){
                 //done
@@ -7711,7 +8201,7 @@ var UI = {
             }
           })
         ).append(
-          $("<button>").text("Invalidate sessions").attr("data-icon","🔐").attr("title","Invalidate all the currently active sessions for this stream. This has the effect of re-triggering the USER_NEW trigger, allowing you to selectively close some of the existing connections after they have been previously allowed. If you don't have a USER_NEW trigger configured, this will not have any effect.").click(function(){
+          $("<button>").text("Invalidate sessions").attr("data-icon","invalidate").attr("title","Invalidate all the currently active sessions for this stream. This has the effect of re-triggering the USER_NEW trigger, allowing you to selectively close some of the existing connections after they have been previously allowed. If you don't have a USER_NEW trigger configured, this will not have any effect.").click(function(){
             if (confirm("Are you sure you want to invalidate all sessions for the stream '"+streamname+"'?\nThis will re-trigger the USER_NEW trigger.")) { 
               mist.send(function(){
                 //done
@@ -7719,7 +8209,7 @@ var UI = {
             }
           })
         ).append(
-          $("<button>").text("Nuke stream").attr("data-icon","☢️").attr("title","Shut down a running stream completely and/or clean up any potentially left over stream data in memory. It attempts a clean shutdown of the running stream first, followed by a forced shut down, and then follows up by checking for left over data in memory and cleaning that up if any is found.").click(function(){
+          $("<button>").text("Nuke stream").attr("data-icon","nuke").attr("title","Shut down a running stream completely and/or clean up any potentially left over stream data in memory. It attempts a clean shutdown of the running stream first, followed by a forced shut down, and then follows up by checking for left over data in memory and cleaning that up if any is found.").click(function(){
             if (confirm("Are you sure you want to completely shut down the stream '"+streamname+"'?\nAll viewers will be disconnected.")) {
               mist.send(function(){
                 UI.showTab(currenttab,streamname);
@@ -7728,24 +8218,48 @@ var UI = {
           })
         );
       },
-      thumbnail: function(streamname){
+      thumbnail: function(streamname,options){
         if (!UI.findOutput("JPG")) { return; }
 
-        var jpg = $("<img>");
+
+        var image, stream;
+        
+        var jpg = $("<img>").hover(function(){
+          if (image && stream) {
+            $(this).attr("src",stream);
+          }
+        },function(){
+          if (image && stream) {
+            $(this).attr("src",image);
+          }
+        });
 
         UI.sockets.ws.info_json.subscribe(function(data){
           if (!data.source) return;
+          //find mjpg and jpg urls
           for (var i in data.source) {
             if (data.source[i].type == "html5/image/jpeg") {
-              jpg.attr("src",data.source[i].url);
-              break;
+              var url = data.source[i].url;
+              if (url.indexOf(".mjpg") > -1) { stream = url; }
+              else { image = url; }
+              if (image && stream) { break; }
             }
           }
+          if (stream || image) {
+            if (!stream) stream = image;
+            else if (!image) image = stream;
+
+            jpg.attr("src",image);
+            if (clone) clone.attr("src",image);
+          }
         },streamname);
+
+        var clone;
+        if (options && options.clone) clone = $("<img>").addClass("clone");
         
         return $("<section>").addClass("thumbnail").html(
           jpg
-        );
+        ).append(clone);
       },
       metadata: function(streamname,options){
         var defaultoptions = {
@@ -7765,7 +8279,7 @@ var UI = {
 
             cont.main = UI.dynamic({
               create: function(){
-                var main = $("<div>").addClass("main");
+                var main = $("<div>").addClass("main").addClass("input_container");
                 main.type = $("<span>");
                 main.html(
                   $("<label>").append($("<span>").text("Type:")).append(main.type)
@@ -7842,7 +8356,6 @@ var UI = {
                         }
 
                         //always update: not just dependent on itself but also on the bounds
-                        
                         var lastmsindex = "nowms" in values ? "nowms" : "lastms";
 
                         var from = main.timing.bounds.firstms.max;
@@ -7884,7 +8397,6 @@ var UI = {
                         if (skipmeta && (values[i].type == "meta")) { continue; }
                         out[i] = values[i];
                       }
-
                       //find minimum and maximum values of first and lastms
                       var bounds = {
                         firstms: {
@@ -7896,7 +8408,6 @@ var UI = {
                           max: -1e9
                         }
                       };
-                      
                       for (var i in out) {
                         var lastmsindex = "nowms" in out[i] ? "nowms" : "lastms";
                         bounds.firstms.min = Math.min(bounds.firstms.min,out[i].firstms);
@@ -8578,7 +9089,7 @@ var UI = {
           })
         ).append(
           $triggers
-        );;
+        );
       },
       pushes: function(streamname){
         var $pushes = $("<div>").addClass("pushes");
@@ -8654,11 +9165,11 @@ var UI = {
             }
             else {
               layout.Statistics = {
-                create: function(){
+              create: function(){
                   return $("<div>").addClass("statistics"); 
-                },
-                add: {
-                  create: function(id){
+              },
+              add: {
+                create: function(id){ 
                     var labels = {
                       active_seconds: "Active for: ",
                       bytes: "Data transfered: ",
@@ -8686,14 +9197,15 @@ var UI = {
                       }
                     };
 
-                    if (this.id in formatting) {
-                      this.html(formatting[this.id](val));
+                    if (this._id in formatting) {
+                      this.html(formatting[this._id](val));
                     }
+
                   }
                 }
               }
             }
-            layout.Actions.append(
+           layout.Actions.append(
               $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
                 var push = $(this).closest("table").data("values")[$(this).closest("td").attr("data-pushid")];
                 if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
@@ -8724,6 +9236,7 @@ var UI = {
                 })
               );
             }
+
 
 
 
@@ -9088,7 +9601,7 @@ var UI = {
           mistPlay(streamname,{
             target: $preview_cont[0],
             host: UI.sockets.http_host,
-            skin: "dev",
+            skin: {inherit:"dev",colors:{accent:"var(--accentColor)"}},
             loop: true,
             MistVideoObject: MistVideoObject
           });
@@ -9100,7 +9613,7 @@ var UI = {
         return $preview_cont;
       },
       playercontrols: function(MistVideoObject,$video){
-        var $controls = $("<section>").addClass("controls").addClass("mistvideo").html(
+        var $controls = $("<section>").addClass("controls").addClass("mistvideo").addClass("input_container").html(
           $("<h3>").text("MistPlayer")
         ).append(
           $("<p>").text("Waiting for player..")
@@ -9116,7 +9629,6 @@ var UI = {
 
         function init() {
           var MistVideo = MistVideoObject.reference;
-
           function buildBlueprint(obj) {
             return MistVideo.UI.buildStructure.call(MistVideo.UI,obj); 
           }
@@ -9789,6 +10301,7 @@ var UI = {
           var ws = UI.websockets.create(url);
           this.children[url] = {
             ws: false,
+            messages: [],
             listeners: []
           };
           this.children[url].ws = ws;
@@ -9796,6 +10309,7 @@ var UI = {
           ws.onmessage = function(d){
             var data = JSON.parse(d.data);
             if (url in me.children) {
+              me.children[url].messages.push(data);
               for (var i in me.children[url].listeners) {
                 me.children[url].listeners[i](data);
               }
@@ -9829,11 +10343,22 @@ var UI = {
           if (!streamname && !url) { throw "Stream name not specified."; }
           if (!params) { params = ""; }
           if (!url) {
+            if (!UI.sockets.http_host) {
+              var me = this;
+              var args = arguments;
+              UI.modules.stream.findMist(function(url){
+                me.subscribe.apply(me,args);
+              });  
+              return;
+            }
             url = UI.sockets.http_host.replace(/^http/,"ws") + "json_" + encodeURIComponent(streamname) + ".js"+params;  
           }
 
           if (!(url in this.children) || (this.children[url].ws.readyState > 1)) {
             this.init(url); 
+          }
+          for (var i in this.children[url].messages) {
+            callback(this.children[url].messages[i]); //replay history
           }
           this.children[url].listeners.push(callback);
         }
@@ -9841,6 +10366,7 @@ var UI = {
       active_streams: {
         ws: false,
         listeners: [],
+        messages: [],
         init: function(){
           var url = parseURL(mist.user.host);
           url = parseURL(mist.user.host,{pathname:url.pathname.replace(/\/api$/,"")+"/ws",search:"?logs=100&accs=100&streams=1"});
@@ -9876,18 +10402,33 @@ var UI = {
               }
               return;
             }
-
+            me.messages.push([type,data]);
             for (var i in me.listeners){
               me.listeners[i](type,data);
             }
           }
           apiWs.onclose = function(){
             me.listeners = [];
+            me.messages = [];
             me.ws = false;
+          };
+          apiWs.keepAlive = function(){
+            setTimeout(function(){ //repeatedly send {} to MistServer to activate readFrame loop (This ensures new messages are delivered. Backend should be updated so this is not needed)
+              if (apiWs.readyState == 1) {
+                apiWs.send("");
+                apiWs.keepAlive();
+              }
+            },200);
+          }
+          apiWs.onopen = function(){
+            apiWs.keepAlive();
           };
         },
         subscribe: function(callback){
           if (!this.ws || (this.ws.readyState > 1)) { this.init(); }
+          for (var i in this.messages) {
+            callback(this.messages[i][0],this.messages[i][1]);
+          }
           this.listeners.push(callback);
         }
       }
@@ -10597,7 +11138,7 @@ $.fn.setval = function(val){
     var type = opts.type;
     switch (type) { //exceptions only
       case 'span':
-        $(this).html(val);
+        $(this).html(val).attr("title",val);
         break;
       case 'checkbox':
         $(this).prop('checked',val);

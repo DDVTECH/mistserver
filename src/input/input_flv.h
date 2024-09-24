@@ -15,7 +15,7 @@ namespace Mist{
     bool readHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
-    bool keepRunning();
+    bool keepRunning(bool updateActCtr = true);
     FLV::Tag tmpTag;
     uint64_t lastModTime;
     FILE *inFile;

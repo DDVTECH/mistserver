@@ -16,7 +16,7 @@ namespace Mist{
     bool readHeader();
     void seek(uint64_t seekTime, size_t idx);
     void getNext(size_t idx = INVALID_TRACK_ID);
-    bool keepRunning();
+    bool keepRunning(bool updateActCtr = true);
     uint64_t lastModTime;
     HTTP::URIReader inFile;
     size_t audioTrack;

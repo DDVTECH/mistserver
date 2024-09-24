@@ -111,7 +111,7 @@ namespace Mist{
   // Overrides the default keepRunning function to shut down
   // if the file disappears or changes, by polling the file's mtime.
   // If neither applies, calls the original function.
-  bool InputAAC::keepRunning(){
+  bool InputAAC::keepRunning(bool updateActCtr){
     struct stat statData;
     if (stat(config->getString("input").c_str(), &statData) == -1){
       INFO_MSG("Shutting down because input file disappeared");
@@ -121,7 +121,7 @@ namespace Mist{
       INFO_MSG("Shutting down because input file changed");
       return false;
     }
-    return Input::keepRunning();
+    return Input::keepRunning(updateActCtr);
   }
   
 

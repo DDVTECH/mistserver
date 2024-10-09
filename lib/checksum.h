@@ -51,7 +51,7 @@ namespace checksum{
     return crc;
   }
 
-  inline unsigned int crc32LE(unsigned int crc, const char *data, size_t len){
+  inline uint32_t crc32LE(uint32_t crc, const char *data, size_t len){
     static const unsigned int table[256] ={
         0x00000000U, 0x77073096U, 0xee0e612cU, 0x990951baU, 0x076dc419U, 0x706af48fU, 0xe963a535U,
         0x9e6495a3U, 0x0edb8832U, 0x79dcb8a4U, 0xe0d5e91eU, 0x97d2d988U, 0x09b64c2bU, 0x7eb17cbdU,
@@ -92,7 +92,7 @@ namespace checksum{
         0xb40bbe37U, 0xc30c8ea1U, 0x5a05df1bU, 0x2d02ef8dU};
 
     while (len > 0){
-      crc = table[*data ^ ((crc >> 24) & 0xff)] ^ (crc << 8);
+      crc = table[(*data ^ crc) & 0xff] ^ (crc >> 8);
       data++;
       len--;
     }

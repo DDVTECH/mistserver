@@ -99,6 +99,7 @@ namespace Mist{
         MEDIUM_MSG("Handshake fail (this is not a problem, usually)");
       }
       setBlocking(false);
+      parseChunk(myConn.Received());
     }
   }
 
@@ -1009,7 +1010,7 @@ namespace Mist{
     sentHeader = true;
   }
 
-  void OutRTMP::requestHandler(){
+  void OutRTMP::requestHandler(bool readable){
     // If needed, slow down the reading to a rate of maxbps on average
     static bool slowWarned = false;
     if (maxbps && (Util::bootSecs() - myConn.connTime()) &&
@@ -1023,7 +1024,7 @@ namespace Mist{
       }
       Util::sleep(50);
     }
-    Output::requestHandler();
+    Output::requestHandler(readable);
   }
 
   void OutRTMP::onRequest(){parseChunk(myConn.Received());}

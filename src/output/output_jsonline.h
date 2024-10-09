@@ -9,7 +9,7 @@ namespace Mist{
     void sendNext();
     static bool listenMode();
     bool isReadyForPlay();
-    void requestHandler();
+    void requestHandler(bool readable);
   private:
     std::string getStatsName();
     Util::ResizeablePointer dPtr;

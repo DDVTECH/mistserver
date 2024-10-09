@@ -13,7 +13,6 @@ namespace Mist{
     sendFEC = false;
     wrapRTP = false;
     dropPercentage = 0;
-    std::string tracks = config->getString("tracks");
     if (config->getString("target").size()){
       HTTP::URL target(config->getString("target"));
       if (target.protocol != "tsudp" && target.protocol != "tsrtp" && target.protocol != "tstcp"){
@@ -71,8 +70,8 @@ namespace Mist{
           return;
         }
       }
+      closeMyConn();
       udpSize = 7;
-      if (targetParams.count("tracks")){tracks = targetParams["tracks"];}
       if (targetParams.count("pkts")){udpSize = atoi(targetParams["pkts"].c_str());}
       packetBuffer.allocate(188 * udpSize);
       if (target.path.size()){
@@ -123,32 +122,6 @@ namespace Mist{
         return;
       }
     }
-    initialize();
-
-    size_t currTrack = 0;
-    bool hasTrack = false;
-    // loop over tracks, add any found track IDs to selectedTracks
-    if (!pushing && tracks != ""){
-      userSelect.clear();
-      if (tracks == "passthrough"){
-        std::set<size_t> validTracks = getSupportedTracks();
-        for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-          userSelect[*it].reload(streamName, *it);
-        }
-      }else{
-        for (unsigned int i = 0; i < tracks.size(); ++i){
-          if (tracks[i] >= '0' && tracks[i] <= '9'){
-            currTrack = currTrack * 10 + (tracks[i] - '0');
-            hasTrack = true;
-          }else{
-            if (hasTrack){userSelect[currTrack].reload(streamName, currTrack);}
-            currTrack = 0;
-            hasTrack = false;
-          }
-        }
-        if (hasTrack){userSelect[currTrack].reload(streamName, currTrack);}
-      }
-    }
   }
 
   OutTS::~OutTS(){}
@@ -165,13 +138,6 @@ namespace Mist{
     capa["required"]["streamname"]["type"] = "str";
     capa["required"]["streamname"]["option"] = "--stream";
     capa["required"]["streamname"]["short"] = "s";
-    capa["optional"]["tracks"]["name"] = "Tracks";
-    capa["optional"]["tracks"]["help"] =
-        "The track IDs of the stream that this connector will transmit separated by spaces";
-    capa["optional"]["tracks"]["type"] = "str";
-    capa["optional"]["tracks"]["option"] = "--tracks";
-    capa["optional"]["tracks"]["short"] = "t";
-    capa["optional"]["tracks"]["default"] = "";
     capa["codecs"][0u][0u].append("+HEVC");
     capa["codecs"][0u][0u].append("+H264");
     capa["codecs"][0u][0u].append("+MPEG2");

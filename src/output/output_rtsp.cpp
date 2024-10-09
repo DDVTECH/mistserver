@@ -56,30 +56,6 @@ namespace Mist{
     sdpState.myMeta = &meta;
   }
 
-  /// Function used to send RTP packets over UDP
-  ///\param socket A UDP Connection pointer, sent as a void*, to keep portability.
-  ///\param data The RTP Packet that needs to be sent
-  ///\param len The size of data
-  ///\param channel Not used here, but is kept for compatibility with sendTCP
-  void sendUDP(void *socket, const char *data, size_t len, uint8_t){
-    ((Socket::UDPConnection *)socket)->SendNow(data, len);
-    if (mainConn){mainConn->addUp(len);}
-  }
-
-  /// Function used to send RTP packets over TCP
-  ///\param socket A TCP Connection pointer, sent as a void*, to keep portability.
-  ///\param data The RTP Packet that needs to be sent
-  ///\param len The size of data
-  ///\param channel Used to distinguish different data streams when sending RTP over TCP
-  void sendTCP(void *socket, const char *data, size_t len, uint8_t channel){
-    // 1 byte '$', 1 byte channel, 2 bytes length
-    char buf[] = "$$$$";
-    buf[1] = channel;
-    ((short *)buf)[1] = htons(len);
-    ((Socket::Connection *)socket)->SendNow(buf, 4);
-    ((Socket::Connection *)socket)->SendNow(data, len);
-  }
-
   void OutRTSP::init(Util::Config *cfg){
     Output::init(cfg);
     capa["name"] = "RTSP";
@@ -142,30 +118,41 @@ namespace Mist{
       if (liveSeek()){return;}
     }
 
-    void *socket = 0;
-    void (*callBack)(void *, const char *, size_t, uint8_t) = 0;
-
-    if (sdpState.tracks[thisIdx].channel == -1){// UDP connection
-      socket = &sdpState.tracks[thisIdx].data;
-      callBack = sendUDP;
-    }else{
-      socket = &myConn;
-      callBack = sendTCP;
-    }
-
     uint64_t offset = thisPacket.getInt("offset");
-    sdpState.tracks[thisIdx].pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(&M, thisIdx));
-    sdpState.tracks[thisIdx].pack.sendData(socket, callBack, dataPointer, dataLen,
-                                           sdpState.tracks[thisIdx].channel, meta.getCodec(thisIdx));
+    SDP::Track & sdpTrk = sdpState.tracks[thisIdx];
+    sdpTrk.pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(&M, thisIdx));
 
-
-    if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
-      if (sdpState.tracks[thisIdx].channel == -1){// UDP connection
-        sdpState.tracks[thisIdx].pack.sendRTCP_SR(&sdpState.tracks[thisIdx].rtcp, 0, callBack);
+    sdpTrk.pack.sendData([this, &sdpTrk](const char * data, size_t len){
+      if (sdpTrk.channel == -1){
+        // UDP connection
+        sdpTrk.data.SendNow(data, len);
+        myConn.addUp(len);
       }else{
-        sdpState.tracks[thisIdx].pack.sendRTCP_SR(socket, sdpState.tracks[thisIdx].channel, callBack);
+        // 1 byte '$', 1 byte channel, 2 bytes length
+        char buf[] = "$$$$";
+        buf[1] = sdpTrk.channel;
+        ((short *)buf)[1] = htons(len);
+        myConn.SendNow(buf, 4);
+        myConn.SendNow(data, len);
       }
-      sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
+    }, dataPointer, dataLen, meta.getCodec(thisIdx));
+
+    if (Util::bootSecs() != sdpTrk.rtcpSent){
+      sdpTrk.pack.sendRTCP_SR([this, &sdpTrk](const char * data, size_t len){
+        if (sdpTrk.channel == -1){
+          // UDP connection
+          sdpTrk.rtcp.SendNow(data, len);
+          myConn.addUp(len);
+        }else{
+          // 1 byte '$', 1 byte channel, 2 bytes length
+          char buf[] = "$$$$";
+          buf[1] = sdpTrk.channel;
+          ((short *)buf)[1] = htons(len);
+          myConn.SendNow(buf, 4);
+          myConn.SendNow(data, len);
+        }
+      });
+      sdpTrk.rtcpSent = Util::bootSecs();
     }
 
     static uint64_t lastAnnounce = Util::bootSecs();
@@ -182,12 +169,6 @@ namespace Mist{
       HTTP_S.SendRequest(myConn, transportString);
       HTTP_R.Clean();
     }
-  }
-
-  /// This request handler also checks for UDP packets
-  void OutRTSP::requestHandler(){
-    if (!expectTCP){handleUDP();}
-    Output::requestHandler();
   }
 
   void OutRTSP::onRequest(){
@@ -310,7 +291,34 @@ namespace Mist{
           userSelect[trackNo].reload(streamName, trackNo);
           if (isPushing()){userSelect[trackNo].setStatus(COMM_STATUS_SOURCE | userSelect[trackNo].getStatus());}
           SDP::Track &sdpTrack = sdpState.tracks[trackNo];
-          if (sdpTrack.channel != -1){expectTCP = true;}
+          if (sdpTrack.channel != -1){
+            expectTCP = true;
+          }else{
+            sdpTrack.sorter.setCallback(trackNo, insertRTP);
+            evLp.addSocket(sdpTrack.data.getSock(), [this, trackNo](void* trk){
+              SDP::Track &sdpTrack = *(SDP::Track*)trk;
+              while (sdpTrack.data.Receive()){
+                if (sdpTrack.data.getDestPort() != sdpTrack.cPortA && checkPort){
+                  // wrong sending port, ignore packet
+                  continue;
+                }
+                lastRecv = Util::bootSecs(); // prevent disconnect of idle TCP connection when using UDP
+                myConn.addDown(sdpTrack.data.data.size());
+                RTP::Packet pack(sdpTrack.data.data, sdpTrack.data.data.size());
+                if (!sdpTrack.theirSSRC){sdpTrack.theirSSRC = pack.getSSRC();}
+                sdpTrack.sorter.addPacket(pack);
+              }
+              /// \TODO Put the Receiver Report sender(s) in a separate timer,
+              /// so they also work when no data is being received at all
+              if (userSelect.count(trackNo) && Util::bootSecs() / 5 != sdpTrack.rtcpSent){
+                sdpTrack.rtcpSent = Util::bootSecs() / 5;
+                sdpTrack.pack.sendRTCP_RR(sdpTrack, [this, &sdpTrack](const char * data, size_t len){
+                  sdpTrack.rtcp.SendNow(data, len);
+                  myConn.addUp(len);
+                });
+              }
+            }, &sdpTrack);
+          }
           HTTP_S.SetHeader("Transport", sdpTrack.transportString);
           HTTP_S.SendResponse("200", "OK", myConn);
           INFO_MSG("Setup completed for track %zu (%s): %s", trackNo, M.getCodec(trackNo).c_str(),
@@ -479,28 +487,4 @@ namespace Mist{
     return handleTCP();
   }
 
-  /// Reads and handles RTP packets over UDP, if needed
-  void OutRTSP::handleUDP(){
-    if (!isPushing()){return;}
-    for (std::map<uint64_t, SDP::Track>::iterator it = sdpState.tracks.begin();
-         it != sdpState.tracks.end(); ++it){
-      Socket::UDPConnection &s = it->second.data;
-      it->second.sorter.setCallback(it->first, insertRTP);
-      while (s.Receive()){
-        if (s.getDestPort() != it->second.cPortA && checkPort){
-          // wrong sending port, ignore packet
-          continue;
-        }
-        lastRecv = Util::bootSecs(); // prevent disconnect of idle TCP connection when using UDP
-        myConn.addDown(s.data.size());
-        RTP::Packet pack(s.data, s.data.size());
-        if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
-        it->second.sorter.addPacket(pack);
-      }
-      if (userSelect.count(it->first) && Util::bootSecs() / 5 != it->second.rtcpSent){
-        it->second.rtcpSent = Util::bootSecs() / 5;
-        it->second.pack.sendRTCP_RR(it->second, sendUDP);
-      }
-    }
-  }
 }// namespace Mist

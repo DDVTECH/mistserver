@@ -329,7 +329,7 @@ namespace Mist{
     }
   }
 
-  void OutTSRIST::requestHandler(){
+  void OutTSRIST::requestHandler(bool readable){
     //size_t recvSize = conn.Recv();
     size_t recvSize = 0;
     if (!recvSize){return;}

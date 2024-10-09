@@ -1,22 +1,12 @@
 #pragma once
 #include "dtsc.h"
-#include "h264.h"
 #include "h265.h"
-#include "json.h"
-#include "mp4.h"
-#include "mp4_generic.h"
-#include "socket.h"
 #include "util.h"
-#include <algorithm>
 #include <cstdio>
-#include <deque>
-#include <iomanip>
-#include <iostream>
 #include <set>
-#include <sstream>
 #include <stdint.h>
 #include <string>
-#include <vector>
+#include <functional>
 
 namespace SDP{
   class Track;
@@ -95,18 +85,15 @@ namespace RTP{
     void parseFEC(void *columnSocket, void *rowSocket, uint64_t & bytesSent, const char *payload, unsigned int payloadlen);
     void sendNoPacket(unsigned int payloadlen);
     void sendTS(void *socket, const char *payload, unsigned int payloadlen);
-    void sendH264(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
-                  unsigned int payloadlen, unsigned int channel, bool lastOfAccessUnit);
-    void sendVP8(void *socket, void callBack(void *, const char *, size_t, uint8_t),
-                 const char *payload, unsigned int payloadlen, unsigned int channel);
-    void sendH265(void *socket, void callBack(void *, const char *, size_t, uint8_t),
-                  const char *payload, unsigned int payloadlen, unsigned int channel);
-    void sendMPEG2(void *socket, void callBack(void *, const char *, size_t, uint8_t),
-                   const char *payload, unsigned int payloadlen, unsigned int channel);
-    void sendData(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
-                  unsigned int payloadlen, unsigned int channel, std::string codec);
-    void sendRTCP_SR(void *socket, uint8_t channel, void callBack(void *, const char *, size_t, uint8_t));
-    void sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t));
+    void sendH264(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen,
+                  bool lastOfAccessUnit);
+    void sendVP8(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
+    void sendH265(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
+    void sendMPEG2(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
+    void sendData(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen,
+                  std::string codec);
+    void sendRTCP_SR(std::function<void(const char *, size_t)> callBack);
+    void sendRTCP_RR(SDP::Track &sTrk, std::function<void(const char *, size_t)> callBack);
 
     Packet();
     Packet(uint32_t pt, uint32_t seq, uint64_t ts, uint32_t ssr, uint32_t csrcCount = 0);
@@ -131,7 +118,7 @@ namespace RTP{
     virtual void outPacket(const uint64_t track, const Packet &p){
       if (callback){callback(track, p);}
     }
-    void setCallback(uint64_t track, void (*callback)(const uint64_t track, const Packet &p));
+    void setCallback(uint64_t track, std::function<void(const uint64_t track, const Packet &p)> callback);
     uint16_t rtpSeq;
     uint16_t rtpWSeq;
     bool first;
@@ -145,7 +132,7 @@ namespace RTP{
     uint64_t packTrack;
     std::map<uint16_t, Packet> packBuffer;
     std::map<uint16_t, Packet> packetHistory;
-    void (*callback)(const uint64_t track, const Packet &p);
+    std::function<void(const uint64_t track, const Packet &p)> callback;
   };
 
   class MPEGVideoHeader{
@@ -174,8 +161,8 @@ namespace RTP{
     void setProperties(const uint64_t track, const std::string &codec, const std::string &type,
                        const std::string &init, const double multiplier);
     void setProperties(const DTSC::Meta &M, size_t tid);
-    void setCallbacks(void (*cbPack)(const DTSC::Packet &pkt),
-                      void (*cbInit)(const uint64_t track, const std::string &initData));
+    void setCallbacks(std::function<void(const DTSC::Packet &pkt)> cbPack,
+                      std::function<void(const uint64_t track, const std::string &initData)> cbInit);
     void addRTP(const RTP::Packet &rPkt);
     void timeSync(uint32_t rtpTime, int64_t msDiff);
     virtual void outPacket(const DTSC::Packet &pkt){
@@ -199,8 +186,8 @@ namespace RTP{
     uint32_t prevTime;
     uint64_t firstTime;
     int64_t milliSync;
-    void (*cbPack)(const DTSC::Packet &pkt);
-    void (*cbInit)(const uint64_t track, const std::string &initData);
+    std::function<void(const DTSC::Packet &pkt)> cbPack;
+    std::function<void(const uint64_t track, const std::string &initData)> cbInit;
     // Codec-specific handlers
     void handleAAC(uint64_t msTime, char *pl, uint32_t plSize);
     void handleMP2(uint64_t msTime, char *pl, uint32_t plSize);

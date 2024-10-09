@@ -76,7 +76,12 @@ namespace Comms{
 
   size_t Comms::recordCount() const{
     if (!master){return index + 1;}
-    return dataAccX.getRCount();
+    return dataAccX.getPresent();
+  }
+
+  void Comms::setRecordCount(size_t idx, size_t prevCount){
+    IPC::semGuard G(&sem);
+    if (dataAccX.getPresent() <= prevCount){dataAccX.setPresent(idx);}
   }
 
   uint8_t Comms::getStatus() const{return status.uint(index);}
@@ -143,7 +148,7 @@ namespace Comms{
         fieldAccess();
         size_t reqCount = (currentSize - dataAccX.getOffset()) / dataAccX.getRSize();
         dataAccX.setRCount(reqCount);
-        dataAccX.setPresent(reqCount);
+        dataAccX.setPresent(0);
         dataAccX.setReady();
       }
       return;
@@ -168,6 +173,8 @@ namespace Comms{
           if (getStatus() != COMM_STATUS_INVALID){continue;}
           nullFields();
           setStatus(COMM_STATUS_ACTIVE | defaultCommFlags);
+          // Update present counter if/as needed
+          if (dataAccX.getPresent() < index+1){dataAccX.setPresent(index+1);}
           break;
         }
       }
@@ -230,7 +237,13 @@ namespace Comms{
     tags.set(_sid, idx);
   }
 
-  Users::Users() : Comms(){}
+  Users::Users() : Comms(){
+    noMaster = false;
+  }
+
+  Users::~Users(){
+    if (noMaster){master = false;}
+  }
 
   Users::Users(const Users &rhs) : Comms(){
     if (rhs){
@@ -280,6 +293,13 @@ namespace Comms{
       setKeyNum(0);
       setStatus(initialState | defaultCommFlags);
     }
+  }
+
+  void Users::reloadReadonly(const std::string &_streamName){
+    index = 1;
+    noMaster = true;
+    reload(_streamName);
+    master = true;
   }
 
   uint32_t Users::getTrack() const{return track.uint(index);}

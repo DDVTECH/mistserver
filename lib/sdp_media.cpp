@@ -780,7 +780,7 @@ namespace SDP{
   }
 
   Answer::Answer()
-      : isAudioEnabled(false), isVideoEnabled(false), isMetaEnabled(false), candidatePort(0),
+      : isAudioEnabled(false), isVideoEnabled(false), isMetaEnabled(false), port(0),
         videoLossPrevention(SDP_LOSS_PREVENTION_NONE){}
 
   bool Answer::parseOffer(const std::string &sdp){
@@ -828,12 +828,6 @@ namespace SDP{
     }
     isMetaEnabled = true;
     return true;
-  }
-
-  void Answer::setCandidate(const std::string &ip, uint16_t port){
-    if (ip.empty()){WARN_MSG("Given candidate IP is empty. It's fine if you want to unset it.");}
-    candidateIP = ip;
-    candidatePort = port;
   }
 
   void Answer::setFingerprint(const std::string &fingerprintSha){
@@ -891,12 +885,11 @@ namespace SDP{
   }
 
   std::string Answer::toString(){
-
     if (direction.empty()){
       FAIL_MSG("Cannot create SDP answer; direction not set. call setDirection().");
       return "";
     }
-    if (candidateIP.empty()){
+    if (candidates.empty()){
       FAIL_MSG("Cannot create SDP answer; candidate not set. call setCandidate().");
       return "";
     }
@@ -1063,7 +1056,9 @@ namespace SDP{
           }
         }
       }
-      addLine("a=candidate:1 1 udp 2130706431 %s %u typ host", candidateIP.c_str(), candidatePort);
+      for (auto c : candidates){
+        addLine("a=candidate:1 1 udp 2130706431 %s %u typ host", c.c_str(), port);
+      }
       addLine("a=end-of-candidates");
     }
 
@@ -1190,21 +1185,9 @@ namespace SDP{
     return ss.str();
   }
 
-  std::string Answer::generateIceUFrag(){return generateRandomString(4);}
+  std::string Answer::generateIceUFrag(){return Util::getRandomAlphanumeric(16);}
 
-  std::string Answer::generateIcePwd(){return generateRandomString(22);}
-
-  std::string Answer::generateRandomString(const int len){
-
-    static const char alphanum[] = "0123456789"
-                                   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                   "abcdefghijklmnopqrstuvwxyz";
-
-    std::string s;
-    for (int i = 0; i < len; ++i){s.push_back(alphanum[rand() % (sizeof(alphanum) - 1)]);}
-
-    return s;
-  }
+  std::string Answer::generateIcePwd(){return Util::getRandomAlphanumeric(32);}
 
   std::vector<std::string> Answer::splitString(const std::string &str, char delim){
 

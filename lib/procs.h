@@ -7,7 +7,6 @@
 #include <set>
 #include <string>
 #include <unistd.h>
-#include <vector>
 #include <stdint.h> 
 
 /// Contains utility code, not directly related to streaming media
@@ -28,6 +27,7 @@ namespace Util{
     static tthread::thread *reaper_thread;
     static bool handler_set; ///< If true, the sigchld handler has been setup.
     static void fork_prepare();
+    static void reap();
     static void fork_complete();
     static void setHandler();
     static std::string getOutputOf(char *const *argv, uint64_t maxWait = 0);

@@ -80,8 +80,8 @@ namespace Mist{
 
   bool OutJSONLine::listenMode(){return true;}
 
-  void OutJSONLine::requestHandler(){
-    if (myConn.spool()){
+  void OutJSONLine::requestHandler(bool readable){
+    if (readable && myConn.spool()){
       while (myConn.Received().size()){
         dPtr.append(myConn.Received().get());
         myConn.Received().get().clear();
@@ -95,7 +95,6 @@ namespace Mist{
       }
     }else{
       meta.setNowms(trkIdx, Util::bootMS() - offset);
-      Util::sleep(10);
     }
   }
 

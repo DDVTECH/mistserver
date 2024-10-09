@@ -1,6 +1,5 @@
 #pragma once
 #include "rtp.h"
-#include "sdp_media.h"
 #include "util.h"
 #include <set>
 
@@ -85,8 +84,8 @@ namespace RTP{
 
   class FECPacket : public Packet{
   public:
-    void sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC, void *userData,
-                     void callBack(void *userData, const char *payload, size_t nbytes, uint8_t channel), uint32_t jitter = 0);
+    void sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC,
+                     std::function<void(const char *, size_t)> callBack, uint32_t jitter = 0);
   };
 
 }// namespace RTP

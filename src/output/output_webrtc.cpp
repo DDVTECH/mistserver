@@ -13,8 +13,6 @@
 This file handles both input and output, and can operate in WHIP/WHEP as well as WebSocket signaling mode.
 In case of WHIP/WHEP: the Socket is closed after signaling has happened and the keepGoing function
   is overridden to handle this case
-When handling WebRTC Input a second thread is started dedicated to UDP traffic. In this case
-  no UDP traffic may be handled on the main thread whatsoever
 */
 
 namespace Mist{
@@ -22,51 +20,7 @@ namespace Mist{
   bool doDTLS = true;
   bool volkswagenMode = false;
 
-  OutWebRTC *classPointer = 0;
-
-  static void webRTCInputOutputThreadFunc(void *arg){
-    classPointer->handleWebRTCInputOutputFromThread();
-  }
-
-  static void onRTPSorterHasPacketCallback(const uint64_t track, const RTP::Packet &p){
-    classPointer->onRTPSorterHasPacket(track, p);
-  }
-
-  static void onDTSCConverterHasInitDataCallback(const uint64_t track, const std::string &initData){
-    classPointer->onDTSCConverterHasInitData(track, initData);
-  }
-
-  static void onDTSCConverterHasPacketCallback(const DTSC::Packet &pkt){
-    classPointer->onDTSCConverterHasPacket(pkt);
-  }
-
-  static void onRTPPacketizerHasDataCallback(void *socket, const char *data, size_t len, uint8_t channel){
-    classPointer->onRTPPacketizerHasRTPPacket(data, len);
-  }
-
-  static void onRTPPacketizerHasRTCPDataCallback(void *socket, const char *data, size_t len, uint8_t){
-    classPointer->onRTPPacketizerHasRTCPPacket(data, len);
-  }
-
-
 #ifdef WITH_DATACHANNELS
-  static int sctp_recv_cb(struct socket *s, union sctp_sockstore addr, void *data, size_t datalen, struct sctp_rcvinfo rcv, int flags, void *ulp_info){
-    if (data) {
-      if (!(flags & MSG_NOTIFICATION)){
-        ((OutWebRTC*)(addr.sconn.sconn_addr))->onSCTP((const char*)data, datalen, ntohs(rcv.rcv_sid), ntohl(rcv.rcv_ppid));
-      }
-      free(data);
-    }else{
-      usrsctp_close(s);
-    }
-    return 1;
-  }
-
-  int sctp_send_cb(void *addr, void *buf, size_t length, uint8_t tos, uint8_t set_df){
-    ((OutWebRTC*)addr)->sendSCTPPacket((const char*)buf, length);
-    return 0;
-  }
-  
   void sctp_debug_cb(const char * format, ...){
     char msg[1024];
     va_list args;
@@ -77,7 +31,115 @@ namespace Mist{
   }
 #endif
 
+
+  const char * SCTPTypeStr(const uint8_t t){
+    switch (t){
+      case 0: return "DATA";
+      case 1: return "INIT";
+      case 2: return "INIT-ACK";
+      case 3: return "SACK";
+      case 4: return "HEARTBEAT";
+      case 5: return "HEARTBEAT-ACK";
+      case 6: return "ABORT";
+      case 7: return "SHUTDOWN";
+      case 8: return "SHUTDOWN-ACK";
+      case 9: return "ERROR";
+      case 10: return "COOKIE-ECHO";
+      case 11: return "COOKIE-ACK";
+      case 12: return "ECNE";
+      case 13: return "CWR";
+      case 14: return "SHUTDOWN-COMPLETE";
+      case 15: return "AUTH";
+      case 64: return "IDATA";
+      case 128: return "ASCONF-ACK";
+      case 130: return "RECONFIG";
+      case 132: return "PAD";
+      case 192: return "FORWARD-TSN";
+      case 193: return "ASCONF";
+      case 194: return "I-FORWARD-TSN";
+    }
+    return "UNKNOWN";
+  }
+
+  std::string printSCTP(const char * data, size_t len){
+    std::stringstream ret;
+    if (len < 12){return "[INVALID SCTP PACKET ( < 12b)]";}
+    ret << "[SCTP " << Bit::btohs(data) << "<>" << Bit::btohs(data+2) << "]";
+    size_t offset = 12;
+    while (len >= offset + 4){
+      size_t len = Bit::btohs(data+offset+2);
+      ret << "[";
+      switch (data[offset]){
+        case 1:{ // INIT
+          if (len < 20){
+            ret << "Init invalid: < 20b";
+            break;
+          }
+          ret << "Init";
+          ret << " tag=" << Bit::btohl(data+offset+4);
+          ret << " a_rwnd=" << Bit::btohl(data+offset+8);
+          ret << " in=" << Bit::btohs(data+offset+12);
+          ret << " out=" << Bit::btohs(data+offset+14);
+          ret << " tsn=" << Bit::btohl(data+offset+16);
+          size_t i_off = offset + 20;
+          while (len >= i_off + 4){
+            uint16_t code = Bit::btohs(data + i_off);
+            uint16_t cLen = Bit::btohs(data + i_off + 2);
+            switch (code){
+              case 5: ret << " IPv4"; break; 
+              case 6: ret << " IPv6"; break; 
+              case 9: ret << " Cookie"; break; 
+              case 0x8000: ret << " ECN"; break; 
+              case 11: ret << " Host"; break; 
+              case 12: ret << " Support"; break; 
+              default: ret << " Unknown (" << code << ")"; break;
+            }
+            if (cLen <= 4){cLen = 4;}
+            i_off += cLen;
+          }
+        } break;
+        case 6:{ // ABORT
+          ret << "Abort ";
+          if (!data[offset+1]){
+            ret << "(control block destroyed) ";
+          }
+          size_t cause_off = offset + 3;
+          while (len >= cause_off + 4){
+            uint16_t code = Bit::btohs(data + cause_off);
+            uint16_t cLen = Bit::btohs(data + cause_off + 2);
+            switch (code){
+              case 1: ret << "Invalid SID"; break;
+              case 2: ret << "Missing arg"; break;
+              case 3: ret << "Stale Cookie"; break;
+              case 4: ret << "Out of resources"; break;
+              case 5: ret << "Unresolvable addr"; break;
+              case 6: ret << "Unrecognized chunk type"; break;
+              case 7: ret << "Invalid arg"; break;
+              case 8: ret << "Unrecognized arm"; break;
+              case 9: ret << "No user data"; break;
+              case 10: ret << "Cookie during shutdown"; break;
+              default: ret << "Unknown"; break;
+            }
+            if (cLen <= 4){cLen = 4;}
+            cause_off += cLen;
+          }
+        } break;
+        default:
+        ret << SCTPTypeStr(data[offset]) << " (T=" << (int)(data[offset+1]) << ") " << len << "b ";
+      }
+      ret << "]";
+      if (len < 4){len = 4;}
+      offset += len;
+    }
+    return ret.str();
+  }
+
+
+
   WebRTCSocket::WebRTCSocket(){
+    sctpInited = false;
+    sctpConnected = false;
+    useCandidate = false;
     udpSock = 0;
     if (volkswagenMode){
       srtpWriter.init("SRTP_AES128_CM_SHA1_80", "volkswagen modus", "volkswagenmode");
@@ -108,7 +170,7 @@ namespace Mist{
     return len;
   }
 
-  size_t WebRTCSocket:: ackNACK(uint32_t pSSRC, uint16_t seq){
+  size_t WebRTCSocket::ackNACK(uint32_t pSSRC, uint16_t seq){
     if (!outBuffers.count(pSSRC)){
       WARN_MSG("Could not answer NACK for %" PRIu32 ": we don't know this track", pSSRC);
       return 0;
@@ -146,11 +208,97 @@ namespace Mist{
 
   /* ------------------------------------------------ */
 
+  void OutWebRTC::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
+    Util::ResizeablePointer sndBuf;
+
+    Socket::UDPConnection * sndr = 0;
+    {
+      std::deque<std::string> mcAddrs = Socket::getAddrs("224.0.0.224", conf.getInteger("port"), AF_INET);
+      std::string mcAddr = *mcAddrs.begin();
+      if (!mcAddr.size()){
+        FAIL_MSG("Could not resolve 224.0.0.224 multicast address!");
+        return;
+      }
+      sndr = new Socket::UDPConnection(mcAddr.data(), mcAddr.size(), 0, 0);
+    }
+
+    Socket::UDPConnection lstn;
+    if (Socket::checkTrueSocket(0)){
+      lstn.assimilate(0);
+    }else{
+      lstn.bind(conf.getInteger("port"), conf.getString("interface"));
+    }
+    if (!lstn){
+      DEVEL_MSG("Failure to open socket");
+      return;
+    }
+    lstn.allocateDestination();
+    Socket::getSocketName(lstn.getSock(), Util::listenInterface, Util::listenPort);
+    Util::Config::setServerFD(lstn.getSock());
+    Event::Loop ev;
+    ev.setup();
+    conf.activate();
+    if (lstn.getSock()){
+      int oldSock = lstn.getSock();
+      if (!dup2(oldSock, 0)){
+        lstn.assimilate(0);
+        close(oldSock);
+      }
+    }
+    lstn.setMulticastTTL(1);
+    // Listen for STUN connections here
+    Util::Procs::socketList.insert(0);
+    ev.addSocket(0, [&lstn, &sndr, &sndBuf](void *){
+      while (lstn.Receive()){
+        // Ignore non-STUN messages
+        uint8_t fb = (uint8_t)lstn.data[0];
+        if (fb >= 2){continue;}
+
+        // STUN message! Parse it...
+        StunMessage stun_msg;
+        StunAttribute * un = 0;
+        if (STUN::parse(lstn.data, lstn.data.size(), stun_msg) && (un = stun_msg.getAttributeByType(STUN_ATTR_TYPE_USERNAME))){
+          size_t colon = un->data.find(':');
+          if (colon != std::string::npos){un->data.erase(colon);}
+          if (un->data.size() > 16){un->data.erase(16);}
+          sndBuf.assign(un->data);
+          const Util::ResizeablePointer & rAddr = lstn.getRemoteAddr();
+          uint8_t aLen = rAddr.size();
+          sndBuf.append(&aLen, 1);
+          sndBuf.append(rAddr);
+          const Util::ResizeablePointer & lAddr = lstn.getLocalAddr();
+          uint8_t lLen = lAddr.size();
+          sndBuf.append(&lLen, 1);
+          sndBuf.append(lAddr);
+
+          if (Util::printDebugLevel >= DLVL_HIGH){
+            std::string remoteAddr, localAddr;
+            uint32_t remotePort, localPort;
+            Socket::getAddrName(rAddr, remoteAddr, remotePort);
+            Socket::getAddrName(lAddr, localAddr, localPort);
+            HIGH_MSG("STUN: user=%s Local=%s:%" PRIu32 " Remote=%s:%" PRIu32, un->data.c_str(), localAddr.c_str(), localPort, remoteAddr.c_str(), remotePort);
+          }
+
+          sndr->SendNow(sndBuf, sndBuf.size());
+        }
+      }
+    }, 0);
+    // Loop while we should be looping
+    while (conf.is_active && lstn){ev.await(10000);}
+    sndr->close();
+    delete sndr;
+    Util::Procs::socketList.erase(0);
+    // Close the socket if not restarting
+    if (!conf.is_restarting){lstn.close();}
+  }
+
+
   OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
 #ifdef WITH_DATACHANNELS
     sctpInited = false;
-    sctpConnected = false;
 #endif
+    rtpIsFlowing = false;
+    currentRTPSocket = -1;
     noSignalling = false;
     totalPkts = 0;
     totalLoss = 0;
@@ -174,7 +322,6 @@ namespace Mist{
     lastTimeSync = 0;
     maxSkipAhead = 0;
     needsLookAhead = 0;
-    ioThread = 0;
     udpPort = 0;
     Util::getRandomBytes(&SSRC, sizeof(SSRC));
     rtcpTimeoutInMillis = 0;
@@ -233,23 +380,9 @@ namespace Mist{
 
     sdpAnswer.setFingerprint(cert.getFingerprintSha256());
 
-    classPointer = this;
-
     setBlocking(false);
   }
 
-  OutWebRTC::~OutWebRTC(){
-    if (ioThread && ioThread->joinable()){
-      ioThread->join();
-      delete ioThread;
-      ioThread = 0;
-    }
-  }
-
-  // Initialize the WebRTC output. This is where we define what
-  // codes types are supported and accepted when parsing the SDP
-  // offer or when generating the SDP. The `capa` member is
-  // inherited from `Output`.
   void OutWebRTC::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "WebRTC";
@@ -259,6 +392,8 @@ namespace Mist{
     capa["url_match"] = "/webrtc/$";
 
     capa["incoming_push_url"] = "http://$host:$port/webrtc/$stream";
+
+    capa["provides_dependency"] = true;
 
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("VP8");
@@ -298,16 +433,8 @@ namespace Mist{
     capa["optional"]["preferredaudiocodec"]["option"] = "--webrtc-audio-codecs";
     capa["optional"]["preferredaudiocodec"]["short"] = "A";
 
-    capa["optional"]["bindhost"]["name"] = "UDP bind address (internal)";
-    capa["optional"]["bindhost"]["help"] = "Interface address or hostname to bind SRTP UDP socket "
-                                           "to. Defaults to originating interface address.";
-    capa["optional"]["bindhost"]["default"] = "";
-    capa["optional"]["bindhost"]["type"] = "str";
-    capa["optional"]["bindhost"]["option"] = "--bindhost";
-    capa["optional"]["bindhost"]["short"] = "B";
-
-    capa["optional"]["pubhost"]["name"] = "UDP bind address (public)";
-    capa["optional"]["pubhost"]["help"] = "Interface address or hostname for clients to connect to. Defaults to internal address.";
+    capa["optional"]["pubhost"]["name"] = "Override external host/ip";
+    capa["optional"]["pubhost"]["help"] = "What host and/or IP addresses to pass on in the SDP. Defaults to HTTP server host.";
     capa["optional"]["pubhost"]["default"] = "";
     capa["optional"]["pubhost"]["type"] = "str";
     capa["optional"]["pubhost"]["option"] = "--pubhost";
@@ -338,6 +465,18 @@ namespace Mist{
     capa["optional"]["packetlog"]["option"] = "--packetlog";
     capa["optional"]["packetlog"]["short"] = "P";
     capa["optional"]["packetlog"]["default"] = 0;
+
+    capa["optional"]["nolocal"]["name"] = "Do not add all local addresses";
+    capa["optional"]["nolocal"]["help"] = "Skips adding all detected local addresses to the list of IP addresses sent to clients";
+    capa["optional"]["nolocal"]["option"] = "--nolocal";
+    capa["optional"]["nolocal"]["short"] = "y";
+    capa["optional"]["nolocal"]["default"] = 0;
+
+    capa["optional"]["noresolve"]["name"] = "Do not add resolved hostnames";
+    capa["optional"]["noresolve"]["help"] = "Skips adding resolved versions of hostnames to the list of IP addresses sent to clients";
+    capa["optional"]["noresolve"]["option"] = "--noresolve";
+    capa["optional"]["noresolve"]["short"] = "Y";
+    capa["optional"]["noresolve"]["default"] = 0;
 
     capa["optional"]["nacktimeout"]["name"] = "RTP NACK timeout";
     capa["optional"]["nacktimeout"]["help"] = "Amount of packets any track will wait for a packet to arrive before NACKing it";
@@ -375,7 +514,7 @@ namespace Mist{
     capa["optional"]["losttimeoutmobile"]["default"] = 90;
 
     capa["optional"]["cert"]["name"] = "Certificate";
-    capa["optional"]["cert"]["help"] = "(Root) certificate(s) file(s) to append to chain";
+    capa["optional"]["cert"]["help"] = "(Root) certificate file(s) to append to chain. If unset, these will be taken from a configured HTTPS protocol (if any), or fall back to an auto-generated self-signed certificate for every connection.";
     capa["optional"]["cert"]["option"] = "--cert";
     capa["optional"]["cert"]["short"] = "C";
     capa["optional"]["cert"]["default"] = "";
@@ -395,7 +534,11 @@ namespace Mist{
     capa["optional"]["iceservers"]["type"] = "json";
 
 
-    config->addOptionsFromCapabilities(capa);
+    config->addConnectorOptions(18203, capa);
+    capa["optional"]["interface"]["name"] = "UDP bind address";
+    capa["optional"]["interface"]["help"] = "Host to bind SRTP UDP sockets to. Defaults to all interfaces.";
+    capa["optional"]["port"]["name"] = "UDP port";
+    capa["optional"]["port"]["help"] = "UDP port to listen on";
   }
 
   void OutWebRTC::onFail(const std::string &msg, bool critical){
@@ -406,6 +549,7 @@ namespace Mist{
 
   void OutWebRTC::preWebsocketConnect(){
     HTTP::URL tmpUrl("http://" + H.GetHeader("Host"));
+    if (H.GetHeader("X-Mst-Path").size()){tmpUrl = H.GetHeader("X-Mst-Path");}
     externalAddr = tmpUrl.host;
     if (UA.find("Mobi") != std::string::npos){
       RTP::PACKET_REORDER_WAIT = config->getInteger("nacktimeoutmobile");
@@ -418,24 +562,32 @@ namespace Mist{
     }
   }
 
-  void OutWebRTC::requestHandler(){
-    // Handle onIdle function caller, if needed
-    if (idleInterval && (Util::bootMS() > idleLast + idleInterval)){
-      if (wsCmds || wsCmdForce){handleWebsocketIdle();}
-      onIdle();
-      idleLast = Util::bootMS();
-    }
-    if (noSignalling){
-      // For WHEP, make sure we keep listening for packets while waiting for new data to come in for sending
-      if (parseData && !handleWebRTCInputOutput()){
-        sendPaced(10);
-      }else{
-        if (ioThread){
-          Util::sleep(500);
-        }else{
-          if (!handleWebRTCInputOutput()){sendPaced(10);}
+  void OutWebRTC::onIdle(){
+    //If this is an incoming push, handle receiver reports and keyframe interval
+    if (isPushing()){
+      //Receiver reports and packet loss calculations
+      if (thisBootMs >= rtcpTimeoutInMillis){
+        std::map<uint64_t, WebRTCTrack>::iterator it;
+        for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
+          if (!M || M.getType(it->first) != "video"){continue;}//Video-only, at least for now
+          sendRTCPFeedbackREMB(it->second);
+          sendRTCPFeedbackRR(it->second);
         }
+        rtcpTimeoutInMillis = thisBootMs + 1000; /* was 5000, lowered for FEC */
       }
+
+      //Keyframe requests
+      if (thisBootMs >= rtcpKeyFrameTimeoutInMillis){
+        std::map<uint64_t, WebRTCTrack>::iterator it;
+        for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
+          if (!M || M.getType(it->first) != "video"){continue;}//Video-only
+          sendRTCPFeedbackPLI(it->second);
+        }
+        rtcpKeyFrameTimeoutInMillis = thisBootMs + rtcpKeyFrameDelayInMillis;
+      }
+    }
+
+    if (noSignalling){
       // After 10s of no packets, abort
       if (thisBootMs > lastRecv + 10000){
         Util::logExitReason(ER_CLEAN_INACTIVE, "received no data for 10+ seconds");
@@ -443,7 +595,6 @@ namespace Mist{
       }
       return;
     }
-    HTTPOutput::requestHandler();
   }
 
   // If ICE headers are configured, sets them on the given HTTP::Parser instance.
@@ -527,8 +678,12 @@ namespace Mist{
       return;
     }
     if (req.method == "POST"){
-      INFO_MSG("POST");
       if (req.GetHeader("Content-Type") == "application/sdp"){
+
+        HTTP::URL tmpUrl("http://" + req.GetHeader("Host"));
+        if (req.GetHeader("X-Mst-Path").size()){tmpUrl = req.GetHeader("X-Mst-Path");}
+        externalAddr = tmpUrl.host;
+
         SDP::Session sdpParser;
         const std::string &offerStr = req.body;
         if (config && config->hasOption("packetlog") && config->getBool("packetlog")){
@@ -563,7 +718,7 @@ namespace Mist{
           H.StartResponse("201", "Created", req, myConn);
           H.Chunkify(sdpAnswer.toString(), myConn);
           H.Chunkify(0, 0, myConn);
-          myConn.close();
+          closeMyConn();
           return;
         }else{
           H.setCORSHeaders();
@@ -718,6 +873,7 @@ namespace Mist{
         WARN_MSG("Requested a keyframe delay < 500ms; 500ms is the minimum you can set.");
         rtcpKeyFrameDelayInMillis = 500;
       }
+      if (idleInterval > rtcpKeyFrameDelayInMillis){idleInterval = rtcpKeyFrameDelayInMillis;}
 
       rtcpKeyFrameTimeoutInMillis = Util::bootMS() + rtcpKeyFrameDelayInMillis;
       JSON::Value commandResult;
@@ -768,7 +924,7 @@ namespace Mist{
       lastPackMs = Util::bootMS();
     }
 
-    if (0 == udpPort){bindUDPSocketOnLocalCandidateAddress(0);}
+    if (!udpPort){bindUDPSocketOnLocalCandidateAddress(0);}
 
     std::string videoCodec;
     std::string audioCodec;
@@ -838,26 +994,25 @@ namespace Mist{
         }
       }
     }
-
-    // we set parseData to `true` to start the data flow. Is also
-    // used to break out of our loop in `onHTTP()`.
-    parseData = true;
-    idleInterval = 1000;
-
     return true;
   }
 
   void OutWebRTC::onCommandSend(const std::string & data){
     if (wsCmdForce){
       sctp_sndinfo sndinfo;
-      sndinfo.snd_sid = dataChannels["MistControl"];
       sndinfo.snd_flags = SCTP_EOR;
       sndinfo.snd_ppid = htonl(51);
       sndinfo.snd_context = 0;
       sndinfo.snd_assoc_id = 0;
-      int ret = usrsctp_sendv(sctp_sock, data.data(), data.size(), NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
-      if (ret < 0){
-        WARN_MSG("Could not send data channel command message: %s", strerror(errno));
+      for (auto sSock : sctpSockets){
+        WebRTCSocket & wSock = sockets[sSock];
+        if (!wSock.dataChannels.count("MistControl") || !*(wSock.udpSock)){continue;}
+        sndinfo.snd_sid = wSock.dataChannels["MistControl"];
+        int ret = usrsctp_sendv(wSock.sctp_connsock, data.data(), data.size(), NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
+        if (ret < 0){
+          WARN_MSG("Could not send data channel command message through %" PRIu16 ": %s", sndinfo.snd_sid, strerror(errno));
+          wSock.udpSock->close();
+        }
       }
     }else{
       if (webSock){HTTPOutput::onCommandSend(data);}
@@ -980,12 +1135,7 @@ namespace Mist{
 
     if (!meta.getBootMsOffset()){meta.setBootMsOffset(Util::bootMS());}
 
-    if (ioThread){
-      FAIL_MSG("It seems that we're already have a WebRTC I/O thread running, aborting input request");
-      return false;
-    }
-
-    if (0 == udpPort){bindUDPSocketOnLocalCandidateAddress(0);}
+    if (!udpPort){bindUDPSocketOnLocalCandidateAddress(0);}
 
     std::string prefVideoCodec = "VP9,VP8,H264";
     if (config && config->hasOption("preferredvideocodec")){
@@ -1062,8 +1212,11 @@ namespace Mist{
       }
 
       videoTrack.rtpToDTSC.setProperties(meta, vIdx);
-      videoTrack.rtpToDTSC.setCallbacks(onDTSCConverterHasPacketCallback, onDTSCConverterHasInitDataCallback);
-      videoTrack.sorter.setCallback(M.getID(vIdx), onRTPSorterHasPacketCallback);
+      videoTrack.rtpToDTSC.setCallbacks([this](const DTSC::Packet & p){onDTSCPkt(p);}, [this](const size_t t, const std::string & i){onDTSCInit(t,i);});
+      videoTrack.sorter.setCallback(M.getID(vIdx), [this, &videoTrack](size_t t, const RTP::Packet &p){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << p.getPayloadType() << " #" << p.getSequence() << std::endl;}
+        videoTrack.rtpToDTSC.addRTP(p);
+      });
 
       userSelect[vIdx].reload(streamName, vIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
       INFO_MSG("Video push received on track %zu", vIdx);
@@ -1084,8 +1237,11 @@ namespace Mist{
       audioTrack.SSRC = sdpAnswer.answerAudioMedia.SSRC;
 
       audioTrack.rtpToDTSC.setProperties(meta, aIdx);
-      audioTrack.rtpToDTSC.setCallbacks(onDTSCConverterHasPacketCallback, onDTSCConverterHasInitDataCallback);
-      audioTrack.sorter.setCallback(M.getID(aIdx), onRTPSorterHasPacketCallback);
+      audioTrack.rtpToDTSC.setCallbacks([this](const DTSC::Packet & p){onDTSCPkt(p);}, [this](const size_t t, const std::string & i){onDTSCInit(t,i);});
+      audioTrack.sorter.setCallback(M.getID(aIdx), [this, &audioTrack](size_t t, const RTP::Packet &p){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << p.getPayloadType() << " #" << p.getSequence() << std::endl;}
+        audioTrack.rtpToDTSC.addRTP(p);
+      });
 
       userSelect[aIdx].reload(streamName, aIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
       INFO_MSG("Audio push received on track %zu", aIdx);
@@ -1093,11 +1249,8 @@ namespace Mist{
 
     sdpAnswer.setDirection("recvonly");
 
-    // start our receive thread (handles STUN, DTLS, RTP input)
     rtcpTimeoutInMillis = Util::bootMS() + 2000;
     rtcpKeyFrameTimeoutInMillis = Util::bootMS() + 2000;
-    ioThread = new tthread::thread(webRTCInputOutputThreadFunc, NULL);
-
     idleInterval = 1000;
 
     return true;
@@ -1105,70 +1258,285 @@ namespace Mist{
 
   bool OutWebRTC::bindUDPSocketOnLocalCandidateAddress(uint16_t port){
 
-    if (udpPort != 0){
+    if (udpPort){
       FAIL_MSG("Already bound the UDP socket.");
       return false;
     }
 
-    std::string bindAddr;
-    //If a bind host has been put in as override, use it
-    if (config && config->hasOption("bindhost") && config->getString("bindhost").size()){
-      bindAddr = config->getString("bindhost");
-      udpPort = mainSocket.bind(port, bindAddr);
-      if (!udpPort){
-        WARN_MSG("UDP bind address not valid - ignoring setting and using best guess instead");
-        bindAddr.clear();
-      }else{
-        INFO_MSG("Bound to pre-configured UDP bind address");
-      }
+    udpPort = mainSocket.bind(config->getInteger("port"), "224.0.0.224");
+    if (!udpPort){
+      WARN_MSG("Cannot bind to multicast announce address: aborting");
+      return false;
     }
-    //use the best IPv4 guess we have
-    if (!bindAddr.size()){
-      bindAddr = Socket::resolveHostToBestExternalAddrGuess(externalAddr, AF_INET, myConn.getBoundAddress());
-      if (!bindAddr.size()){
-        INFO_MSG("UDP bind to best guess failed - using same address as incoming connection as a last resort");
-        bindAddr.clear();
-      }else{
-        udpPort = mainSocket.bind(port, bindAddr);
-        if (!udpPort){
-          INFO_MSG("UDP bind to best guess failed - using same address as incoming connection as a last resort");
-          bindAddr.clear();
-        }else{
-          INFO_MSG("Bound to public UDP bind address derived from hostname");
+
+
+    sdpAnswer.port = udpPort;//udpPort;
+    std::set<std::string> dupeCheck;
+
+    std::string bindAddr = config->getString("interface");
+    if (config->getString("pubhost").size()){bindAddr = config->getString("pubhost");}
+
+    // Add the bound address if it's set to non-empty
+    if (bindAddr.size() && bindAddr != "0.0.0.0"){
+      if (!dupeCheck.count(bindAddr)){
+        sdpAnswer.candidates.push_back(bindAddr);
+        dupeCheck.insert(bindAddr);
+      }
+      if (!config->getBool("noresolve")){
+        std::deque<std::string> hostips = Socket::getAddrs(bindAddr, udpPort);
+        for (auto i : hostips){
+          std::string ip = Socket::sockaddrToString((const sockaddr*)i.data());
+          if (ip.size() > 7 && ip.substr(0, 7) == "::ffff:"){ip.erase(0, 7);}
+          if (ip == "127.0.0.1" || ip == "::1"){continue;}
+          if (!dupeCheck.count(ip)){
+            dupeCheck.insert(ip);
+            sdpAnswer.candidates.push_back(ip);
+          }
         }
       }
     }
-    if (!bindAddr.size()){
-      bindAddr = myConn.getBoundAddress();
-      udpPort = mainSocket.bind(port, bindAddr);
-      if (!udpPort){
-        FAIL_MSG("UDP bind to connected address failed - we're out of options here, I'm afraid...");
-        bindAddr.clear();
-      }else{
-        INFO_MSG("Bound to same UDP address as TCP address - this is potentially wrong, but used as a last resort");
+
+    // Add resolved versions of the hostname
+    if (!config->getBool("noresolve") && externalAddr.size()){
+      std::deque<std::string> hostips = Socket::getAddrs(externalAddr, udpPort);
+      for (auto i : hostips){
+        std::string ip = Socket::sockaddrToString((const sockaddr*)i.data());
+        if (ip.size() > 7 && ip.substr(0, 7) == "::ffff:"){ip.erase(0, 7);}
+        if (ip == "127.0.0.1" || ip == "::1"){continue;}
+        if (!dupeCheck.count(ip)){
+          dupeCheck.insert(ip);
+          sdpAnswer.candidates.push_back(ip);
+        }
       }
     }
 
-    Util::Procs::socketList.insert(mainSocket.getSock());
+    // Add all local addresses
+    if (!config->getBool("nolocal")){
+      std::deque<std::string> locals;
+      Socket::getLocal(locals);
+      for (auto l : locals){
+        if (l == "127.0.0.1" || l == "::1"){continue;}
+        if (!dupeCheck.count(l)){
+          dupeCheck.insert(l);
+          sdpAnswer.candidates.push_back(l);
+        }
+      }
+    }
+
 
     // this is necessary so that we can get the remote IP when creating STUN replies.
     mainSocket.allocateDestination();
 
-    if (config && config->hasOption("pubhost") && config->getString("pubhost").size()){
-      bindAddr = config->getString("pubhost");
+    if (packetLog.is_open()){
+      packetLog << "[" << Util::bootMS() << "]" << "Adding main socket " << mainSocket.getSock() << ", port " << udpPort << std::endl;
     }
-    sdpAnswer.setCandidate(bindAddr, udpPort);
+    Util::Procs::socketList.insert(mainSocket.getSock());
+    // Connection handler for main socket (contains inline connection handler for WebRTC sockets)
+    evLp.addSocket(mainSocket.getSock(), [this](void*){
+      while(mainSocket.Receive()){
+
+        if (mainSocket.data.size() <= 16){continue;}
+
+        std::string usr(mainSocket.data, 16);
+        std::string passwd;
+        for (auto & i : webrtcTracks){
+          if (i.second.localIceUFrag == usr){
+            passwd = i.second.localIcePwd;
+            break;
+          }
+        }
+        if (!passwd.size()){continue;}
+        std::string remoteIP, localIP;
+        uint32_t remotePort, localPort;
+
+        size_t lenRemote = mainSocket.data.size() > 16 ? mainSocket.data[16] : 0;
+        if (!lenRemote){continue;}
+        Socket::getAddrName(mainSocket.data + 17, remoteIP, remotePort);
+        size_t lenLocal = mainSocket.data.size() > 17 + lenRemote ? mainSocket.data[17+lenRemote] : 0;
+        if (!lenLocal){continue;}
+        Socket::getAddrName(mainSocket.data + 18 + lenRemote, localIP, localPort);
+
+        // Check if we already have a socket handling this exact connection, if so, don't create a new one
+        bool existsAlready = false;
+        for (std::map<int, WebRTCSocket>::iterator it = sockets.begin(); it != sockets.end(); it++){
+          if (!*(it->second.udpSock)){
+            int sockNo = it->first;
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "] Deleting socket " << sockNo << std::endl;}
+            rtpSockets.erase(sockNo);
+            if (currentRTPSocket == sockNo){currentRTPSocket = -1;}
+            sctpSockets.erase(sockNo);
+            evLp.remove(sockNo); // This also deletes the socket itself
+            sockets.erase(sockNo);
+            it = sockets.begin();
+            if (!sockets.size()){break;}
+          }
+          if (*(it->second.udpSock) == mainSocket){
+            existsAlready = true;
+            INFO_MSG("Duplicate socket, not spawning another, inserting packet instead");
+            break;
+          }
+        }
+        if (existsAlready){continue;}
+
+        // No existing socket? Create a new one specifically for this exact connection
+        Socket::UDPConnection * s = new Socket::UDPConnection(mainSocket.data + 17, lenRemote, mainSocket.data + 18 + lenRemote, lenLocal);
+        if (!s->connect()){
+          delete s;
+          if (packetLog.is_open()){
+            packetLog << "[" << Util::bootMS() << "]" << "Failed to connect new socket for: " << remoteIP << ":" << remotePort << std::endl;
+          }
+          continue;
+        }
+
+        s->initDTLS(&(cert.cert), &(cert.key));
+        int sockNo = s->getSock();
+        WebRTCSocket & wSock = sockets[sockNo];
+        wSock.udpSock = s;
+
+        // Connection handler for WebRTC sockets
+        if (packetLog.is_open()){
+          packetLog << "[" << Util::bootMS() << "]" << "Connected new socket " << sockNo << " for: " << localIP << ":" << localPort << " <-> " << remoteIP << ":" << remotePort << std::endl;
+        }
+        Util::Procs::socketList.insert(sockNo);
+        evLp.addSendQueue(s);
+        evLp.addSocket(sockNo, [&wSock, sockNo, this](void* ptr){
+          bool wasInited = wSock.udpSock->cipher.size();
+          
+          // Read as many packets as we can
+          while(wSock.udpSock->Receive()){
+            myConn.addDown(wSock.udpSock->data.size());
+
+            if (wSock.udpSock->data.size() && wSock.udpSock->wasEncrypted){
+              wSock.lastRecv = lastRecv = Util::bootMS();
+#ifdef WITH_DATACHANNELS
+              if (!sctpInited){
+                usrsctp_init(0,
+                  [](void *addr, void *buf, size_t length, uint8_t tos, uint8_t set_df){
+                  WebRTCSocket & wSock = *(WebRTCSocket*)addr;
+                  std::ofstream & packetLog = ((OutWebRTC*)wSock.cPtr)->packetLog;
+                  if (packetLog.is_open()){
+                    packetLog << "[" << Util::bootMS() << "]" << "-> SCTP (" << length << "b): " << printSCTP((const char*)buf, length) << std::endl;
+                  }
+                  if (wSock.udpSock){wSock.udpSock->sendPaced((const char*)buf, length);}
+                  return 0;
+                } , sctp_debug_cb);
+                sctpInited = true;
+              }
+              if (!sctpSockets.count(wSock.udpSock->getSock())){
+                int s = wSock.udpSock->getSock();
+                rtpSockets.erase(s);
+                if (currentRTPSocket == s){currentRTPSocket = -1;}
+                sctpSockets.insert(s);
+                if (packetLog.is_open()){
+                  packetLog << "[" << Util::bootMS() << "] " << sockNo << " is now a SCTP socket (current RTP socket = " << currentRTPSocket << ")" << std::endl;
+                }
+              }
+              if (!wSock.sctpInited){
+                wSock.cPtr = this;
+                usrsctp_register_address((void *)&wSock);
+                wSock.sctp_sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP,
+                  [](struct socket *sock, union sctp_sockstore addr, void *data, size_t datalen, struct sctp_rcvinfo rcv, int flags, void *ulp_info){
+                    WebRTCSocket & wSock = *(WebRTCSocket*)(addr.sconn.sconn_addr);
+                    if (data) {
+                      wSock.sctp_connsock = sock;
+                      if (!(flags & MSG_NOTIFICATION)){
+                        ((OutWebRTC*)wSock.cPtr)->onSCTP(wSock, sock, (const char*)data, datalen, rcv.rcv_sid, ntohl(rcv.rcv_ppid));
+                      }
+                      free(data);
+                    }else{
+                      usrsctp_close(sock);
+                    }
+                    return 1;
+                  }, NULL, 0, NULL);
+                struct sockaddr_conn sconn;
+                memset(&sconn, 0, sizeof(struct sockaddr_conn));
+                sconn.sconn_family = AF_CONN;
+#ifdef HAVE_SCONN_LEN
+                sconn.sconn_len = sizeof(struct sockaddr_conn);
+#endif
+                sconn.sconn_port = htons(5000);
+                sconn.sconn_addr = (void *)&wSock;
+                usrsctp_bind(wSock.sctp_sock, (struct sockaddr *)&sconn, sizeof(struct sockaddr_conn));
+                usrsctp_listen(wSock.sctp_sock, 1);
+              }
+              if (packetLog.is_open()){
+                packetLog << "[" << Util::bootMS() << "]" << "<- SCTP[" << sockNo << "] (" << wSock.udpSock->data.size() << "b): " << printSCTP(wSock.udpSock->data, wSock.udpSock->data.size()) << std::endl;
+              }
+              usrsctp_conninput(&wSock, wSock.udpSock->data, wSock.udpSock->data.size(), 0);
+#endif
+              continue;
+            }
+
+            uint8_t fb = (uint8_t)wSock.udpSock->data[0];
+            if (fb > 127 && fb < 192){
+              if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": RTP/RTCP" << std::endl;}
+              handleReceivedRTPOrRTCPPacket(wSock);
+            }else if (fb > 19 && fb < 64){
+              if (packetLog.is_open()){
+                std::string remoteIP;
+                uint32_t remotePort;
+                wSock.udpSock->GetDestination(remoteIP, remotePort);
+                packetLog << "[" << Util::bootMS() << "]" << "DTLS (" << remoteIP << ":" << remotePort << ") - Non-decoded data" << std::endl;
+              }
+              // Not handshaken? Maybe we need to work around the Chrome bug where it swaps IPs sometimes.
+              if (!wSock.udpSock->handshakeComplete() && sctpSockets.size()){
+                uint64_t timeout = Util::bootMS() - 2500;
+                bool swapped = false;
+                for (int s : sctpSockets){
+                  WebRTCSocket & tSock = sockets[s];
+                  if (tSock.udpSock->handshakeComplete() && tSock.lastRecv < timeout){
+                    INFO_MSG("Found a swap candidate - swapping socket %d with %d", wSock.udpSock->getSock(), tSock.udpSock->getSock());
+                    wSock.udpSock->swapSocket(*(tSock.udpSock));
+                    swapped = true;
+                    break;
+
+                  }
+                }
+                if (swapped){continue;}
+              }
+            }else if (fb < 2){
+              handleReceivedSTUNPacket(wSock);
+            }else{
+              if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": Unknown" << std::endl;}
+              FAIL_MSG("Unhandled WebRTC data. Type: %02X", fb);
+            }
+          }
+
+          // After reading packets, error if we couldn't init the SRTP session
+          if (!wasInited && wSock.udpSock->cipher.size()){
+            if (wSock.srtpReader.init(wSock.udpSock->cipher, wSock.udpSock->remote_key, wSock.udpSock->remote_salt) != 0){
+              FAIL_MSG("Failed to initialize the SRTP reader.");
+            }
+            if (wSock.srtpWriter.init(wSock.udpSock->cipher, wSock.udpSock->local_key, wSock.udpSock->local_salt) != 0){
+              FAIL_MSG("Failed to initialize the SRTP writer.");
+            }
+            rtpSockets.insert(sockNo);
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "SRTP reader/writer " << sockNo << " initialized" << std::endl;}
+            if (currentRTPSocket == -1){currentRTPSocket = sockNo;}
+            if (!parseData && !isPushing()){
+              if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "] Playback started" << std::endl;}
+              parseData = true;
+              idleInterval = 1000;
+            }
+
+          }
+          
+          // If the connection has been lost, remove it from the list
+          if (!*(wSock.udpSock)){
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "] Deleting socket " << sockNo << std::endl;}
+            rtpSockets.erase(sockNo);
+            if (currentRTPSocket == sockNo){currentRTPSocket = -1;}
+            sctpSockets.erase(sockNo);
+            evLp.remove(sockNo); // This also deletes the socket itself
+            sockets.erase(sockNo);
+          }
+        }, 0);
+      }
+    }, 0);
     return true;
   }
 
   /* ------------------------------------------------ */
-
-  /// Worker function for ioThread
-  void OutWebRTC::handleWebRTCInputOutputFromThread(){
-    while (keepGoing()){
-      if (!handleWebRTCInputOutput()){sendPaced(10);}
-    }
-  }
 
   void OutWebRTC::connStats(uint64_t now, Comms::Connections &statComm){
     statComm.setUp(myConn.dataUp());
@@ -1179,183 +1547,9 @@ namespace Mist{
     statComm.setTime(now - myConn.connTime());
   }
 
-  bool OutWebRTC::handleUDPSocket(Socket::UDPConnection & sock){
-    bool hadPack = false;
-    while(sock.Receive()){
-      std::string remoteIP, localIP;
-      uint32_t remotePort, localPort;
-      sock.GetDestination(remoteIP, remotePort);
-      sock.GetLocalDestination(localIP, localPort);
-
-      // Check if we already have a socket handling this exact connection, if so, don't create a new one
-      bool existsAlready = false;
-      for (std::map<int, WebRTCSocket>::iterator it = sockets.begin(); it != sockets.end(); it++){
-        if (!*(it->second.udpSock)){
-          int sockNo = it->first;
-          sockets.erase(sockNo);
-          rtpSockets.erase(sockNo);
-          sctpSockets.erase(sockNo);
-          it = sockets.begin();
-          if (!sockets.size()){break;}
-        }
-        if (*(it->second.udpSock) == sock){
-          existsAlready = true;
-          INFO_MSG("Duplicate socket, not spawning another, inserting packet instead");
-          break;
-        }
-      }
-      if (existsAlready){continue;}
-
-      // No existing socket? Create a new one specifically for this exact connection
-      Socket::UDPConnection * s = new Socket::UDPConnection(sock);
-      if (s->connect()){
-        s->initDTLS(&(cert.cert), &(cert.key));
-        sockets[s->getSock()].udpSock = s;
-        Util::Procs::socketList.insert(s->getSock());
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Connected new socket " << s->getSock() << " for: " << localIP << ":" << localPort << " <-> " << remoteIP << ":" << remotePort << std::endl;}
-      }else{
-        delete s;
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Failed to connect new socket for: " << remoteIP << ":" << remotePort << std::endl;}
-      }
-      hadPack = true;
-    }
-    return hadPack;
-  }
-
-  bool OutWebRTC::handleUDPSocket(WebRTCSocket & wSock){
-    bool hadPack = false;
-    while(wSock.udpSock->Receive()){
-      hadPack = true;
-      myConn.addDown(wSock.udpSock->data.size());
-
-      if (wSock.udpSock->data.size() && wSock.udpSock->wasEncrypted){
-        lastRecv = Util::bootMS();
-#ifdef WITH_DATACHANNELS
-        if (packetLog.is_open()){
-          packetLog << "[" << Util::bootMS() << "]" << "SCTP packet (" << wSock.udpSock->data.size() << "b): " << std::endl;
-          char * buffer = usrsctp_dumppacket(wSock.udpSock->data, wSock.udpSock->data.size(), SCTP_DUMP_INBOUND);
-          packetLog << buffer;
-          usrsctp_freedumpbuffer(buffer);
-        }
-        if (!sctpSockets.count(wSock.udpSock->getSock())){
-          int s = wSock.udpSock->getSock();
-          rtpSockets.erase(s);
-          sctpSockets.insert(s);
-        }
-        if (!sctpInited){
-          INFO_MSG("Initializing SCTP library");
-          usrsctp_init(0, sctp_send_cb, sctp_debug_cb);
-          usrsctp_register_address((void *)this);
-          sctp_sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, sctp_recv_cb, NULL, 0, NULL);
-          struct sockaddr_conn sconn;
-          memset(&sconn, 0, sizeof(struct sockaddr_conn));
-          sconn.sconn_family = AF_CONN;
-#ifdef HAVE_SCONN_LEN
-          sconn.sconn_len = sizeof(struct sockaddr_conn);
-#endif
-          sconn.sconn_port = htons(5000);
-          sconn.sconn_addr = (void *)this;
-          usrsctp_bind(sctp_sock, (struct sockaddr *)&sconn, sizeof(struct sockaddr_conn));
-          usrsctp_listen(sctp_sock, 1);
-          sctpInited = true;
-        }
-        usrsctp_conninput(this, wSock.udpSock->data, wSock.udpSock->data.size(), 0);
-        //usrsctp_accept(sctp_sock, 0, 0);
-#endif
-        continue;
-      }
-
-      uint8_t fb = (uint8_t)wSock.udpSock->data[0];
-      if (fb > 127 && fb < 192){
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": RTP/RTCP" << std::endl;}
-        handleReceivedRTPOrRTCPPacket(wSock);
-      }else if (fb > 19 && fb < 64){
-        if (packetLog.is_open()){
-          std::string remoteIP;
-          uint32_t remotePort;
-          wSock.udpSock->GetDestination(remoteIP, remotePort);
-          packetLog << "[" << Util::bootMS() << "]" << "DTLS (" << remoteIP << ":" << remotePort << ") - Non-application-level data" << std::endl;
-        }
-      }else if (fb < 2){
-        handleReceivedSTUNPacket(wSock);
-      }else{
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": Unknown" << std::endl;}
-        FAIL_MSG("Unhandled WebRTC data. Type: %02X", fb);
-      }
-    }
-    return hadPack;
-  }
-
-  // Checks if there is data on our UDP socket. The data can be
-  // STUN, DTLS, SRTP or SRTCP. When we're receiving media from
-  // the browser (e.g. from webcam) this function is called from
-  // a separate thread. When we're pushing media to the browser
-  // this is called from the main thread.
-  bool OutWebRTC::handleWebRTCInputOutput(){
-
-    bool hadPack = false;
-    hadPack |= handleUDPSocket(mainSocket);
-
-
-    for (std::map<int, WebRTCSocket>::iterator it = sockets.begin(); it != sockets.end(); it++){
-      bool wasInited = it->second.udpSock->cipher.size();
-      hadPack |= handleUDPSocket(it->second);
-      if (!wasInited && it->second.udpSock->cipher.size()){
-        if (it->second.srtpReader.init(it->second.udpSock->cipher, it->second.udpSock->remote_key, it->second.udpSock->remote_salt) != 0){
-          FAIL_MSG("Failed to initialize the SRTP reader.");
-        }
-        if (it->second.srtpWriter.init(it->second.udpSock->cipher, it->second.udpSock->local_key, it->second.udpSock->local_salt) != 0){
-          FAIL_MSG("Failed to initialize the SRTP writer.");
-        }
-        rtpSockets.insert(it->first);
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "SRTP reader/writer " << it->first << " initialized" << std::endl;}
-      }
-
-      if (!*(it->second.udpSock)){
-        int sockNo = it->first;
-        sockets.erase(sockNo);
-        rtpSockets.erase(sockNo);
-        sctpSockets.erase(sockNo);
-        it = sockets.begin();
-        if (!sockets.size()){break;}
-      }
-    }
-
-    //If this is an incoming push, handle receiver reports and keyframe interval
-    if (isPushing()){
-      uint64_t now = Util::bootMS();
-      
-      //Receiver reports and packet loss calculations
-      if (now >= rtcpTimeoutInMillis){
-        std::map<uint64_t, WebRTCTrack>::iterator it;
-        for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
-          if (!M || it->first == INVALID_TRACK_ID || M.getType(it->first) != "video"){continue;}//Video-only, at least for now
-          sendRTCPFeedbackREMB(it->second);
-          sendRTCPFeedbackRR(it->second);
-        }
-        rtcpTimeoutInMillis = now + 1000; /* was 5000, lowered for FEC */
-      }
-
-      //Keyframe requests
-      if (now >= rtcpKeyFrameTimeoutInMillis){
-        std::map<uint64_t, WebRTCTrack>::iterator it;
-        for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
-          if (!M || it->first == INVALID_TRACK_ID || M.getType(it->first) != "video"){continue;}//Video-only
-          sendRTCPFeedbackPLI(it->second);
-        }
-        rtcpKeyFrameTimeoutInMillis = now + rtcpKeyFrameDelayInMillis;
-      }
-    }
-
-    if (mainSocket.getSock() == -1){onFail("UDP socket closed", true);}
-    return hadPack;
-  }
-
   void OutWebRTC::handleReceivedSTUNPacket(WebRTCSocket &wSock){
-
-    size_t nparsed = 0;
     StunMessage stun_msg;
-    if (stunReader.parse((uint8_t *)(char*)wSock.udpSock->data, wSock.udpSock->data.size(), nparsed, stun_msg) != 0){
+    if (!STUN::parse(wSock.udpSock->data, wSock.udpSock->data.size(), stun_msg)){
       if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "STUN: (unparsable)" << std::endl;}
       FAIL_MSG("Failed to parse a stun message.");
       return;
@@ -1369,40 +1563,35 @@ namespace Mist{
 
     // get the username for whom we got a binding request.
     StunAttribute *usernameAttrib = stun_msg.getAttributeByType(STUN_ATTR_TYPE_USERNAME);
-    if (!usernameAttrib){
-      ERROR_MSG("No username attribute found in the STUN binding request. Cannot create success "
-                "binding response.");
+    if (!usernameAttrib || !usernameAttrib->data.size()){
+      ERROR_MSG("No username in the STUN packet: cannot respond");
       return;
     }
-    if (usernameAttrib->username.value == 0){
-      ERROR_MSG("The username attribute is empty.");
-      return;
-    }
-    std::string username(usernameAttrib->username.value, usernameAttrib->length);
-    std::size_t usernameColonPos = username.find(":");
+    std::size_t usernameColonPos = usernameAttrib->data.find(":");
     if (usernameColonPos == std::string::npos){
-      ERROR_MSG("The username in the STUN attribute has an invalid format: %s.", username.c_str());
+      ERROR_MSG("The username in the STUN attribute has an invalid format: %s.", usernameAttrib->data.c_str());
       return;
     }
-    std::string usernameLocal = username.substr(0, usernameColonPos);
+    std::string usernameLocal = usernameAttrib->data.substr(0, usernameColonPos);
 
     // get the password for the username that is used to create our message-integrity.
     std::string passwordLocal;
-    std::map<uint64_t, WebRTCTrack>::iterator rtcTrackIt = webrtcTracks.begin();
-    while (rtcTrackIt != webrtcTracks.end()){
-      WebRTCTrack &tr = rtcTrackIt->second;
-      if (tr.localIceUFrag == usernameLocal){passwordLocal = tr.localIcePwd;}
-      ++rtcTrackIt;
+    for (auto & i : webrtcTracks){
+      if (i.second.localIceUFrag == usernameLocal){
+        passwordLocal = i.second.localIcePwd;
+        break;
+      }
     }
     if (passwordLocal.empty()){
-      ERROR_MSG("No local ICE password found for username %s. Did you create a WebRTCTrack?",
-                usernameLocal.c_str());
+      ERROR_MSG("No local ICE password found for username %s", usernameLocal.c_str());
       return;
     }
+    if (stun_msg.getAttributeByType(STUN_ATTR_TYPE_USE_CANDIDATE)){wSock.useCandidate = true;}
     lastRecv = Util::bootMS();
 
     std::string remoteIP;
     uint32_t remotePort;
+    const sockaddr * remoteAddr = (const sockaddr*)(const void*)wSock.udpSock->getRemoteAddr();
     wSock.udpSock->GetDestination(remoteIP, remotePort);
     if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "STUN: " << remoteIP << ":" << remotePort << std::endl;}
 
@@ -1412,7 +1601,7 @@ namespace Mist{
 
     StunWriter stun_writer;
     stun_writer.begin(stun_msg);
-    stun_writer.writeXorMappedAddress(STUN_IP4, remotePort, remoteIP);
+    stun_writer.writeXorMappedAddress(remoteAddr);
     stun_writer.writeMessageIntegrity(passwordLocal);
     stun_writer.writeFingerprint();
     stun_writer.end();
@@ -1422,13 +1611,20 @@ namespace Mist{
   }
 
   void OutWebRTC::ackNACK(uint32_t pSSRC, uint16_t seq){
-    
-    for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){
-      if (!*(sockets[*it].udpSock)){continue;}
-      size_t sent = sockets[*it].ackNACK(pSSRC, seq);
+    if (currentRTPSocket != -1 && rtpSockets.count(currentRTPSocket) && sockets[currentRTPSocket].udpSock){
+      size_t sent = sockets[currentRTPSocket].ackNACK(pSSRC, seq);
       if (sent){
         totalRetrans++;
         myConn.addUp(sent);
+      }
+    }else{
+      for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){
+        if (!*(sockets[*it].udpSock)){continue;}
+        size_t sent = sockets[*it].ackNACK(pSSRC, seq);
+        if (sent){
+          totalRetrans++;
+          myConn.addUp(sent);
+        }
       }
     }
     HIGH_MSG("Answered NACK for %" PRIu32 " #%" PRIu16, pSSRC, seq);
@@ -1438,6 +1634,8 @@ namespace Mist{
 
     // Mark this socket as an (S)RTP socket, if not already marked
     if (!rtpSockets.count(wSock.udpSock->getSock())){rtpSockets.insert(wSock.udpSock->getSock());}
+    // No current RTP socket? Set this one as the new current.
+    if (currentRTPSocket == -1){currentRTPSocket = wSock.udpSock->getSock();}
 
     uint8_t pt = wSock.udpSock->data[1] & 0x7F;
 
@@ -1466,12 +1664,32 @@ namespace Mist{
 
       // Decrypt the SRTP to RTP
       int len = wSock.udpSock->data.size();
-      if (wSock.srtpReader.unprotectRtp((uint8_t *)(char*)wSock.udpSock->data, &len) != 0){
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTP decrypt failure" << std::endl;}
-        return;
+      if (!wSock.udpSock->cipher.size()){
+        INFO_MSG("No cipher, but we have data... attempting to use cipher from another socket (potentially working around Chrome bug)");
+        for (int s : rtpSockets){
+          WebRTCSocket & nSock = sockets[s];
+          if (!nSock.udpSock->cipher.size()){break;}
+          if (wSock.srtpReader.init(nSock.udpSock->cipher, nSock.udpSock->remote_key, nSock.udpSock->remote_salt)){break;}
+          if (wSock.srtpWriter.init(nSock.udpSock->cipher, nSock.udpSock->local_key, nSock.udpSock->local_salt)){break;}
+          if (!wSock.srtpReader.unprotectRtcp((uint8_t *)(char*)wSock.udpSock->data, &len)){
+            INFO_MSG("Working cipher found! Using it.");
+            wSock.udpSock->cipher = nSock.udpSock->cipher;
+            wSock.udpSock->remote_key = nSock.udpSock->remote_key;
+            wSock.udpSock->remote_salt = nSock.udpSock->remote_salt;
+            wSock.udpSock->local_key = nSock.udpSock->local_key;
+            wSock.udpSock->local_salt = nSock.udpSock->local_salt;
+            break;
+          }
+        }
+        if (!wSock.udpSock->cipher.size()){return;}
+      }else{
+        if (wSock.srtpReader.unprotectRtp((uint8_t *)(char*)wSock.udpSock->data, &len) != 0){
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTP decrypt failure" << std::endl;}
+          return;
+        }
       }
       if (!len){return;}
-      lastRecv = Util::bootMS();
+      wSock.lastRecv = lastRecv = Util::bootMS();
       RTP::Packet unprotPack(wSock.udpSock->data, len);
       DONTEVEN_MSG("%s", unprotPack.toString().c_str());
 
@@ -1500,14 +1718,34 @@ namespace Mist{
       //Decrypt feedback packet
       int len = wSock.udpSock->data.size();
       if (doDTLS){
-        if (wSock.srtpReader.unprotectRtcp((uint8_t *)(char*)wSock.udpSock->data, &len) != 0){
-          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
-          return;
+        if (!wSock.udpSock->cipher.size()){
+          INFO_MSG("No cipher, but we have data... attempting to use cipher from another socket (potentially working around Chrome bug)");
+          for (int s : rtpSockets){
+            WebRTCSocket & nSock = sockets[s];
+            if (!nSock.udpSock->cipher.size()){break;}
+            if (wSock.srtpReader.init(nSock.udpSock->cipher, nSock.udpSock->remote_key, nSock.udpSock->remote_salt)){break;}
+            if (wSock.srtpWriter.init(nSock.udpSock->cipher, nSock.udpSock->local_key, nSock.udpSock->local_salt)){break;}
+            if (!wSock.srtpReader.unprotectRtcp((uint8_t *)(char*)wSock.udpSock->data, &len)){
+              INFO_MSG("Working cipher found! Using it.");
+              wSock.udpSock->cipher = nSock.udpSock->cipher;
+              wSock.udpSock->remote_key = nSock.udpSock->remote_key;
+              wSock.udpSock->remote_salt = nSock.udpSock->remote_salt;
+              wSock.udpSock->local_key = nSock.udpSock->local_key;
+              wSock.udpSock->local_salt = nSock.udpSock->local_salt;
+              break;
+            }
+          }
+          if (!wSock.udpSock->cipher.size()){return;}
+        }else{
+          if (wSock.srtpReader.unprotectRtcp((uint8_t *)(char*)wSock.udpSock->data, &len)){
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
+            return;
+          }
         }
         if (!len){return;}
       }
 
-      lastRecv = Util::bootMS();
+      wSock.lastRecv = lastRecv = Util::bootMS();
       uint8_t fmt = wSock.udpSock->data[0] & 0x1F;
       if (pt == 77 || pt == 65){
         //77/65 = nack
@@ -1650,61 +1888,8 @@ namespace Mist{
     }
   }
 
-  /* ------------------------------------------------ */
-
-  void OutWebRTC::sendSCTPPacket(const char * data, size_t len){
-    for (std::set<int>::iterator it = sctpSockets.begin(); it != sctpSockets.end(); ++it){
-      if (!*(sockets[*it].udpSock)){continue;}
-      sockets[*it].udpSock->sendPaced(data, len);
-    }
-  }
-
-  /// Use select to wait until a packet arrives or until the next packet should be sent
-  void OutWebRTC::sendPaced(uint64_t uSendWindow){
-    uint64_t currPace = Util::getMicros();
-    uint64_t uTime = currPace;
-    do{
-      uint64_t sleepTime = uSendWindow - (uTime - currPace);
-
-      fd_set rfds;
-      FD_ZERO(&rfds);
-      int maxFD = mainSocket.getSock();
-      FD_SET(maxFD, &rfds);
-
-      for (std::map<int, WebRTCSocket>::iterator it = sockets.begin(); it != sockets.end(); it++){
-        if (!*(it->second.udpSock)){continue;}
-        uint64_t nextPace = it->second.udpSock->timeToNextPace(uTime);
-        // Not sleeping? Send now!
-        if (!nextPace){
-          it->second.udpSock->sendPaced(0);
-          nextPace = it->second.udpSock->timeToNextPace(uTime);
-        }
-        if (sleepTime > nextPace){sleepTime = nextPace;}
-
-        int s = it->second.udpSock->getSock();
-        FD_SET(s, &rfds);
-        if (maxFD < s){maxFD = s;}
-      }
-
-      struct timeval T;
-      T.tv_sec = sleepTime / 1000000;
-      T.tv_usec = sleepTime % 1000000;
-      int r = select(maxFD + 1, &rfds, NULL, NULL, &T);
-      // If we can read the socket, immediately return and stop waiting
-      if (r > 0){return;}
-
-      uTime = Util::getMicros();
-    }while(uTime - currPace < uSendWindow);
-  }
-
-  void OutWebRTC::onSCTP(const char * data, size_t len, uint16_t stream, uint32_t ppid){
 #ifdef WITH_DATACHANNELS
-    if (!sctpConnected){
-      // We have to call accept (at least) once, otherwise the SCTP library considers our socket not connected
-      // Accept blocks if there is no peer, so we do this as soon as the first message is received, which means we have a peer.
-      sctp_sock = usrsctp_accept(sctp_sock, 0, 0);
-      sctpConnected = true;
-    }
+  void OutWebRTC::onSCTP(WebRTCSocket & wSock, struct socket *sock, const char * data, size_t len, uint16_t stream, uint32_t ppid){
     if (ppid == 50){
       // DCEP message. Spec: https://www.rfc-editor.org/rfc/rfc8832.html
       if (data[0] == 3){
@@ -1731,12 +1916,12 @@ namespace Mist{
         sndinfo.snd_ppid = htonl(50);
         sndinfo.snd_context = 0;
         sndinfo.snd_assoc_id = 0;
-        int ret = usrsctp_sendv(sctp_sock, "2", 1, NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
+        int ret = usrsctp_sendv(sock, "2", 1, NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
 	if (ret < 0){
           WARN_MSG("Could not send data channel ACK, error: %s", strerror(errno));
         }else{
-          if ((protocol == "JSON" || label == "JSON" || protocol == "*" || label == "*") && !dataChannels.count("JSON")){
-            dataChannels["JSON"] = stream;
+          if ((protocol == "JSON" || label == "JSON" || protocol == "*" || label == "*") && !wSock.dataChannels.count("JSON")){
+            wSock.dataChannels["JSON"] = stream;
             while (queuedJSON.size()){
               sctp_sndinfo sndinfo;
               sndinfo.snd_sid = stream;
@@ -1744,18 +1929,18 @@ namespace Mist{
               sndinfo.snd_ppid = htonl(51);
               sndinfo.snd_context = 0;
               sndinfo.snd_assoc_id = 0;
-              int ret = usrsctp_sendv(sctp_sock, queuedJSON.begin()->data(), queuedJSON.begin()->size(), NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
+              int ret = usrsctp_sendv(sock, queuedJSON.begin()->data(), queuedJSON.begin()->size(), NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
               if (ret < 0){
                   WARN_MSG("Could not send data channel message: %s", strerror(errno));
               }
               queuedJSON.pop_front();
             }
           }
-          if ((protocol == "subtitle" || label == "subtitle" || protocol == "*" || label == "*") && !dataChannels.count("subtitle")){
-            dataChannels["subtitle"] = stream;
+          if ((protocol == "subtitle" || label == "subtitle" || protocol == "*" || label == "*") && !wSock.dataChannels.count("subtitle")){
+            wSock.dataChannels["subtitle"] = stream;
           }
-          if ((protocol == "MistControl" || label == "MistControl") && !wsCmdForce){
-            dataChannels["MistControl"] = stream;
+          if ((protocol == "MistControl" || label == "MistControl") && !wSock.dataChannels.count("MistControl")){
+            wSock.dataChannels["MistControl"] = stream;
             wsCmdForce = true;
             INFO_MSG("Enabling command channel!");
           }
@@ -1773,7 +1958,7 @@ namespace Mist{
         return;
       }
     }else if (ppid == 51){
-      if (wsCmdForce && dataChannels["MistControl"] == stream){
+      if (wsCmdForce && wSock.dataChannels.count("MistControl") && wSock.dataChannels["MistControl"] == stream){
         JSON::Value command = JSON::fromString(data, len);
         if (!command || !command.isMember("type")){return;}
         handleCommand(command);
@@ -1797,10 +1982,10 @@ namespace Mist{
         packetLog << std::dec << std::endl;
       }
     }
-#endif
   }
+#endif
 
-  void OutWebRTC::onDTSCConverterHasPacket(const DTSC::Packet &pkt){
+  void OutWebRTC::onDTSCPkt(const DTSC::Packet &pkt){
     if (!M.getBootMsOffset()){
       meta.setBootMsOffset(Util::bootMS() - pkt.getTime());
       packetOffset = 0;
@@ -1837,7 +2022,7 @@ namespace Mist{
                      pktDataLen, 0, pkt.getFlag("keyframe"));
   }
 
-  void OutWebRTC::onDTSCConverterHasInitData(size_t trackId, const std::string &initData){
+  void OutWebRTC::onDTSCInit(size_t trackId, const std::string &initData){
     size_t idx = M.trackIDToIndex(trackId, getpid());
     if (idx == INVALID_TRACK_ID || !webrtcTracks.count(idx)){
       ERROR_MSG(
@@ -1865,81 +2050,62 @@ namespace Mist{
     meta.setInit(idx, avccbox.payload(), avccbox.payloadSize());
   }
 
-  void OutWebRTC::onRTPSorterHasPacket(size_t trackId, const RTP::Packet &pkt){
-    size_t idx = M.trackIDToIndex(trackId, getpid());
-    if (idx == INVALID_TRACK_ID || !webrtcTracks.count(idx)){
-      ERROR_MSG("Received a sorted RTP packet for payload %zu (idx %zu) but we don't manage this track.", trackId, idx);
-      return;
-    }
-    if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << pkt.getPayloadType() << " #" << pkt.getSequence() << std::endl;}
-    webrtcTracks[idx].rtpToDTSC.addRTP(pkt);
-  }
-
-  // This function will be called when we're sending data
-  // to the browser (other peer).
-  void OutWebRTC::onRTPPacketizerHasRTPPacket(const char *data, size_t nbytes){
-
+  // This function will be called when we're sending RTP/RTCP data to the peer
+  void OutWebRTC::sendRTPPacket(const char *data, size_t nbytes){
     rtpOutBuffer.allocate(nbytes + 256);
+    bool valid = false;
 
-    for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){
-      if (!*(sockets[*it].udpSock)){continue;}
+    auto sendFunc = [this, data, nbytes, &valid](WebRTCSocket & S){
+      if (!*(S.udpSock)){return false;}
       rtpOutBuffer.assign(data, nbytes);
       int protectedSize = nbytes;
       if (doDTLS){
-        if (sockets[*it].srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize) != 0){
-          ERROR_MSG("Failed to protect the RTP message.");
-          return;
-        }
+        int protResult = S.srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize);
+        // Pretend that replay errors aren't errors (-6 = srtp_err_status_replay_fail)
+        if (protResult == -6){valid = true;}
+        if (protResult){return false;}
       }
+      valid = true;
       
-      sockets[*it].udpSock->sendPaced(rtpOutBuffer, (size_t)protectedSize, false);
+      S.udpSock->sendPaced(rtpOutBuffer, (size_t)protectedSize, false);
       myConn.addUp(protectedSize);
       RTP::Packet tmpPkt(rtpOutBuffer, protectedSize);
       uint32_t pSSRC = tmpPkt.getSSRC();
       uint16_t seq = tmpPkt.getSequence();
       if (packetLog.is_open()){
-        packetLog << "[" << Util::bootMS() << "]" << "Sending RTP packet #" << seq << " to socket " << sockets[*it].udpSock->getSock() << std::endl;
+        packetLog << "[" << Util::bootMS() << "]" << "Sending RTP packet #" << seq << " to socket " << S.udpSock->getSock() << std::endl;
       }
-      sockets[*it].outBuffers[pSSRC].assign(seq, rtpOutBuffer, protectedSize);
+      S.outBuffers[pSSRC].assign(seq, rtpOutBuffer, protectedSize);
       totalPkts++;
 
-      if (volkswagenMode){sockets[*it].srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize);}
-    }
-  }
+      if (volkswagenMode){S.srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize);}
+      return true;
+    };
 
-  void OutWebRTC::onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes){
-    if (nbytes > 2048){
-      FAIL_MSG("The received RTCP packet is too big to handle.");
-      return;
+
+    if (currentRTPSocket == -1 || !rtpSockets.count(currentRTPSocket) || !sendFunc(sockets[currentRTPSocket])){
+      for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){sendFunc(sockets[*it]);}
     }
-    if (!data){
-      FAIL_MSG("Invalid RTCP packet given.");
-      return;
-    }
-    for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){
-      if (!*(sockets[*it].udpSock)){continue;}
-      myConn.addUp(sockets[*it].sendRTCP(data, nbytes));
+    if (valid != rtpIsFlowing){
+      if (!valid){
+        ERROR_MSG("Could not send RTP data to peer: no IP/port pairs have completed the SRTP handshake (yet)");
+      }else{
+        INFO_MSG("RTP connection established");
+      }
+      rtpIsFlowing = valid;
     }
   }
 
   void OutWebRTC::sendNext(){
     HTTPOutput::sendNext();
-    // first make sure that we complete the DTLS handshake.
-    if(doDTLS){
-      while (keepGoing() && !rtpSockets.size()){
-        if (!handleWebRTCInputOutput()){sendPaced(10);}else{sendPaced(0);}
-        if (lastRecv < Util::bootMS() - 10000){
-          INFO_MSG("Killing idle connection in handshake phase");
-          onFail("idle connection in handshake phase", false);
-          return;
-        }
-      }
-    }
     if (lastRecv < Util::bootMS() - 10000){
       INFO_MSG("Killing idle connection");
       onFail("idle connection", false);
       return;
     }
+
+    // first make sure that we complete the DTLS handshake.
+    if(doDTLS && !rtpSockets.size()){return;}
 
     // Handle nice move-over to new track ID
     if (prevVidTrack != INVALID_TRACK_ID && thisIdx != prevVidTrack && M.getType(thisIdx) == "video"){
@@ -1958,10 +2124,6 @@ namespace Mist{
       lastTimeSync = thisTime;
       if (liveSeek()){return;}
     }
-
-    // once the DTLS handshake has been done, we still have to
-    // deal with STUN consent messages and RTCP.
-    handleWebRTCInputOutput();
 
     char *dataPointer = 0;
     size_t dataLen = 0;
@@ -1996,18 +2158,25 @@ namespace Mist{
       }
       std::string packed = jPack.toString();
 
-      if (dataChannels.count(M.getCodec(thisIdx))){
+      bool handledNative = false;
+      for (auto sSock : sctpSockets){
+        WebRTCSocket & wSock = sockets[sSock];
+        if (!wSock.dataChannels.count(M.getCodec(thisIdx))){continue;}
         sctp_sndinfo sndinfo;
-        sndinfo.snd_sid = dataChannels[M.getCodec(thisIdx)];
+        sndinfo.snd_sid = wSock.dataChannels[M.getCodec(thisIdx)];
         sndinfo.snd_flags = SCTP_EOR;
         sndinfo.snd_ppid = htonl(51);
         sndinfo.snd_context = 0;
         sndinfo.snd_assoc_id = 0;
-        int ret = usrsctp_sendv(sctp_sock, packed.data(), packed.size(), NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
+
+        int ret = usrsctp_sendv(wSock.sctp_connsock, packed.data(), packed.size(), NULL, 0, (void *)&sndinfo, (socklen_t)sizeof(struct sctp_sndinfo), SCTP_SENDV_SNDINFO, 0);
         if (ret < 0){
             WARN_MSG("Could not send data channel message: %s", strerror(errno));
+        }else{
+          handledNative = true;
         }
-      }else{
+      }
+      if (!handledNative){
         if (M.getCodec(thisIdx) == "JSON"){
           queuedJSON.push_back(packed);
         }else{
@@ -2078,8 +2247,7 @@ namespace Mist{
       if (repeatInit && isKeyFrame){sendSPSPPS(thisIdx, rtcTrack);}
     }
 
-    rtcTrack.rtpPacketizer.sendData(0, onRTPPacketizerHasDataCallback, dataPointer, dataLen,
-                                    rtcTrack.payloadType, M.getCodec(thisIdx));
+    rtcTrack.rtpPacketizer.sendData([this](const char * d, size_t l){sendRTPPacket(d, l);}, dataPointer, dataLen, M.getCodec(thisIdx));
 
     //Trigger a re-send of the Sender Report for every track every ~250ms
     if (lastSR+250 < Util::bootMS()){
@@ -2091,7 +2259,7 @@ namespace Mist{
     //If this track hasn't sent yet, actually sent
     if (mustSendSR.count(thisIdx)){
       mustSendSR.erase(thisIdx);
-      rtcTrack.rtpPacketizer.sendRTCP_SR(0, 0, onRTPPacketizerHasRTCPDataCallback);
+      rtcTrack.rtpPacketizer.sendRTCP_SR([this](const char * d, size_t l){sendRTPPacket(d, l);});
     }
   }
 
@@ -2187,9 +2355,12 @@ namespace Mist{
     size_t trailer_space = SRTP_MAX_TRAILER_LEN + 4;
     for (size_t i = 0; i < trailer_space; ++i){buffer.push_back(0x00);}
 
-    for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){
-      if (!*(sockets[*it].udpSock)){continue;}
-      myConn.addUp(sockets[*it].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+    if (currentRTPSocket != -1){
+      myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+    }else{
+      if (*(sockets[currentRTPSocket].udpSock)){
+        myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+      }
     }
   }
 
@@ -2216,9 +2387,12 @@ namespace Mist{
     size_t trailer_space = SRTP_MAX_TRAILER_LEN + 4;
     for (size_t i = 0; i < trailer_space; ++i){buffer.push_back(0x00);}
 
-    for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){
-      if (!*(sockets[*it].udpSock)){continue;}
-      myConn.addUp(sockets[*it].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+    if (currentRTPSocket != -1){
+      myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+    }else{
+      if (*(sockets[currentRTPSocket].udpSock)){
+        myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+      }
     }
   }
 
@@ -2255,9 +2429,12 @@ namespace Mist{
     size_t trailer_space = SRTP_MAX_TRAILER_LEN + 4;
     for (size_t i = 0; i < trailer_space; ++i){buffer.push_back(0x00);}
 
-    for (std::set<int>::iterator it = rtpSockets.begin(); it != rtpSockets.end(); ++it){
-      if (!*(sockets[*it].udpSock)){continue;}
-      myConn.addUp(sockets[*it].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+    if (currentRTPSocket != -1){
+      myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+    }else{
+      if (*(sockets[currentRTPSocket].udpSock)){
+        myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
+      }
     }
   }
 
@@ -2315,11 +2492,26 @@ namespace Mist{
       }
     }
 
-
     if (packetLog.is_open()){
       packetLog << "[" << Util::bootMS() << "] Receiver Report (" << rtcTrack.rtpToDTSC.codec << "): " << stats_lossperc << " percent loss, " << rtcTrack.sorter.lostTotal << " total lost, " << stats_jitter << " ms jitter" << std::endl;
     }
-    ((RTP::FECPacket *)&(rtcTrack.rtpPacketizer))->sendRTCP_RR(rtcTrack.sorter, SSRC, rtcTrack.SSRC, 0, onRTPPacketizerHasRTCPDataCallback, (uint32_t)rtcTrack.jitter);
+    ((RTP::FECPacket *)&(rtcTrack.rtpPacketizer))->sendRTCP_RR(rtcTrack.sorter, SSRC, rtcTrack.SSRC, [this](const char *d, uint32_t l){
+      if (l > 2048){
+        FAIL_MSG("The received RTCP packet is too big to handle.");
+        return;
+      }
+      if (!d){
+        FAIL_MSG("Invalid RTCP packet given.");
+        return;
+      }
+      if (currentRTPSocket != -1){
+        myConn.addUp(sockets[currentRTPSocket].sendRTCP(d, l));
+      }else{
+        if (*(sockets[currentRTPSocket].udpSock)){
+          myConn.addUp(sockets[currentRTPSocket].sendRTCP(d, l));
+        }
+      }
+    }, (uint32_t)rtcTrack.jitter);
   }
 
   void OutWebRTC::sendSPSPPS(size_t dtscIdx, WebRTCTrack &rtcTrack){
@@ -2347,8 +2539,7 @@ namespace Mist{
       *(uint32_t *)&buf[0] = htonl(len);
       std::copy(avcc.getSPS(i), avcc.getSPS(i) + avcc.getSPSLen(i), std::back_inserter(buf));
 
-      rtcTrack.rtpPacketizer.sendData(0, onRTPPacketizerHasDataCallback, &buf[0], buf.size(),
-                                      rtcTrack.payloadType, M.getCodec(dtscIdx));
+      rtcTrack.rtpPacketizer.sendData([this](const char * d, size_t l){sendRTPPacket(d, l);}, &buf[0], buf.size(), M.getCodec(dtscIdx));
     }
 
     /* PPS */
@@ -2365,8 +2556,7 @@ namespace Mist{
       *(uint32_t *)&buf[0] = htonl(len);
       std::copy(avcc.getPPS(i), avcc.getPPS(i) + avcc.getPPSLen(i), std::back_inserter(buf));
 
-      rtcTrack.rtpPacketizer.sendData(0, onRTPPacketizerHasDataCallback, &buf[0], buf.size(),
-                                      rtcTrack.payloadType, M.getCodec(dtscIdx));
+      rtcTrack.rtpPacketizer.sendData([this](const char * d, size_t l){sendRTPPacket(d, l);}, &buf[0], buf.size(), M.getCodec(dtscIdx));
     }
   }
 

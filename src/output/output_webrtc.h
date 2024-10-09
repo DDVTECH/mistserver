@@ -19,10 +19,6 @@
 
 #define NACK_BUFFER_SIZE 1024
 
-#if defined(WEBRTC_PCAP)
-#include <mist/pcap.h>
-#endif
-
 namespace Mist{
 
   /* ------------------------------------------------ */
@@ -72,6 +68,16 @@ namespace Mist{
   class WebRTCSocket{
   public:
     WebRTCSocket();
+    uint64_t lastRecv;
+    bool useCandidate;
+#ifdef WITH_DATACHANNELS
+    bool sctpInited;
+    struct socket * sctp_sock;
+    struct socket * sctp_connsock;
+    bool sctpConnected;
+    void * cPtr;
+    std::map<std::string, uint16_t> dataChannels;
+#endif
     Socket::UDPConnection* udpSock;
     SRTPReader srtpReader; ///< Used to unprotect incoming RTP and RTCP data. Uses the keys that
                            ///< were exchanged with DTLS.
@@ -86,7 +92,9 @@ namespace Mist{
   class OutWebRTC : public HTTPOutput{
   public:
     OutWebRTC(Socket::Connection &myConn);
-    ~OutWebRTC();
+    ~OutWebRTC(){}
+    static bool listenMode(){return !(config->getString("ip").size());}
+    static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
     static void init(Util::Config *cfg);
     virtual void sendNext();
     virtual void onWebsocketFrame();
@@ -99,22 +107,16 @@ namespace Mist{
     virtual void onFail(const std::string &msg, bool critical = false);
     bool doesWebsockets(){return true;}
     void onCommandSend(const std::string & data);
-    void handleWebRTCInputOutputFromThread();
-    bool handleUDPSocket(Socket::UDPConnection & sock);
-    bool handleUDPSocket(WebRTCSocket & wSock);
-    void sendSCTPPacket(const char * data, size_t len);
-    void sendPaced(uint64_t uSendWindow);
-    void onSCTP(const char * data, size_t len, uint16_t stream, uint32_t ppid);
-    void onRTPSorterHasPacket(size_t tid, const RTP::Packet &pkt);
-    void onDTSCConverterHasPacket(const DTSC::Packet &pkt);
-    void onDTSCConverterHasInitData(const size_t trackID, const std::string &initData);
-    void onRTPPacketizerHasRTPPacket(const char *data, size_t nbytes);
-    void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
+    void sendSCTPPacket(WebRTCSocket & wSock, const char * data, size_t len);
+#ifdef WITH_DATACHANNELS
+    void onSCTP(WebRTCSocket & wSock, struct socket *sock, const char * data, size_t len, uint16_t stream, uint32_t ppid);
+#endif
+    void onDTSCPkt(const DTSC::Packet &pkt);
+    void onDTSCInit(const size_t trackID, const std::string &initData);
+    void sendRTPPacket(const char *data, size_t nbytes);
     virtual void connStats(uint64_t now, Comms::Connections &statComm);
     inline virtual bool keepGoing(){return config->is_active && (noSignalling || myConn);}
-    virtual void requestHandler();
-  protected:
-    virtual void idleTime(uint64_t ms){sendPaced(ms*1000);}
+    virtual void onIdle();
   private:
     bool noSignalling;
     uint64_t lastRecv;
@@ -123,11 +125,11 @@ namespace Mist{
     uint64_t totalLoss;
     uint64_t totalRetrans;
     std::ofstream jitterLog;
+  public:
     std::ofstream packetLog;
+  private:
     std::string externalAddr;
     void ackNACK(uint32_t SSRC, uint16_t seq);
-    bool handleWebRTCInputOutput(); ///< Reads data from the UDP socket. Returns true when we read
-                                    ///< some data, othewise false.
     void handleReceivedSTUNPacket(WebRTCSocket &wSock);
     void handleReceivedRTPOrRTCPPacket(WebRTCSocket &wSock);
     bool handleSignalingCommandRemoteOfferForInput(SDP::Session &sdpSession);
@@ -146,9 +148,7 @@ namespace Mist{
                                             ///< inject the PPS and SPS nals.
     void extractFrameSizeFromVP8KeyFrame(const DTSC::Packet &pkt);
     void updateCapabilitiesWithSDPOffer(SDP::Session &sdpSession);
-    bool bindUDPSocketOnLocalCandidateAddress(uint16_t port); ///< Binds our UDP socket onto the IP address that we shared via our SDP
-                                                              ///< answer. We *have to* bind on a specific IP, see
-                                                              ///< https://gist.github.com/roxlu/6c5ab696840256dac71b6247bab59ce9
+    bool bindUDPSocketOnLocalCandidateAddress(uint16_t port);
     std::string getLocalCandidateAddress();
 
     SDP::Session sdp;      ///< SDP parser.
@@ -158,15 +158,12 @@ namespace Mist{
     std::map<int, WebRTCSocket> sockets; ///< UDP sockets over which WebRTC data is received and sent.
     std::set<int> rtpSockets; ///< UDP sockets over which (S)RTP data is transmitted/received
     std::set<int> sctpSockets; ///< UDP sockets over which (S)RTP data is transmitted/received
+    int currentRTPSocket;
     uint16_t lastMediaSocket; //< Last socket number we received video/audio on
     uint16_t lastMetaSocket; //< Last socket number we received non-media data on
     uint16_t udpPort; ///< Port where we receive RTP, STUN, DTLS, etc.
-    StunReader stunReader;     ///< Decodes STUN messages; during a session we keep receiving STUN
-                               ///< messages to which we need to reply.
     std::map<uint64_t, WebRTCTrack> webrtcTracks; ///< WebRTCTracks indexed by payload type for incoming data and indexed by
                                                   ///< myMeta.tracks[].trackID for outgoing data.
-    tthread::thread *ioThread; ///< The thread in which we read WebRTC data when
-                                              ///< we're receive media from another peer.
     uint32_t SSRC; ///< The SSRC for this local instance. Is used when generating RTCP reports. */
     uint64_t rtcpTimeoutInMillis; ///< When current time in millis exceeds this timeout we have to
                                   ///< send a new RTCP packet.
@@ -195,13 +192,6 @@ namespace Mist{
     std::deque<double> stats_loss_avg;
     std::map<uint32_t, uint32_t> lostPackets;
 
-#if defined(WEBRTC_PCAP)
-    PCAPWriter pcapOut; ///< Used during development to write unprotected packets that can be
-                        ///< inspected in e.g. wireshark.
-    PCAPWriter pcapIn;  ///< Used during development to write unprotected packets that can be
-                        ///< inspected in e.g. wireshark.
-#endif
-
     std::map<uint8_t, uint64_t> payloadTypeToWebRTCTrack; ///< Maps e.g. RED to the corresponding track. Used when input
                                                           ///< supports RED/ULPFEC; can also be used to map RTX in the
                                                           ///< future.
@@ -210,12 +200,10 @@ namespace Mist{
 
     int64_t ntpClockDifference;
     bool syncedNTPClock;
+    bool rtpIsFlowing;
 
 #ifdef WITH_DATACHANNELS
     bool sctpInited;
-    bool sctpConnected;
-    struct socket * sctp_sock;
-    std::map<std::string, uint16_t> dataChannels;
     std::deque<std::string> queuedJSON;
 #endif
   };

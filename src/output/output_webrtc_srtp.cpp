@@ -168,27 +168,7 @@ int SRTPReader::unprotectRtp(uint8_t *data, int *nbytes){
 }
 
 int SRTPReader::unprotectRtcp(uint8_t *data, int *nbytes){
-
-  if (NULL == data){
-    ERROR_MSG("Cannot unprotect the given SRTCP, because data is NULL.");
-    return -1;
-  }
-
-  if (NULL == nbytes){
-    ERROR_MSG("Cannot unprotect the given SRTCP, becuase nbytes is NULL.");
-    return -2;
-  }
-
-  if (0 == (*nbytes)){
-    ERROR_MSG("Cannot unprotect the given SRTCP, because nbytes is 0.");
-    return -3;
-  }
-
-  if (NULL == policy.key){
-    ERROR_MSG("Cannot unprotect the SRTCP packet, it seems we're not initialized.");
-    return -4;
-  }
-
+  if (!data || !nbytes || !*nbytes || !policy.key){return -1;}
   srtp_err_status_t status = srtp_unprotect_rtcp(session, data, nbytes);
   if (srtp_err_status_ok != status && status != srtp_err_status_replay_fail){
     ERROR_MSG("Failed to unprotect the given SRTCP. %s.", srtp_status_to_string(status).c_str());
@@ -328,27 +308,18 @@ int SRTPWriter::shutdown(){
 
 int SRTPWriter::protectRtp(uint8_t *data, int *nbytes){
 
-  if (NULL == data){
-    ERROR_MSG("Cannot protect the RTP packet because given data is NULL.");
+  if (!data || !nbytes || *nbytes <= 0){
+    ERROR_MSG("Cannot protect the RTP packet because there is no data in it");
     return -1;
   }
 
-  if (NULL == nbytes){
-    ERROR_MSG("Cannot protect the RTP packet because the given nbytes is NULL.");
-    return -2;
-  }
-
-  if ((*nbytes) <= 0){
-    ERROR_MSG("Cannot protect the RTP packet because the given nbytes has a value <= 0.");
-    return -3;
-  }
-
-  if (NULL == policy.key){
-    ERROR_MSG("Cannot protect the RTP packet because we're not initialized.");
-    return -4;
-  }
+  // Not initialized - silent error because it's expected to happen quite often,
+  // and it's already handled further up the chain
+  if (!policy.key){return -2;}
 
   srtp_err_status_t status = srtp_protect(session, (void *)data, nbytes);
+  if (status == srtp_err_status_replay_fail){return -6;}
+
   if (srtp_err_status_ok != status){
     ERROR_MSG("Failed to protect the RTP packet. %s.", srtp_status_to_string(status).c_str());
     return -5;

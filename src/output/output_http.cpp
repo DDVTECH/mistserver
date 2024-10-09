@@ -260,31 +260,30 @@ namespace Mist{
     }
   }
 
-  void HTTPOutput::requestHandler(){
+  void HTTPOutput::requestHandler(bool readable){
     // Handle onIdle function caller, if needed
-    if (idleInterval && (Util::bootMS() > idleLast + idleInterval)){
+    if (idleInterval && (thisBootMs > idleLast + idleInterval)){
       if (wsCmds || wsCmdForce){handleWebsocketIdle();}
       onIdle();
       idleLast = Util::bootMS();
     }
     // Handle websockets
     if (webSock){
-      if (webSock->readFrame()){
-        if (!wsCmds || !handleWebsocketCommands()){
-          onWebsocketFrame();
+      if (readable){
+        while (webSock->readFrame()){
+          if (!wsCmds || !handleWebsocketCommands()){
+            onWebsocketFrame();
+          }
+          idleLast = Util::bootMS();
         }
-        idleLast = Util::bootMS();
-        return;
       }
-      if (!isBlocking && !parseData){Util::sleep(100);}
       return;
     }
 
+    // Read new data, if any
+    if (readable){myConn.spool();}
     //Attempt to read a HTTP request, regardless of data being available
-    bool sawRequest = false;
     while (H.Read(myConn)){
-      sawRequest = true;
-
       //First, figure out which handler we need to use
       std::string handler = getHandler();
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
@@ -366,12 +365,12 @@ namespace Mist{
         //Prepare switch
         disconnect();
         streamName = H.GetVar("stream");
-
-        if (handler != capa["name"].asStringRef()){
-          reConnector(handler);
-          onFail("Server error - could not start connector", true);
-          return;
-        }
+        userSelect.clear();
+        trackSelectionChanged();
+        if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}
+        reConnector(handler);
+        onFail("Server error - could not start connector", true);
+        return;
       }
 
       /*LTS-START*/
@@ -461,8 +460,6 @@ namespace Mist{
       if (!wantRequest){return;}
       H.Clean();
     }
-    // If we can't read anything more and we're non-blocking, sleep some.
-    if (!sawRequest && !myConn.spool() && !isBlocking && !parseData){Util::sleep(100);}
   }
 
   /// Handles standardized WebSocket commands.

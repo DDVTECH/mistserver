@@ -15,7 +15,7 @@ namespace Mist{
     virtual void onHTTP();
     virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     virtual void onIdle(){};
-    virtual void requestHandler();
+    virtual void requestHandler(bool readable);
     virtual void preHTTP();
     virtual bool onFinish();
     virtual void sendNext();

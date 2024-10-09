@@ -15,7 +15,6 @@ namespace Mist{
     static void init(Util::Config *cfg);
     void sendNext();
     void onRequest();
-    void requestHandler();
     bool onFinish();
     void incomingPacket(const DTSC::Packet &pkt);
     void incomingRTP(const uint64_t track, const RTP::Packet &p);
@@ -32,7 +31,6 @@ namespace Mist{
     bool checkPort;
     std::string generateSDP(std::string reqUrl);
     bool handleTCP();
-    void handleUDP();
   };
 }// namespace Mist
 

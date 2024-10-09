@@ -2,6 +2,7 @@
 #include <mist/bitfields.h>
 #include <mist/defines.h>
 #include <mist/ebml.h>
+#include <mist/procs.h>
 
 namespace Mist{
 

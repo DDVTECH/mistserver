@@ -563,7 +563,7 @@ namespace Mist{
       std::string cName = prots.getIndice(i).getMember("connector").asString();
       DTSC::Scan capa = connectors.getMember(cName);
       // if the connector has a port,
-      if (capa.getMember("optional").getMember("port")){
+      if (capa.getMember("optional").getMember("port") && !capa.getMember("provides_dependency")){
         HTTP::URL outURL(reqHost);
         // get the default port if none is set
         outURL.port = prots.getIndice(i).getMember("port").asString();

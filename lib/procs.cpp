@@ -76,6 +76,9 @@ void Util::Procs::exit_handler(){
     thread_handler = false;
   }
   if (reaper_thread){
+    // Send a child signal, to guarantee the thread wakes up immediately
+    pthread_kill(reaper_thread->native_handle(), SIGCHLD);
+
     reaper_thread->join();
     delete reaper_thread;
     reaper_thread = 0;
@@ -158,6 +161,8 @@ void Util::Procs::fork_prepare(){
   if (handler_set){
     thread_handler = false;
     if (reaper_thread){
+      // Send a child signal, to guarantee the thread wakes up immediately
+      pthread_kill(reaper_thread->native_handle(), SIGCHLD);
       reaper_thread->join();
       delete reaper_thread;
       reaper_thread = 0;
@@ -169,8 +174,13 @@ void Util::Procs::fork_prepare(){
 void Util::Procs::fork_complete(){
   tthread::lock_guard<tthread::mutex> guard(plistMutex);
   if (handler_set){
-    thread_handler = true;
-    reaper_thread = new tthread::thread(grim_reaper, 0);
+
+    struct sigaction old_action;
+    sigaction(SIGCHLD, 0, &old_action);
+    if (old_action.sa_handler == childsig_handler){
+      thread_handler = true;
+      reaper_thread = new tthread::thread(grim_reaper, 0);
+    }
   }
 }
 
@@ -180,14 +190,22 @@ void Util::Procs::fork_complete(){
 void Util::Procs::setHandler(){
   tthread::lock_guard<tthread::mutex> guard(plistMutex);
   if (!handler_set){
-    thread_handler = true;
-    reaper_thread = new tthread::thread(grim_reaper, 0);
-    struct sigaction new_action;
-    new_action.sa_handler = childsig_handler;
-    sigemptyset(&new_action.sa_mask);
-    new_action.sa_flags = 0;
-    sigaction(SIGCHLD, &new_action, NULL);
-    atexit(exit_handler);
+
+    struct sigaction old_action;
+    sigaction(SIGCHLD, 0, &old_action);
+    if (old_action.sa_handler == SIG_DFL || old_action.sa_handler == SIG_IGN){
+      MEDIUM_MSG("Setting child signal handler, since signals were default or ignored before");
+      thread_handler = true;
+      reaper_thread = new tthread::thread(grim_reaper, 0);
+      struct sigaction new_action;
+      new_action.sa_handler = childsig_handler;
+      sigemptyset(&new_action.sa_mask);
+      new_action.sa_flags = 0;
+      sigaction(SIGCHLD, &new_action, NULL);
+      atexit(exit_handler);
+    }else{
+      VERYHIGH_MSG("Not setting child signal handler; already handled elsewhere");
+    }
     handler_set = true;
   }
 }
@@ -196,39 +214,51 @@ void Util::Procs::setHandler(){
 /// Reaps available children and then sleeps for a second.
 /// Not done in signal handler so we can use a mutex to prevent race conditions.
 void Util::Procs::grim_reaper(void *n){
+  // Block most signals, so we don't catch them in this thread
+  sigset_t x;
+  sigemptyset(&x);
+  sigaddset(&x, SIGUSR1);
+  sigaddset(&x, SIGUSR2);
+  sigaddset(&x, SIGHUP);
+  sigaddset(&x, SIGINT);
+  sigaddset(&x, SIGCONT);
+  sigaddset(&x, SIGPIPE);
+  sigprocmask(SIG_SETMASK, &x, 0);
+
   VERYHIGH_MSG("Grim reaper start");
   while (thread_handler){
-    {
-      if (plistMutex.try_lock()){
-        int status;
-        pid_t ret = -1;
-        while (ret != 0){
-          ret = waitpid(-1, &status, WNOHANG);
-          if (ret <= 0){// ignore, would block otherwise
-            if (ret == 0 || errno != EINTR){break;}
-            continue;
-          }
-          int exitcode;
-          if (WIFEXITED(status)){
-            exitcode = WEXITSTATUS(status);
-          }else if (WIFSIGNALED(status)){
-            exitcode = -WTERMSIG(status);
-          }else{// not possible
-            break;
-          }
-          if (plist.count(ret)){
-            HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
-            plist.erase(ret);
-          }else{
-            HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
-          }
-        }
-        plistMutex.unlock();
-      }
-    }
-    Util::sleep(500);
+    Util::Procs::reap();
+    if (thread_handler){Util::sleep(1000);}
   }
   VERYHIGH_MSG("Grim reaper stop");
+}
+
+/// Waits on all child processes, cleaning up internal structures as needed, then exits
+void Util::Procs::reap(){
+  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  int status;
+  pid_t ret = -1;
+  while (ret != 0){
+    ret = waitpid(-1, &status, WNOHANG);
+    if (ret <= 0){// ignore, would block otherwise
+      if (ret == 0 || errno != EINTR){break;}
+      continue;
+    }
+    int exitcode;
+    if (WIFEXITED(status)){
+      exitcode = WEXITSTATUS(status);
+    }else if (WIFSIGNALED(status)){
+      exitcode = -WTERMSIG(status);
+    }else{// not possible
+      break;
+    }
+    if (plist.count(ret)){
+      HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
+      plist.erase(ret);
+    }else{
+      HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
+    }
+  }
 }
 
 /// Ignores everything. Separate thread handles waiting for children.

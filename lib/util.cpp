@@ -449,6 +449,10 @@ namespace Util{
     return append(str.data(), str.length());
   }
 
+  bool ResizeablePointer::append(const ResizeablePointer &rhs){
+    return append(rhs.ptr, rhs.currSize);
+  }
+
   bool ResizeablePointer::allocate(uint32_t l){
     if (l > maxSize){
       void *tmp = realloc(ptr, l);
@@ -989,6 +993,8 @@ namespace Util{
       r << std::string(indent, ' ') << "(Note: deleted count (" << delled << ") >= total count (" << max << "))" << std::endl;
       delled = max - getRCount();
     }
+    if (max - delled > getRCount()){max = delled + getRCount();}
+    if (max == 0){max = getPresent();}
     if (max == 0){max = getRCount();}
     r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @"
       << getOffset() << " (#" << delled << " - #" << max - 1 << ")" << std::endl;

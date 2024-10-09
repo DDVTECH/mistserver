@@ -16,6 +16,7 @@ namespace Mist{
     uint32_t bufferedOnPage(size_t idx, uint32_t keyNum, DTSC::Meta & aMeta);
 
     size_t getMainSelectedTrack();
+    void trackSelectionChanged();
 
     bool bufferStart(size_t idx, uint32_t pageNumber, IPC::sharedPage & page, DTSC::Meta & aMeta);
     void liveFinalize(size_t idx);
@@ -58,5 +59,7 @@ namespace Mist{
   private:
     std::map<uint32_t, IPC::sharedPage> livePage;
     std::map<uint32_t, size_t> curPageNum;
+    size_t mainSelTrackCache;
+
   };
 }// namespace Mist

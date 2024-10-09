@@ -1,26 +1,11 @@
 #include "output_sdp.h"
-#include "lib/defines.h"
 #include "mist/defines.h"
 #include "src/output/output.h"
-#include <fstream>
 #include <sys/socket.h>
 
 namespace Mist{
-  Socket::Connection *mainConn = 0;
-
   OutSDP::OutSDP(Socket::Connection &conn) : HTTPOutput(conn){
-    mainConn = &conn;
     exitOnNoRTCP = false;
-  }
-
-  /// Function used to send RTP packets over UDP
-  ///\param socket A UDP Connection pointer, sent as a void*, to keep portability.
-  ///\param data The RTP Packet that needs to be sent
-  ///\param len The size of data
-  ///\param channel Not used here, but is kept for compatibility with sendTCP
-  void sendUDP(void *socket, const char *data, size_t len, uint8_t){
-    ((Socket::UDPConnection *)socket)->SendNow(data, len);
-    if (mainConn){mainConn->addUp(len);}
   }
 
   /// \brief Initializes the SDP state
@@ -149,6 +134,7 @@ namespace Mist{
     sdpState.tracks[0].data.GetDestination(hostname, port);
     return hostname;
   }
+
   std::string OutSDP::getConnectedBinHost(){
     if (!sdpState.tracks.size()) { return Output::getConnectedBinHost(); }
     return sdpState.tracks[0].data.getBinDestination();
@@ -160,26 +146,22 @@ namespace Mist{
     thisPacket.getString("data", dataPointer, dataLen);
     uint64_t timestamp = thisPacket.getTime();
 
-    void *socket = 0;
-    void (*callBack)(void *, const char *, size_t, uint8_t) = 0;
-
-    // Get data socket and send RTCP
-    if (sdpState.tracks[thisIdx].channel == -1){
-      socket = &sdpState.tracks[thisIdx].data;
-      callBack = sendUDP;
-      if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
-        sdpState.tracks[thisIdx].pack.setTimestamp(timestamp * SDP::getMultiplier(&M, thisIdx));
-        sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
-        sdpState.tracks[thisIdx].pack.sendRTCP_SR(&sdpState.tracks[thisIdx].rtcp, sdpState.tracks[thisIdx].channel, sendUDP);
-      }
-    }else{
-      FAIL_MSG("RTP SDP output does not support TCP. No data will be sent to the target address");
-      return;
-    }
+    SDP::Track & sdpTrk = sdpState.tracks[thisIdx];
     uint64_t offset = thisPacket.getInt("offset");
-    sdpState.tracks[thisIdx].pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(&M, thisIdx));
-    sdpState.tracks[thisIdx].pack.sendData(socket, callBack, dataPointer, dataLen,
-                                           sdpState.tracks[thisIdx].channel, meta.getCodec(thisIdx));
+    sdpTrk.pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(&M, thisIdx));
+    sdpTrk.pack.sendData([this, &sdpTrk](const char* data, size_t len){
+      sdpTrk.data.SendNow(data, len);
+      myConn.addUp(len);
+    }, dataPointer, dataLen, meta.getCodec(thisIdx));
+    // Send RTCP Sender Report every second
+    if (Util::bootSecs() != sdpTrk.rtcpSent){
+      sdpTrk.pack.setTimestamp(timestamp * SDP::getMultiplier(&M, thisIdx));
+      sdpTrk.rtcpSent = Util::bootSecs();
+      sdpTrk.pack.sendRTCP_SR([this, &sdpTrk](const char * data, size_t len){
+        sdpTrk.rtcp.SendNow(data, len);
+        myConn.addUp(len);
+      });
+    }
     
     // Update last RTCP received variable
     if (exitOnNoRTCP){

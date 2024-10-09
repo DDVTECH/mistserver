@@ -12,6 +12,7 @@
 #include <mist/timing.h>
 #include <mist/stream.h>
 #include <mist/url.h>
+#include <mist/ev.h>
 #include <set>
 
 namespace Mist{
@@ -56,7 +57,7 @@ namespace Mist{
     virtual void sendNext(){}// REQUIRED! Others are optional.
     virtual bool dropPushTrack(uint32_t trackId, const std::string &dropReason);
     bool getKeyFrame();
-    bool prepareNext();
+    size_t prepareNext();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
     virtual void onRequest();
     static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
@@ -69,7 +70,7 @@ namespace Mist{
     virtual void initialize();
     virtual void sendHeader();
     virtual void onFail(const std::string &msg, bool critical = false);
-    virtual void requestHandler();
+    virtual void requestHandler(bool readable);
     static Util::Config *config;
     void playbackSleep(uint64_t millis);
 
@@ -101,18 +102,20 @@ namespace Mist{
     bool sought;          ///< If a seek has been done, this is set to true. Used for seeking on
                           ///< prepareNext().
     std::string prevHost; ///< Old value for getConnectedBinHost, for caching
-    size_t emptyCount;
+    uint64_t lastReceive;
     bool recursingSync;
     uint32_t seekCount;
     bool firstData;
     uint64_t lastPushUpdate;
     uint64_t outputStartMs; ///< bootMS() at time of output start (unrelated to media start)
     bool newUA;
+    size_t maxWait; /// Maximum wait in milliseconds (scheduled next packet timing)
     
   protected:              // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{
       return false;
     }///< True if the output is capable of restarting mid-stream. This is used for swapping recording files
+    void closeMyConn();
     bool pushing;
     std::map<std::string, std::string> targetParams; /*LTS*/
     std::string UA;                                  ///< User Agent string, if known.
@@ -129,7 +132,6 @@ namespace Mist{
     std::set<size_t> getSupportedTracks(const std::string &type = "") const;
 
     inline virtual bool keepGoing(){return config->is_active && myConn;}
-    virtual void idleTime(uint64_t ms){Util::sleep(ms);}
 
     Comms::Connections statComm;
     bool isBlocking; ///< If true, indicates that myConn is blocking.
@@ -161,9 +163,18 @@ namespace Mist{
 
     uint64_t firstPacketTime;
     uint64_t lastPacketTime;
+    uint64_t lastPacketBootMs;
+    uint64_t interPacketTimes[10];
+    uint64_t lowestInterpacket;
+    uint64_t packetCounter;
     uint64_t thisBootMs;
 
     std::map<size_t, IPC::sharedPage> curPage; ///< For each track, holds the page that is currently being written.
+    
+    bool liveSeekDisabled;
+
+    Event::Loop evLp;
+
   };
 
 }// namespace Mist

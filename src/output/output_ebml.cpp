@@ -3,6 +3,7 @@
 #include <mist/opus.h>
 #include <mist/riff.h>
 #include <sstream>
+#include <mist/procs.h>
 
 namespace Mist{
   OutEBML::OutEBML(Socket::Connection &conn) : HTTPOutput(conn){

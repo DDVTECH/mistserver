@@ -12,23 +12,40 @@
 #include <mist/config.h>
 
 namespace Mist{
-  InOutBase::InOutBase() : M(meta){}
+
+  static Comms::Users uList;
+
+  InOutBase::InOutBase() : M(meta){
+    mainSelTrackCache = INVALID_TRACK_ID;
+  }
 
   /// Returns the ID of the main selected track, or 0 if no tracks are selected.
   /// The main track is the first video track, if any, and otherwise the first other track.
   /// Returns INVALID_TRACK_ID if there are no valid selected tracks.
   /// Refreshes the metadata to make sure we don't return unloaded tracks.
   size_t InOutBase::getMainSelectedTrack(){
+    // Check if cached value still valid, otherwise recalculate
+    if (mainSelTrackCache != INVALID_TRACK_ID && meta.trackLoaded(mainSelTrackCache)){
+      return mainSelTrackCache;
+    }
     if (!userSelect.size()){return INVALID_TRACK_ID;}
     size_t bestSoFar = INVALID_TRACK_ID;
     meta.reloadReplacedPagesIfNeeded();
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       if (meta.trackLoaded(it->first)){
-        if (meta.getType(it->first) == "video"){return it->first;}
+        if (meta.getType(it->first) == "video"){
+          mainSelTrackCache = it->first;
+          return it->first;
+        }
         bestSoFar = it->first;
       }
     }
+    mainSelTrackCache = bestSoFar;
     return bestSoFar;
+  }
+
+  void InOutBase::trackSelectionChanged(){
+    mainSelTrackCache = INVALID_TRACK_ID;
   }
 
   /// Starts the buffering of a new page.

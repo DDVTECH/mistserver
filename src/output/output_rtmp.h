@@ -17,7 +17,7 @@ namespace Mist{
     void sendNext();
     void sendHeader();
     static bool listenMode();
-    void requestHandler();
+    void requestHandler(bool readable);
     bool onFinish();
 #ifdef SSL
     static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));

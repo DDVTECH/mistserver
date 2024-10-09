@@ -80,70 +80,13 @@ int stun_compute_message_integrity(std::vector<uint8_t> &buffer, std::string key
 */
 int stun_compute_fingerprint(std::vector<uint8_t> &buffer, uint32_t &result);
 
-/* --------------------------------------- */
-
-/* https://tools.ietf.org/html/rfc5389#section-15.10 */
-class StunAttribSoftware{
-public:
-  char *value;
-};
-
-class StunAttribFingerprint{
-public:
-  uint32_t value;
-};
-
-/* https://tools.ietf.org/html/rfc5389#section-15.4 */
-class StunAttribMessageIntegrity{
-public:
-  uint8_t *sha1;
-};
-
-/* https://tools.ietf.org/html/rfc5245#section-19.1 */
-class StunAttribPriority{
-public:
-  uint32_t value;
-};
-
-/* https://tools.ietf.org/html/rfc5245#section-19.1 */
-class StunAttribIceControllling{
-public:
-  uint64_t tie_breaker;
-};
-
-/* https://tools.ietf.org/html/rfc3489#section-11.2.6 */
-class StunAttribUsername{
-public:
-  char *value; /* Must use `length` member of attribute that indicates the number of valid bytes in the username. */
-};
-
-/* https://tools.ietf.org/html/rfc5389#section-15.2 */
-class StunAttribXorMappedAddress{
-public:
-  uint8_t family;
-  uint16_t port;
-  uint8_t ip[16];
-};
-
-/* --------------------------------------- */
-
+// https://tools.ietf.org/html/rfc5389
 class StunAttribute{
 public:
   StunAttribute();
-  void print();
-
-public:
   uint16_t type;
   uint16_t length;
-  union{
-    StunAttribXorMappedAddress xor_address;
-    StunAttribUsername username;
-    StunAttribIceControllling ice_controlling;
-    StunAttribPriority priority;
-    StunAttribSoftware software;
-    StunAttribMessageIntegrity message_integrity;
-    StunAttribFingerprint fingerprint;
-  };
+  std::string data;
 };
 
 /* --------------------------------------- */
@@ -166,31 +109,8 @@ public:
   std::vector<StunAttribute> attributes;
 };
 
-/* --------------------------------------- */
-
-class StunReader{
-public:
-  StunReader();
-  int parse(uint8_t *data, size_t nbytes, size_t &nparsed, StunMessage &msg); /* `nparsed` and `msg` are filled. */
-
-private:
-  int parseXorMappedAddress(StunAttribute &attr);
-  int parseUsername(StunAttribute &attr);
-  int parseIceControlling(StunAttribute &attr);
-  int parsePriority(StunAttribute &attr);
-  int parseSoftware(StunAttribute &attr);
-  int parseMessageIntegrity(StunAttribute &attr);
-  int parseFingerprint(StunAttribute &attr);
-
-  uint8_t readU8();
-  uint16_t readU16();
-  uint32_t readU32();
-  uint64_t readU64();
-
-private:
-  uint8_t *buffer_data;
-  size_t buffer_size;
-  size_t read_dx;
+namespace STUN{
+  bool parse(const char *data, size_t nbytes, StunMessage &msg);
 };
 
 /* --------------------------------------- */
@@ -209,8 +129,8 @@ public:
   int end();
 
   /* write attributes */
-  int writeXorMappedAddress(sockaddr_in addr);
-  int writeXorMappedAddress(uint8_t family, uint16_t port, uint32_t ip);
+  int writeXorMappedAddress(const sockaddr * addr);
+  int writeXorMappedAddress(uint8_t family, uint16_t port, char * ip);
   int writeXorMappedAddress(uint8_t family, uint16_t port, const std::string &ip);
   int writeUsername(const std::string &username);
   int writeSoftware(const std::string &software);
@@ -232,7 +152,6 @@ private:
   void rewriteU32(size_t dx, uint32_t v);
   void writeString(const std::string &str);
   void writePadding();
-  int convertIp4StringToInt(const std::string &ip, uint32_t &result);
 
 private:
   std::vector<uint8_t> buffer;

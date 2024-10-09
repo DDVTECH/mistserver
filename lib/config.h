@@ -55,6 +55,7 @@ namespace Util{
     int64_t getInteger(std::string optname);
     bool getBool(std::string optname);
     void activate();
+    void installDefaultChildSignalHandler();
     int threadServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));
     int forkServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));
     int serveThreadedSocket(int (*callback)(Socket::Connection &S));

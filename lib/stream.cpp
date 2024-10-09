@@ -312,6 +312,21 @@ const Util::sortedPageInfo * Util::packetSorter::begin() const{
   }
 }
 
+/// Returns the time of the first non-ghost packet in the sorter, or zero if none available.
+uint64_t Util::packetSorter::nonGhost() const{
+  if (dequeMode){
+    for (std::deque<sortedPageInfo>::const_iterator it = dequeBuffer.begin(); it != dequeBuffer.end(); ++it){
+      if (!it->ghostPacket && !it->unavailable){return it->time;}
+    }
+    return 0;
+  }else{
+    for (std::set<sortedPageInfo>::const_iterator it = setBuffer.begin(); it != setBuffer.end(); ++it){
+      if (!it->ghostPacket && !it->unavailable){return it->time;}
+    }
+    return 0;
+  }
+}
+
 /// Inserts a new packet in the sorter.
 void Util::packetSorter::insert(const sortedPageInfo &pInfo){
   if (dequeMode){
@@ -356,7 +371,9 @@ void Util::packetSorter::replaceFirst(const sortedPageInfo &pInfo){
 /// Removes the first packet from the sorter and inserts it back at the end. No-op for sync mode.
 void Util::packetSorter::moveFirstToEnd(){
   if (dequeMode){
-    dequeBuffer.push_back(dequeBuffer.front());
+    Util::sortedPageInfo & ntry = dequeBuffer.front();
+    ntry.unavailable = true;
+    dequeBuffer.push_back(ntry);
     dequeBuffer.pop_front();
   }
 }

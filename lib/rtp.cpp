@@ -1,7 +1,6 @@
 #include "adts.h"
 #include "bitfields.h"
 #include "defines.h"
-#include "encode.h"
 #include "h264.h"
 #include "mpeg.h"
 #include "rtp.h"
@@ -276,8 +275,8 @@ namespace RTP{
     increaseSequence();
   }
 
-  void Packet::sendH264(void *socket, void callBack(void *, const char *, size_t, uint8_t),
-                        const char *payload, uint32_t payloadlen, uint32_t channel, bool lastOfAccesUnit){
+  void Packet::sendH264(std::function<void(const char *, size_t)> callBack, const char *payload, uint32_t payloadlen,
+                        bool lastOfAccesUnit){
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 2 <= maxDataLen){
       data[1] &= 0x7F; // setting the RTP marker bit to 0
@@ -289,7 +288,7 @@ namespace RTP{
         data[1] &= 0x7F; // but not for non-vlc types
       }
       memcpy(data + getHsize(), payload, payloadlen);
-      callBack(socket, data, getHsize() + payloadlen, channel);
+      callBack(data, getHsize() + payloadlen);
       sentPackets++;
       sentBytes += payloadlen + getHsize();
       increaseSequence();
@@ -316,7 +315,7 @@ namespace RTP{
         }
         data[getHsize() + 1] = serByte;
         memcpy(data + getHsize() + 2, payload + 1 + sent, sending);
-        callBack(socket, data, getHsize() + 2 + sending, channel);
+        callBack(data, getHsize() + 2 + sending);
         sentPackets++;
         sentBytes += sending + getHsize() + 2;
         sent += sending;
@@ -325,8 +324,7 @@ namespace RTP{
     }
   }
 
-  void Packet::sendVP8(void *socket, void callBack(void *, const char *, size_t, uint8_t),
-                       const char *payload, unsigned int payloadlen, unsigned int channel){
+  void Packet::sendVP8(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen){
 
     bool isKeyframe = ((payload[0] & 0x01) == 0) ? true : false;
     bool isStartOfPartition = true;
@@ -344,7 +342,7 @@ namespace RTP{
       data[headerSize] |= (isKeyframe) ? 0x00 : 0x20; // non-reference frame. 0 = frame is needed, 1 = frame can be disgarded.
 
       memcpy(data + headerSize + 1, payload + bytesWritten, chunkSize);
-      callBack(socket, data, headerSize + 1 + chunkSize, channel);
+      callBack(data, headerSize + 1 + chunkSize);
       increaseSequence();
       // INFO_MSG("chunk: %zu, sequence: %u", chunkSize, getSequence());
 
@@ -356,13 +354,12 @@ namespace RTP{
     // WARN_MSG("KEYFRAME: %c", (isKeyframe) ? 'y' : 'n');
   }
 
-  void Packet::sendH265(void *socket, void callBack(void *, const char *, size_t, uint8_t),
-                        const char *payload, unsigned int payloadlen, unsigned int channel){
+  void Packet::sendH265(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen){
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 3 <= maxDataLen){
       data[1] |= 0x80; // setting the RTP marker bit to 1
       memcpy(data + getHsize(), payload, payloadlen);
-      callBack(socket, data, getHsize() + payloadlen, channel);
+      callBack(data, getHsize() + payloadlen);
       sentPackets++;
       sentBytes += payloadlen + getHsize();
       increaseSequence();
@@ -389,7 +386,7 @@ namespace RTP{
         }
         data[getHsize() + 2] = serByte;
         memcpy(data + getHsize() + 3, payload + 2 + sent, sending);
-        callBack(socket, data, getHsize() + 3 + sending, channel);
+        callBack(data, getHsize() + 3 + sending);
         sentPackets++;
         sentBytes += sending + getHsize() + 3;
         sent += sending;
@@ -398,8 +395,7 @@ namespace RTP{
     }
   }
 
-  void Packet::sendMPEG2(void *socket, void callBack(void *, const char *, size_t, uint8_t),
-                         const char *payload, unsigned int payloadlen, unsigned int channel){
+  void Packet::sendMPEG2(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen){
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 4 <= maxDataLen){
       data[1] |= 0x80; // setting the RTP marker bit to 1
@@ -412,7 +408,7 @@ namespace RTP{
       mHead.setBegin();
       mHead.setEnd();
       memcpy(data + getHsize() + 4, payload, payloadlen);
-      callBack(socket, data, getHsize() + payloadlen + 4, channel);
+      callBack(data, getHsize() + payloadlen + 4);
       sentPackets++;
       sentBytes += payloadlen + getHsize() + 4;
       increaseSequence();
@@ -437,7 +433,7 @@ namespace RTP{
           mHead.setBegin();
         }
         memcpy(data + getHsize() + 4, payload + sent, sending);
-        callBack(socket, data, getHsize() + 4 + sending, channel);
+        callBack(data, getHsize() + 4 + sending);
         sentPackets++;
         sentBytes += sending + getHsize() + 4;
         sent += sending;
@@ -446,8 +442,7 @@ namespace RTP{
     }
   }
 
-  void Packet::sendData(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
-                        unsigned int payloadlen, unsigned int channel, std::string codec){
+  void Packet::sendData(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen, std::string codec){
     if (codec == "H264"){
       unsigned long sent = 0;
       const char * lastPtr = 0;
@@ -458,35 +453,35 @@ namespace RTP{
         // detect the end of the access unit.
         if ((payload[sent + 4] & 0x1F) != 12){
           // If we have a pointer stored, we know it's not the last one, so send it as non-last.
-          if (lastPtr){sendH264(socket, callBack, lastPtr, lastLen, channel, false);}
+          if (lastPtr){sendH264(callBack, lastPtr, lastLen, false);}
           lastPtr = payload + sent + 4;
           lastLen = nalSize;
         }
         sent += nalSize + 4;
       }
       // Still a pointer stored? That means it was the last one. Mark it as such and send.
-      if (lastPtr){sendH264(socket, callBack, lastPtr, lastLen, channel, true);}
+      if (lastPtr){sendH264(callBack, lastPtr, lastLen, true);}
       return;
     }
     if (codec == "VP8"){
-      sendVP8(socket, callBack, payload, payloadlen, channel);
+      sendVP8(callBack, payload, payloadlen);
       return;
     }
     if (codec == "VP9"){
-      sendVP8(socket, callBack, payload, payloadlen, channel);
+      sendVP8(callBack, payload, payloadlen);
       return;
     }
     if (codec == "HEVC"){
       unsigned long sent = 0;
       while (sent < payloadlen){
         unsigned long nalSize = ntohl(*((unsigned long *)(payload + sent)));
-        sendH265(socket, callBack, payload + sent + 4, nalSize, channel);
+        sendH265(callBack, payload + sent + 4, nalSize);
         sent += nalSize + 4;
       }
       return;
     }
     if (codec == "MPEG2"){
-      sendMPEG2(socket, callBack, payload, payloadlen, channel);
+      sendMPEG2(callBack, payload, payloadlen);
       return;
     }
     /// \todo This function probably belongs in DMS somewhere.
@@ -520,13 +515,13 @@ namespace RTP{
       }
     }
     memcpy(data + getHsize() + offsetLen, payload, payloadlen);
-    callBack(socket, data, getHsize() + offsetLen + payloadlen, channel);
+    callBack(data, getHsize() + offsetLen + payloadlen);
     sentPackets++;
     sentBytes += payloadlen + offsetLen + getHsize();
     increaseSequence();
   }
 
-  void Packet::sendRTCP_SR(void *socket, uint8_t channel, void callBack(void *, const char *, size_t, uint8_t)){
+  void Packet::sendRTCP_SR(std::function<void(const char *, size_t)> callBack){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -543,11 +538,11 @@ namespace RTP{
     //*((int *)(rtcpData+16) ) = htonl(getTimeStamp());//rtpts
     Bit::htobl(rtcpData + 20, sentPackets); // packet
     Bit::htobl(rtcpData + 24, sentBytes);   // octet
-    callBack(socket, (char *)rtcpData, 28, channel);
+    callBack((char *)rtcpData, 28);
     free(rtcpData);
   }
 
-  void Packet::sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t)){
+  void Packet::sendRTCP_RR(SDP::Track &sTrk, std::function<void(const char *, size_t)> callBack){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -565,7 +560,7 @@ namespace RTP{
     Bit::htobl(rtcpData + 20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
     Bit::htobl(rtcpData + 24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
     Bit::htobl(rtcpData + 28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
-    callBack(&(sTrk.rtcp), rtcpData, 32, 0);
+    callBack(rtcpData, 32);
     sTrk.sorter.lostCurrent = 0;
     sTrk.sorter.packCurrent = 0;
     free(rtcpData);
@@ -721,7 +716,7 @@ namespace RTP{
     lastNTP = 0;
   }
 
-  void Sorter::setCallback(uint64_t track, void (*cb)(const uint64_t track, const Packet &p)){
+  void Sorter::setCallback(uint64_t track, std::function<void(const uint64_t track, const Packet &p)> cb){
     callback = cb;
     packTrack = track;
   }
@@ -854,8 +849,8 @@ namespace RTP{
     setProperties(M.getID(tid), M.getCodec(tid), M.getType(tid), M.getInit(tid), m);
   }
 
-  void toDTSC::setCallbacks(void (*cbP)(const DTSC::Packet &pkt),
-                            void (*cbI)(const uint64_t track, const std::string &initData)){
+  void toDTSC::setCallbacks(std::function<void(const DTSC::Packet &pkt)> cbP,
+                            std::function<void(const uint64_t track, const std::string &initData)> cbI){
     cbPack = cbP;
     cbInit = cbI;
   }

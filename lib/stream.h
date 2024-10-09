@@ -65,6 +65,7 @@ namespace Util{
     uint64_t offset;
     size_t partIndex;
     bool ghostPacket;
+    bool unavailable;
   };
 
   /// Packet sorter used to determine which packet should be output next
@@ -74,6 +75,7 @@ namespace Util{
       size_t size() const;
       void clear();
       const sortedPageInfo * begin() const;
+      uint64_t nonGhost() const;
       void insert(const sortedPageInfo &pInfo);
       void dropTrack(size_t tid);
       void replaceFirst(const sortedPageInfo &pInfo);

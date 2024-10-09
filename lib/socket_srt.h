@@ -42,13 +42,15 @@ namespace Socket{
     void connect(const std::string &_host, int _port, const std::string &_direction = "input",
                  const paramList &_params = paramList());
     void close();
-    bool connected() const{return (sock != -1) && !timedOut;}
+    bool connected() const;
+    bool rejected() const{return rejectReason;}
     operator bool() const{return connected();}
     const char * getStateStr();
 
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
 
+    bool readable();
     size_t RecvNow();
     size_t Recv();
     char recvbuf[5000]; ///< Buffer where received data is stored in
@@ -76,6 +78,7 @@ namespace Socket{
     std::string getBinHost();
   private:
     SRTSOCKET sock;
+    int eid;
     CBytePerfMon performanceMonitor;
 
     std::string host;
@@ -89,6 +92,7 @@ namespace Socket{
     std::string adapter;
     std::string modeName;
     int timeout;
+    int rejectReason;
     bool tsbpdMode;
     paramList params;
 

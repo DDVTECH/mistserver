@@ -16,6 +16,10 @@
 #include <sstream>
 #include <sys/wait.h>
 
+
+void child_ignorer(int signum, siginfo_t *sigInfo, void *ignore){
+}
+
 namespace Mist{
   Util::Config *Input::config = NULL;
 
@@ -508,9 +512,9 @@ namespace Mist{
       }
     }
 
-    config->activate();
 
     if (getenv("NOFORK") || getenv("ATHEIST")){
+      config->activate();
       INFO_MSG("Not using angel process due to ATHEIST environment variable");
       if (playerLock){
         // Re-init streamStatus, previously closed
@@ -542,6 +546,17 @@ namespace Mist{
       return ret;
     }
 
+    // Install child_ignorer handler for SIGCHLD, since we want to wait for them separately
+    {
+      struct sigaction new_action;
+      new_action.sa_sigaction = child_ignorer;
+      sigemptyset(&new_action.sa_mask);
+      new_action.sa_flags = SA_SIGINFO;
+      sigaction(SIGCHLD, &new_action, NULL);
+    }
+    // This must happen before activate is called, since it installs its own handler if none is installed yet
+    config->activate();
+
 #if DEBUG < DLVL_DEVEL
     uint64_t reTimer = 0;
 #endif
@@ -551,6 +566,7 @@ namespace Mist{
       pid_t pid = fork();
       if (pid == 0){
         Util::Procs::fork_complete();
+        config->installDefaultChildSignalHandler();
         if (playerLock){
           // Re-init streamStatus, previously closed
           char pageName[NAME_BUFFER_SIZE];
@@ -580,7 +596,26 @@ namespace Mist{
       HIGH_MSG("Waiting for child for stream %s", streamName.c_str());
       // wait for the process to exit
       int status;
-      while (waitpid(pid, &status, 0) != pid && errno == EINTR){
+      bool wasClean = false;
+      while (true){
+        pid_t ret = waitpid(pid, &status, 0);
+        // Stop the loop if our process exited, or we have a non-interruption error
+        if (ret && (ret == pid || errno != EINTR)){
+          if (ret < 0){
+            if (errno == ECHILD){
+              WARN_MSG("No children left - can't determine clean exit or not - assuming clean");
+              wasClean = true;
+              break;
+            }
+            WARN_MSG("Error %d: %s", errno, strerror(errno));
+          }else{
+            if (WIFCONTINUED(status)){
+              WARN_MSG("Input for stream %s continued", streamName.c_str());
+              continue;
+            }
+          }
+          break;
+        }
         if (!config->is_active){
           INFO_MSG("Shutting down input for stream %s because of signal interrupt...", streamName.c_str());
           Util::Procs::Stop(pid);
@@ -589,8 +624,8 @@ namespace Mist{
       }
       HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       // if the exit was clean, don't restart it
-      int exitCode = WEXITSTATUS(status);
-      if (WIFEXITED(status) && (exitCode == 0 || exitCode == 1)){
+      int exitCode = WIFEXITED(status)?WEXITSTATUS(status):-1;
+      if (wasClean || exitCode == 0 || exitCode == 1){
         HIGH_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
@@ -639,8 +674,8 @@ namespace Mist{
       
       #if DEBUG >= DLVL_DEVEL
       WARN_MSG(
-          "Input for stream %s uncleanly shut down! Aborting restart; this is a development build.",
-          streamName.c_str());
+          "Input for stream %s uncleanly shut down (exited %d)! Aborting restart; this is a development build.",
+          streamName.c_str(), exitCode);
       break;
       #else
       if (config->is_active){

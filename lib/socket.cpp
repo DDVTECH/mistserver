@@ -85,6 +85,27 @@ bool Socket::checkTrueSocket(int sock){
   return false;
 }
 
+void Socket::getLocal(std::deque<std::string> & addrs){
+  struct ifaddrs *ifAddrStruct = NULL;
+  struct ifaddrs *ifa = NULL;
+  void *tmpAddrPtr = NULL;
+  char addressBuffer[INET6_ADDRSTRLEN];
+  getifaddrs(&ifAddrStruct);
+  for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next){
+    if (!ifa->ifa_addr){continue;}
+    if (ifa->ifa_addr->sa_family == AF_INET){// check it is IP4
+      tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+      inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+      addrs.push_back(addressBuffer);
+    }else if (ifa->ifa_addr->sa_family == AF_INET6){// check it is IP6
+      tmpAddrPtr = &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
+      inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
+      addrs.push_back(addressBuffer);
+    }
+  }
+  if (ifAddrStruct != NULL) freeifaddrs(ifAddrStruct);
+}
+
 bool Socket::isLocal(const std::string &remotehost){
   struct ifaddrs *ifAddrStruct = NULL;
   struct ifaddrs *ifa = NULL;
@@ -1610,7 +1631,7 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   }
   int ret = bind(sock, (sockaddr *)&addr, sizeof(addr)); // do the actual bind
   if (ret == 0){
-    ret = listen(sock, 100); // start listening, backlog of 100 allowed
+    ret = listen(sock, 500); // start listening, backlog of 500 allowed
     if (ret == 0){
       DEVEL_MSG("IPv6 socket success @ %s:%i", hostname.c_str(), port);
       return true;
@@ -1664,7 +1685,7 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   }
   int ret = bind(sock, (sockaddr *)&addr4, sizeof(addr4)); // do the actual bind
   if (ret == 0){
-    ret = listen(sock, 100); // start listening, backlog of 100 allowed
+    ret = listen(sock, 500); // start listening, backlog of 500 allowed
     if (ret == 0){
       DEVEL_MSG("IPv4 socket success @ %s:%i", hostname.c_str(), port);
       return true;
@@ -1707,7 +1728,7 @@ Socket::Server::Server(std::string address, bool nonblock){
   strncpy(addr.sun_path, address.c_str(), address.size() + 1);
   int ret = bind(sock, (sockaddr *)&addr, sizeof(addr));
   if (ret == 0){
-    ret = listen(sock, 100); // start listening, backlog of 100 allowed
+    ret = listen(sock, 500); // start listening, backlog of 500 allowed
     if (ret == 0){
       return;
     }else{
@@ -1826,6 +1847,29 @@ Socket::UDPConnection::UDPConnection(bool nonblock){
   init(nonblock);
 }// Socket::UDPConnection UDP Contructor
 
+/// Create a new UDP socket, with local sender and/or remote destination pre-set.
+/// This ensure the address family matches, but does not bind or connect.
+Socket::UDPConnection::UDPConnection(const void * dest, size_t destLen, const void * loc, size_t locLen){
+  // Attempt to detect socket family; default to IPv6 if undetectable
+  int fam = AF_INET6;
+  if (dest && destLen){fam = ((sockaddr*)dest)->sa_family;}
+  if (loc && locLen){fam = ((sockaddr*)loc)->sa_family;}
+
+  // Init with detected family
+  init(false, fam);
+
+  // Allocate buffers and fill them with the addresses
+  allocateDestination();
+  if (dest && destLen){
+    destAddr.assign(dest, destLen);
+    fam = ((sockaddr*)dest)->sa_family;
+  }
+  if (loc && locLen){
+    recvAddr.assign(loc, locLen);
+    fam = ((sockaddr*)loc)->sa_family;
+  }
+}
+
 void Socket::UDPConnection::init(bool _nonblock, int _family){
   lastPace = 0;
   boundPort = 0;
@@ -1901,8 +1945,7 @@ static int dtlsExtractKeyData( void *user, const unsigned char *ms, const unsign
 #ifdef SSL
 void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key){
   hasDTLS = true;
-  nextDTLSRead = 0;
-  nextDTLSReadLen = 0;
+  nextDTLSRead.clear();
 
   int r = 0;
   char mbedtls_msg[1024];
@@ -2003,6 +2046,14 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
   }
 }
 
+bool Socket::UDPConnection::handshakeComplete(){
+#if MBEDTLS_VERSION_MAJOR > 2
+    return mbedtls_ssl_is_handshake_over(&ssl_ctx);
+#else
+    return (ssl_ctx.state == MBEDTLS_SSL_HANDSHAKE_OVER);
+#endif
+}
+
 void Socket::UDPConnection::deinitDTLS(){
   if (hasDTLS){
     mbedtls_entropy_free(&entropy_ctx);
@@ -2015,11 +2066,11 @@ void Socket::UDPConnection::deinitDTLS(){
 }
 
 int Socket::UDPConnection::dTLSRead(unsigned char *buf, size_t _len){
-  if (!nextDTLSReadLen){return MBEDTLS_ERR_SSL_WANT_READ;}
+  if (!nextDTLSRead.size()){return MBEDTLS_ERR_SSL_WANT_READ;}
   size_t len = _len;
-  if (len > nextDTLSReadLen){len = nextDTLSReadLen;}
-  memcpy(buf, nextDTLSRead, len);
-  nextDTLSReadLen = 0;
+  if (len > nextDTLSRead.front().size()){len = nextDTLSRead.front().size();}
+  memcpy(buf, nextDTLSRead.front(), len);
+  nextDTLSRead.pop_front();
   return len;
 }
 
@@ -2177,6 +2228,15 @@ void Socket::UDPConnection::allocateDestination(){
     }
   }
 #endif
+}
+
+/// Sets remote/local address for connect() call.
+/// Either may be zero pointer or zero length, which will simply not change it from the current address (if any).
+/// Guarantees both addresses are allocated, will be initialized to all zeroes if not allocated yet.
+void Socket::UDPConnection::setAddresses(void * dest, size_t destLen, void * loc, size_t locLen){
+  allocateDestination();
+  if (dest && destLen){destAddr.assign(dest, destLen);}
+  if (loc && locLen){recvAddr.assign(loc, locLen);}
 }
 
 /// Stores the properties of the receiving end of this UDP socket.
@@ -2412,11 +2472,7 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
 void Socket::UDPConnection::sendPaced(const char *sdata, size_t len, bool encrypt){
 #ifdef SSL 
   if (hasDTLS && encrypt){
-#if MBEDTLS_VERSION_MAJOR > 2
-    if (!mbedtls_ssl_is_handshake_over(&ssl_ctx)){
-#else
-    if (ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER){
-#endif
+    if (!handshakeComplete()){
       WARN_MSG("Attempting to write encrypted data before handshake completed! Data was thrown away.");
       return;
     }
@@ -2625,7 +2681,7 @@ repeatAddressFinding:
     }
     if (err_str.size()){err_str += ", ";}
     err_str += tryHost;
-    err_str += ":";
+    err_str += ": ";
     err_str += strerror(errno);
     close(); // we open a new socket for each attempt
   }
@@ -2722,37 +2778,43 @@ repeatAddressFinding:
   return portNo;
 }
 
+void Socket::UDPConnection::setMulticastTTL(size_t ttl){
+  int iVal = ttl;
+  setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &iVal, sizeof(iVal));
+  if (iVal <= 1){
+    bool bVal = true;
+    setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &bVal, sizeof(bVal));
+  }
+}
+
 bool Socket::UDPConnection::connect(){
   if (!recvAddr.size() || !destAddr.size()){
     WARN_MSG("Attempting to connect a UDP socket without local and/or remote address!");
     return false;
   }
 
-  {
-    std::string destIp;
-    uint32_t port = 0;
-    getAddrName(recvAddr, destIp, port);
-    int ret = ::bind(sock, (const struct sockaddr*)(char*)recvAddr, recvAddr.size());
-    if (!ret){
-      INFO_MSG("Bound socket %d to %s %s:%" PRIu32, sock, addrFam(((struct sockaddr *)(char*)recvAddr)->sa_family), destIp.c_str(), port);
-    }else{
-      FAIL_MSG("Failed to bind socket %d (%s) %s:%" PRIu32 ": %s", sock, addrFam(((struct sockaddr *)(char*)recvAddr)->sa_family), destIp.c_str(), port, strerror(errno));
-      return false;
-    }
+  std::string destIp, recvIp;
+  uint32_t destPort, recvPort;
+  getAddrName(recvAddr, recvIp, recvPort);
+  getAddrName(destAddr, destIp, destPort);
+  int recvFam = ((struct sockaddr *)(char*)recvAddr)->sa_family;
+  int destFam = ((struct sockaddr *)(char*)destAddr)->sa_family;
+
+  if (::bind(sock, (const struct sockaddr*)(char*)recvAddr, recvAddr.size())){
+    FAIL_MSG("Failed to bind socket %d (%s) %s:%" PRIu32 ": %s", sock, addrFam(recvFam), recvIp.c_str(), recvPort, strerror(errno));
+    return false;
+  }
+  if (::connect(sock, (const struct sockaddr*)(char*)destAddr, destAddr.size())){
+    FAIL_MSG("Failed to connect socket to %s %s:%" PRIu32 ": %s (%d)", addrFam(destFam), destIp.c_str(), destPort, strerror(errno), errno);
+    return false;
   }
 
-  {
-    std::string destIp;
-    uint32_t port;
-    getAddrName(destAddr, destIp, port);
-    int ret = ::connect(sock, (const struct sockaddr*)(char*)destAddr, destAddr.size());
-    if (!ret){
-      INFO_MSG("Connected socket to %s:%" PRIu32, destIp.c_str(), port);
-    }else{
-      FAIL_MSG("Failed to connect socket to %s %s:%" PRIu32 ": %s (%d)", addrFam(((struct sockaddr *)(char*)destAddr)->sa_family), destIp.c_str(), port, strerror(errno), errno);
-      return false;
-    }
+  if (recvFam == destFam){
+    INFO_MSG("Connected %s UDP socket %d: %s:%" PRIu32 " <-> %s:%" PRIu32, addrFam(recvFam), sock, recvIp.c_str(), recvPort, destIp.c_str(), destPort);
+  }else{
+    INFO_MSG("Connected UDP socket %d: %s:%" PRIu32 " (%s) <-> %s:%" PRIu32 " (%s)", sock, recvIp.c_str(), recvPort, addrFam(recvFam), destIp.c_str(), destPort, addrFam(destFam));
   }
+
   isConnected = true;
   return true;
 }
@@ -2773,8 +2835,11 @@ bool Socket::UDPConnection::Receive(){
     int r = recv(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT);
     if (r == -1){
       if (errno != EAGAIN){
+        if (errno == ECONNREFUSED){
+          close();
+          return false;
+        }
         INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));
-        if (errno == ECONNREFUSED){close();}
       }
       return false;
     }
@@ -2862,106 +2927,15 @@ bool Socket::UDPConnection::onData(){
   uint8_t fb = 0;
   if (r){fb = (uint8_t)data[0];}
   if (r && hasDTLS && fb > 19 && fb < 64){
-    if (nextDTLSReadLen){
-      INFO_MSG("Overwriting %zu bytes of unread dTLS data!", nextDTLSReadLen);
+    bool hs = handshakeComplete();
+    if (fb == 23 && !hs){
+      // Received application data (first byte = 23) without prior handshake
+      // Use it as-is so we can attempt to do something with it
+      return true;
     }
-    nextDTLSRead = data;
-    nextDTLSReadLen = data.size();
-    // Complete dTLS handshake if needed
-#if MBEDTLS_VERSION_MAJOR > 2
-    if (!mbedtls_ssl_is_handshake_over(&ssl_ctx)){
-#else
-    if (ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER){
-#endif
-      do{
-        r = mbedtls_ssl_handshake(&ssl_ctx);
-        switch (r){
-        case 0:{ // Handshake complete
-          INFO_MSG("dTLS handshake complete!");
-
-#if !HAVE_UPSTREAM_MBEDTLS_SRTP
-          int extrRes = 0;
-          uint8_t keying_material[MBEDTLS_DTLS_SRTP_MAX_KEY_MATERIAL_LENGTH];
-          size_t keying_material_len = sizeof(keying_material);
-          extrRes = mbedtls_ssl_get_dtls_srtp_key_material(&ssl_ctx, keying_material, &keying_material_len);
-          if (extrRes){
-            char mbedtls_msg[1024];
-            mbedtls_strerror(extrRes, mbedtls_msg, sizeof(mbedtls_msg));
-            WARN_MSG("dTLS could not extract keying material: %s", mbedtls_msg);
-            return Receive();
-          }
-
-          mbedtls_ssl_srtp_profile srtp_profile = mbedtls_ssl_get_dtls_srtp_protection_profile(&ssl_ctx);
-          switch (srtp_profile){
-          case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:{
-            cipher = "SRTP_AES128_CM_SHA1_80";
-            break;
-          }
-          case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:{
-            cipher = "SRTP_AES128_CM_SHA1_32";
-            break;
-          }
-          default:{
-            WARN_MSG("Unhandled SRTP profile, cannot extract keying material.");
-            return Receive();
-          }
-          }
-#else
-          uint8_t keying_material[MBEDTLS_TLS_SRTP_MAX_MKI_LENGTH] = {};
-          mbedtls_dtls_srtp_info info = {};
-          mbedtls_ssl_get_dtls_srtp_negotiation_result(&ssl_ctx, &info);
-
-          if (mbedtls_ssl_tls_prf(tls_prf_type, master_secret, sizeof(master_secret), "EXTRACTOR-dtls_srtp", randbytes,sizeof( randbytes ), keying_material, sizeof( keying_material )) != 0){
-            ERROR_MSG("mbedtls_ssl_tls_prf failed to create keying_material");
-            return Receive();
-          }
-#if MBEDTLS_VERSION_MAJOR > 2
-          mbedtls_ssl_srtp_profile chosen_profile = info.private_chosen_dtls_srtp_profile;
-#else
-          mbedtls_ssl_srtp_profile chosen_profile = info.chosen_dtls_srtp_profile;
-#endif
-          switch (chosen_profile){
-          case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80:{
-            cipher = "SRTP_AES128_CM_SHA1_80";
-            break;
-          }
-          case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32:{
-            cipher = "SRTP_AES128_CM_SHA1_32";
-            break;
-          }
-          case MBEDTLS_TLS_SRTP_UNSET: {
-            WARN_MSG("Wasn't able to negotiate the use of DTLS-SRTP");
-            return Receive();
-          }
-          default:{
-            WARN_MSG("Unhandled SRTP profile: %hu, cannot extract keying material.", chosen_profile);
-            return Receive();
-          }
-          }
-#endif
-
-          remote_key.assign((char *)(&keying_material[0]) + 0, 16);
-          local_key.assign((char *)(&keying_material[0]) + 16, 16);
-          remote_salt.assign((char *)(&keying_material[0]) + 32, 14);
-          local_salt.assign((char *)(&keying_material[0]) + 46, 14);
-          return Receive(); // No application-level data to read
-        }
-        case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:{
-          dTLSReset();
-          return Receive(); // No application-level data to read
-        }
-        case MBEDTLS_ERR_SSL_WANT_READ:{
-          return Receive(); // No application-level data to read
-        }
-        default:{
-          char mbedtls_msg[1024];
-          mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
-          WARN_MSG("dTLS could not handshake: %s", mbedtls_msg);
-          return Receive(); // No application-level data to read
-        }
-        }
-      }while (r == MBEDTLS_ERR_SSL_WANT_WRITE);
-    }else{
+    nextDTLSRead.push_back(data);
+    // Handshake completed? Attempt decrypt.
+    if (hs){
       int read = mbedtls_ssl_read(&ssl_ctx, (unsigned char *)(char*)data, data.size());
       if (read <= 0){
         // Non-encrypted read (encrypted read fail)
@@ -2972,6 +2946,95 @@ bool Socket::UDPConnection::onData(){
       data.truncate(read);
       return true;
     }
+    // Complete dTLS handshake
+    do{
+      r = mbedtls_ssl_handshake(&ssl_ctx);
+      switch (r){
+      case 0:{ // Handshake complete
+        INFO_MSG("dTLS handshake complete!");
+
+#if !HAVE_UPSTREAM_MBEDTLS_SRTP
+        int extrRes = 0;
+        uint8_t keying_material[MBEDTLS_DTLS_SRTP_MAX_KEY_MATERIAL_LENGTH];
+        size_t keying_material_len = sizeof(keying_material);
+        extrRes = mbedtls_ssl_get_dtls_srtp_key_material(&ssl_ctx, keying_material, &keying_material_len);
+        if (extrRes){
+          char mbedtls_msg[1024];
+          mbedtls_strerror(extrRes, mbedtls_msg, sizeof(mbedtls_msg));
+          WARN_MSG("dTLS could not extract keying material: %s", mbedtls_msg);
+          return Receive();
+        }
+
+        mbedtls_ssl_srtp_profile srtp_profile = mbedtls_ssl_get_dtls_srtp_protection_profile(&ssl_ctx);
+        switch (srtp_profile){
+        case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:{
+          cipher = "SRTP_AES128_CM_SHA1_80";
+          break;
+        }
+        case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:{
+          cipher = "SRTP_AES128_CM_SHA1_32";
+          break;
+        }
+        default:{
+          WARN_MSG("Unhandled SRTP profile, cannot extract keying material.");
+          return Receive();
+        }
+        }
+#else
+        uint8_t keying_material[MBEDTLS_TLS_SRTP_MAX_MKI_LENGTH] = {};
+        mbedtls_dtls_srtp_info info = {};
+        mbedtls_ssl_get_dtls_srtp_negotiation_result(&ssl_ctx, &info);
+
+        if (mbedtls_ssl_tls_prf(tls_prf_type, master_secret, sizeof(master_secret), "EXTRACTOR-dtls_srtp", randbytes,sizeof( randbytes ), keying_material, sizeof( keying_material )) != 0){
+          ERROR_MSG("mbedtls_ssl_tls_prf failed to create keying_material");
+          return Receive();
+        }
+#if MBEDTLS_VERSION_MAJOR > 2
+        mbedtls_ssl_srtp_profile chosen_profile = info.private_chosen_dtls_srtp_profile;
+#else
+        mbedtls_ssl_srtp_profile chosen_profile = info.chosen_dtls_srtp_profile;
+#endif
+        switch (chosen_profile){
+        case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80:{
+          cipher = "SRTP_AES128_CM_SHA1_80";
+          break;
+        }
+        case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32:{
+          cipher = "SRTP_AES128_CM_SHA1_32";
+          break;
+        }
+        case MBEDTLS_TLS_SRTP_UNSET: {
+          WARN_MSG("Wasn't able to negotiate the use of DTLS-SRTP");
+          return Receive();
+        }
+        default:{
+          WARN_MSG("Unhandled SRTP profile: %hu, cannot extract keying material.", chosen_profile);
+          return Receive();
+        }
+        }
+#endif
+
+        remote_key.assign((char *)(&keying_material[0]) + 0, 16);
+        local_key.assign((char *)(&keying_material[0]) + 16, 16);
+        remote_salt.assign((char *)(&keying_material[0]) + 32, 14);
+        local_salt.assign((char *)(&keying_material[0]) + 46, 14);
+        return Receive(); // No application-level data to read
+      }
+      case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:{
+        dTLSReset();
+        return Receive(); // No application-level data to read
+      }
+      case MBEDTLS_ERR_SSL_WANT_READ:{
+        return Receive(); // No application-level data to read
+      }
+      default:{
+        char mbedtls_msg[1024];
+        mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+        INFO_MSG("dTLS could not handshake (%d): %s", r, mbedtls_msg);
+        return Receive(); // No application-level data to read
+      }
+      }
+    }while (r == MBEDTLS_ERR_SSL_WANT_WRITE);
   }
 #endif
   return r > 0;
@@ -2980,3 +3043,32 @@ bool Socket::UDPConnection::onData(){
 int Socket::UDPConnection::getSock(){
   return sock;
 }
+
+/// Swaps the file descriptors of the given sockets and updates their internal state to match
+void Socket::UDPConnection::swapSocket(Socket::UDPConnection & o){
+  if (sock < 0 || o.sock < 0){
+    WARN_MSG("Refusing to swap UDP sockets %d and %d since at least one is invalid", sock, o.sock);
+    return;
+  }
+  // Dup the local socket to a temp fd
+  int newHere = dup(sock);
+  // then dup2 to actually swap the two
+  dup2(o.sock, sock);
+  dup2(newHere, o.sock);
+  // Finally, close the temp fd that we no longer need
+  ::close(newHere);
+
+  // Now the swap is complete, but we should also update the remote/local addresses accordingly
+  recvAddr.swap(o.recvAddr);
+  destAddr.swap(o.destAddr);
+
+  std::string tmpremote = remotehost;
+  remotehost = o.remotehost;
+  o.remotehost = tmpremote;
+
+  int tmpFam = family;
+  family = o.family;
+  o.family = tmpFam;
+
+}
+

@@ -12,6 +12,7 @@ bool allowStreamNameOverride = true;
 
 namespace Mist{
   OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection * _srtSock) : TSOutput(conn){
+    closeMyConn();
     srtConn = _srtSock;
     // NOTE: conn is useless for SRT, as it uses a different socket type.
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
@@ -54,7 +55,8 @@ namespace Mist{
       if (!srtConn){
         FAIL_MSG("Failed to connect to '%s'!", config->getString("target").c_str());
       }
-      wantRequest = false;
+      srtConn->setBlocking(true);
+      wantRequest = true;
       parseData = true;
     }else{
       // Pull output configuration, In this case we have an srt connection in the second constructor parameter.
@@ -71,15 +73,16 @@ namespace Mist{
 
       int64_t accTypes = config->getInteger("acceptable");
       if (accTypes == 0){//Allow both directions
-        srtConn->setBlocking(false);
         //Try to read the socket 10 times. If any reads succeed, assume they are pushing in
         size_t retries = 60;
         while (!accTypes && *srtConn && retries){
-          size_t recvSize = srtConn->Recv();
-          if (recvSize){
-            accTypes = 2;
-            INFO_MSG("Connection put into ingest mode");
-            assembler.assemble(tsIn, srtConn->recvbuf, recvSize, true);
+          if (srtConn->readable()){
+            size_t recvSize = srtConn->Recv();
+            if (recvSize){
+              accTypes = 2;
+              INFO_MSG("Connection put into ingest mode");
+              assembler.assemble(tsIn, srtConn->recvbuf, recvSize, true);
+            }
           }else{
             Util::sleep(50);
           }
@@ -95,8 +98,7 @@ namespace Mist{
         srtConn->setBlocking(true);
         srtConn->direction = "output";
         parseData = true;
-        wantRequest = false;
-        initialize();
+        wantRequest = true;
       }else if (accTypes == 2){//Only allow incoming
         srtConn->setBlocking(false);
         srtConn->direction = "input";
@@ -324,8 +326,11 @@ namespace Mist{
     pp["srtopts"]["options"]["transtype"]["select"][2u][0u] = "file";
     pp["srtopts"]["options"]["transtype"]["select"][2u][1u] = "File";
     pp["srtopts"]["options"]["transtype"]["type"] = "select";
-    
-    
+
+    pp["noreconnect"]["name"] = "Do not reconnect";
+    pp["noreconnect"]["help"] = "If checked, disables reconnecting so that a single failure stops the push";
+    pp["noreconnect"]["type"] = "bool";
+
     //addStrOpt(pp, "adapter", "", "");
     //addIntOpt(pp, "timeout", "", "");
     //addIntOpt(pp, "port", "", "");
@@ -452,7 +457,7 @@ namespace Mist{
     packetBuffer.append(tsData, len);
     if (packetBuffer.size() >= 1316){//7 whole TS packets
       if (!*srtConn){
-        if (config->getString("target").size()){
+        if (!srtConn->rejected() && !targetParams.count("noreconnect") && config->getString("target").size()){
           if (lastWorked + 5 < Util::bootSecs()){
             Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed, no reconnect success after 5s");
             config->is_active = false;
@@ -472,7 +477,11 @@ namespace Mist{
           srtConn->connect(target.host, target.getPort(), "output", targetParams);
           if (!*srtConn){Util::sleep(500);}
         }else{
-          Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed (mid-send)");
+          if (srtConn->rejected()){
+            Util::logExitReason(ER_FORMAT_SPECIFIC, "SRT connection rejected: %s", srtConn->getStateStr());
+          }else{
+            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed (mid-send)");
+          }
           config->is_active = false;
           parseData = false;
           return;
@@ -494,21 +503,21 @@ namespace Mist{
     }
   }
 
-  void OutTSSRT::requestHandler(){
-    size_t recvSize = srtConn->Recv();
-    if (!recvSize){
-      if (!*srtConn){
-        Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection %s (in request handler)", srtConn->getStateStr());
-        config->is_active = false;
-        srtConn->close();
-        wantRequest = false;
-      }else{
-        Util::sleep(50);
-      }
-      return;
+  void OutTSSRT::requestHandler(bool readable){
+    bool newData = false;
+    while (srtConn->readable()){
+      size_t recvSize = srtConn->Recv();
+      if (!recvSize){break;}
+      newData |= assembler.assemble(tsIn, srtConn->recvbuf, recvSize, true);
     }
+    if (!*srtConn){
+      Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection %s (in request handler)", srtConn->getStateStr());
+      config->is_active = false;
+      srtConn->close();
+      wantRequest = false;
+    }
+    if (!newData){return;}
     lastRecv = Util::bootSecs();
-    if (!assembler.assemble(tsIn, srtConn->recvbuf, recvSize, true)){return;}
     while (tsIn.hasPacket()){
       tsIn.getEarliestPacket(thisPacket);
       if (!thisPacket){
@@ -591,7 +600,9 @@ namespace Mist{
       tmpSock->connect(host, port, "output", arguments);
       INFO_MSG("UDP to SRT socket conversion: %s", tmpSock->getStateStr());
     }
-    Socket::Connection S(1, 0);
+
+    int tmpsock = socket(AF_INET, SOCK_DGRAM, 0);
+    Socket::Connection S(tmpsock);
     mistOut tmp(S, tmpSock);
     tmp.run();
   }

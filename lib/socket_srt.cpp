@@ -203,6 +203,7 @@ namespace Socket{
   }
 
   const char * SRTConnection::getStateStr(){
+    if (rejectReason){return srt_rejectreason_str(rejectReason);}
     if (sock == INVALID_SRT_SOCKET){return "invalid / closed";}
     int state = srt_getsockstate(sock);
     switch (state){
@@ -270,6 +271,7 @@ namespace Socket{
         }
         return 0;
       }
+      if (err == SRT_EASYNCRCV){return 0;}
       ERROR_MSG("Unable to receive data over socket: %s", srt_getlasterror_str());
       if (srt_getsockstate(sock) != SRTS_CONNECTED){close();}
       return 0;
@@ -283,6 +285,41 @@ namespace Socket{
 
     srt_bstats(sock, &performanceMonitor, false);
     return receivedBytes;
+  }
+
+  bool SRTConnection::connected() const{
+    if (sock == -1 || timedOut){return false;}
+    int state = srt_getsockstate(sock);
+    switch (state){
+    case SRTS_BROKEN:
+    case SRTS_CLOSING:
+    case SRTS_CLOSED:
+    case SRTS_NONEXIST:
+      return false;
+    default:
+      return true;
+    }
+  }
+  
+  bool SRTConnection::readable(){
+    if (!connected()){return false;}
+    if (eid == -1){
+      eid = srt_epoll_create();
+      if (eid == -1){return false;}
+      int events = SRT_EPOLL_IN;
+      if (srt_epoll_add_usock(eid, sock, &events)){
+        FAIL_MSG("Could not add SRT socket to srt_epoll instance!");
+        close();
+      }
+    }
+    SRT_EPOLL_EVENT rEvents;
+    int ret = srt_epoll_uwait(eid, &rEvents, 1, 0);
+    if (ret > 0){return true;}
+    if (ret < 0){
+      WARN_MSG("Failure waiting for SRT socket with srt_epoll: %s", srt_getlasterror_str());
+      close();
+    }
+    return false;
   }
 
   ///Attempts a read, obeying the current blocking setting.
@@ -302,7 +339,7 @@ namespace Socket{
       }
       if (err == SRT_ENOCONN){
         if (Util::bootMS() > lastGood + 5000){
-          ERROR_MSG("SRT connection timed out - closing");
+          ERROR_MSG("SRT connection timed out (%s) - closing", getStateStr());
           timedOut = true;
         }
         return 0;
@@ -344,6 +381,7 @@ namespace Socket{
     }
 
     if (modeName == "caller"){
+      setBlocking(true);
       std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
       for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
         size_t maxSize = it->size();
@@ -354,7 +392,10 @@ namespace Socket{
         HIGH_MSG("Going to connect sock %d", sock);
         if (srt_connect(sock, psa, sizeof remoteaddr) != SRT_ERROR){
           if (postConfigureSocket() == SRT_ERROR){ERROR_MSG("Error during postconfigure socket");}
-          INFO_MSG("Caller SRT socket %" PRId32 " success targetting %s:%u", sock, _host.c_str(), _port);
+          std::string tgtHost;
+          uint32_t tgtPort;
+          Socket::getAddrName(psa, tgtHost, tgtPort);
+          INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s:%u -> %s:%" PRIu32, sock, getStateStr(), _host.c_str(), _port, tgtHost.c_str(), tgtPort);
           lastGood = Util::bootMS();
           return;
         }
@@ -404,6 +445,12 @@ namespace Socket{
         close();
         return;
       }
+      rejectReason = srt_getrejectreason(sock);
+      if (rejectReason){
+        ERROR_MSG("SRT connection rejected: %s", srt_rejectreason_str(rejectReason));
+        close();
+        return;
+      }
       if (err == SRT_ENOCONN){
         if (Util::bootMS() > lastGood + 10000){
           ERROR_MSG("SRT connection timed out - closing");
@@ -447,7 +494,9 @@ namespace Socket{
   void SRTConnection::initializeEmpty(){
     memset(&performanceMonitor, 0, sizeof(performanceMonitor));
     prev_pktseq = 0;
+    rejectReason = 0;
     sock = SRT_INVALID_SOCK;
+    eid = -1;
     chunkTransmitSize = 1316;
     blocking = false;
     timedOut = false;

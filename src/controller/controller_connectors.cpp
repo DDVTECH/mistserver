@@ -192,7 +192,7 @@ namespace Controller{
       }
       // list connectors that go through HTTP as 'enabled' without actually running them.
       const JSON::Value &connCapa = capabilities["connectors"][connName];
-      if (connCapa.isMember("socket") || (connCapa.isMember("deps") && connCapa["deps"].asStringRef() == "HTTP")){
+      if (connCapa.isMember("socket") || (connCapa.isMember("deps") && connCapa["deps"].asStringRef() == "HTTP" && !connCapa.isMember("provides_dependency"))){
         (*ait)["online"] = "Enabled";
         continue;
       }

@@ -168,7 +168,6 @@ namespace SDP{
     bool enableVideo(const std::string &codecName, SDP::Session &sdpSession);
     bool enableAudio(const std::string &codecName, SDP::Session &sdpSession);
     bool enableMeta(const std::string &codecName, SDP::Session &sdpSession);
-    void setCandidate(const std::string &ip, uint16_t port);
     void setFingerprint(const std::string &fingerprintSha); ///< Set the SHA265 that represents the
                                                             ///< certificate that is used with DTLS.
     void setDirection(const std::string &dir);
@@ -183,7 +182,6 @@ namespace SDP{
     std::string generateSessionId();
     std::string generateIceUFrag(); ///< Generates the `ice-ufrag` value.
     std::string generateIcePwd();   ///< Generates the `ice-pwd` value.
-    std::string generateRandomString(const int len);
     std::vector<std::string> splitString(const std::string &str, char delim);
 
   public:
@@ -197,8 +195,8 @@ namespace SDP{
     bool isAudioEnabled;
     bool isVideoEnabled;
     bool isMetaEnabled;
-    std::string candidateIP; ///< We use rtcp-mux and BUNDLE; so only one candidate necessary.
-    uint16_t candidatePort;  ///< We use rtcp-mux and BUNDLE; so only one candidate necessary.
+    std::deque<std::string> candidates;
+    uint16_t port;
     std::string fingerprint;
     std::string direction;           ///< The direction used when generating the answer SDP string.
     std::vector<std::string> output; ///< The lines that are used when adding lines (see `addLine()`

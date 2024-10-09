@@ -1,6 +1,8 @@
 #include "defines.h"
 #include "rtp.h"
 #include "rtp_fec.h"
+#include "bitfields.h"
+#include "sdp_media.h"
 
 namespace RTP{
   /// Based on the `block PT` value, we can either find the
@@ -530,8 +532,8 @@ namespace RTP{
     return NULL;
   }
 
-  void FECPacket::sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC, void *userData,
-                              void callBack(void *userData, const char *payload, size_t nbytes, uint8_t channel), uint32_t jitter){
+  void FECPacket::sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC,
+                              std::function<void(const char *, size_t)> callBack, uint32_t jitter){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -554,7 +556,7 @@ namespace RTP{
     }else{
       Bit::htobl(rtcpData + 28, 0); // no delay since last SR yet
     }
-    callBack(userData, rtcpData, 32, 0);
+    callBack(rtcpData, 32);
     sorter.lostCurrent = 0;
     sorter.packCurrent = 0;
     free(rtcpData);

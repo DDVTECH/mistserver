@@ -280,7 +280,9 @@ namespace Mist{
       // Send RTCP packet back to host
       if (Util::bootSecs() > it->second.rtcpSent + rtcpInterval){
         it->second.rtcpSent = Util::bootSecs();
-        it->second.pack.sendRTCP_RR(it->second, sendUDP);
+        it->second.pack.sendRTCP_RR(it->second, [&it](const char* data, size_t len){
+          it->second.rtcp.SendNow(data, len);
+        });
       }
     }
     if (!receivedPacket){

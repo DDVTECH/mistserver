@@ -58,6 +58,7 @@ namespace Util{
     bool assign(const std::string &str);
     bool append(const void *p, uint32_t l);
     bool append(const std::string &str);
+    bool append(const ResizeablePointer &rhs);
     bool allocate(uint32_t l);
     void shift(size_t byteCount);
     void swap(ResizeablePointer & rhs);
@@ -209,13 +210,13 @@ namespace Util{
     std::map<std::string, RelAccXFieldData> fields;
 
   private:
-    uint32_t * hdrRecordCnt;
-    uint32_t * hdrRecordSize;
-    uint32_t * hdrStartPos;
-    uint64_t * hdrDeleted;
-    uint32_t * hdrPresent;
-    uint16_t * hdrOffset;
-    uint64_t * hdrEndPos;
+    uint32_t * hdrRecordCnt; ///< Number of records that can be stored
+    uint32_t * hdrRecordSize; ///< Size in bytes of each record
+    uint32_t * hdrStartPos; ///< First record number available
+    uint64_t * hdrDeleted; ///< Last record number unavailable
+    uint32_t * hdrPresent; ///< Number of records currently present
+    uint16_t * hdrOffset; ///< Offset in bytes where records start
+    uint64_t * hdrEndPos; ///< Last record available
     char *p;
   };
 

@@ -1,199 +1,66 @@
 #include "checksum.h" // for crc32
 #include "defines.h"
 #include "stun.h"
-#include <sstream>
 #include <socket.h>
+#include <bitfields.h>
 
 /* --------------------------------------- */
 
 std::string stun_family_type_to_string(uint8_t type){
   switch (type){
-  case STUN_IP4:{
-    return "STUN_IP4";
-  }
-  case STUN_IP6:{
-    return "STUN_IP6";
-  }
-  default:{
-    return "UNKNOWN";
-  }
+  case STUN_IP4:{ return "STUN_IP4"; }
+  case STUN_IP6:{ return "STUN_IP6"; }
+  default:{ return "UNKNOWN"; }
   }
 }
 
 std::string stun_message_type_to_string(uint16_t type){
   switch (type){
-  case STUN_MSG_TYPE_NONE:{
-    return "STUN_MSG_TYPE_NONE";
-  }
-  case STUN_MSG_TYPE_BINDING_REQUEST:{
-    return "STUN_MSG_TYPE_BINDING_REQUEST";
-  }
-  case STUN_MSG_TYPE_BINDING_RESPONSE_SUCCESS:{
-    return "STUN_MSG_TYPE_BINDING_RESPONSE_SUCCESS";
-  }
-  case STUN_MSG_TYPE_BINDING_RESPONSE_ERROR:{
-    return "STUN_MSG_TYPE_BINDING_RESPONSE_ERROR";
-  }
-  case STUN_MSG_TYPE_BINDING_INDICATION:{
-    return "STUN_MSG_TYPE_BINDING_INDICATION";
-  }
-  default:{
-    return "UNKNOWN";
-  }
+  case STUN_MSG_TYPE_NONE:{ return "STUN_MSG_TYPE_NONE"; }
+  case STUN_MSG_TYPE_BINDING_REQUEST:{ return "STUN_MSG_TYPE_BINDING_REQUEST"; }
+  case STUN_MSG_TYPE_BINDING_RESPONSE_SUCCESS:{ return "STUN_MSG_TYPE_BINDING_RESPONSE_SUCCESS"; }
+  case STUN_MSG_TYPE_BINDING_RESPONSE_ERROR:{ return "STUN_MSG_TYPE_BINDING_RESPONSE_ERROR"; }
+  case STUN_MSG_TYPE_BINDING_INDICATION:{ return "STUN_MSG_TYPE_BINDING_INDICATION"; }
+  default:{ return "UNKNOWN"; }
   }
 }
 
 std::string stun_attribute_type_to_string(uint16_t type){
   switch (type){
-  case STUN_ATTR_TYPE_NONE:{
-    return "STUN_ATTR_TYPE_NONE";
-  }
-  case STUN_ATTR_TYPE_MAPPED_ADDR:{
-    return "STUN_ATTR_TYPE_MAPPED_ADDR";
-  }
-  case STUN_ATTR_TYPE_CHANGE_REQ:{
-    return "STUN_ATTR_TYPE_CHANGE_REQ";
-  }
-  case STUN_ATTR_TYPE_USERNAME:{
-    return "STUN_ATTR_TYPE_USERNAME";
-  }
-  case STUN_ATTR_TYPE_MESSAGE_INTEGRITY:{
-    return "STUN_ATTR_TYPE_MESSAGE_INTEGRITY";
-  }
-  case STUN_ATTR_TYPE_ERR_CODE:{
-    return "STUN_ATTR_TYPE_ERR_CODE";
-  }
-  case STUN_ATTR_TYPE_UNKNOWN_ATTRIBUTES:{
-    return "STUN_ATTR_TYPE_UNKNOWN_ATTRIBUTES";
-  }
-  case STUN_ATTR_TYPE_CHANNEL_NUMBER:{
-    return "STUN_ATTR_TYPE_CHANNEL_NUMBER";
-  }
-  case STUN_ATTR_TYPE_LIFETIME:{
-    return "STUN_ATTR_TYPE_LIFETIME";
-  }
-  case STUN_ATTR_TYPE_XOR_PEER_ADDR:{
-    return "STUN_ATTR_TYPE_XOR_PEER_ADDR";
-  }
-  case STUN_ATTR_TYPE_DATA:{
-    return "STUN_ATTR_TYPE_DATA";
-  }
-  case STUN_ATTR_TYPE_REALM:{
-    return "STUN_ATTR_TYPE_REALM";
-  }
-  case STUN_ATTR_TYPE_NONCE:{
-    return "STUN_ATTR_TYPE_NONCE";
-  }
-  case STUN_ATTR_TYPE_XOR_RELAY_ADDRESS:{
-    return "STUN_ATTR_TYPE_XOR_RELAY_ADDRESS";
-  }
-  case STUN_ATTR_TYPE_REQ_ADDRESS_FAMILY:{
-    return "STUN_ATTR_TYPE_REQ_ADDRESS_FAMILY";
-  }
-  case STUN_ATTR_TYPE_EVEN_PORT:{
-    return "STUN_ATTR_TYPE_EVEN_PORT";
-  }
-  case STUN_ATTR_TYPE_REQUESTED_TRANSPORT:{
-    return "STUN_ATTR_TYPE_REQUESTED_TRANSPORT";
-  }
-  case STUN_ATTR_TYPE_DONT_FRAGMENT:{
-    return "STUN_ATTR_TYPE_DONT_FRAGMENT";
-  }
-  case STUN_ATTR_TYPE_XOR_MAPPED_ADDRESS:{
-    return "STUN_ATTR_TYPE_XOR_MAPPED_ADDRESS";
-  }
-  case STUN_ATTR_TYPE_RESERVATION_TOKEN:{
-    return "STUN_ATTR_TYPE_RESERVATION_TOKEN";
-  }
-  case STUN_ATTR_TYPE_PRIORITY:{
-    return "STUN_ATTR_TYPE_PRIORITY";
-  }
-  case STUN_ATTR_TYPE_USE_CANDIDATE:{
-    return "STUN_ATTR_TYPE_USE_CANDIDATE";
-  }
-  case STUN_ATTR_TYPE_PADDING:{
-    return "STUN_ATTR_TYPE_PADDING";
-  }
-  case STUN_ATTR_TYPE_RESPONSE_PORT:{
-    return "STUN_ATTR_TYPE_RESPONSE_PORT";
-  }
-  case STUN_ATTR_TYPE_SOFTWARE:{
-    return "STUN_ATTR_TYPE_SOFTWARE";
-  }
-  case STUN_ATTR_TYPE_ALTERNATE_SERVER:{
-    return "STUN_ATTR_TYPE_ALTERNATE_SERVER";
-  }
-  case STUN_ATTR_TYPE_FINGERPRINT:{
-    return "STUN_ATTR_TYPE_FINGERPRINT";
-  }
-  case STUN_ATTR_TYPE_ICE_CONTROLLED:{
-    return "STUN_ATTR_TYPE_ICE_CONTROLLED";
-  }
-  case STUN_ATTR_TYPE_ICE_CONTROLLING:{
-    return "STUN_ATTR_TYPE_ICE_CONTROLLING";
-  }
-  case STUN_ATTR_TYPE_RESPONSE_ORIGIN:{
-    return "STUN_ATTR_TYPE_RESPONSE_ORIGIN";
-  }
-  case STUN_ATTR_TYPE_OTHER_ADDRESS:{
-    return "STUN_ATTR_TYPE_OTHER_ADDRESS";
-  }
-  default:{
-    return "UNKNOWN";
-  }
+  case STUN_ATTR_TYPE_NONE:{ return "STUN_ATTR_TYPE_NONE"; }
+  case STUN_ATTR_TYPE_MAPPED_ADDR:{ return "STUN_ATTR_TYPE_MAPPED_ADDR"; }
+  case STUN_ATTR_TYPE_CHANGE_REQ:{ return "STUN_ATTR_TYPE_CHANGE_REQ"; }
+  case STUN_ATTR_TYPE_USERNAME:{ return "STUN_ATTR_TYPE_USERNAME"; }
+  case STUN_ATTR_TYPE_MESSAGE_INTEGRITY:{ return "STUN_ATTR_TYPE_MESSAGE_INTEGRITY"; }
+  case STUN_ATTR_TYPE_ERR_CODE:{ return "STUN_ATTR_TYPE_ERR_CODE"; }
+  case STUN_ATTR_TYPE_UNKNOWN_ATTRIBUTES:{ return "STUN_ATTR_TYPE_UNKNOWN_ATTRIBUTES"; }
+  case STUN_ATTR_TYPE_CHANNEL_NUMBER:{ return "STUN_ATTR_TYPE_CHANNEL_NUMBER"; }
+  case STUN_ATTR_TYPE_LIFETIME:{ return "STUN_ATTR_TYPE_LIFETIME"; }
+  case STUN_ATTR_TYPE_XOR_PEER_ADDR:{ return "STUN_ATTR_TYPE_XOR_PEER_ADDR"; }
+  case STUN_ATTR_TYPE_DATA:{ return "STUN_ATTR_TYPE_DATA"; }
+  case STUN_ATTR_TYPE_REALM:{ return "STUN_ATTR_TYPE_REALM"; }
+  case STUN_ATTR_TYPE_NONCE:{ return "STUN_ATTR_TYPE_NONCE"; }
+  case STUN_ATTR_TYPE_XOR_RELAY_ADDRESS:{ return "STUN_ATTR_TYPE_XOR_RELAY_ADDRESS"; }
+  case STUN_ATTR_TYPE_REQ_ADDRESS_FAMILY:{ return "STUN_ATTR_TYPE_REQ_ADDRESS_FAMILY"; }
+  case STUN_ATTR_TYPE_EVEN_PORT:{ return "STUN_ATTR_TYPE_EVEN_PORT"; }
+  case STUN_ATTR_TYPE_REQUESTED_TRANSPORT:{ return "STUN_ATTR_TYPE_REQUESTED_TRANSPORT"; }
+  case STUN_ATTR_TYPE_DONT_FRAGMENT:{ return "STUN_ATTR_TYPE_DONT_FRAGMENT"; }
+  case STUN_ATTR_TYPE_XOR_MAPPED_ADDRESS:{ return "STUN_ATTR_TYPE_XOR_MAPPED_ADDRESS"; }
+  case STUN_ATTR_TYPE_RESERVATION_TOKEN:{ return "STUN_ATTR_TYPE_RESERVATION_TOKEN"; }
+  case STUN_ATTR_TYPE_PRIORITY:{ return "STUN_ATTR_TYPE_PRIORITY"; }
+  case STUN_ATTR_TYPE_USE_CANDIDATE:{ return "STUN_ATTR_TYPE_USE_CANDIDATE"; }
+  case STUN_ATTR_TYPE_PADDING:{ return "STUN_ATTR_TYPE_PADDING"; }
+  case STUN_ATTR_TYPE_RESPONSE_PORT:{ return "STUN_ATTR_TYPE_RESPONSE_PORT"; }
+  case STUN_ATTR_TYPE_SOFTWARE:{ return "STUN_ATTR_TYPE_SOFTWARE"; }
+  case STUN_ATTR_TYPE_ALTERNATE_SERVER:{ return "STUN_ATTR_TYPE_ALTERNATE_SERVER"; }
+  case STUN_ATTR_TYPE_FINGERPRINT:{ return "STUN_ATTR_TYPE_FINGERPRINT"; }
+  case STUN_ATTR_TYPE_ICE_CONTROLLED:{ return "STUN_ATTR_TYPE_ICE_CONTROLLED"; }
+  case STUN_ATTR_TYPE_ICE_CONTROLLING:{ return "STUN_ATTR_TYPE_ICE_CONTROLLING"; }
+  case STUN_ATTR_TYPE_RESPONSE_ORIGIN:{ return "STUN_ATTR_TYPE_RESPONSE_ORIGIN"; }
+  case STUN_ATTR_TYPE_OTHER_ADDRESS:{ return "STUN_ATTR_TYPE_OTHER_ADDRESS"; }
+  default:{ return "UNKNOWN"; }
   }
 }
-
-static uint32_t poly_crc32(uint32_t inCrc, const uint8_t *data, size_t nbytes){
-
-  static const unsigned long crc_table[256] ={
-      0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535,
-      0x9E6495A3, 0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988, 0x09B64C2B, 0x7EB17CBD,
-      0xE7B82D07, 0x90BF1D91, 0x1DB71064, 0x6AB020F2, 0xF3B97148, 0x84BE41DE, 0x1ADAD47D,
-      0x6DDDE4EB, 0xF4D4B551, 0x83D385C7, 0x136C9856, 0x646BA8C0, 0xFD62F97A, 0x8A65C9EC,
-      0x14015C4F, 0x63066CD9, 0xFA0F3D63, 0x8D080DF5, 0x3B6E20C8, 0x4C69105E, 0xD56041E4,
-      0xA2677172, 0x3C03E4D1, 0x4B04D447, 0xD20D85FD, 0xA50AB56B, 0x35B5A8FA, 0x42B2986C,
-      0xDBBBC9D6, 0xACBCF940, 0x32D86CE3, 0x45DF5C75, 0xDCD60DCF, 0xABD13D59, 0x26D930AC,
-      0x51DE003A, 0xC8D75180, 0xBFD06116, 0x21B4F4B5, 0x56B3C423, 0xCFBA9599, 0xB8BDA50F,
-      0x2802B89E, 0x5F058808, 0xC60CD9B2, 0xB10BE924, 0x2F6F7C87, 0x58684C11, 0xC1611DAB,
-      0xB6662D3D, 0x76DC4190, 0x01DB7106, 0x98D220BC, 0xEFD5102A, 0x71B18589, 0x06B6B51F,
-      0x9FBFE4A5, 0xE8B8D433, 0x7807C9A2, 0x0F00F934, 0x9609A88E, 0xE10E9818, 0x7F6A0DBB,
-      0x086D3D2D, 0x91646C97, 0xE6635C01, 0x6B6B51F4, 0x1C6C6162, 0x856530D8, 0xF262004E,
-      0x6C0695ED, 0x1B01A57B, 0x8208F4C1, 0xF50FC457, 0x65B0D9C6, 0x12B7E950, 0x8BBEB8EA,
-      0xFCB9887C, 0x62DD1DDF, 0x15DA2D49, 0x8CD37CF3, 0xFBD44C65, 0x4DB26158, 0x3AB551CE,
-      0xA3BC0074, 0xD4BB30E2, 0x4ADFA541, 0x3DD895D7, 0xA4D1C46D, 0xD3D6F4FB, 0x4369E96A,
-      0x346ED9FC, 0xAD678846, 0xDA60B8D0, 0x44042D73, 0x33031DE5, 0xAA0A4C5F, 0xDD0D7CC9,
-      0x5005713C, 0x270241AA, 0xBE0B1010, 0xC90C2086, 0x5768B525, 0x206F85B3, 0xB966D409,
-      0xCE61E49F, 0x5EDEF90E, 0x29D9C998, 0xB0D09822, 0xC7D7A8B4, 0x59B33D17, 0x2EB40D81,
-      0xB7BD5C3B, 0xC0BA6CAD, 0xEDB88320, 0x9ABFB3B6, 0x03B6E20C, 0x74B1D29A, 0xEAD54739,
-      0x9DD277AF, 0x04DB2615, 0x73DC1683, 0xE3630B12, 0x94643B84, 0x0D6D6A3E, 0x7A6A5AA8,
-      0xE40ECF0B, 0x9309FF9D, 0x0A00AE27, 0x7D079EB1, 0xF00F9344, 0x8708A3D2, 0x1E01F268,
-      0x6906C2FE, 0xF762575D, 0x806567CB, 0x196C3671, 0x6E6B06E7, 0xFED41B76, 0x89D32BE0,
-      0x10DA7A5A, 0x67DD4ACC, 0xF9B9DF6F, 0x8EBEEFF9, 0x17B7BE43, 0x60B08ED5, 0xD6D6A3E8,
-      0xA1D1937E, 0x38D8C2C4, 0x4FDFF252, 0xD1BB67F1, 0xA6BC5767, 0x3FB506DD, 0x48B2364B,
-      0xD80D2BDA, 0xAF0A1B4C, 0x36034AF6, 0x41047A60, 0xDF60EFC3, 0xA867DF55, 0x316E8EEF,
-      0x4669BE79, 0xCB61B38C, 0xBC66831A, 0x256FD2A0, 0x5268E236, 0xCC0C7795, 0xBB0B4703,
-      0x220216B9, 0x5505262F, 0xC5BA3BBE, 0xB2BD0B28, 0x2BB45A92, 0x5CB36A04, 0xC2D7FFA7,
-      0xB5D0CF31, 0x2CD99E8B, 0x5BDEAE1D, 0x9B64C2B0, 0xEC63F226, 0x756AA39C, 0x026D930A,
-      0x9C0906A9, 0xEB0E363F, 0x72076785, 0x05005713, 0x95BF4A82, 0xE2B87A14, 0x7BB12BAE,
-      0x0CB61B38, 0x92D28E9B, 0xE5D5BE0D, 0x7CDCEFB7, 0x0BDBDF21, 0x86D3D2D4, 0xF1D4E242,
-      0x68DDB3F8, 0x1FDA836E, 0x81BE16CD, 0xF6B9265B, 0x6FB077E1, 0x18B74777, 0x88085AE6,
-      0xFF0F6A70, 0x66063BCA, 0x11010B5C, 0x8F659EFF, 0xF862AE69, 0x616BFFD3, 0x166CCF45,
-      0xA00AE278, 0xD70DD2EE, 0x4E048354, 0x3903B3C2, 0xA7672661, 0xD06016F7, 0x4969474D,
-      0x3E6E77DB, 0xAED16A4A, 0xD9D65ADC, 0x40DF0B66, 0x37D83BF0, 0xA9BCAE53, 0xDEBB9EC5,
-      0x47B2CF7F, 0x30B5FFE9, 0xBDBDF21C, 0xCABAC28A, 0x53B39330, 0x24B4A3A6, 0xBAD03605,
-      0xCDD70693, 0x54DE5729, 0x23D967BF, 0xB3667A2E, 0xC4614AB8, 0x5D681B02, 0x2A6F2B94,
-      0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D};
-
-  uint32_t crc32 = inCrc ^ 0xFFFFFFFF;
-  size_t i;
-
-  for (i = 0; i < nbytes; i++){crc32 = (crc32 >> 8) ^ crc_table[(crc32 ^ data[i]) & 0xFF];}
-
-  return (crc32 ^ 0xFFFFFFFF);
-}
-
-/* --------------------------------------- */
 
 int stun_compute_hmac_sha1(uint8_t *message, uint32_t nbytes, std::string key, uint8_t *output){
 
@@ -258,32 +125,6 @@ int stun_compute_hmac_sha1(uint8_t *message, uint32_t nbytes, std::string key, u
     r = -9;
     goto error;
   }
-
-#if 0
-  printf("stun::compute_hmac_sha1 - verbose: computing hash over %u bytes, using key `%s`:\n", nbytes, key.c_str());
-  printf("-----------------------------------\n\t0: ");
-  int nl = 0, lines = 0;
-  for (int i = 0; i < nbytes; ++i, ++nl){
-    if (nl == 4){
-      printf("\n\t");
-      nl = 0;
-      lines++;
-      printf("%d: ", lines);
-    }
-    printf("%02X ", message[i]);
-  }
-  printf("\n-----------------------------------\n");
-#endif
-
-#if 0
-  
-  printf("stun::compute_hmac_sha1 - verbose: computed hash: ");
-  int len = 20;
-  for(unsigned int i = 0; i < len; ++i){
-    printf("%02X ", output[i]);
-  }
-  printf("\n");
-#endif
 
 error:
   mbedtls_md_free(&md_ctx);
@@ -401,8 +242,8 @@ int stun_compute_fingerprint(std::vector<uint8_t> &buffer, uint32_t &result){
   buffer[2] = (offset >> 8) & 0xFF;
   buffer[3] = offset & 0xFF;
 
-  // result = (checksum::crc32LE(0 ^ 0xFFFFFFFF, (const char*)&buffer[0], offset + 12) ^ 0xFFFFFFFF) ^ 0x5354554e;
-  result = poly_crc32(0L, &buffer[0], offset + 12) ^ 0x5354554e;
+  result = (checksum::crc32LE(0 ^ 0xFFFFFFFF, (const char*)&buffer[0], offset + 12) ^ 0xFFFFFFFF) ^ 0x5354554e;
+  //result = poly_crc32(0L, &buffer[0], offset + 12) ^ 0x5354554e;
 
   /* and reset the size */
   buffer[2] = curr_size[0];
@@ -414,60 +255,6 @@ int stun_compute_fingerprint(std::vector<uint8_t> &buffer, uint32_t &result){
 /* --------------------------------------- */
 
 StunAttribute::StunAttribute() : type(STUN_ATTR_TYPE_NONE), length(0){}
-
-void StunAttribute::print(){
-
-  DONTEVEN_MSG("StunAttribute.type: %s", stun_attribute_type_to_string(type).c_str());
-  DONTEVEN_MSG("StunAttribute.length: %u", length);
-
-  switch (type){
-
-  case STUN_ATTR_TYPE_XOR_MAPPED_ADDRESS:{
-    DONTEVEN_MSG("StunAttribute.xor_address.family: %s",
-                 stun_family_type_to_string(xor_address.family).c_str());
-    DONTEVEN_MSG("StunAttribute.xor_address.port: %u", xor_address.port);
-    DONTEVEN_MSG("StunAttribute.xor_address.ip: %s", (char *)xor_address.ip);
-    break;
-  }
-
-  case STUN_ATTR_TYPE_USERNAME:{
-    DONTEVEN_MSG("StunAttribute.username.value: `%.*s`", length, username.value);
-    break;
-  }
-
-  case STUN_ATTR_TYPE_SOFTWARE:{
-    DONTEVEN_MSG("StunAttribute.software.value: `%.*s`", length, software.value);
-    break;
-  }
-
-  case STUN_ATTR_TYPE_ICE_CONTROLLING:{
-    uint8_t *p = (uint8_t *)&ice_controlling.tie_breaker;
-    DONTEVEN_MSG("StunAttribute.ice_controlling.tie_breaker: 0x%04x%04x", *(uint32_t *)(p + 4),
-                 *(uint32_t *)(p));
-    break;
-  }
-
-  case STUN_ATTR_TYPE_PRIORITY:{
-    DONTEVEN_MSG("StunAttribute.priority.value: %u", priority.value);
-    break;
-  }
-
-  case STUN_ATTR_TYPE_MESSAGE_INTEGRITY:{
-    std::stringstream ss;
-    for (int i = 0; i < 20; ++i){ss << std::hex << (int)message_integrity.sha1[i];}
-    std::string str = ss.str();
-    DONTEVEN_MSG("StunAttribute.message_integrity.sha1: %s", str.c_str());
-    break;
-  }
-
-  case STUN_ATTR_TYPE_FINGERPRINT:{
-    DONTEVEN_MSG("StunAttribute.fingerprint.value: 0x%08x", fingerprint.value);
-    break;
-  }
-  }
-}
-
-/* --------------------------------------- */
 
 StunMessage::StunMessage() : type(STUN_MSG_TYPE_NONE), length(0), cookie(0x2112a442){
   transaction_id[0] = 0;
@@ -509,316 +296,49 @@ StunAttribute *StunMessage::getAttributeByType(uint16_t type){
   return NULL;
 }
 /* --------------------------------------- */
-StunReader::StunReader() : buffer_data(NULL), buffer_size(0), read_dx(0){}
 
-int StunReader::parse(uint8_t *data, size_t nbytes, size_t &nparsed, StunMessage &msg){
-
-  StunAttribute attr;
-  size_t attr_offset = 0;
-  nparsed = 0;
-
-  if (NULL == data){
-    FAIL_MSG("Cannot parse stun message because given data ptr is a NULL.");
-    return -1;
+bool STUN::parse(const char *data, size_t nbytes, StunMessage &msg){
+  if (!data){
+    FAIL_MSG("STUN parser: data is null");
+    return false;
   }
-
   if (nbytes < 20){
-    FAIL_MSG("Cannot parse stun message because given nbytes is < 20.");
-    return -2;
+    FAIL_MSG("Cannot parse STUN message smaller than 20 bytes");
+    return false;
   }
 
-  buffer_data = data;
-  buffer_size = nbytes;
-  read_dx = 0;
+  // Read 20-byte STUN header
+  msg.type = Bit::btohs(data);
+  msg.length = Bit::btohs(data+2);
+  msg.cookie = Bit::btohl(data+4);
+  msg.transaction_id[0] = Bit::btohl(data+8);
+  msg.transaction_id[1] = Bit::btohl(data+12);
+  msg.transaction_id[2] = Bit::btohl(data+16);
 
-  /* Read stun header. */
-  msg.type = readU16();
-  msg.length = readU16();
-  msg.cookie = readU32();
-  msg.transaction_id[0] = readU32();
-  msg.transaction_id[1] = readU32();
-  msg.transaction_id[2] = readU32();
-
-  if ((nbytes - 20) < msg.length){
-    FAIL_MSG("Buffer is too small to contain the full stun message.");
-    return -3;
+  if (msg.length + 20 > nbytes){
+    FAIL_MSG("Cannot parse partial STUN message");
+    return false;
   }
 
-  /* Read all the attributes. */
-  while ((read_dx + 4) < buffer_size){
+  // Read attributes, if any
+  size_t offset = 20;
+  while ((offset + 4) < nbytes){
+    StunAttribute attr;
+    attr.type = Bit::btohs(data+offset);
+    attr.length = Bit::btohs(data+offset+2);
 
-    attr.type = readU16();
-    attr.length = readU16();
-    attr_offset = read_dx;
+    // Abort if we're about to go outside of the packet size
+    if (offset + 4 + attr.length > nbytes){break;}
 
-    switch (attr.type){
-
-    case STUN_ATTR_TYPE_USERNAME:{
-      if (0 != parseUsername(attr)){
-        FAIL_MSG("Failed to read the username.");
-        return -4;
-      }
-      break;
-    }
-
-    case STUN_ATTR_TYPE_XOR_MAPPED_ADDRESS:{
-      if (0 != parseXorMappedAddress(attr)){
-        FAIL_MSG("Failed to read the xor-mapped-address.");
-        return -4;
-      }
-      break;
-    }
-
-    case STUN_ATTR_TYPE_ICE_CONTROLLING:{
-      if (0 != parseIceControlling(attr)){
-        FAIL_MSG("Failed to read the ice-contontrolling attribute.");
-        return -4;
-      }
-      break;
-    }
-
-    case STUN_ATTR_TYPE_PRIORITY:{
-      if (0 != parsePriority(attr)){
-        FAIL_MSG("Failed to read the priority attribute.");
-        return -4;
-      }
-      break;
-    }
-
-    case STUN_ATTR_TYPE_MESSAGE_INTEGRITY:{
-      if (0 != parseMessageIntegrity(attr)){
-        FAIL_MSG("Failed to parse the message integrity.");
-        return -4;
-      }
-      break;
-    }
-
-    case STUN_ATTR_TYPE_FINGERPRINT:{
-      if (0 != parseFingerprint(attr)){
-        FAIL_MSG("Failed to parse the fingerprint.");
-        return -4;
-      }
-      break;
-    }
-
-    case STUN_ATTR_TYPE_SOFTWARE:{
-      if (0 != parseSoftware(attr)){
-        FAIL_MSG("Failed to parse the software attribute.");
-        return -4;
-      }
-      break;
-    }
-
-    default:{
-      DONTEVEN_MSG("Unhandled stun attribute: 0x%04X, %s", attr.type,
-                   stun_attribute_type_to_string(attr.type).c_str());
-      break;
-    }
-    }
-
-    /* Move the read_dx so it's positioned after the currently parsed attribute */
-    read_dx = attr_offset + attr.length;
-    while ((read_dx & 0x03) != 0 && (read_dx < buffer_size)){read_dx++;}
-
+    attr.data.assign(data + offset + 4, attr.length);
     msg.attributes.push_back(attr);
-
-    attr.print();
+    offset += 4 + attr.length;
+    // Skip padding bytes, if any
+    while ((offset & 0x03) != 0 && (offset < nbytes)){++offset;}
   }
 
-  nparsed = read_dx;
-
-  return 0;
+  return true;
 }
-
-/* --------------------------------------- */
-
-int StunReader::parseFingerprint(StunAttribute &attr){
-
-  if ((read_dx + 4) > buffer_size){
-    FAIL_MSG("Cannot read FINGERPRINT because the buffer is too small.");
-    return -1;
-  }
-
-  attr.fingerprint.value = readU32();
-
-  return 0;
-}
-
-int StunReader::parseMessageIntegrity(StunAttribute &attr){
-
-  if ((read_dx + 20) > buffer_size){
-    FAIL_MSG("Cannot read the MESSAGE-INTEGRITY because the buffer is too small.");
-    return -1;
-  }
-
-  attr.message_integrity.sha1 = buffer_data + read_dx;
-
-  return 0;
-}
-
-int StunReader::parsePriority(StunAttribute &attr){
-
-  if ((read_dx + 4) > buffer_size){
-    FAIL_MSG("Cannot read the PRIORITY attribute because the buffer is too small.");
-    return -1;
-  }
-
-  attr.priority.value = readU32();
-
-  return 0;
-}
-
-int StunReader::parseSoftware(StunAttribute &attr){
-
-  if ((read_dx + attr.length) > buffer_size){
-    FAIL_MSG("Cannot read SOFTWARE attribute because the buffer is too small.");
-    return -1;
-  }
-
-  attr.software.value = (char *)(buffer_data + read_dx);
-
-  return 0;
-}
-
-int StunReader::parseIceControlling(StunAttribute &attr){
-
-  if ((read_dx + 8) > buffer_size){
-    FAIL_MSG("Cannot read the ICE-CONTROLLING attribute because the buffer is too small.");
-    return -1;
-  }
-
-  attr.ice_controlling.tie_breaker = readU64();
-
-  return 0;
-}
-
-int StunReader::parseUsername(StunAttribute &attr){
-
-  if ((read_dx + attr.length) > buffer_size){
-    FAIL_MSG("Cannot read USRENAME attribute because the buffer is too small.");
-    return -1;
-  }
-
-  attr.username.value = (char *)(buffer_data + read_dx);
-
-  return 0;
-}
-
-int StunReader::parseXorMappedAddress(StunAttribute &attr){
-
-  if ((read_dx + 8) > buffer_size){
-    FAIL_MSG("Cannot read XOR_MAPPED_ADDRESS because the buffer is too small.");
-    return -1;
-  }
-
-  /* Skip the first byte, should be ignored by readers. */
-  read_dx++;
-
-  /* Read family */
-  attr.xor_address.family = readU8();
-
-  if (STUN_IP4 != attr.xor_address.family){
-    FAIL_MSG("Currently we only implemented the IP4 XOR_MAPPED_ADDRESS");
-    return -2;
-  }
-
-  uint8_t cookie[] ={0x42, 0xA4, 0x12, 0x21};
-  uint32_t ip = 0;
-  uint8_t *ip_ptr = (uint8_t *)&ip;
-  uint8_t *port_ptr = (uint8_t *)&attr.xor_address.port;
-
-  /* Read the port. */
-  attr.xor_address.port = readU16();
-  port_ptr[0] = port_ptr[0] ^ cookie[2];
-  port_ptr[1] = port_ptr[1] ^ cookie[3];
-
-  /* Read IP4. */
-  ip = readU32();
-  ip_ptr[0] = ip_ptr[0] ^ cookie[0];
-  ip_ptr[1] = ip_ptr[1] ^ cookie[1];
-  ip_ptr[2] = ip_ptr[2] ^ cookie[2];
-  ip_ptr[3] = ip_ptr[3] ^ cookie[3];
-
-  sprintf((char *)attr.xor_address.ip, "%u.%u.%u.%u", ip_ptr[3], ip_ptr[2], ip_ptr[1], ip_ptr[0]);
-
-  return 0;
-}
-
-/* --------------------------------------- */
-
-uint8_t StunReader::readU8(){
-
-  if ((read_dx + 1) > buffer_size){
-    FAIL_MSG("Cannot readU8(), out of bounds.");
-    return 0;
-  }
-
-  uint8_t v = 0;
-  v = buffer_data[read_dx];
-  read_dx = read_dx + 1;
-
-  return v;
-}
-
-uint16_t StunReader::readU16(){
-
-  if ((read_dx + 2) > buffer_size){
-    FAIL_MSG("Cannot readU16(), out of bounds.");
-    return 0;
-  }
-
-  uint16_t v = 0;
-  uint8_t *p = (uint8_t *)&v;
-  p[0] = buffer_data[read_dx + 1];
-  p[1] = buffer_data[read_dx + 0];
-  read_dx = read_dx + 2;
-
-  return v;
-}
-
-uint32_t StunReader::readU32(){
-
-  if ((read_dx + 4) > buffer_size){
-    FAIL_MSG("Cannot readU32(), out of bounds.");
-    return 0;
-  }
-
-  uint32_t v = 0;
-  uint8_t *p = (uint8_t *)&v;
-  p[0] = buffer_data[read_dx + 3];
-  p[1] = buffer_data[read_dx + 2];
-  p[2] = buffer_data[read_dx + 1];
-  p[3] = buffer_data[read_dx + 0];
-  read_dx = read_dx + 4;
-
-  return v;
-}
-
-uint64_t StunReader::readU64(){
-
-  if ((read_dx + 8) > buffer_size){
-    FAIL_MSG("Cannot readU64(), out of bounds.");
-    return 0;
-  }
-
-  uint64_t v = 0;
-  uint8_t *p = (uint8_t *)&v;
-
-  p[0] = buffer_data[read_dx + 7];
-  p[1] = buffer_data[read_dx + 6];
-  p[2] = buffer_data[read_dx + 5];
-  p[3] = buffer_data[read_dx + 4];
-  p[4] = buffer_data[read_dx + 3];
-  p[5] = buffer_data[read_dx + 2];
-  p[6] = buffer_data[read_dx + 1];
-  p[7] = buffer_data[read_dx + 0];
-
-  read_dx = read_dx + 8;
-
-  return v;
-}
-
-/* --------------------------------------- */
 
 StunWriter::StunWriter() : padding_byte(0){}
 
@@ -855,66 +375,128 @@ int StunWriter::end(){
 
 /* --------------------------------------- */
 
-int StunWriter::writeXorMappedAddress(sockaddr_in addr){
-
-  if (AF_INET != addr.sin_family){
-    FAIL_MSG("Currently we only support ip4 xor-mapped-address attributes.");
-    return -1;
+int StunWriter::writeXorMappedAddress(const sockaddr * in_addr){
+  if (in_addr->sa_family == AF_INET){
+    sockaddr_in * addr = (sockaddr_in*)in_addr;
+    uint32_t ip_int = ntohl(addr->sin_addr.s_addr);
+    return writeXorMappedAddress(STUN_IP4, ntohs(addr->sin_port), (char*)&ip_int);
   }
-
-  return writeXorMappedAddress(STUN_IP4, ntohs(addr.sin_port), ntohl(addr.sin_addr.s_addr));
+  if (in_addr->sa_family == AF_INET6){
+    sockaddr_in6 * addr = (sockaddr_in6*)in_addr;
+    char result[16];
+    result[ 0] = addr->sin6_addr.s6_addr[15];
+    result[ 1] = addr->sin6_addr.s6_addr[14];
+    result[ 2] = addr->sin6_addr.s6_addr[13];
+    result[ 3] = addr->sin6_addr.s6_addr[12];
+    result[ 4] = addr->sin6_addr.s6_addr[11];
+    result[ 5] = addr->sin6_addr.s6_addr[10];
+    result[ 6] = addr->sin6_addr.s6_addr[ 9];
+    result[ 7] = addr->sin6_addr.s6_addr[ 8];
+    result[ 8] = addr->sin6_addr.s6_addr[ 7];
+    result[ 9] = addr->sin6_addr.s6_addr[ 6];
+    result[10] = addr->sin6_addr.s6_addr[ 5];
+    result[11] = addr->sin6_addr.s6_addr[ 4];
+    result[12] = addr->sin6_addr.s6_addr[ 3];
+    result[13] = addr->sin6_addr.s6_addr[ 2];
+    result[14] = addr->sin6_addr.s6_addr[ 1];
+    result[15] = addr->sin6_addr.s6_addr[ 0];
+    return writeXorMappedAddress(STUN_IP6, ntohs(addr->sin6_port), result);
+  }
+  FAIL_MSG("Currently we only support IPv4 or IPv6 addresses in STUN packets");
+  return -1;
 }
 
 int StunWriter::writeXorMappedAddress(uint8_t family, uint16_t port, const std::string &ip){
-
-  uint32_t ip_int = 0;
-  if (0 != convertIp4StringToInt(ip, ip_int)){
-    FAIL_MSG("Cannot write xor-mapped-address, because we failed to convert the given IP4 string "
-             "into a uint32_t.");
+  if (!ip.size()){
+    FAIL_MSG("Given ip string is empty.");
     return -1;
   }
 
-  return writeXorMappedAddress(family, port, ip_int);
+  if (family == STUN_IP4){
+    in_addr addr;
+    if (ip.find("::ffff:") == 0){
+      if (inet_pton(AF_INET, ip.c_str() + 7, &addr) != 1){
+        FAIL_MSG("inet_pton() failed, cannot convert IPv4 string '%s' into uint32_t.", ip.c_str() + 7);
+        return -2;
+      }
+    }else{
+      if (inet_pton(AF_INET, ip.c_str(), &addr) != 1){
+        FAIL_MSG("inet_pton() failed, cannot convert IPv4 string '%s' into uint32_t.", ip.c_str());
+        return -2;
+      }
+    }
+    uint32_t ip_int = ntohl(addr.s_addr);
+    return writeXorMappedAddress(family, port, (char*)&ip_int);
+  }
+  if (family == STUN_IP6){
+    in_addr addr;
+    if (inet_pton(AF_INET6, ip.c_str(), &addr) != 1){
+      FAIL_MSG("inet_pton() failed, cannot convert IPv6 string '%s' into integer.", ip.c_str());
+      return -2;
+    }
+    char result[16];
+    result[ 0] = (&addr.s_addr)[15];
+    result[ 1] = (&addr.s_addr)[14];
+    result[ 2] = (&addr.s_addr)[13];
+    result[ 3] = (&addr.s_addr)[12];
+    result[ 4] = (&addr.s_addr)[11];
+    result[ 5] = (&addr.s_addr)[10];
+    result[ 6] = (&addr.s_addr)[ 9];
+    result[ 7] = (&addr.s_addr)[ 8];
+    result[ 8] = (&addr.s_addr)[ 7];
+    result[ 9] = (&addr.s_addr)[ 6];
+    result[10] = (&addr.s_addr)[ 5];
+    result[11] = (&addr.s_addr)[ 4];
+    result[12] = (&addr.s_addr)[ 3];
+    result[13] = (&addr.s_addr)[ 2];
+    result[14] = (&addr.s_addr)[ 1];
+    result[15] = (&addr.s_addr)[ 0];
+    return writeXorMappedAddress(family, port, result);
+  }
+  FAIL_MSG("Unknown address family for STUN packet!");
+  return -1;
 }
 
-/* `ip` is in host byte order. */
-int StunWriter::writeXorMappedAddress(uint8_t family, uint16_t port, uint32_t ip){
-
+/// Write a XorMappedAddress entry, using a host-order raw IP address
+int StunWriter::writeXorMappedAddress(uint8_t family, uint16_t port, char * ip_ptr){
   if (buffer.size() < 20){
     FAIL_MSG("Cannot write the xor-mapped-address. Make sure you wrote the header first.");
     return -1;
   }
 
-  if (STUN_IP4 != family){
+  if (family != STUN_IP4 && family != STUN_IP6){
     FAIL_MSG("Cannot write the xor-mapped-address, we only support ip4 for now.");
     return -2;
   }
 
-  /* xor the port  */
-  uint8_t cookie[] ={0x42, 0xA4, 0x12, 0x21};
-  uint8_t *port_ptr = (uint8_t *)&port;
-  port_ptr[0] = port_ptr[0] ^ cookie[2];
-  port_ptr[1] = port_ptr[1] ^ cookie[3];
+  // Consider IPv6-mapped IPv4 addresses to be simply IPv4
+  if (family == STUN_IP6 && !memcmp(ip_ptr + 4, "\377\377\000\000\000\000\000\000\000\000\000\000", 12)){
+    family = STUN_IP4;
+  }
 
-  /* xor the ip */
-  uint8_t *ip_ptr = (uint8_t *)&ip;
-  ip_ptr[0] = ip_ptr[0] ^ cookie[0];
-  ip_ptr[1] = ip_ptr[1] ^ cookie[1];
-  ip_ptr[2] = ip_ptr[2] ^ cookie[2];
-  ip_ptr[3] = ip_ptr[3] ^ cookie[3];
-
-  /* write header */
+  // write header
   writeU16(STUN_ATTR_TYPE_XOR_MAPPED_ADDRESS);
-  writeU16(8);
+  writeU16((family == STUN_IP4)?8:20); //length
   writeU8(0);
   writeU8(family);
 
-  /* port and ip */
+  // xor and write the port
+  uint8_t *port_ptr = (uint8_t *)&port;
+  port_ptr[0] ^= buffer[4+1];
+  port_ptr[1] ^= buffer[4+0];
   writeU16(port);
-  writeU32(ip);
 
+  // xor and write the ip
+  if (family == STUN_IP4){
+    for (size_t i = 0; i < 4; ++i){
+      buffer.push_back(ip_ptr[3-i] ^ buffer[i+4]);
+    }
+  }else{
+    for (size_t i = 0; i < 16; ++i){
+      buffer.push_back(ip_ptr[15-i] ^ buffer[i+4]);
+    }
+  }
   writePadding();
-
   return 0;
 }
 
@@ -1006,29 +588,6 @@ int StunWriter::writeFingerprint(){
 
   writeU32(fingerprint);
   writePadding();
-
-  return 0;
-}
-
-/* --------------------------------------- */
-
-int StunWriter::convertIp4StringToInt(const std::string &ip, uint32_t &result){
-
-  if (!ip.size()){
-    FAIL_MSG("Given ip string is empty.");
-    return -1;
-  }
-  if (ip.size() >= 7 && ip.substr(0, 7) == "::ffff:"){
-    return convertIp4StringToInt(ip.substr(7), result);
-  }
-
-  in_addr addr;
-  if (1 != inet_pton(AF_INET, ip.c_str(), &addr)){
-    FAIL_MSG("inet_pton() failed, cannot convert IPv4 string '%s' into uint32_t.", ip.c_str());
-    return -2;
-  }
-
-  result = ntohl(addr.s_addr);
 
   return 0;
 }

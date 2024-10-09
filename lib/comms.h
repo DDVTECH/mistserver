@@ -1,12 +1,15 @@
 #pragma once
-#include "procs.h"
 #include "shared_memory.h"
 #include "util.h"
+
+// needed for COMM_LOOP to work
+#include "procs.h" // IWYU pragma: keep
 
 
 #define COMM_LOOP(comm, onActive, onDisconnect) \
   {\
     size_t rc = comm.recordCount();\
+    size_t maxRec = 0;\
     for (size_t id = 0; id < rc; ++id){\
       uint8_t s = comm.getStatus(id);\
       if (s == COMM_STATUS_INVALID){continue;}\
@@ -18,7 +21,9 @@
         onDisconnect;\
         comm.setStatus(COMM_STATUS_INVALID, id);\
       }\
+      maxRec = id;\
     }\
+    if (maxRec+1 < rc){comm.setRecordCount(maxRec+1, rc);}\
   }
 
 namespace Comms{
@@ -41,6 +46,7 @@ namespace Comms{
     virtual void nullFields();
     virtual void fieldAccess();
     size_t recordCount() const;
+    void setRecordCount(size_t idx, size_t prevCount);
     uint8_t getStatus() const;
     uint8_t getStatus(size_t idx) const;
     void setStatus(uint8_t _status);
@@ -162,8 +168,10 @@ namespace Comms{
   class Users : public Comms{
   public:
     Users();
+    ~Users();
     Users(const Users &rhs);
     void reload(const std::string &_streamName = "", bool _master = false, bool reIssue = false);
+    void reloadReadonly(const std::string &_streamName);
     void reload(const std::string &_streamName, size_t track, uint8_t initialState = COMM_STATUS_ACTIVE);
     virtual void addFields();
     virtual void nullFields();
@@ -186,6 +194,7 @@ namespace Comms{
 
     Util::FieldAccX track;
     Util::FieldAccX keyNum;
+    bool noMaster;
   };
 
   class Sessions : public Connections{

@@ -58,6 +58,8 @@ namespace Socket{
   bool compareAddress(const sockaddr* A, const sockaddr* B);
   std::string getBinForms(std::string addr);
   std::deque<std::string> getAddrs(std::string addr, uint16_t port, int family = AF_UNSPEC);
+  // Returns a list of local addresses
+  void getLocal(std::deque<std::string> & addrs);
   /// Returns true if given human-readable address (address, not hostname) is a local address.
   bool isLocal(const std::string &host);
   /// Returns true if given human-readable hostname is a local address.
@@ -242,8 +244,7 @@ namespace Socket{
    
     // dTLS-related members
     bool hasDTLS; ///< True if dTLS is enabled
-    void * nextDTLSRead;
-    size_t nextDTLSReadLen;
+    std::deque<Util::ResizeablePointer> nextDTLSRead;
 #ifdef SSL
     mbedtls_entropy_context entropy_ctx;
     mbedtls_ctr_drbg_context rand_ctx;
@@ -257,6 +258,7 @@ namespace Socket{
     Util::ResizeablePointer data;
     UDPConnection(const UDPConnection &o);
     UDPConnection(bool nonblock = false);
+    UDPConnection(const void * dest, size_t destLen, const void * loc, size_t locLen);
     ~UDPConnection();
     void assimilate(int sock);
     bool operator==(const UDPConnection& b) const;
@@ -264,6 +266,7 @@ namespace Socket{
 #ifdef SSL
     void initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key);
     void deinitDTLS();
+    bool handshakeComplete();
     int dTLSRead(unsigned char *buf, size_t len);
     int dTLSWrite(const unsigned char *buf, size_t len);
     void dTLSReset();
@@ -271,11 +274,14 @@ namespace Socket{
     bool wasEncrypted;
     void close();
     int getSock();
+    void swapSocket(UDPConnection & other);
     uint16_t bind(int port, std::string iface = "", const std::string &multicastAddress = "");
+    void setMulticastTTL(size_t ttl);
     bool connect();
     void setBlocking(bool blocking);
     void setIgnoreSendErrors(bool ign);
     void allocateDestination();
+    void setAddresses(void * dest, size_t destLen, void * loc, size_t locLen);
     void SetDestination(std::string hostname, uint32_t port);
     bool setDestination(sockaddr * addr, size_t size);
     const Util::ResizeablePointer & getRemoteAddr() const;

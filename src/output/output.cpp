@@ -9,6 +9,11 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <sys/file.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 
 #include "output.h" 
 #include <mist/bitfields.h>
@@ -19,17 +24,10 @@
 #include <mist/timing.h>
 #include <mist/util.h>
 #include <mist/urireader.h>
-#include <sys/file.h>
 #include <mist/encode.h>
-
-/*LTS-START*/
-#include <arpa/inet.h>
 #include <mist/langcodes.h>
 #include <mist/triggers.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-/*LTS-END*/
+#include <mist/procs.h>
 
 namespace Mist{
   JSON::Value Output::capa = JSON::Value();
@@ -92,11 +90,15 @@ namespace Mist{
   }
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
+    liveSeekDisabled = false;
     dataWaitTimeout = 2500;
     thisBootMs = Util::bootMS();
+    lastPacketBootMs = thisBootMs;
+    for (size_t i = 0; i < 10; ++i){interPacketTimes[i] = 50;}
+    lowestInterpacket = 50;
     pushing = false;
     recursingSync = false;
-    firstTime = Util::bootMS();
+    firstTime = thisBootMs;
     thisTime = 0;
     firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
     lastPacketTime = 0;
@@ -111,7 +113,7 @@ namespace Mist{
     maxSkipAhead = 7500;
     uaDelay = 10;
     realTime = 1000;
-    emptyCount = 0;
+    lastReceive = 0;
     seekCount = 2;
     firstData = true;
     newUA = true;
@@ -119,7 +121,7 @@ namespace Mist{
     Util::Config::binaryType = Util::OUTPUT;
 
     lastRecv = Util::bootSecs();
-    outputStartMs = Util::bootMS();
+    outputStartMs = thisBootMs;
     if (myConn){
       setBlocking(true);
       //Make sure that if the socket is a non-stdio socket, we close it when forking
@@ -300,6 +302,7 @@ namespace Mist{
       myConn.resetCounter();
     }
     userSelect.clear();
+    trackSelectionChanged();
     isInitialized = false;
     meta.clear();
   }
@@ -366,6 +369,7 @@ namespace Mist{
 
     //Wipe currently selected tracks; metadata unload coming up
     userSelect.clear();
+    trackSelectionChanged();
 
     //Connect to stream metadata
     meta.reInit(streamName, false);
@@ -390,7 +394,7 @@ namespace Mist{
     if (!isRecording() && M && M.getLive() && !isReadyForPlay()){
       uint64_t waitUntil = Util::bootSecs() + 45;
       while (M && M.getLive() && !isReadyForPlay()){
-        if (Util::bootSecs() > waitUntil || (!userSelect.size() && Util::bootSecs() > waitUntil)){
+        if (Util::bootSecs() > waitUntil){
           INFO_MSG("Giving up waiting for playable tracks. IP: %s", getConnectedHost().c_str());
           break;
         }
@@ -423,6 +427,7 @@ namespace Mist{
     meta.reloadReplacedPagesIfNeeded();
     if (!M){
       userSelect.clear();
+      trackSelectionChanged();
       buffer.clear();
       return true;
     }
@@ -463,6 +468,7 @@ namespace Mist{
     for (std::set<size_t>::iterator it = diffs.begin(); it != diffs.end(); it++){
       HIGH_MSG("Dropping track %zu", *it);
       userSelect.erase(*it);
+      trackSelectionChanged();
     }
 
     //Find elements in new selection but not in old selection
@@ -470,6 +476,7 @@ namespace Mist{
     std::set_difference(newSelects.begin(), newSelects.end(), oldSelects.begin(), oldSelects.end(), std::inserter(diffs, diffs.end()));
     if (diffs.size()){MEDIUM_MSG("Adding %zu tracks", diffs.size());}
     for (std::set<size_t>::iterator it = diffs.begin(); it != diffs.end(); it++){
+      trackSelectionChanged();
       HIGH_MSG("Adding track %zu", *it);
       userSelect[*it].reload(streamName, *it);
       if (!userSelect[*it]){
@@ -764,8 +771,8 @@ namespace Mist{
   /// Return the intended target current time of the media buffer (as opposed to actual)
   /// This takes into account the current playback speed as well as the maxSkipAhead setting.
   uint64_t Output::targetTime(){
-    if (!realTime){return Util::bootMS() - firstTime + maxSkipAhead;}
-    return ((Util::bootMS() - firstTime) * 1000 / realTime) + maxSkipAhead;
+    if (!realTime){return currentTime();}
+    return (((thisBootMs - firstTime) * 1000) / realTime + maxSkipAhead);
   }
 
   /// Return the start time of the selected tracks.
@@ -873,7 +880,7 @@ namespace Mist{
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
       ret &= seek(*it, pos, false);
     }
-    firstTime = Util::bootMS() - (currentTime() * realTime / 1000);
+    firstTime = thisBootMs - (currentTime() * realTime / 1000);
     return ret;
   }
 
@@ -881,12 +888,14 @@ namespace Mist{
     if (!M.trackValid(tid)){
       MEDIUM_MSG("Aborting seek to %" PRIu64 "ms in track %zu: Invalid track id.", pos, tid);
       userSelect.erase(tid);
+      trackSelectionChanged();
       return false;
     }
     if (!M.trackLoaded(tid)){meta.reloadReplacedPagesIfNeeded();}
     if (!userSelect.count(tid) || !userSelect[tid]){
       WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: user select failure (%s)", pos, tid, userSelect.count(tid)?"not connected":"not selected");
       userSelect.erase(tid);
+      trackSelectionChanged();
       return false;
     }
 
@@ -902,6 +911,7 @@ namespace Mist{
       WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: past end of track (= %" PRIu64 "ms).",
                pos, tid, meta.getNowms(tid));
       userSelect.erase(tid);
+      trackSelectionChanged();
       return false;
     }
     DTSC::Keys keys(M.getKeys(tid));
@@ -917,7 +927,7 @@ namespace Mist{
     }
     uint64_t actualKeyTime = keys.getTime(keyNum);
     HIGH_MSG("Seeking to track %zu key %" PRIu32 " => time %" PRIu64, tid, keyNum, pos);
-    emptyCount = 0;
+    lastReceive = thisBootMs;
     if (actualKeyTime > pos){
       pos = actualKeyTime;
       userSelect[tid].setKeyNum(keyNum);
@@ -939,6 +949,7 @@ namespace Mist{
       if (keepGoing()){
         WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: not available.", pos, tid);
         userSelect.erase(tid);
+        trackSelectionChanged();
       }
       return false;
     }
@@ -968,6 +979,7 @@ namespace Mist{
         if (!tmpPack){
           WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: timeout", pos, tid);
           userSelect.erase(tid);
+          trackSelectionChanged();
           return false;
         }
       }
@@ -982,6 +994,7 @@ namespace Mist{
     }
     tmp.partIndex = M.getPartIndex(nowMs, tmp.tid);
     tmp.ghostPacket = true;
+    tmp.unavailable = true;
     tmp.time = nowMs;
     buffer.insert(tmp);
     return true;
@@ -1314,7 +1327,10 @@ namespace Mist{
       }
     }
     if (dryRun){return;}
-    /*LTS-END*/
+
+    if (targetParams.count("start")){liveSeekDisabled = true;} //disable seeking forward if start is given
+    if (targetParams.count("recstart")){liveSeekDisabled = true;} //disable seeking forward for pushes with start time
+
     if (!keepGoing()){
       ERROR_MSG("Aborting seek to %" PRIu64 " since the stream is no longer active", seekPos);
       return;
@@ -1346,9 +1362,8 @@ namespace Mist{
   /// It seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead+minKeepAway ms from the end.
   /// Aborts if not live, there is no main track or it has no keyframes.
   bool Output::liveSeek(bool rateOnly){
-    if (!realTime){return false;}//Makes no sense when playing in turbo mode
-    if (targetParams.count("start")){return false;} //disable seeking forward if start is given
-    if (targetParams.count("recstart")){return false;} //disable seeking forward for pushes with start time
+    INSANE_MSG("Timing: realTime=%" PRIu64 ", maxSkipAhead=%" PRIu64 ", %s %s", realTime, maxSkipAhead, targetParams.count("start")?"start":"", targetParams.count("recstart")?"recstart":"");
+    if (!realTime || liveSeekDisabled){return false;}//Makes no sense when playing in turbo mode or with specific start/end times
     if (maxSkipAhead == 1){return false;}//A skipAhead of 1 signifies disabling the skipping/rate control system entirely.
     if (!meta.getLive()){return false;}
     uint64_t seekPos = 0;
@@ -1376,7 +1391,7 @@ namespace Mist{
       }
       if (realTime != newSpeed){
         HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA)", realTime, newSpeed, needsLookAhead, mKa);
-        firstTime = Util::bootMS() - (cTime * newSpeed / 1000);
+        firstTime = thisBootMs - (cTime * newSpeed / 1000);
         realTime = newSpeed;
       }
       if (!noReturn){return false;}
@@ -1421,10 +1436,10 @@ namespace Mist{
     return false;
   }
 
-  void Output::requestHandler(){
-    if ((firstData && myConn.Received().size()) || myConn.spool()){
+  void Output::requestHandler(bool readable){
+    VERYHIGH_MSG("onRequest");
+    if ((firstData && myConn.Received().size()) || (readable && myConn.spool())){
       firstData = false;
-      DONTEVEN_MSG("onRequest");
       onRequest();
       lastRecv = Util::bootSecs();
     }else{
@@ -1432,8 +1447,7 @@ namespace Mist{
         if (Util::bootSecs() - lastRecv > 300){
           WARN_MSG("Disconnecting 5 minute idle connection");
           onFail("Connection idle for 5 minutes");
-        }else{
-          Util::sleep(20);
+          return;
         }
       }
     }
@@ -1481,6 +1495,15 @@ namespace Mist{
     }
     // Otherwise, we're not stopping
     return false;
+  }
+
+  /// Closes myConn and also removes it from the event loop
+  void Output::closeMyConn(){
+    if (!myConn){return;}
+    int sock = myConn.getSocket();
+    evLp.remove(sock);
+    if (sock == 1){evLp.remove(0);}
+    myConn.close();
   }
 
   /// \triggers
@@ -1732,10 +1755,66 @@ namespace Mist{
     }
     /*LTS-END*/
     DONTEVEN_MSG("MistOut client handler started");
+    evLp.setup();
+    if (!isRecordingToFile && myConn){
+      int sock = myConn.getSocket();
+      evLp.addSocket(1, sock);
+      if (sock == 1){evLp.addSocket(1, 0);}
+    }
+    maxWait = 2000;
+    size_t suggestedWait = 0;
+    if (keepGoing() && wantRequest && myConn.Received().size()){requestHandler(false);}
+
+    size_t prepFalse = 0;
+    size_t loops = 0;
+    size_t lastLoops = 0;
+    size_t lastPrepFalse = 0;
+    uint64_t lastPrint = Util::bootMS();
+
     while (keepGoing() && (wantRequest || parseData)){
       thisBootMs = Util::bootMS();
-      Comms::sessionConfigCache(thisBootMs);
-      if (wantRequest){requestHandler();}
+      ++loops;
+      if (Util::printDebugLevel >= DLVL_VERYHIGH && lastPrint + 5000 < thisBootMs){
+        uint64_t totTime = thisBootMs - lastPrint;
+        VERYHIGH_MSG("%zu loops (%zu wasted) in " PRETTY_PRINT_MSTIME, (loops - lastLoops), (prepFalse - lastPrepFalse), PRETTY_ARG_MSTIME(totTime));
+
+        lastPrint = thisBootMs;
+        lastLoops = loops;
+        lastPrepFalse = prepFalse;
+      }
+
+      if (!parseData){Comms::sessionConfigCache(thisBootMs);}
+
+      if (suggestedWait){
+        maxWait = suggestedWait;
+      }else{
+        maxWait = lowestInterpacket * 0.9;
+        // slow down processing, if real time speed is wanted
+        if (parseData){
+          uint64_t nTime = buffer.nonGhost();
+          if (realTime){
+            if (nTime){
+              uint64_t tTime = targetTime();
+              if (tTime < nTime){
+                // We're ahead! Slow down so that we're not.
+                maxWait = nTime - tTime;
+              }else{
+                // We're behind! Need to catch up, no waiting!
+                maxWait = 0;
+              }
+            }
+          }else if (nTime){
+            // Max speed playback: no waiting at all if we have non-ghost packets
+            maxWait = 0;
+          }
+        }
+      }
+
+      size_t task = evLp.await(maxWait);
+      thisBootMs = Util::bootMS();
+      stats();
+      requestHandler((task == 1));
+      //if (task == std::string::npos){} // Continue signal received; no special handling needed
       if (parseData){
         if (!isInitialized){
           initialize();
@@ -1749,206 +1828,170 @@ namespace Mist{
           DONTEVEN_MSG("sendHeader");
           sendHeader();
         }
-        if (prepareNext()){
-          if (thisPacket){
-            lastPacketTime = thisTime;
-            if (firstPacketTime == 0xFFFFFFFFFFFFFFFFull){
-              firstPacketTime = lastPacketTime;
-            }
 
-            // slow down processing, if real time speed is wanted
-            if (realTime && buffer.getSyncMode()){
-              uint64_t amount = thisTime - targetTime();
-              size_t i = (amount / 1000) + 6;
-              while (--i && thisTime > targetTime() &&
-                     keepGoing()){
-                amount = thisTime - targetTime();
-                if (amount > 1000){amount = 1000;}
-                idleTime(amount);
-                thisBootMs = Util::bootMS();
-                //Make sure we stay responsive to requests and stats while waiting
-                if (wantRequest){
-                  requestHandler();
-                  if (!realTime){break;}
-                }
-                stats();
-              }
-              if (!thisPacket){continue;}
-            }
-
-            // delay the stream until metadata has caught up, if needed
-            if (needsLookAhead && M.getLive()){
-              // we sleep in 20ms increments, or less if the lookahead time itself is less
-              uint32_t sleepTime = std::min((uint64_t)20, needsLookAhead);
-              // wait at most double the look ahead time, plus ten seconds
-              uint64_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000 / sleepTime);
-              uint64_t needsTime = thisTime + needsLookAhead;
-              bool firstLookahead = true;
-              while (--timeoutTries && keepGoing()){
-                bool lookReady = true;
-                for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin();
-                     it != userSelect.end(); it++){
-                  if (!meta.trackLoaded(it->first)){continue;}
-                  if (meta.getNowms(it->first) <= needsTime){
-                    if (timeoutTries == 1){
-                      WARN_MSG("Track %zu: %" PRIu64 " <= %" PRIu64, it->first,
-                               meta.getNowms(it->first), needsTime);
-                    }
-                    lookReady = false;
-                    break;
-                  }
-                }
-                if (lookReady){break;}
-                if (firstLookahead){
-                  firstLookahead = false;
-                }else{
-                  playbackSleep(sleepTime);
-                }
-                thisBootMs = Util::bootMS();
-                //Make sure we stay responsive to requests and stats while waiting
-                if (wantRequest){requestHandler();}
-                stats();
-                meta.reloadReplacedPagesIfNeeded();
-              }
-              if (!timeoutTries){
-                WARN_MSG("Waiting for lookahead (%" PRIu64 "ms in %zu tracks) timed out - resetting lookahead!", needsLookAhead, userSelect.size());
-                needsLookAhead = 0;
-              }
-            }
-
-            if (reachedPlannedStop()){
-              targetParams.erase("nxt-split");
-              if (inlineRestartCapable() && !reachedPlannedStop()){
-                // Write the segment to the playlist if applicable
-                if (targetParams.count("m3u8")){
-                  // We require an active connection to the playlist
-                  // except for VOD, where we connect and write at the end of segmenting
-                  if (!plsConn && M.getLive()){
-                    FAIL_MSG("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
-                    Util::logExitReason("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
-                    break;
-                  }
-                  std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
-                  {
-                    uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
-                    if (unixMs){
-                      INFO_MSG("Adding segment #%" PRIu64 " @ %" PRIu64 " => %s", segmentCount, currentStartTime, Util::getUTCStringMillis(unixMs).c_str());
-                      playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
-                    }
-                  }
-                  INFO_MSG("Adding new segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
-                  // Append duration & TS filename to playlist file
-                  std::stringstream tmp;
-                  double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
-                  tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << segmentDuration <<  ",\n"+ segment + "\n";
-                  playlistBuffer += tmp.str();
-                  // Adjust split time up to half a segment duration
-                  if (autoAdjustSplit && (segmentDuration / 2) > atoll(targetParams["split"].c_str())){
-                    targetParams["split"] = JSON::Value(segmentDuration / 2).asString();
-                  }
-                  // Always adjust the targetDuration in the playlist upwards
-                  if (segmentDuration > JSON::Value(targetDuration).asDouble()){
-                    // Set the new targetDuration to the ceil of the segment duration
-                    WARN_MSG("Segment #%" PRIu64 " is longer than the target duration. Adjusting the targetDuration from %s to %f s", segmentCount, targetDuration.c_str(), segmentDuration);
-                    targetDuration = JSON::Value((uint64_t)segmentDuration + 1).asString();
-                    // Modify the buffer to contain the new targetDuration
-                    if (!M.getLive()){
-                      uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
-                      reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                    }else if (!maxEntries && !targetAge && playlistLocation.isLocalPath()){
-                      // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
-                      HTTP::URIReader inFile(playlistLocationString);
-                      char *newBuffer;
-                      size_t bytesRead;
-                      inFile.readAll(newBuffer, bytesRead);
-                      playlistBuffer = std::string(newBuffer, bytesRead) + playlistBuffer;
-                      // Reinit the playlist with the new targetDuration
-                      uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
-                      reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                      connectToFile(playlistLocationString, false, &plsConn);
-                    }
-                    // Else we are in a sliding window playlist, so it will automatically get overwritten
-                  }
-                  // Remove older entries in the playlist
-                  if (maxEntries || targetAge){
-                    uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
-                    reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                  }
-                  // Do not write to the playlist intermediately if we are outputting a VOD playlist
-                  if (M.getLive()){
-                    // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
-                    if (!maxEntries && !targetAge) {
-                      plsConn.SendNow(playlistBuffer);
-                      playlistBuffer = "";
-                    // Else re-open the file to force an overwrite
-                    }else if(connectToFile(playlistLocationString, false, &plsConn)){
-                      plsConn.SendNow(playlistBuffer);
-                    }
-                  }
-                }
-
-                // Keep track of filenames written, so that they can be added to the playlist file
-                std::string newTarget;
-                if (targetParams.count("segment")){
-                  HTTP::URL targetUrl = HTTP::URL(config->getString("target")).link(targetParams["segment"]);
-                  if (targetUrl.isLocalPath()){
-                    newTarget = targetUrl.getFilePath();
-                  }else{
-                    newTarget = targetUrl.getUrl();
-                  }
-                }else{
-                  newTarget = origTarget;
-                }
-                currentStartTime = lastPacketTime;
-                segmentCount++;
-                Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
-                Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
-                Util::streamVariables(newTarget, streamName);
-                if (newTarget.rfind('?') != std::string::npos){
-                  newTarget.erase(newTarget.rfind('?'));
-                }
-                currentTarget = newTarget;
-                INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
-                if (!connectToFile(newTarget)){
-                  FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
-                  Util::logExitReason(ER_WRITE_FAILURE, "failed to open file, aborting: %s", newTarget.c_str());
-                  onFinish();
-                  break;
-                }
-                uint64_t endRec = thisTime + atoll(targetParams["split"].c_str()) * 1000;
-                targetParams["nxt-split"] = JSON::Value(endRec).asString();
-                sentHeader = false;
-                sendHeader();
-              }else{
-                if (!onFinish()){
-                  INFO_MSG("Shutting down because planned stopping point reached");
-                  Util::logExitReason(ER_CLEAN_INTENDED_STOP, "planned stopping point reached");
-                  break;
-                }
-              }
-            }
-            sendNext();
-          }else{
+        suggestedWait = prepareNext();
+        if (suggestedWait){
+          // No packet prepared
+          ++prepFalse;
+          if (realTime){++firstTime;}
+        }else{
+          // Packet prepared
+          // End point reached?
+          if (!thisPacket){
             parseData = false;
-            /*LTS-START*/
+            // Run CONN_STOP
             if (Triggers::shouldTrigger("CONN_STOP", streamName)){
               std::string payload =
                   streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n";
               Triggers::doTrigger("CONN_STOP", payload, streamName);
             }
-            /*LTS-END*/
+            // Potentially allow intercepting with onFinish
             if (!onFinish()){
+              // Not intercepted; stop playback
               Util::logExitReason(ER_CLEAN_EOF, "end of stream");
               break;
             }
+            // Intercepted! Continue as if nothing happened.
+            continue;
           }
+
+          // Store new timestamp
+          lastPacketTime = thisTime;
+          if (firstPacketTime == 0xFFFFFFFFFFFFFFFFull){
+            firstPacketTime = lastPacketTime;
+          }
+          interPacketTimes[packetCounter%10] = thisBootMs - lastPacketBootMs;
+          lowestInterpacket = 2000;
+          for (size_t i = 0; i < 10; ++i){
+            if (lowestInterpacket > interPacketTimes[i]){
+              lowestInterpacket = interPacketTimes[i];
+            }
+          }
+          lastPacketBootMs = thisBootMs;
+
+          if (reachedPlannedStop()){
+            // Remove nxt-split so that reachedPlannedStop only returns true if this is the final stop
+            targetParams.erase("nxt-split");
+            // Incapable of restarts or this is the final stop? Just stop.
+            if (!inlineRestartCapable() || reachedPlannedStop()){
+              if (!onFinish()){
+                INFO_MSG("Shutting down because planned stopping point reached");
+                Util::logExitReason(ER_CLEAN_INTENDED_STOP, "planned stopping point reached");
+                break;
+              }
+            }
+
+            // Otherwise, do an inline restart (e.g. new segment)
+
+            // Write the segment to the playlist if applicable
+            if (targetParams.count("m3u8")){
+              // We require an active connection to the playlist
+              // except for VOD, where we connect and write at the end of segmenting
+              if (!plsConn && M.getLive()){
+                FAIL_MSG("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
+                Util::logExitReason("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
+                break;
+              }
+              std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
+              {
+                uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
+                if (unixMs){
+                  INFO_MSG("Adding segment #%" PRIu64 " @ %" PRIu64 " => %s", segmentCount, currentStartTime, Util::getUTCStringMillis(unixMs).c_str());
+                  playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+                }
+              }
+              INFO_MSG("Adding new segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
+              // Append duration & TS filename to playlist file
+              std::stringstream tmp;
+              double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
+              tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << segmentDuration <<  ",\n"+ segment + "\n";
+              playlistBuffer += tmp.str();
+              // Adjust split time up to half a segment duration
+              if (autoAdjustSplit && (segmentDuration / 2) > atoll(targetParams["split"].c_str())){
+                targetParams["split"] = JSON::Value(segmentDuration / 2).asString();
+              }
+              // Always adjust the targetDuration in the playlist upwards
+              if (segmentDuration > JSON::Value(targetDuration).asDouble()){
+                // Set the new targetDuration to the ceil of the segment duration
+                WARN_MSG("Segment #%" PRIu64 " is longer than the target duration. Adjusting the targetDuration from %s to %f s", segmentCount, targetDuration.c_str(), segmentDuration);
+                targetDuration = JSON::Value((uint64_t)segmentDuration + 1).asString();
+                // Modify the buffer to contain the new targetDuration
+                if (!M.getLive()){
+                  uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
+                  reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
+                }else if (!maxEntries && !targetAge && playlistLocation.isLocalPath()){
+                  // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
+                  HTTP::URIReader inFile(playlistLocationString);
+                  char *newBuffer;
+                  size_t bytesRead;
+                  inFile.readAll(newBuffer, bytesRead);
+                  playlistBuffer = std::string(newBuffer, bytesRead) + playlistBuffer;
+                  // Reinit the playlist with the new targetDuration
+                  uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
+                  reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
+                  connectToFile(playlistLocationString, false, &plsConn);
+                }
+                // Else we are in a sliding window playlist, so it will automatically get overwritten
+              }
+              // Remove older entries in the playlist
+              if (maxEntries || targetAge){
+                uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
+                reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
+              }
+              // Do not write to the playlist intermediately if we are outputting a VOD playlist
+              if (M.getLive()){
+                // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
+                if (!maxEntries && !targetAge) {
+                  plsConn.SendNow(playlistBuffer);
+                  playlistBuffer = "";
+                // Else re-open the file to force an overwrite
+                }else if(connectToFile(playlistLocationString, false, &plsConn)){
+                  plsConn.SendNow(playlistBuffer);
+                }
+              }
+            }
+
+            // Keep track of filenames written, so that they can be added to the playlist file
+            std::string newTarget;
+            if (targetParams.count("segment")){
+              HTTP::URL targetUrl = HTTP::URL(config->getString("target")).link(targetParams["segment"]);
+              if (targetUrl.isLocalPath()){
+                newTarget = targetUrl.getFilePath();
+              }else{
+                newTarget = targetUrl.getUrl();
+              }
+            }else{
+              newTarget = origTarget;
+            }
+            currentStartTime = lastPacketTime;
+            segmentCount++;
+            Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
+            Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
+            Util::streamVariables(newTarget, streamName);
+            if (newTarget.rfind('?') != std::string::npos){
+              newTarget.erase(newTarget.rfind('?'));
+            }
+            currentTarget = newTarget;
+            INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
+            if (!connectToFile(newTarget)){
+              FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
+              Util::logExitReason(ER_WRITE_FAILURE, "failed to open file, aborting: %s", newTarget.c_str());
+              onFinish();
+              break;
+            }
+            uint64_t endRec = thisTime + atoll(targetParams["split"].c_str()) * 1000;
+            targetParams["nxt-split"] = JSON::Value(endRec).asString();
+            sentHeader = false;
+            sendHeader();
+          } // reachedPlannedStop
+
+          sendNext();
         }
         if (!meta){
           Util::logExitReason(ER_SHM_LOST, "lost internal connection to stream data");
           break;
         }
       }
-      stats();
     }
     if (!config->is_active){Util::logExitReason(ER_UNKNOWN, "set inactive");}
     if (!myConn){Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed");}
@@ -2012,6 +2055,7 @@ namespace Mist{
     disconnect();
     stats(true);
     userSelect.clear();
+    trackSelectionChanged();
     myConn.close();
     return 0;
   }
@@ -2055,6 +2099,7 @@ namespace Mist{
       }
     }
     userSelect.erase(trackId);
+    trackSelectionChanged();
   }
 
   /// Assumes at least one video track is selected.
@@ -2080,6 +2125,7 @@ namespace Mist{
     buffer.clear();
     userSelect.clear();
     userSelect[mainTrack].reload(streamName, mainTrack);
+    trackSelectionChanged();
     // now, seek to the exact timestamp of the keyframe
     DTSC::Keys keys(M.getKeys(mainTrack));
     bool ret = false;
@@ -2088,9 +2134,9 @@ namespace Mist{
     }else{
       seek(keys.getTime(keys.getIndexForTime(currTime)));
       // attempt to load the key into thisPacket
-      ret = prepareNext();
-      if (!ret){
+      if (prepareNext()){
         WARN_MSG("Failed to load keyframe for %" PRIu64 "ms - continuing without it", currTime);
+        ret = false;
       }
     }
 
@@ -2107,6 +2153,7 @@ namespace Mist{
           WARN_MSG("Dropping track due to getKeyFrame re-seek failure in track %zu", it->first);
         }
         userSelect.erase(it->first);
+        trackSelectionChanged();
       }
     }
     // now we are back to normal and can return safely
@@ -2117,18 +2164,19 @@ namespace Mist{
   /// If it returns true and thisPacket evaluates to false, playback has completed.
   /// Could be called repeatedly in a loop if you really really want a new packet.
   /// \returns true if thisPacket was filled with the next packet.
-  /// \returns false if we could not reliably determine the next packet yet.
-  bool Output::prepareNext(){
-    if (!buffer.size()){
+  /// \returns 0 if a packet was filled, suggested wait time in milliseconds otherwise
+  size_t Output::prepareNext(){
+    size_t bufSize = buffer.size();
+    if (!bufSize){
       thisPacket.null();
       INFO_MSG("Buffer completely played out");
-      return true;
+      return 0;
     }
     // check if we have a next seek point for every track that is selected
-    if (buffer.size() != userSelect.size()){
+    if (bufSize != userSelect.size()){
       INFO_MSG("Buffer/select mismatch: %zu/%zu - correcting", buffer.size(), userSelect.size());
       std::set<size_t> dropTracks;
-      if (buffer.size() < userSelect.size()){
+      if (bufSize < userSelect.size()){
         // prepare to drop any selectedTrack without buffer entry
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
           if (!buffer.hasEntry(it->first)){dropTracks.insert(it->first);}
@@ -2145,29 +2193,35 @@ namespace Mist{
         Util::logExitReason(ER_INTERNAL_ERROR, "Could not equalize tracks");
         parseData = false;
         config->is_active = false;
-        return false;
+        return 0;
       }
       // actually drop what we found.
       // if both of the above cases occur, the next prepareNext iteration will take care of that
       for (std::set<size_t>::iterator it = dropTracks.begin(); it != dropTracks.end(); ++it){
         dropTrack(*it, "seek/select mismatch");
       }
-      return false;
+      return 1;
     }
 
     Util::sortedPageInfo nxt;
 
     uint64_t nextTime;
     size_t trackTries = 0;
+    std::map<size_t, IPC::sharedPage>::iterator cPageIt;
     //In case we're not in sync mode, we might have to retry a few times
     for (; trackTries < buffer.size(); ++trackTries){
 
       nxt = *(buffer.begin());
 
-      if (meta.reloadReplacedPagesIfNeeded()){return false;}
       if (!M.trackLoaded(nxt.tid)){
         dropTrack(nxt.tid, "disappeared from metadata");
-        return false;
+        return 1;
+      }
+
+      // Ensure we have the lookahead available
+      if (needsLookAhead && M.getLive() && M.getNowms(nxt.tid) < nxt.time + needsLookAhead){
+        int64_t waitTime = (nxt.time + needsLookAhead) - M.getNowms(nxt.tid);
+        return waitTime > 0 ? waitTime : 1;
       }
 
       if (M.hasEmbeddedFrames(nxt.tid)){
@@ -2183,7 +2237,7 @@ namespace Mist{
               buffer.replaceFirst(nxt);
               playbackSleep(5);
             }
-            return false;
+            return 5;
           }
         }
         thisTime = nxt.time;
@@ -2204,22 +2258,23 @@ namespace Mist{
           uint64_t newPart = M.getKeyNumForTime(nxt.tid, nxt.time);
           if (newPart >= nxt.partIndex){
             seek(nxt.time);
-            return false;
+            return 1;
           }else{
             nxt.ghostPacket = true;
           }
         }
         buffer.replaceFirst(nxt);
-        return true;
+        return 0;
       }
 
       // if we're going to read past the end of the data page...
-      if (!curPage[nxt.tid].mapped || nxt.offset >= curPage[nxt.tid].len || !curPage.count(nxt.tid) ||
-          (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
+      cPageIt = curPage.find(nxt.tid);
+      if (cPageIt == curPage.end() || !cPageIt->second.mapped || nxt.offset >= cPageIt->second.len ||
+          (!memcmp(cPageIt->second.mapped + nxt.offset, "\000\000\000\000", 4))){
         // For non-live, we may have just reached the end of the track. That's normal and fine, drop it.
         if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
           dropTrack(nxt.tid, "end of VoD track reached", false);
-          return false;
+          return 1;
         }
         // Check if there is a next page for the timestamp we're looking for.
         if (M.getLastms(nxt.tid) >= nxt.time && (!currentPage.count(nxt.tid) || M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid] || !curPage[nxt.tid].mapped)){
@@ -2229,18 +2284,25 @@ namespace Mist{
           if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
             nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
             nxt.ghostPacket = false;
+            nxt.unavailable = false;
           }else{
             nxt.ghostPacket = true;
+            nxt.unavailable = true;
           }
           buffer.replaceFirst(nxt);
-          return false;
+          return nxt.ghostPacket ? 10 : 1;
         }
         // We're still on the same page; ghost packets should update their time and retry later
         if (nxt.ghostPacket){
           nxt.time = M.getNowms(nxt.tid);
           buffer.replaceFirst(nxt);
-          playbackSleep(5);
-          return false;
+
+          // If it's a live stream, request to be signalled on packet availability
+          if (M.getLive()){
+            userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
+          }
+
+          return 2000;
         }
         if (nxt.offset >= curPage[nxt.tid].len){
           INFO_MSG("Reading past end of page %s: %" PRIu64 " > %" PRIu64 " for time %" PRIu64 " on track %zu", curPage[nxt.tid].name.c_str(), nxt.offset, curPage[nxt.tid].len, nxt.time, nxt.tid);
@@ -2249,40 +2311,41 @@ namespace Mist{
           INFO_MSG("Invalid packet: no data @%" PRIu64 " in %s for time %" PRIu64 " on track %zu", nxt.offset, curPage[nxt.tid].name.c_str(), nxt.time, nxt.tid);
           dropTrack(nxt.tid, "zero packet");
         }
-        return false;
+        return 1;
       }
       // We know this packet will be valid, pre-load it so we know its length
-      DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+      DTSC::Packet preLoad(cPageIt->second.mapped + nxt.offset, 0, true);
       nxt.time = preLoad.getTime();
 
       nextTime = 0;
 
       // Check if we have a next valid packet
-      if (curPage[nxt.tid].len > nxt.offset+preLoad.getDataLen()+20 && memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
-        nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset + preLoad.getDataLen());
+      if (cPageIt->second.len > nxt.offset+preLoad.getDataLen()+20 && memcmp(cPageIt->second.mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
+        nextTime = getDTSCTime(cPageIt->second.mapped, nxt.offset + preLoad.getDataLen());
         if (!nextTime){
-          WARN_MSG("Next packet is available (offset %" PRIu64 " / %" PRIu64 " on %s), but has no time. Please warn the developers if you see this message!", nxt.offset, curPage[nxt.tid].len, curPage[nxt.tid].name.c_str());
+          WARN_MSG("Next packet is available (offset %" PRIu64 " / %" PRIu64 " on %s), but has no time. Please warn the developers if you see this message!", nxt.offset, cPageIt->second.len, cPageIt->second.name.c_str());
           dropTrack(nxt.tid, "EOP: invalid next packet");
-          return false;
+          return 1;
         }
         if (nextTime < nxt.time){
           std::stringstream errMsg;
           errMsg << "next packet has timestamp " << nextTime << " but current timestamp is " << nxt.time;
           dropTrack(nxt.tid, errMsg.str().c_str());
-          return false;
+          return 1;
         }
         break;//Packet valid!
       }
 
       //no next packet on the current page
+      if (meta.reloadReplacedPagesIfNeeded()){return 1;}
 
       //Check if this is the last packet of a VoD stream. Return success and drop the track.
       if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
-        thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+        thisPacket.reInit(cPageIt->second.mapped + nxt.offset, 0, true);
         thisIdx = nxt.tid;
         thisTime = nxt.time;
         dropTrack(nxt.tid, "end of non-live track reached", false);
-        return true;
+        return 1;
       }
 
       //Check if there exists a different page for the next key
@@ -2312,7 +2375,7 @@ namespace Mist{
             errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
             errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
             dropTrack(nxt.tid, errMsg.str().c_str());
-            return false;
+            return 1;
           }else{
             WARN_MSG("Recovered from race condition");
           }
@@ -2323,58 +2386,67 @@ namespace Mist{
       //Okay, there's no next page yet, and no next packet on this page either.
       //That means we're waiting for data to show up, somewhere.
       
+      // If it's a live stream, request to be signalled on packet availability
+      if (M.getLive()){
+        userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
+      }
+      
       //In non-sync mode, shuffle the just-tried packet to the end of queue and retry
       if (!buffer.getSyncMode()){
         buffer.moveFirstToEnd();
         continue;
       }
 
+      // Set current packet to unavailable so that we wait for a signal
+      if (!nxt.unavailable){
+        nxt.unavailable = true;
+        buffer.replaceFirst(nxt);
+      }
+
       // in sync mode, after ~25 seconds, give up and drop the track.
-      if (++emptyCount >= dataWaitTimeout){
+      if (lastReceive + dataWaitTimeout < thisBootMs){
         //curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen()
-        WARN_MSG("Waiting at %s byte %" PRIu64, curPage[nxt.tid].name.c_str(), nxt.offset + preLoad.getDataLen());
+        WARN_MSG("Waiting at %s byte %" PRIu64, cPageIt->second.name.c_str(), nxt.offset + preLoad.getDataLen());
         dropTrack(nxt.tid, "EOP: data wait timeout");
-        return false;
+        return 1;
       }
       //every ~1 second, check if the stream is not offline
-      if (emptyCount % 100 == 0 && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
+      if (lastReceive + 1000 < thisBootMs && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
         if (M.getLive()){
           Util::logExitReason(ER_CLEAN_EOF, "Live stream source shut down");
           thisPacket.null();
-          return true;
+          return 0;
         }else if (!Util::startInput(streamName)){
           Util::logExitReason(ER_UNKNOWN, "VoD stream source shut down and could not be restarted");
           thisPacket.null();
-          return true;
+          return 0;
         }
       }
-      
+
       //Fine! We didn't want a packet, anyway. Let's try again later.
-      playbackSleep(10);
-      return false;
+      return 2000;
     }
 
     if (trackTries == buffer.size()){
       //Fine! We didn't want a packet, anyway. Let's try again later.
-      playbackSleep(10);
-      return false;
+      return 2000;
     }
 
     // we've handled all special cases - at this point the packet should exist
     // let's load it
-    thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+    thisPacket.reInit(cPageIt->second.mapped + nxt.offset, 0, true);
     // if it failed, drop the track and continue
     if (!thisPacket){
       dropTrack(nxt.tid, "packet load failure");
-      return false;
+      return 1;
     }
-    emptyCount = 0; // valid packet - reset empty counter
+    lastReceive = thisBootMs;
     thisIdx = nxt.tid;
     thisTime = nxt.time;
 
     if (!userSelect[nxt.tid]){
       dropTrack(nxt.tid, "track is not alive!");
-      return false;
+      return 1;
     }
 
     //Update keynum only when the second flips over in the timestamp
@@ -2390,15 +2462,17 @@ namespace Mist{
       // If time is not known yet, insert a ghostPacket with a known safe time
       nxt.time = M.getNowms(nxt.tid);
       nxt.ghostPacket = true;
+      nxt.unavailable = true;
     }else{
       nxt.time = nextTime;
       nxt.ghostPacket = false;
+      nxt.unavailable = false;
     }
     ++nxt.partIndex;
 
     // exchange the current packet in the buffer for the next one
     buffer.replaceFirst(nxt);
-    return true;
+    return 0;
   }
 
   /// Returns the name as it should be used in statistics.
@@ -2517,6 +2591,7 @@ namespace Mist{
       if (it->second.getTrack() == trackId){
         WARN_MSG("Dropping input track %" PRIu32 ": %s", trackId, dropReason.c_str());
         userSelect.erase(it);
+        trackSelectionChanged();
         return true;
         break;
       }
@@ -2689,6 +2764,7 @@ namespace Mist{
         INFO_MSG("Waiting for stream reset before attempting push input accept (%" PRIu64 " <= %" PRIu64 "+500)", twoTime, oneTime);
         while (streamStatus != STRMSTAT_OFF && keepGoing()){
           userSelect.clear();
+          trackSelectionChanged();
           Util::wait(250);
           streamStatus = Util::getStreamStatus(streamName);
         }
@@ -2719,5 +2795,6 @@ namespace Mist{
     for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
       userSelect[*it].reload(streamName, *it);
     }
+    trackSelectionChanged();
   }
 }// namespace Mist

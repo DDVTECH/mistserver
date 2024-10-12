@@ -404,6 +404,10 @@ namespace Comms{
         }else{
           setenv("SESSION_PROTOCOL", protocol.c_str(), 1);
         }
+        if (Util::printDebugLevel != DEBUG){
+          args.push_back("--debug");
+          args.push_back(JSON::Value(Util::printDebugLevel).asString());
+        }
         setenv("SESSION_REQURL", reqUrl.c_str(), 1);
         int err = fileno(stderr);
         thisPid = Util::Procs::StartPiped(args, 0, 0, &err);

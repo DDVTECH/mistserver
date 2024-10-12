@@ -1419,10 +1419,11 @@ namespace DTSC{
     bool ret = false;
     for (size_t i = 0; i < trackList.getPresent(); i++){
       if (trackList.getInt(trackValidField, i) == 0){continue;}
-      bool always_load = !tracks.count(i);
-      if (always_load || tracks[i].track.isReload()){
+      std::map<size_t, Track>::iterator trIt = tracks.find(i);
+      bool always_load = (trIt == tracks.end());
+      if (always_load || trIt->second.track.isReload()){
         ret = true;
-        Track &t = tracks[i];
+        Track &t = trIt->second;
         if (always_load){
           VERYHIGH_MSG("Loading track: %s", trackList.getPointer(trackPageField, i));
         }else{

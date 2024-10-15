@@ -192,6 +192,7 @@ namespace Mist{
     std::string source = config->getString("input");
     if (source == "-"){
       srcConn.open(fileno(stdout), fileno(stdin));
+      srcConn.Received().splitter.clear();
       return true;
     }
     if (source.find("dtsc://") == 0){source.erase(0, 7);}
@@ -203,6 +204,7 @@ namespace Mist{
     std::string givenStream = config->getString("streamname");
     if (streamName == ""){streamName = givenStream;}
     srcConn.open(host, port, true);
+    srcConn.Received().splitter.clear();
     if (!srcConn.connected()){return false;}
     JSON::Value prep;
     prep["cmd"] = "play";

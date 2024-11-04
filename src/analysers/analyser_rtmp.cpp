@@ -67,8 +67,18 @@ bool AnalyserRTMP::parsePacket(){
   }
 
   // We now know for sure that we've parsed a packet
-  DETAIL_HI("Chunk info: [%#2X] CS ID %u, timestamp %" PRIu64 ", len %u, type ID %u, Stream ID %u",
-            next.headertype, next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
+  if (next.ts_header == 0xFFFFFF){
+    DETAIL_HI("Chunk info: [%#2X] CS ID %u, timestamp %" PRIu64 " (extended), len %u, type ID %u, Stream ID %u",
+              next.headertype, next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
+  }else{
+    if (!next.headertype){
+      DETAIL_HI("Chunk info: [%#2X] CS ID %u, timestamp %" PRIu64 " (absolute), len %u, type ID %u, Stream ID %u",
+                next.headertype, next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
+    }else{
+      DETAIL_HI("Chunk info: [%#2X] CS ID %u, timestamp %" PRIu64 " (+%" PRIu32 "), len %u, type ID %u, Stream ID %u",
+                next.headertype, next.cs_id, next.timestamp, next.ts_delta, next.len, next.msg_type_id, next.msg_stream_id);
+    }
+  }
   switch (next.msg_type_id){
   case 0: // does not exist
     DETAIL_LOW("Error chunk @ %zu - CS%u, T%" PRIu64 ", L%i, LL%i, MID%i", read_in - strbuf.size(),

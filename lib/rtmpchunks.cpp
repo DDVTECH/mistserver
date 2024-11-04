@@ -483,7 +483,12 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
       timestamp |= inData[i++] << 8;
       timestamp |= inData[i++];
       ts_delta = timestamp;
-      DONTEVEN_MSG("Extended timestamp: %" PRIu64, timestamp);
+      if (timestamp > 0xFFFF8000ul && (prev.timestamp & 0xFFFFFFFFul) < 0xFFFF0000ul){
+        timestamp = prev.timestamp + (int32_t)ts_delta;
+        DONTEVEN_MSG("Extended negative relative timestamp: %" PRIu64, timestamp);
+      }else{
+        DONTEVEN_MSG("Extended timestamp: %" PRIu64 " (prev: %" PRIu64 ")", timestamp, prev.timestamp);
+      }
     }
 
     // read data if length > 0, and allocate it

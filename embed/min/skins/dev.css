@@ -97,7 +97,8 @@ to{opacity:1}
 .mistvideo[data-show-submenu] .mistvideo-controls{bottom:0}
 .mistvideo-currentTime{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mistvideo-currentTime .mistvideo-realtime,.mistvideo-progress .mistvideo-realtime{opacity:.6}
-.mistvideo-videobackground{position:absolute;width:100%;height:100%;z-index:-1;filter:blur(1cm)}
+.mistvideo-videobackground{position:absolute;width:100%;height:100%;z-index:-1}
+.mistvideo-videobackground:after{content:'';display:block;position:absolute;width:100%;height:100%;backdrop-filter:blur(1cm);z-index:2}
 .mistvideo-videobackground *{position:absolute;filter:opacity(0);transition:filter 0s 2s;width:100%;height:100%}
 .mistvideo-videobackground [data-front]{z-index:1;filter:opacity(1);transition:filter 2s}
 .mistvideo-videocontainer{position:relative;overflow:hidden}

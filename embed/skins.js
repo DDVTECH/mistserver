@@ -1937,9 +1937,64 @@ MistSkins["default"] = {
     },
     placeholder: function(){
       var placeholder = document.createElement("div");
-      var size = this.calcSize();
-      placeholder.style.width = size.width+"px";
-      placeholder.style.height = size.height+"px";
+      var MistVideo = this;
+
+      if (this.options.fillSpace && !this.player) {
+        var w,h;
+        placeholder.setSize = function(){
+          placeholder.style.width = w+"px";
+          placeholder.style.height = h+"px";
+        }
+
+        var onInserted = function(){
+          if (MistVideo.destroyed) return;
+          if (placeholder.parentNode) {
+            //the node has been placed into the DOM
+            w = window.innerWidth;
+            var aspect = 16/9;
+            h = w/aspect;
+
+            if (MistVideo.options.poster) {
+              //if there is a poster, use the aspect ratio of the poster
+              var img = new Image();
+              img.src = MistVideo.options.poster;
+              img.onload = function(){
+                aspect = img.naturalWidth / img.naturalHeight;
+                h = w/aspect;
+                placeholder.setSize();
+              }
+            }
+
+            placeholder.setSize();
+
+            if (MistVideo.container.clientWidth < w) {
+              w = MistVideo.container.clientWidth;
+              h = w/aspect;
+            }
+         
+            placeholder.setSize();
+
+            return;
+          }
+          else if (MistVideo.options.target.children.length > 0) {
+            //we don't have a parent but the target container does have content ; the player probably has loaded already and we don't need to further calculate the placeholder size
+            return;
+          }
+          //not placed yet
+          setTimeout(onInserted,100);
+        };
+        onInserted();
+
+        MistUtil.event.addListener(window,"resize",function(){
+          onInserted();
+        },placeholder);
+
+      }
+      else {
+        var size = this.calcSize();
+        placeholder.style.width = size.width+"px";
+        placeholder.style.height = size.height+"px";
+      }
       if (this.options.poster) placeholder.style.background = "url('"+this.options.poster+"') no-repeat 50%/contain";
       
       return placeholder;

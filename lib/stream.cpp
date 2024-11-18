@@ -812,6 +812,7 @@ void Util::sendUDPApi(JSON::Value & cmd){
     return;
   }
   Socket::UDPConnection uSock;
+  uSock.allocateDestination();
   uSock.SetDestination(UDPAddr.host, UDPAddr.getPort());
   uSock.SendNow(cmd.toString());
 }

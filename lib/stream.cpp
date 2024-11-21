@@ -1402,6 +1402,8 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
 /// codecs/combinations.
 std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType, const std::string &trackVal, const std::string &UA){
   std::set<size_t> validTracks = capa?getSupportedTracks(M, capa, "", UA):M.getValidTracks(true);
+  // Starts with a "!"? Assume they meant "all,!" instead
+  if (trackVal.size() && trackVal[0] == '!') { return pickTracks(M, validTracks, trackType, "all," + trackVal); }
   return pickTracks(M, validTracks, trackType, trackVal);
 }
 

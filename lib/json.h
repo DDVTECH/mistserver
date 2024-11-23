@@ -46,6 +46,7 @@ namespace JSON{
     Value(int64_t val);
     Value(uint32_t val);
     Value(uint64_t val);
+    Value(size_t val);
     Value(double val);
     Value(bool val);
     // comparison operators
@@ -63,6 +64,7 @@ namespace JSON{
     Value &operator=(const int32_t &rhs);
     Value &operator=(const uint64_t &rhs);
     Value &operator=(const uint32_t &rhs);
+    Value &operator=(const size_t &rhs);
     Value &operator=(const double &rhs);
     Value &operator=(const bool &rhs);
     // converts to basic types

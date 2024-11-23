@@ -497,6 +497,11 @@ JSON::Value::Value(int64_t val){
   myType = INTEGER;
   intVal = val;
 }
+/// Sets this JSON::Value to the given integer.
+JSON::Value::Value(size_t val){
+  myType = INTEGER;
+  intVal = val;
+}
 
 /// Sets this JSON::Value to the given double.
 JSON::Value::Value(double val){
@@ -689,6 +694,11 @@ JSON::Value &JSON::Value::operator=(const int32_t &rhs){
 
 /// Sets this JSON::Value to the given integer.
 JSON::Value &JSON::Value::operator=(const uint64_t &rhs){
+  return ((*this) = (int64_t)rhs);
+}
+
+/// Sets this JSON::Value to the given integer.
+JSON::Value &JSON::Value::operator=(const size_t &rhs){
   return ((*this) = (int64_t)rhs);
 }
 

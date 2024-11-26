@@ -419,7 +419,9 @@ namespace MP4{
     uint64_t plSize = payloadSize();
     for (size_t i = 0; i < index && offset + 1 < plSize; i++){offset += getInt16(offset) + 2;}
     if (offset + 1 >= plSize){return 0;}
-    return getInt16(offset);
+    uint32_t ret = getInt16(offset);
+    if (ret + offset + 2 > plSize){return 0;}
+    return ret;
   }
 
   char *AVCC::getSPS(size_t index){
@@ -494,7 +496,9 @@ namespace MP4{
     uint64_t plSize = payloadSize();
     for (size_t i = 0; i < index && offset + 1 <= plSize; i++){offset += getInt16(offset) + 2;}
     if (offset + 1 >= plSize){return 0;}
-    return getInt16(offset);
+    uint32_t ret = getInt16(offset);
+    if (offset + 2 + ret > plSize){return 0;}
+    return ret;
   }
 
   char *AVCC::getPPS(size_t index){
@@ -621,6 +625,7 @@ namespace MP4{
           sps += 4;
         }
       }
+      if (!len){break;}
       sanitized.setSPS(sps, len, i);
     }
     count = getPPSCount();
@@ -643,6 +648,7 @@ namespace MP4{
           pps += 4;
         }
       }
+      if (!len){break;}
       sanitized.setPPS(pps, len, i);
     }
     clear();

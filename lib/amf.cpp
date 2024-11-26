@@ -385,29 +385,37 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
   double *d; // hack to work around strict aliasing
   switch (data[i]){
   case AMF::AMF0_NUMBER:
-    tmpdbl[7] = data[i + 1];
-    tmpdbl[6] = data[i + 2];
-    tmpdbl[5] = data[i + 3];
-    tmpdbl[4] = data[i + 4];
-    tmpdbl[3] = data[i + 5];
-    tmpdbl[2] = data[i + 6];
-    tmpdbl[1] = data[i + 7];
-    tmpdbl[0] = data[i + 8];
+    if (i + 8 < len){
+      tmpdbl[7] = data[i + 1];
+      tmpdbl[6] = data[i + 2];
+      tmpdbl[5] = data[i + 3];
+      tmpdbl[4] = data[i + 4];
+      tmpdbl[3] = data[i + 5];
+      tmpdbl[2] = data[i + 6];
+      tmpdbl[1] = data[i + 7];
+      tmpdbl[0] = data[i + 8];
+      d = (double *)tmpdbl;
+    }else{
+      d = 0;
+    }
     i += 9; // skip 8(a double)+1 forwards
-    d = (double *)tmpdbl;
     return AMF::Object(name, *d, AMF::AMF0_NUMBER);
     break;
   case AMF::AMF0_DATE:
-    tmpdbl[7] = data[i + 1];
-    tmpdbl[6] = data[i + 2];
-    tmpdbl[5] = data[i + 3];
-    tmpdbl[4] = data[i + 4];
-    tmpdbl[3] = data[i + 5];
-    tmpdbl[2] = data[i + 6];
-    tmpdbl[1] = data[i + 7];
-    tmpdbl[0] = data[i + 8];
+    if (i + 8 < len){
+      tmpdbl[7] = data[i + 1];
+      tmpdbl[6] = data[i + 2];
+      tmpdbl[5] = data[i + 3];
+      tmpdbl[4] = data[i + 4];
+      tmpdbl[3] = data[i + 5];
+      tmpdbl[2] = data[i + 6];
+      tmpdbl[1] = data[i + 7];
+      tmpdbl[0] = data[i + 8];
+      d = (double *)tmpdbl;
+    }else{
+      d = 0;
+    }
     i += 11; // skip 8(a double)+1+timezone(2) forwards
-    d = (double *)tmpdbl;
     return AMF::Object(name, *d, AMF::AMF0_DATE);
     break;
   case AMF::AMF0_BOOL:
@@ -426,6 +434,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
   case AMF::AMF0_XMLDOC:
     tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; // set tmpi to UTF-8-long length
     tmpstr.clear();                                          // clean tmpstr, just to be sure
+    if (tmpi + i + 5 >= len){tmpi = len - i - 5;}            // ensure we don't go out of bounds
     tmpstr.append((const char *)data + i + 5, (size_t)tmpi); // add the string data
     i += tmpi + 5;                                           // skip length+size+1 forwards
     return AMF::Object(name, tmpstr, AMF::AMF0_XMLDOC);
@@ -433,6 +442,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
   case AMF::AMF0_LONGSTRING:
     tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; // set tmpi to UTF-8-long length
     tmpstr.clear();                                          // clean tmpstr, just to be sure
+    if (tmpi + i + 5 >= len){tmpi = len - i - 5;}            // ensure we don't go out of bounds
     tmpstr.append((const char *)data + i + 5, (size_t)tmpi); // add the string data
     i += tmpi + 5;                                           // skip length+size+1 forwards
     return AMF::Object(name, tmpstr, AMF::AMF0_LONGSTRING);
@@ -440,6 +450,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
   case AMF::AMF0_STRING:
     tmpi = data[i + 1] * 256 + data[i + 2];                  // set tmpi to UTF-8 length
     tmpstr.clear();                                          // clean tmpstr, just to be sure
+    if (tmpi + i + 3 >= len){tmpi = len - i - 3;}            // ensure we don't go out of bounds
     tmpstr.append((const char *)data + i + 3, (size_t)tmpi); // add the string data
     i += tmpi + 3;                                           // skip length+size+1 forwards
     return AMF::Object(name, tmpstr, AMF::AMF0_STRING);
@@ -456,6 +467,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
     while (i + 1 < len && data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
       tmpi = data[i] * 256 + data[i + 1]; // set tmpi to the UTF-8 length
       tmpstr.clear();                     // clean tmpstr, just to be sure
+      if (tmpi + i + 2 >= len){tmpi = len - i - 2;}            // ensure we don't go out of bounds
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
       i += tmpi + 2;                                           // skip length+size forwards
       ret.addContent(AMF::parseOne(data, len, i,
@@ -468,6 +480,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
     ++i;
     tmpi = data[i] * 256 + data[i + 1];                      // set tmpi to the UTF-8 length
     tmpstr.clear();                                          // clean tmpstr, just to be sure
+    if (tmpi + i + 2 >= len){tmpi = len - i - 2;}            // ensure we don't go out of bounds
     tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
     AMF::Object ret(tmpstr, AMF::AMF0_TYPED_OBJ); // the object is not named "name" but tmpstr
     while (i + 1 < len && data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
@@ -488,6 +501,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
     while (i + 1 < len && data[i] + data[i + 1] != 0){// while not encountering 0x0000 (we assume 0x000009)
       tmpi = data[i] * 256 + data[i + 1]; // set tmpi to the UTF-8 length
       tmpstr.clear();                     // clean tmpstr, just to be sure
+      if (tmpi + i + 2 >= len){tmpi = len - i - 2;}            // ensure we don't go out of bounds
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
       i += tmpi + 2;                                           // skip length+size forwards
       ret.addContent(AMF::parseOne(data, len, i,

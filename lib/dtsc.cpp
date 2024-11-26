@@ -3477,7 +3477,9 @@ namespace DTSC{
   /// Or, INVALID_KEY_NUM if no keys are available at all.
   /// If the time is in the gap before a key, returns that next key instead.
   size_t Meta::getKeyNumForTime(uint32_t idx, uint64_t time) const{
-    const Track &trk = tracks.at(idx);
+    std::map<size_t, Track>::const_iterator trIt = tracks.find(idx);
+    if (trIt == tracks.end()){return 0;}
+    const Track &trk = trIt->second;
     if (trk.frames.isReady()){
       if (!trk.frames.getEndPos()){return INVALID_KEY_NUM;}
       size_t res = trk.frames.getDeleted();

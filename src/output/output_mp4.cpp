@@ -189,6 +189,7 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
+      if (!M.trackLoaded(subIt->first) || !keysCache.count(subIt->first)){continue;}
       tmpRes += 8 + 20 + 20; // TRAF + TFHD + TFDT Box
 
       DTSC::Keys & keys = *keysCache.at(subIt->first);

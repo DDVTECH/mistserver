@@ -510,6 +510,18 @@ JSON::Value::Value(bool val){
   intVal = (val ? 1 : 0);
 }
 
+#ifdef SIZET_VARIANT
+/// Sets this JSON::Value to the given integer.
+JSON::Value::Value(size_t val){
+  myType = INTEGER;
+  intVal = val;
+}
+/// Sets this JSON::Value to the given integer.
+JSON::Value &JSON::Value::operator=(const size_t &rhs){
+  return ((*this) = (int64_t)rhs);
+}
+#endif
+
 /// Compares a JSON::Value to another for equality.
 bool JSON::Value::operator==(const JSON::Value &rhs) const{
   if (myType != rhs.myType){return false;}

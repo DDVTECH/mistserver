@@ -194,6 +194,27 @@ if host_machine.system() == 'cygwin'
   option_defines += '-D_GNU_SOURCE'
 endif
 
+#
+code_sizet_needed = '''
+  #include <stdint.h>
+  #include <sys/types.h>
+  class A {
+  public:
+    A(){}
+    A(const char*){}
+    A(int32_t){}
+    A(int64_t){}
+    A(uint32_t){}
+    A(uint64_t){}
+    A(size_t){}
+    A(double){}
+  };
+  A tmp;
+'''
+if ccpp.compiles(code_sizet_needed, name: 'Check if JSON class needs size_t variants')
+  option_defines += '-DSIZET_VARIANT'
+endif
+
 # Set defines from active options
 add_project_arguments(option_defines, language: 'cpp')
 

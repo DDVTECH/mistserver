@@ -48,6 +48,9 @@ namespace JSON{
     Value(uint64_t val);
     Value(double val);
     Value(bool val);
+    #ifdef SIZET_VARIANT
+    Value(size_t val);
+    #endif
     // comparison operators
     bool operator==(const Value &rhs) const;
     bool operator!=(const Value &rhs) const;
@@ -65,6 +68,9 @@ namespace JSON{
     Value &operator=(const uint32_t &rhs);
     Value &operator=(const double &rhs);
     Value &operator=(const bool &rhs);
+    #ifdef SIZET_VARIANT
+    Value &operator=(const size_t &rhs);
+    #endif
     // converts to basic types
     operator int64_t() const;
     operator std::string() const;

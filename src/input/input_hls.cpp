@@ -689,7 +689,7 @@ namespace Mist{
       jsonForEachConst(*i, j){
         const JSON::Value & thisEntry = *j;
         if (thisEntry[1u].asInt() < playlistMapping[plNum]->firstIndex + 1){
-          INFO_MSG("Skipping segment %lu which is present in the header, but no longer available in the playlist", thisEntry[1u].asInt());
+          INFO_MSG("Skipping segment %" PRId64 " which is present in the header, but no longer available in the playlist", thisEntry[1u].asInt());
           continue;
         }
         if (thisEntry[1u].asInt() > playlistMapping[plNum]->firstIndex + listEntries[plNum].size()){
@@ -739,7 +739,7 @@ namespace Mist{
         uint64_t val = i->asInt();
         // If there was a jump in MEDIA-SEQUENCE, start from there
         if (val < playlistMapping[key]->firstIndex){
-          INFO_MSG("Detected a jump in MEDIA-SEQUENCE, adjusting segment counter from %lu to %lu", val, playlistMapping[key]->firstIndex);
+          INFO_MSG("Detected a jump in MEDIA-SEQUENCE, adjusting segment counter from %" PRIu64 " to %" PRIu64, val, playlistMapping[key]->firstIndex);
           val = playlistMapping[key]->firstIndex;
         }
         parsedSegments[key] = val;
@@ -781,7 +781,7 @@ namespace Mist{
       std::string lastMapName;
       uint32_t entId = 0;
       bool foundAtLeastOnePacket = false;
-      VERYHIGH_MSG("Playlist %" PRIu32 " starts at media index %lu", pListIt->first, playlistMapping[pListIt->first]->firstIndex);
+      VERYHIGH_MSG("Playlist %" PRIu32 " starts at media index %" PRIu64, pListIt->first, playlistMapping[pListIt->first]->firstIndex);
 
       for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
            entryIt != pListIt->second.end() && config->is_active; entryIt++){
@@ -996,7 +996,7 @@ namespace Mist{
         }
         if (keys.getValidCount() <= 3){break;}
         // First key could still be in memory, but is no longer seekable: drop it
-        HIGH_MSG("Removing key %lu @%lu ms on track %lu from metadata", M.getKeys(trackIdx->first).getFirstValid(), M.getFirstms(trackIdx->first), trackIdx->first);
+        HIGH_MSG("Removing key %zu @%" PRIu64 " ms on track %zu from metadata", M.getKeys(trackIdx->first).getFirstValid(), M.getFirstms(trackIdx->first), trackIdx->first);
         meta.removeFirstKey(trackIdx->first);
       }
     }
@@ -1048,12 +1048,12 @@ namespace Mist{
 
       // Parse new segments in listEntries
       if (lastParsedSegment < lastSegment){
-        INFO_MSG("Playlist #%lu: Parsed %" PRIu64 "/%" PRIu64 " entries. Parsing new segments...", currentPlaylist, lastParsedSegment, lastSegment);
+        INFO_MSG("Playlist #%" PRIu64 ": Parsed %" PRIu64 "/%" PRIu64 " entries. Parsing new segments...", currentPlaylist, lastParsedSegment, lastSegment);
       }else if (isInitialRun){
         isInitialRun = false;
       }
       for(uint64_t entryIt = 1 + lastParsedSegment - firstSegment; entryIt < listEntries[currentPlaylist].size(); entryIt++){
-        INFO_MSG("Playlist #%lu: Parsing segment #%" PRIu64 " as live data", currentPlaylist, firstSegment + entryIt);
+        INFO_MSG("Playlist #%" PRIu64 ": Parsing segment #%" PRIu64 " as live data", currentPlaylist, firstSegment + entryIt);
         if (parseSegmentAsLive(entryIt)){parsedSegments[currentPlaylist] = firstSegment + entryIt;}
         // Rotate between playlists if there are lots of entries to parse
         if (Util::bootMS() > maxTime){break;}
@@ -1126,12 +1126,12 @@ namespace Mist{
     DTSC::Keys keys = M.getKeys(idx);
     for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); i++){
       if (keys.getTime(i) > seekTime){
-        VERYHIGH_MSG("Found elapsed key with a time of %" PRIu64 " ms. Using playlist index %zu to match requested time %lu", keys.getTime(i), plistEntry, seekTime);
+        VERYHIGH_MSG("Found elapsed key with a time of %" PRIu64 " ms. Using playlist index %zu to match requested time %" PRIu64 "", keys.getTime(i), plistEntry, seekTime);
         break;
       }
       // Keys can still be accessible in memory. Skip any segments we cannot seek to in the playlist
       if (keys.getBpos(i) <= playlistMapping[currentPlaylist]->firstIndex){
-        INSANE_MSG("Skipping segment #%lu (key %lu @ %lu ms) for seeking, as it is no longer available in the playlist", keys.getBpos(i) - 1, i, keys.getTime(i));
+        INSANE_MSG("Skipping segment #%lu (key %lu @ %" PRIu64 " ms) for seeking, as it is no longer available in the playlist", keys.getBpos(i) - 1, i, keys.getTime(i));
         continue;
       }
       plistEntry = keys.getBpos(i) - 1 - playlistMapping[currentPlaylist]->firstIndex;

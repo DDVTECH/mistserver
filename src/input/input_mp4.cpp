@@ -461,7 +461,7 @@ namespace Mist{
   /// Returns true on success, false on failure.
   bool InputMP4::shiftTo(size_t pos, size_t len){
     if (pos < readPos || pos > readPos + readBuffer.size() + 512*1024 + bps){
-      INFO_MSG("Buffer contains %" PRIu64 "-%" PRIu64 ", but we need %" PRIu64 "; seeking!", readPos, readPos + readBuffer.size(), pos);
+      INFO_MSG("Buffer contains %" PRIu64 "-%" PRIu64 ", but we need %zu; seeking!", readPos, readPos + readBuffer.size(), pos);
       readBuffer.truncate(0);
       if (!inFile.seek(pos)){
         return false;

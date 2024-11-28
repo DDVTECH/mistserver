@@ -171,7 +171,7 @@ namespace Mist{
     uint64_t keyCount = tPages.getInt("keycount", pageIdx);
     uint64_t newFirstKey = M.getKeys(idx).getFirstValid();
     if (firstKeyNum + keyCount <= newFirstKey){
-      HIGH_MSG("Page %" PRIu64 " track %zu has expired during the time it was kept cached in memory (contains up to key %lu, but the earliest key is %lu). Removing it now", firstKeyNum, idx, firstKeyNum + keyCount, newFirstKey);
+      HIGH_MSG("Page %" PRIu64 " track %zu has expired during the time it was kept cached in memory (contains up to key %" PRIu64 ", but the earliest key is %" PRIu64 "). Removing it now", firstKeyNum, idx, firstKeyNum + keyCount, newFirstKey);
       tPages.setInt("keycount", 0, pageIdx); //< Force removal by having avail and keycount both 0
     }else if (firstKeyNum < newFirstKey){
       uint64_t newPartCount = 0;
@@ -180,7 +180,7 @@ namespace Mist{
         newPartCount += keys.getParts(i);
       }
       uint64_t partCount = tPages.getInt("parts", pageIdx);
-      HIGH_MSG("Adjusting meta info for page %lu track %lu before unloading it. First key %lu -> %lu. Key count %lu -> %lu. Part count %lu -> %lu", firstKeyNum, idx, firstKeyNum, newFirstKey, keyCount, keyCount - (newFirstKey - firstKeyNum), partCount, newPartCount);
+      HIGH_MSG("Adjusting meta info for page %" PRIu64 " track %lu before unloading it. First key %" PRIu64 " -> %" PRIu64 ". Key count %" PRIu64 " -> %" PRIu64 ". Part count %" PRIu64 " -> %" PRIu64, firstKeyNum, idx, firstKeyNum, newFirstKey, keyCount, keyCount - (newFirstKey - firstKeyNum), partCount, newPartCount);
       tPages.setInt("keycount", keyCount - (newFirstKey - firstKeyNum), pageIdx);
       tPages.setInt("parts", newPartCount, pageIdx);
       tPages.setInt("firstkey", newFirstKey, pageIdx);

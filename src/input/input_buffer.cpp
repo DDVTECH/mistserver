@@ -765,7 +765,7 @@ namespace Mist{
         }
         // Skip if we have a delayed start time
         if (procNextBoot[config] > now){
-          VERYHIGH_MSG("Delaying start of process `%s`, %lu ms remaining", args["process"].asString().c_str(), procNextBoot[config] - now);
+          VERYHIGH_MSG("Delaying start of process `%s`, %" PRIu64 " ms remaining", args["process"].asString().c_str(), procNextBoot[config] - now);
           newProcs.erase(newProcs.begin());
           continue;
         }

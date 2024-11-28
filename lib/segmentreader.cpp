@@ -392,7 +392,7 @@ namespace Mist{
       // Non-seekable case is handled further down
       if (segDL.isSeekable() && startAtByte + currBuf->size()){
         //Seek to startAtByte position, since it's not the beginning of the file
-        MEDIUM_MSG("Seeking to %zu", startAtByte + currBuf->size());
+        MEDIUM_MSG("Seeking to %" PRIu64 "", startAtByte + currBuf->size());
         segDL.seek(startAtByte + currBuf->size());
       }
     }

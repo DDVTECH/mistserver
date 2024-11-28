@@ -194,7 +194,7 @@ if host_machine.system() == 'cygwin'
   option_defines += '-D_GNU_SOURCE'
 endif
 
-#
+# Add defines for size_t for platforms where is not equivalent to uint32_t or uint64_t
 code_sizet_needed = '''
   #include <stdint.h>
   #include <sys/types.h>

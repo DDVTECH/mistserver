@@ -217,7 +217,7 @@ namespace Mist{
     Output::init(cfg);
     capa["name"] = "TSSRT";
     capa["friendly"] = "TS over SRT";
-    capa["desc"] = "Real time streaming of TS data over SRT";
+    capa["desc"] = "Real time streaming of TS data over SRT using libsrt " SRT_VERSION_STRING;
     capa["deps"] = "";
 
     capa["incoming_push_url"] = "srt://$host:$port?streamid=$stream";

@@ -30,6 +30,7 @@ namespace Socket{
         if (res == -1){ERROR_MSG("Unable to initialize SRT Library!");}
         isInited = (res != -1);
       }
+      INFO_MSG("Initialized libsrt version %s", SRT_VERSION_STRING);
       return isInited;
     }
 

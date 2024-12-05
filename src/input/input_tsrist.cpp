@@ -87,7 +87,7 @@ namespace Mist{
     }
 
     capa["name"] = "TSRIST";
-    capa["desc"] = "This input allows for processing MPEG2-TS-based RIST streams.";
+    capa["desc"] = "This input allows for processing MPEG2-TS-based RIST streams using librist " + std::string(librist_version()) +".";
     capa["source_match"].append("rist://*");
     // These can/may be set to always-on mode
     capa["always_match"].append("rist://*");

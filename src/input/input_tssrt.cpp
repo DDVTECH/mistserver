@@ -52,8 +52,7 @@ namespace Mist{
     bootMSOffsetCalculated = false;
     assembler.setLive();
     capa["name"] = "TSSRT";
-    capa["desc"] = "This input allows for processing MPEG2-TS-based SRT streams. Use mode=listener "
-                   "for push input.";
+    capa["desc"] = "This input allows for processing MPEG2-TS-based SRT streams using libsrt " SRT_VERSION_STRING ".";
     capa["source_match"].append("srt://*");
     // These can/may be set to always-on mode
     capa["always_match"].append("srt://*");

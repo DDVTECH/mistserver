@@ -209,7 +209,7 @@ namespace Mist{
     Output::init(cfg);
     capa["name"] = "TSRIST";
     capa["friendly"] = "TS over RIST";
-    capa["desc"] = "Real time streaming of TS data over RIST";
+    capa["desc"] = "Real time streaming of TS data over RIST using librist " + std::string(librist_version());
     capa["deps"] = "This output protocol can currently only be used by the pushing system.";
     capa["PUSHONLY"] = true;
 

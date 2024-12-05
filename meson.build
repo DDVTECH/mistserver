@@ -162,10 +162,10 @@ if usessl
 endif
 
 libsrt = false
-if not get_option('NOSRT') and host_machine.system() != 'darwin'
+if not get_option('NOSRT')
   libsrt = dependency('srt', fallback: ['libsrt', 'srt_dep'])
 endif
-have_srt = not get_option('NOSRT') and host_machine.system() != 'darwin' and libsrt.found()
+have_srt = not get_option('NOSRT') and libsrt.found()
 if have_srt
   option_defines += '-DWITH_SRT'
 endif

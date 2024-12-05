@@ -149,9 +149,9 @@ namespace Mist{
       }
     }
     if (targetParams.count("rate")){
-      long long int multiplier = JSON::Value(targetParams["rate"]).asInt();
+      double multiplier = JSON::Value(targetParams["rate"]).asDouble();
       if (multiplier){
-        realTime = 1000 / multiplier;
+        realTime = (1000.0 / multiplier);
       }else{
         realTime = 0;
       }

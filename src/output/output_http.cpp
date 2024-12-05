@@ -409,9 +409,9 @@ namespace Mist{
       // allow setting of play back rate through rate variable or custom HTTP header.
       // play back rate is set in MS per second, but the variable is a simple multiplier.
       if (H.GetVar("rate") != ""){
-        long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
+        double multiplier = JSON::Value(H.GetVar("rate")).asDouble();
         if (multiplier){
-          realTime = 1000 / multiplier;
+          realTime = (1000.0 / multiplier);
         }else{
           realTime = 0;
         }

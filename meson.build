@@ -1,6 +1,11 @@
 project('mistserver', 'cpp', default_options: ['cpp_std=c++98'])
 add_project_arguments(['-funsigned-char', '-D_LARGEFILE_SOURCE','-Wno-sign-compare', '-Wparentheses', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing'], language: 'cpp')
 
+if host_machine.system() == 'darwin'
+  add_project_arguments(['-D__APPLE_USE_RFC_3542'], language: 'cpp')
+endif
+
+
 # Ensures the "mist" directory is in the include path
 incroot = include_directories('.')
 
@@ -100,7 +105,7 @@ message('Building release @0@ for version @1@ @ debug level @2@'.format(release,
 
 mist_deps = []
 ccpp = meson.get_compiler('cpp')
-if ccpp.has_header_symbol('netinet/in.h', 'IPV6_RECVPKTINFO') and ccpp.has_header_symbol('netinet/in.h', 'IP_PKTINFO')
+if ccpp.has_header_symbol('netinet/in.h', 'IPV6_RECVPKTINFO', args:['-D__APPLE_USE_RFC_3542']) and ccpp.has_header_symbol('netinet/in.h', 'IP_PKTINFO', args:['-D__APPLE_USE_RFC_3542'])
   option_defines += '-DHASPKTINFO'
 endif
 

@@ -2726,11 +2726,14 @@ namespace Mist{
         JSON::Value & pData = pStat["push_status_update"]["status"];
         pData["mediatime"] = currentTime();
         pData["media_tx"] = (lastPacketTime - lastSeekPos) + totalPlaytime;
+        pData["active_seconds"] = (thisBootMs - outputStartMs) / 1000;
+        pData["active_ms"] = thisBootMs - outputStartMs;
+        pData["current_target"] = currentTarget;
         if (M && buffer.size()) { pData["latency"] = endTime() - currentTime(); }
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
           pData["tracks"].append((uint64_t)it->first);
         }
-        if (lastPushUpdate) {
+        if (statComm) {
           pData["bytes"] = statComm.getUp();
           uint64_t pktCntNow = statComm.getPacketCount();
           if (pktCntNow) {
@@ -2745,10 +2748,7 @@ namespace Mist{
             prevPktCount = pktCntNow;
             prevLosCount = pktLosNow;
           }
-          pData["active_seconds"] = (thisBootMs - outputStartMs) / 1000;
-          pData["active_ms"] = thisBootMs - outputStartMs;
         }
-        pData["current_target"] = currentTarget;
         Util::sendUDPApi(pStat);
         lastPushUpdate = now;
       }
@@ -2756,6 +2756,7 @@ namespace Mist{
 
     // Disable stats for HTTP internal output
     if (Comms::sessionStreamInfoMode == SESS_HTTP_DISABLED && capa["name"].asStringRef() == "HTTP"){return;}
+    if (getenv("NOSESS")) { return; } // Disable sessions and stats if NOSESS env variable is set
 
     // Set the token to the pid for outputs which do not generate it in the requestHandler
     if (!tkn.size()){ tkn = JSON::Value(getpid()).asString(); }

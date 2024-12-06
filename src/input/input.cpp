@@ -934,7 +934,10 @@ namespace Mist{
     uint64_t now = Util::bootSecs();
     if (now != lastStats){
       if (!internalOnly && !isBuffer){
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (!statComm && !getenv("NOSESS")) {
+          statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(),
+                          "INPUT:" + capa["name"].asStringRef(), "");
+        }
         if (statComm){
           statComm.setNow(now);
           statComm.setStream(streamName);
@@ -1091,7 +1094,10 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (!statComm && !getenv("NOSESS")) {
+          statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(),
+                          "INPUT:" + capa["name"].asStringRef(), "");
+        }
         if (statComm){
           if (statComm.getExit() || statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
@@ -1251,7 +1257,10 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (!statComm && !getenv("NOSESS")) {
+          statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(),
+                          "INPUT:" + capa["name"].asStringRef(), "");
+        }
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;

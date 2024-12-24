@@ -147,10 +147,10 @@ if usessl
   '''
 
   have_upstream_mbedtls_srtp = ccpp.compiles(code_upstream, dependencies: [mbedtls, mbedx509, mbedcrypto], name: 'MbedTLS SRTP is upstream')
-  option_defines += int_opt.format('HAVE_UPSTREAM_MBEDTLS_SRTP', have_upstream_mbedtls_srtp.to_int())
   if not have_upstream_mbedtls_srtp
     ddvtech_mbedtls = ccpp.compiles(code_ddvtech, dependencies: [mbedtls, mbedx509, mbedcrypto], name: 'MbedTLS is DDVTech fork')
     if not mbedtls.found() or not ddvtech_mbedtls
+      have_upstream_mbedtls_srtp = true
       mbedtls_proj = subproject('mbedtls')
       mbedtls = mbedtls_proj.get_variable('mbedtls_dep')
       mbedx509 = mbedtls_proj.get_variable('mbedx509_dep')
@@ -158,6 +158,7 @@ if usessl
     endif
 
   endif
+  option_defines += int_opt.format('HAVE_UPSTREAM_MBEDTLS_SRTP', have_upstream_mbedtls_srtp.to_int())
   mist_deps += [mbedtls, mbedx509, mbedcrypto]
   mist_deps += dependency('libsrtp2', default_options: ['tests=disabled', 'crypto-library=mbedtls'], fallback: ['libsrtp2', 'libsrtp2_dep'])
 

@@ -1,10 +1,12 @@
-[wrap-git]
-url = https://github.com/livepeer/mbedtls.git
-revision = dtls_srtp_support
-depth = 1
+[wrap-file]
+directory = mbedtls-3.6.4
+source_url = https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.4/mbedtls-3.6.4.tar.bz2
+source_filename = mbedtls-3.6.4.tar.bz2
+source_hash = ec35b18a6c593cf98c3e30db8b98ff93e8940a8c4e690e66b41dfc011d678110
 patch_directory = mbedtls
 
 [provide]
 mbedcrypto = mbedcrypto_dep
 mbedx509 = mbedx509_dep
 mbedtls = mbedtls_dep
+

@@ -117,7 +117,7 @@ namespace Socket{
     close();
     initializeEmpty();
     if (!rhs){return *this;}
-    memcpy(&remoteaddr, &(rhs.remoteaddr), sizeof(sockaddr_in6));
+    memcpy(&remoteaddr, &(rhs.remoteaddr), sizeof(remoteaddr));
     direction = rhs.direction;
     remotehost = rhs.remotehost;
     sock = rhs.sock;
@@ -364,23 +364,29 @@ namespace Socket{
       return;
     }
     if (modeName == "listener"){
-      HIGH_MSG("Going to bind a server on %s:%u", _host.c_str(), _port);
+      std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
+      for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
+        size_t maxSize = it->size();
+        if (maxSize > sizeof(remoteaddr)){maxSize = sizeof(remoteaddr);}
+        memcpy(&remoteaddr, it->data(), maxSize);
 
-      sockaddr_in sa = createInetAddr(_host, _port);
-      sockaddr *psa = (sockaddr *)&sa;
+        sockaddr *psa = (sockaddr *)&remoteaddr;
+        HIGH_MSG("Going to bind a server on %s:%u", _host.c_str(), _port);
 
-      if (srt_bind(sock, psa, sizeof sa) == SRT_ERROR){
-        close();
-        ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());
+        if (srt_bind(sock, psa, sizeof remoteaddr) == SRT_ERROR){
+          close();
+          ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());
+          continue;
+        }
+        if (srt_listen(sock, 100) == SRT_ERROR){
+          close();
+          ERROR_MSG("Can not listen on Socket");
+          continue;
+        }
+        INFO_MSG("Listener SRT socket success @ %s:%u", _host.c_str(), _port);
+        lastGood = Util::bootMS();
         return;
       }
-      if (srt_listen(sock, 100) == SRT_ERROR){
-        close();
-        ERROR_MSG("Can not listen on Socket");
-      }
-      INFO_MSG("Listener SRT socket success @ %s:%u", _host.c_str(), _port);
-      lastGood = Util::bootMS();
-      return;
     }
     ERROR_MSG("Invalid mode parameter. Use 'caller' or 'listener'");
   }

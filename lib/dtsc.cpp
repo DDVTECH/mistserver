@@ -1202,7 +1202,6 @@ namespace DTSC{
       trackList.addField("playready", RAX_STRING, 1024);
 
       trackList.setRCount(trackCount);
-      trackList.setReady();
       preloadTrackFields();
     }else{
       if (stream.isReady()){streamTracksField = stream.getFieldData("tracks");}

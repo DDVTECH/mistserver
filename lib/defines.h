@@ -177,14 +177,14 @@ static inline void show_stackframe(){}
 #define RAW_FRAME_COUNT 30
 
 /// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
-#define META_META_OFFSET 138
+#define META_META_OFFSET 136
 #define META_META_RECORDSIZE 548
 
 #define META_TRACK_OFFSET 148
 #define META_TRACK_RECORDSIZE 1893
 
-#define TRACK_TRACK_OFFSET 193
-#define TRACK_TRACK_RECORDSIZE 1049060
+#define TRACK_TRACK_OFFSET 200
+#define TRACK_TRACK_RECORDSIZE 1049068
 
 #define TRACK_FRAGMENT_OFFSET 68
 #define TRACK_FRAGMENT_RECORDSIZE 14

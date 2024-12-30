@@ -39,6 +39,7 @@ static void callThreadCallbackSRT(void *socknum){
   Mist::InputTSSRT inp(cfgPointer, *(Socket::SRTConnection *)socknum);
   inp.setSingular(false);
   inp.run();
+  delete (Socket::SRTConnection *)socknum;
 }
 
 namespace Mist{
@@ -294,13 +295,14 @@ namespace Mist{
       cfgPointer = config;
       baseStreamName = streamName;
       while (config->is_active && sSock.connected()){
-        Socket::SRTConnection S = sSock.accept();
-        if (S.connected()){// check if the new connection is valid
+        Socket::SRTConnection * S = new Socket::SRTConnection();
+        *S = sSock.accept();
+        if (S->connected()){// check if the new connection is valid
           // spawn a new thread for this connection
-          tthread::thread T(callThreadCallbackSRT, (void *)&S);
+          tthread::thread T(callThreadCallbackSRT, (void *)S);
           // detach it, no need to keep track of it anymore
           T.detach();
-          HIGH_MSG("Spawned new thread for socket %i", S.getSocket());
+          HIGH_MSG("Spawned new thread for socket %i", S->getSocket());
         }
       }
       Socket::SRT::libraryCleanup();

@@ -142,7 +142,10 @@ namespace Mist{
       std::string streamid = srtConn->getStreamName();
       int64_t acc = config->getInteger("acceptable");
       if (acc == 0){
-        if (streamid.size()){streamName += "+" + streamid;}
+        if (streamid.size()){
+          Util::sanitizeName(streamid);
+          streamName += "+" + streamid;
+        }
       }else if(acc == 2){
         if (streamName != streamid){
           FAIL_MSG("Stream ID '%s' does not match stream name, push blocked", streamid.c_str());

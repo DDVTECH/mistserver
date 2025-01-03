@@ -276,7 +276,7 @@ namespace Controller{
           JSON::Value tmpConf = JSON::fromFile(cs->asStringRef());
           tmpConf[cs.key()] = tmp[cs.key()];
           // Attempt to write this section to the given file
-          if (!Controller::WriteFile(cs->asStringRef(), tmpConf.toString())){
+          if (!Controller::WriteFile(cs->asStringRef(), tmpConf.toPrettyString())){
             success = false;
             // Only print the error + config data if this is new data since the last write attempt
             if (tmp[cs.key()] != lastConfigWriteAttempt[cs.key()]){
@@ -298,7 +298,7 @@ namespace Controller{
     // Only (attempt to) write if there was a change since last write success
     if (forceWrite || lastConfigWritten[""] != mainConfig){
       // Attempt to write this section to the given file
-      if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
+      if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toPrettyString())){
         success = false;
         // Only print the error + config data if this is new data since the last write attempt
         if (tmp != lastConfigWriteAttempt){

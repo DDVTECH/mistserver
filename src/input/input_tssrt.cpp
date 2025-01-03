@@ -68,79 +68,81 @@ namespace Mist{
     capa["codecs"]["audio"].append("MP2");
     capa["codecs"]["audio"].append("opus");
     capa["codecs"]["passthrough"].append("rawts");
-
-    JSON::Value option;
-    option["arg"] = "integer";
-    option["long"] = "buffer";
-    option["short"] = "b";
-    option["help"] = "DVR buffer time in ms";
-    option["value"].append(50000);
-    config->addOption("bufferTime", option);
-    option.null();
-    capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
-    capa["optional"]["DVR"]["help"] =
+    // Add configuration options, only if this is the main thread constructor, and not another instance in a thread
+    if (!s.connected()) {
+      JSON::Value option;
+      option["arg"] = "integer";
+      option["long"] = "buffer";
+      option["short"] = "b";
+      option["help"] = "DVR buffer time in ms";
+      option["value"].append(50000);
+      config->addOption("bufferTime", option);
+      option.null();
+      capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
+      capa["optional"]["DVR"]["help"] =
         "The target available buffer time for this live stream, in milliseconds. This is the time "
         "available to seek around in, and will automatically be extended to fit whole keyframes as "
         "well as the minimum duration needed for stable playback.";
-    capa["optional"]["DVR"]["option"] = "--buffer";
-    capa["optional"]["DVR"]["type"] = "uint";
-    capa["optional"]["DVR"]["default"] = 50000;
+      capa["optional"]["DVR"]["option"] = "--buffer";
+      capa["optional"]["DVR"]["type"] = "uint";
+      capa["optional"]["DVR"]["default"] = 50000;
 
-    option["arg"] = "integer";
-    option["long"] = "acceptable";
-    option["short"] = "T";
-    option["help"] = "Acceptable pushed streamids (0 = use streamid as wildcard, 1 = ignore all streamids, 2 = disallow non-matching streamids)";
-    option["value"].append(0);
-    config->addOption("acceptable", option);
-    capa["optional"]["acceptable"]["name"] = "Acceptable pushed streamids";
-    capa["optional"]["acceptable"]["help"] = "What to do with the streamids for incoming pushes, if this is a listener SRT connection";
-    capa["optional"]["acceptable"]["option"] = "--acceptable";
-    capa["optional"]["acceptable"]["short"] = "T";
-    capa["optional"]["acceptable"]["default"] = 0;
-    capa["optional"]["acceptable"]["type"] = "select";
-    capa["optional"]["acceptable"]["select"][0u][0u] = 0;
-    capa["optional"]["acceptable"]["select"][0u][1u] = "Set streamid as wildcard";
-    capa["optional"]["acceptable"]["select"][1u][0u] = 1;
-    capa["optional"]["acceptable"]["select"][1u][1u] = "Ignore all streamids";
-    capa["optional"]["acceptable"]["select"][2u][0u] = 2;
-    capa["optional"]["acceptable"]["select"][2u][1u] = "Disallow non-matching streamid";
+      option["arg"] = "integer";
+      option["long"] = "acceptable";
+      option["short"] = "T";
+      option["help"] = "Acceptable pushed streamids (0 = use streamid as wildcard, 1 = ignore all streamids, 2 = "
+                       "disallow non-matching streamids)";
+      option["value"].append(0);
+      config->addOption("acceptable", option);
+      capa["optional"]["acceptable"]["name"] = "Acceptable pushed streamids";
+      capa["optional"]["acceptable"]["help"] =
+        "What to do with the streamids for incoming pushes, if this is a listener SRT connection";
+      capa["optional"]["acceptable"]["option"] = "--acceptable";
+      capa["optional"]["acceptable"]["short"] = "T";
+      capa["optional"]["acceptable"]["default"] = 0;
+      capa["optional"]["acceptable"]["type"] = "select";
+      capa["optional"]["acceptable"]["select"][0u][0u] = 0;
+      capa["optional"]["acceptable"]["select"][0u][1u] = "Set streamid as wildcard";
+      capa["optional"]["acceptable"]["select"][1u][0u] = 1;
+      capa["optional"]["acceptable"]["select"][1u][1u] = "Ignore all streamids";
+      capa["optional"]["acceptable"]["select"][2u][0u] = 2;
+      capa["optional"]["acceptable"]["select"][2u][1u] = "Disallow non-matching streamid";
+      capa["optional"]["raw"]["name"] = "Raw input mode";
+      capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
+      capa["optional"]["raw"]["option"] = "--raw";
 
-    capa["optional"]["raw"]["name"] = "Raw input mode";
-    capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
-    capa["optional"]["raw"]["option"] = "--raw";
+      option.null();
+      option["long"] = "raw";
+      option["short"] = "R";
+      option["help"] = "Enable raw MPEG-TS passthrough mode";
+      config->addOption("raw", option);
 
-    option.null();
-    option["long"] = "raw";
-    option["short"] = "R";
-    option["help"] = "Enable raw MPEG-TS passthrough mode";
-    config->addOption("raw", option);
-    
-    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
-    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
-    capa["optional"]["datatrack"]["type"] = "select";
-    capa["optional"]["datatrack"]["option"] = "--datatrack";
-    capa["optional"]["datatrack"]["short"] = "D";
-    capa["optional"]["datatrack"]["default"] = "";
-    capa["optional"]["datatrack"]["select"][0u][0u] = "";
-    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
-    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
-    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+      capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+      capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+      capa["optional"]["datatrack"]["type"] = "select";
+      capa["optional"]["datatrack"]["option"] = "--datatrack";
+      capa["optional"]["datatrack"]["short"] = "D";
+      capa["optional"]["datatrack"]["default"] = "";
+      capa["optional"]["datatrack"]["select"][0u][0u] = "";
+      capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+      capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+      capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
 
-    option.null();
-    option["long"] = "datatrack";
-    option["short"] = "D";
-    option["arg"] = "string";
-    option["default"] = "";
-    option["help"] = "Which parser to use for data tracks";
-    config->addOption("datatrack", option);
-
-    // Setup if we are called form with a thread for push-based input.
-    if (s.connected()){
+      option.null();
+      option["long"] = "datatrack";
+      option["short"] = "D";
+      option["arg"] = "string";
+      option["default"] = "";
+      option["help"] = "Which parser to use for data tracks";
+      config->addOption("datatrack", option);
+    } else {
+      // Setup for a thread for push-based input
       srtConn = new Socket::SRTConnection(s);
       streamName = baseStreamName;
       std::string streamid = srtConn->getStreamName();
+      if (streamid.size()) { INFO_MSG("Received SRT streamid '%s'", streamid.c_str()); }
       if (accMode == 0){
-        if (streamid.size()){streamName += "+" + streamid;}
+        if (streamid.size()) { streamName += "+" + streamid; }
       }else if(accMode == 2){
         if (streamName != streamid){
           FAIL_MSG("Stream ID '%s' does not match stream name, push blocked", streamid.c_str());
@@ -148,6 +150,7 @@ namespace Mist{
           srtConn = 0;
         }
       }
+      Util::sanitizeName(streamName);
       Util::setStreamName(streamName);
     }
     lastTimeStamp = 0;

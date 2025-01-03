@@ -140,6 +140,9 @@ namespace Mist{
       srtConn = new Socket::SRTConnection(s);
       streamName = baseStreamName;
       std::string streamid = srtConn->getStreamName();
+      if (streamid.size()){
+        INFO_MSG("Received SRT streamid '%s'",streamid.c_str());
+      }
       int64_t acc = config->getInteger("acceptable");
       if (acc == 0){
         if (streamid.size()){

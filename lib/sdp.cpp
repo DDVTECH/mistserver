@@ -671,6 +671,12 @@ namespace SDP{
           myMeta->setCodec(tid, "AAC");
           myMeta->setSize(tid, 16);
         }
+        if (trCodec == "MPA"){
+          myMeta->setCodec(tid, "MP3");
+          myMeta->setRate(tid, 0);
+          myMeta->setSize(tid, 0);
+          myMeta->setChannels(tid, 0);
+        }
         if (!myMeta->getCodec(tid).size()){
           ERROR_MSG("Unsupported RTP mapping: %s", mediaType.c_str());
         }else{

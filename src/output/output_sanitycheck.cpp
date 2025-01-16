@@ -65,6 +65,7 @@ namespace Mist{
     capa["friendly"] = "Development tool: Sanity checker";
     capa["desc"] = "Does sanity check on a stream";
     capa["deps"] = "This tool is for development purposes only";
+    capa["NODEFAULT"] = true;
     capa["codecs"][0u][0u].append("+*");
 
     JSON::Value opt;

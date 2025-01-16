@@ -182,6 +182,8 @@ bool interactiveFirstTimeSetup(){
              Controller::Storage["config"]["protocols"].size() < 1)){
           // create protocols
           jsonForEach(Controller::capabilities["connectors"], it){
+            if (it->isMember("PUSHONLY")){continue;}
+            if (it->isMember("NODEFAULT")){continue;}
             if (!it->isMember("required")){
               JSON::Value newProtocol;
               newProtocol["connector"] = it.key();
@@ -205,6 +207,8 @@ bool interactiveFirstTimeSetup(){
       if (yna(in_string) == 'y'){
         // create protocols
         jsonForEach(Controller::capabilities["connectors"], it){
+          if (it->isMember("PUSHONLY")){continue;}
+          if (it->isMember("NODEFAULT")){continue;}
           if (!it->isMember("required")){
             JSON::Value newProtocol;
             newProtocol["connector"] = it.key();

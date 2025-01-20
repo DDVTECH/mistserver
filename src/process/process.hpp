@@ -1,6 +1,11 @@
 #include <mist/json.h>
 
 void addGenericProcessOptions(JSON::Value & capa){
+  capa["optional"]["debug"]["name"] = "Debug level";
+  capa["optional"]["debug"]["type"] = "debug";
+  capa["optional"]["debug"]["help"] = "Debug message level for process. Default inherits from the stream setting.";
+  capa["optional"]["debug"]["sort"] = "aaaaa";
+
   capa["optional"]["start_control"]["name"] = "Process start behaviour";
   capa["optional"]["start_control"]["type"] = "group";
   capa["optional"]["start_control"]["help"] = "Control when the process starts";

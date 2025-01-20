@@ -238,7 +238,7 @@ p.prototype.build = function (MistVideo,callback) {
         }
       };
       
-      if (MistVideo.source.type == "html5/video/mp4") {
+      if ((MistVideo.source.type == "html5/video/mp4") || (MistVideo.source.type == "html5/video/webm")) {
         var otherdurationoverride = overrides.get.duration;
         overrides.get.duration = function(){
           return otherdurationoverride.apply(this,arguments) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3;

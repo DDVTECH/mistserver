@@ -161,6 +161,21 @@ namespace Mist{
   // Override initialSeek to go to last possible position for live streams
   void OutTSSRT::initialSeek(bool dryRun){
     if (!meta){return;}
+    if (targetParams.count("pushdelay") ||
+        targetParams.count("duration") ||
+        targetParams.count("split") ||
+        targetParams.count("start") ||
+        targetParams.count("stop") ||
+        targetParams.count("stopunix") ||
+        targetParams.count("unixstop") ||
+        targetParams.count("recstop") ||
+        targetParams.count("recstopunix") ||
+        targetParams.count("recstart") ||
+        targetParams.count("recstartunix") ||
+        targetParams.count("startunix") ||
+        targetParams.count("unixstart")){
+      return Output::initialSeek(dryRun);
+    }
     meta.removeLimiter();
 
     uint64_t seekPos = 0;

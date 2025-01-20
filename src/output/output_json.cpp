@@ -128,6 +128,7 @@ namespace Mist{
       while (--maxTimer && keepGoing()){
         if (!isBlocking){myConn.spool();}
         Util::wait(500);
+        thisBootMs = Util::bootMS();
         stats();
         if (Util::getStreamStatus(streamName) != STRMSTAT_READY){
           if (isInitialized){

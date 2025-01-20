@@ -1196,6 +1196,7 @@ namespace Mist{
           INFO_MSG("Waiting for buffer to fill up: waiting %" PRIu64 "ms", waitTime);
           while (Util::bootMS() < waitTarget && keepGoing()){
             Util::sleep(250);
+            thisBootMs = Util::bootMS();
             meta.reloadReplacedPagesIfNeeded();
             stats();
           }
@@ -1247,6 +1248,7 @@ namespace Mist{
             INFO_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
             while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
               Util::sleep(500);
+              thisBootMs = Util::bootMS();
               if (M.getNowms(mainTrack) > streamAvail){
                 HIGH_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
                 stats();
@@ -1763,6 +1765,7 @@ namespace Mist{
                 amount = thisTime - targetTime();
                 if (amount > 1000){amount = 1000;}
                 idleTime(amount);
+                thisBootMs = Util::bootMS();
                 //Make sure we stay responsive to requests and stats while waiting
                 if (wantRequest){
                   requestHandler();
@@ -1801,6 +1804,7 @@ namespace Mist{
                 }else{
                   playbackSleep(sleepTime);
                 }
+                thisBootMs = Util::bootMS();
                 //Make sure we stay responsive to requests and stats while waiting
                 if (wantRequest){requestHandler();}
                 stats();

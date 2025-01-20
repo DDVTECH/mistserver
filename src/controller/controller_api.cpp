@@ -198,11 +198,11 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool au
   HTTP::Websocket W(C, req, H);
   if (!W){return;}
   
+  C.setBlocking(false);
   if (authorized){
     W.sendFrame("[\"auth\", true]");
   }else{
     W.sendFrame("[\"auth\", false]");
-    C.setBlocking(false);
   }
   uint64_t authTime = Util::bootMS();
   while (!authorized && W){
@@ -228,7 +228,6 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool au
     }
   }
   if (!authorized || !W || !C){return;}
-  C.setBlocking(true);
 
 
 
@@ -280,6 +279,7 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool au
   }
   std::map<std::string, streamStat> lastStrmStat;
   std::set<std::string> strmRemove;
+
   while (W){
     bool sent = false;
     while (doLog && rlxLog.getEndPos() > logPos){

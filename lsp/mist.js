@@ -3133,7 +3133,11 @@ var UI = {
                   
                   for (var i in d.capabilities.connectors) {
                     var connector = d.capabilities.connectors[i];
-                    
+                   
+                    if (("PUSHONLY" in connector) || ("NODEFAULT" in connector)) {
+                      continue;
+                    }
+
                     if (connector.required) {
                       $main.append('Could not enable protocol "'+i+'" because it has required settings.<br>');
                       continue;
@@ -4298,7 +4302,11 @@ var UI = {
             }
             var dontskip = [];
             for (var i in toenable) {
-              if ((!('required' in mist.data.capabilities.connectors[toenable[i]])) || (Object.keys(mist.data.capabilities.connectors[toenable[i]].required).length == 0)) {
+              var connector = mist.data.capabilities.connectors[toenable[i]];
+              if (("PUSHONLY" in connector) || ("NODEFAULT" in connector)) {
+                continue;
+              }
+              if (!('required' in connector) || (Object.keys(connector.required).length == 0)) {
                 dontskip.push(toenable[i]);
               }
             }
@@ -10595,17 +10603,6 @@ var UI = {
             me.listeners = [];
             me.messages = [];
             me.ws = false;
-          };
-          apiWs.keepAlive = function(){
-            setTimeout(function(){ //repeatedly send {} to MistServer to activate readFrame loop (This ensures new messages are delivered. Backend should be updated so this is not needed)
-              if (apiWs.readyState == 1) {
-                apiWs.send("");
-                apiWs.keepAlive();
-              }
-            },200);
-          }
-          apiWs.onopen = function(){
-            apiWs.keepAlive();
           };
         },
         subscribe: function(callback){

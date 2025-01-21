@@ -1014,9 +1014,12 @@ int StunWriter::writeFingerprint(){
 
 int StunWriter::convertIp4StringToInt(const std::string &ip, uint32_t &result){
 
-  if (0 == ip.size()){
+  if (!ip.size()){
     FAIL_MSG("Given ip string is empty.");
     return -1;
+  }
+  if (ip.size() >= 7 && ip.substr(0, 7) == "::ffff:"){
+    return convertIp4StringToInt(ip.substr(7), result);
   }
 
   in_addr addr;

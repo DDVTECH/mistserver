@@ -152,10 +152,15 @@ void handleUSR1Parent(int signum, siginfo_t *sigInfo, void *ignore){
 }
 
 bool interactiveFirstTimeSetup(){
+  bool waited = false;
   // check for username
   if (!Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
     std::string in_string = "";
     while (yna(in_string) == 'x' && Controller::conf.is_active){
+      if (!waited){
+        Util::wait(1000);
+        waited = true;
+      }
       std::cout << "Account not set, do you want to create an account? (y)es, (n)o, (a)bort: ";
       std::cout.flush();
       std::getline(std::cin, in_string);
@@ -201,6 +206,10 @@ bool interactiveFirstTimeSetup(){
        Controller::Storage["config"]["protocols"].size() < 1)){
     std::string in_string = "";
     while (yna(in_string) == 'x' && Controller::conf.is_active){
+      if (!waited){
+        Util::wait(1000);
+        waited = true;
+      }
       std::cout << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
       std::cout.flush();
       std::getline(std::cin, in_string);

@@ -1826,6 +1826,15 @@ main[data-tab="Streams"] table.streams tbody:not(:has(tr:not(.hidden))):before {
   color: var(--secondaryTextColor);
   padding: 0.2em 0.8em;
 }
+
+main[data-tab="Push"] [data-pushid][data-deactivated="true"] td {
+  background-color: var(--red);
+  background-color: color-mix(in srgb,var(--red) 20%, transparent);
+}
+main[data-tab="Push"] [data-pushid][data-deactivated="true"] td:first-child:before {
+  content: '[deactivated] ';
+}
+
 .page_control {
   float: right;
   text-align: right;

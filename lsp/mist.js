@@ -5811,6 +5811,7 @@ var UI = {
           function buildTr(push,type) {
             var $target = $('<span>');
             var $logs = $("<span>");
+            var deactivated = false;
             if ((type == "Automatic") && (push.length >= 4)) {
 
               function printPrettyComparison(a,b,c){
@@ -5897,6 +5898,40 @@ var UI = {
               })
             );
             if (type == 'Automatic') {
+              if (push[1].indexOf("💤deactivated💤_") == 0) {
+                push[1] = push[1].slice(16);
+                deactivated = true;
+                $buttons.append(
+                  $("<button>").text("Activate").click(function(){
+                    var deactivated = push.slice(1); //original push array
+                    var activated = push.slice(1); //create a clone
+                    deactivated[0] = "💤deactivated💤_"+push[1];
+                    mist.send(function(){
+                      UI.navto("Push");
+                    },{
+                      push_auto_remove: [deactivated],
+                      push_auto_add: activated
+                    });
+
+                  })
+                );
+
+              }
+              else {
+                $buttons.append(
+                  $("<button>").text("Deactivate").click(function(){
+                    var p = push.slice(1); //original push array
+                    var deactivated = p.slice(); //create a clone
+                    deactivated[0] = "💤deactivated💤_"+p[0];
+                    mist.send(function(){
+                      UI.navto("Push");
+                    },{
+                      push_auto_remove: [p],
+                      push_auto_add: deactivated
+                    });
+                  })
+                );
+              }
               $buttons.prepend(
                 $("<button>").text("Edit").click(function(){
                   UI.navto("Start Push","auto_"+($(this).closest("tr").index()-1));
@@ -5904,7 +5939,7 @@ var UI = {
               );
               $buttons.append(
                 $('<button>').text('Stop pushes').click(function(){
-                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(push_settings.wait != 0 ? "\n\nRetrying is enabled. That means the push will just restart. You'll probably want to set that to 0." : ''))) {
+                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(!deactivated && (push_settings.wait != 0) ? "\n\nRetrying is enabled. That means the push will just restart. You'll probably want to set that to 0." : ''))) {
                     var $button = $(this);
                     $button.text('Stopping pushes..');
                     //also stop the matching pushes
@@ -5920,7 +5955,7 @@ var UI = {
                         );
                       }
                     }
-                    
+
                     mist.send(function(){
                       $button.text('Stop pushes');
                       checkgone(pushIds);
@@ -5930,6 +5965,7 @@ var UI = {
                   }
                 })
               );
+              
             }
             else {
               //it's a non-automatic push
@@ -5976,7 +6012,7 @@ var UI = {
               }
               
             }
-            return $('<tr>').css("vertical-align","top").attr('data-pushid',push[0]).append(
+            return $('<tr>').css("vertical-align","top").attr('data-pushid',push[0]).attr("data-deactivated",deactivated).append(
               $('<td>').text(push[1])
             ).append(
               $('<td>').append($target.children())
@@ -5993,10 +6029,22 @@ var UI = {
             }
           }
           if ('push_auto_list' in d) {
+            var deactivated = [];
             for (var i in d.push_auto_list) {
               var a = d.push_auto_list[i].slice();
               a.unshift(-1);
-              $autopush.append(buildTr(a,'Automatic'));
+              var tr = buildTr(a,'Automatic');
+
+              //gather deactivated pushes and put them at the end of the table after completing the push_auto_list iterations
+              if (tr.attr("data-deactivated") == "true") {
+                deactivated.push(tr);
+              }
+              else {
+                $autopush.append(tr);
+              }
+            }
+            for (var i in deactivated) {
+              $autopush.append(deactivated[i]);
             }
           }
           
@@ -6042,7 +6090,7 @@ var UI = {
               }
             ])
           ).append(
-            $('<h3>').text('Automatic push settings')
+            $('<h3>').text('Automatic pushes')
           ).append(
             $('<button>').text('Add an automatic push').click(function(){
               UI.navto('Start Push','auto');

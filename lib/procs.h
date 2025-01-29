@@ -30,8 +30,8 @@ namespace Util{
     static void reap();
     static void fork_complete();
     static void setHandler();
-    static std::string getOutputOf(char *const *argv, uint64_t maxWait = 0);
-    static std::string getOutputOf(std::deque<std::string> &argDeq, uint64_t maxWait = 0);
+    static std::string getOutputOf(char *const *argv, uint64_t maxWait = 10000);
+    static std::string getOutputOf(std::deque<std::string> &argDeq, uint64_t maxWait = 10000);
     static std::string getLimitedOutputOf(char *const *argv, uint64_t maxWait, uint32_t maxValBytes);
     static pid_t StartPiped(const char *const *argv, int *fdin, int *fdout, int *fderr);
     static pid_t StartPiped(std::deque<std::string> &argDeq, int *fdin, int *fdout, int *fderr);

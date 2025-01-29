@@ -4,6 +4,7 @@
 #include "defines.h"
 #include "procs.h"
 #include "stream.h"
+#include "ev.h"
 #include <signal.h>
 #include <string.h>
 #include <sys/types.h>
@@ -270,36 +271,28 @@ void Util::Procs::childsig_handler(int signum){
 /// \param maxWait amount of milliseconds to wait for new output to come in over stdout before aborting
 std::string Util::Procs::getOutputOf(char *const *argv, uint64_t maxWait){
   int fin = 0, fout = -1, ferr = 0;
-  uint64_t waitedFor = 0;
-  uint8_t tries = 0;
+  uint64_t deadline = Util::bootMS() + maxWait;
   pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
   Socket::Connection O(-1, fout);
   O.setBlocking(false);
   Util::ResizeablePointer ret;
-  while (childRunning(myProc) || O){
-    if (O.spool() || O.Received().size()){
-      waitedFor = 0;
-      tries = 0;
-      while (O.Received().size()){
-        std::string & t = O.Received().get();
-        ret.append(t);
-        t.clear();
-      }
-    }else{
-      if (maxWait && waitedFor > maxWait){
-        WARN_MSG("Timeout while getting output of '%s', returning %zuB of data",  (char *)argv, ret.size());
-        break;
-      }
-      else if(maxWait){
-        uint64_t waitTime = Util::expBackoffMs(tries++, 10, maxWait);
-        Util::sleep(waitTime);
-        waitedFor += waitTime;
-      }
-      else{
-        Util::sleep(50);
-      }
+  Event::Loop evL;
+  evL.addSocket(fout, [&ret, &O](void *){
+    while (O.spool()){
+      O.Received().remove(ret, O.Received().bytes(999999999));
     }
+  }, 0);
+  while (O){
+    uint64_t currTime = Util::bootMS();
+    if (currTime >= deadline){
+      WARN_MSG("Process execution deadline passed: %" PRIu64 "ms", maxWait);
+      Procs::Murder(myProc);
+      O.close();
+      break;
+    }
+    evL.await(deadline - currTime);
   }
+  if (childRunning(myProc)){Procs::Murder(myProc);}
   return std::string(ret, ret.size());
 }
 

@@ -65,6 +65,7 @@ namespace Controller{
     if (input.isObject() && input.isMember("stream") && input.isMember("target")){
       ret["stream"] = input["stream"];
       ret["target"] = input["target"];
+      ret["x-LSP-notes"] = input["x-LSP-notes"];
       if (input.isMember("scheduletime") && input["scheduletime"].asInt()){
         ret["scheduletime"] = input["scheduletime"].asInt();
       }

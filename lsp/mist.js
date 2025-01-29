@@ -5808,11 +5808,15 @@ var UI = {
             },1e3);
           }
           var showing = false;
-          function buildTr(push,type) {
+          function buildTr(push,type,id) {
+            if (Array.isArray(push)) {
+              push = mist.convertPushArr2Obj(push,type == "Automatic");
+              id = push.id;
+            }
             var $target = $('<span>');
             var $logs = $("<span>");
             var deactivated = false;
-            if ((type == "Automatic") && (push.length >= 4)) {
+            if (type == "Automatic") {
 
               function printPrettyComparison(a,b,c){
                 var str = "";
@@ -5836,47 +5840,47 @@ var UI = {
               }
 
               $target.append(
-                $('<span>').text(push[2])
+                $('<span>').text(push.target)
               );
-              if (push[3]) {
+              if ("scheduletime" in push) {
                 $target.append(
-                  $('<span>').text(', schedule on '+(new Date(push[3]*1e3)).toLocaleString())
+                  $('<span>').text(', schedule on '+(new Date(push.scheduletime*1e3)).toLocaleString())
                 );
               }
-              if ((push.length >= 5) && (push[4])) {
+              if ("completetime" in push) {
                 $target.append(
-                  $('<span>').text(", complete on "+(new Date(push[4]*1e3)).toLocaleString())
+                  $('<span>').text(", complete on "+(new Date(push.completetime*1e3)).toLocaleString())
                 );
               }
-              if ((push.length >= 8) && (push[5])) {
+              if ("start_rule" in push) {
                 $target.append(
-                  $('<span>').text(", starts if "+printPrettyComparison(push[5],push[6],push[7]))
+                  $('<span>').text(", starts if "+printPrettyComparison.apply(this,push.start_rule))
                 );
               }
-              if ((push.length >= 11) && (push[8])) {
+              if ("end_rule" in push) {
                 $target.append(
-                  $('<span>').text(", stops if "+printPrettyComparison(push[8],push[9],push[10]))
+                  $('<span>').text(", stops if "+printPrettyComparison.apply(this,push.end_rule))
                 );
               }
 
             }
-            else if ((push.length >= 4) && (push[2] != push[3])) {
+            else if (push.target != push.resolved_target) {
               $target.append(
-                $('<span>').text(push[2])
+                $('<span>').text(push.target)
               ).append(
                 $('<span>').html('&#187').addClass('unit').css('margin','0 0.5em')
               ).append(
-                $('<span>').text(push[3])
+                $('<span>').text(push.resolved_target)
               );
             }
             else {
               $target.append(
-                $('<span>').text(push[2])
+                $('<span>').text(push.target)
               );
             }
             var $buttons = $('<td>').append(
               $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
-                if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
+                if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push.stream+' to '+push.target)) {
                   var $tr = $(this).closest('tr');
                   $tr.html(
                     $('<td colspan=99>').html(
@@ -5884,69 +5888,65 @@ var UI = {
                     )
                   );
                   if (type == 'Automatic') {
-                    var a = push.slice(1);
                     mist.send(function(){
                       $tr.remove();
-                    },{'push_auto_remove':[a]});
+                    },{'push_auto_remove':id});
                   }
                   else {
                     mist.send(function(d){
-                      checkgone([push[0]]);
-                    },{'push_stop':[push[0]]});
+                      checkgone([id]);
+                    },{'push_stop':[id]});
                   }
                 }
               })
             );
             if (type == 'Automatic') {
-              if (push[1].indexOf("💤deactivated💤_") == 0) {
-                push[1] = push[1].slice(16);
+              if (push.stream.indexOf("💤deactivated💤_") == 0) {
+                push.stream = push.stream.slice(16);
                 deactivated = true;
                 $buttons.append(
                   $("<button>").text("Activate").click(function(){
-                    var deactivated = push.slice(1); //original push array
-                    var activated = push.slice(1); //create a clone
-                    deactivated[0] = "💤deactivated💤_"+push[1];
+                    //push.stream has already been edited to have the normal (activated) stream name; just edit to the push object as is
+                    var o = {};
+                    o[id] = push;
                     mist.send(function(){
                       UI.navto("Push");
                     },{
-                      push_auto_remove: [deactivated],
-                      push_auto_add: activated
+                      push_auto_add: o
                     });
 
                   })
                 );
-
               }
               else {
                 $buttons.append(
                   $("<button>").text("Deactivate").click(function(){
-                    var p = push.slice(1); //original push array
-                    var deactivated = p.slice(); //create a clone
-                    deactivated[0] = "💤deactivated💤_"+p[0];
+                    push.stream = "💤deactivated💤_"+push.stream;
+                    var o = {};
+                    o[id] = push;
                     mist.send(function(){
                       UI.navto("Push");
                     },{
-                      push_auto_remove: [p],
-                      push_auto_add: deactivated
+                      push_auto_add: o
                     });
                   })
                 );
               }
               $buttons.prepend(
                 $("<button>").text("Edit").click(function(){
-                  UI.navto("Start Push","auto_"+($(this).closest("tr").index()-1));
+                  UI.navto("Start Push","auto_"+id);
                 })
               );
               $buttons.append(
                 $('<button>').text('Stop pushes').click(function(){
-                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(!deactivated && (push_settings.wait != 0) ? "\n\nRetrying is enabled. That means the push will just restart. You'll probably want to set that to 0." : ''))) {
+                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push.stream+' to '+push.target+"\"?"+(!deactivated && (push_settings.wait != 0) ? "\n\nRetrying is enabled. That means the push will just restart. You'll probably want to set that to 0." : ''))) {
                     var $button = $(this);
                     $button.text('Stopping pushes..');
                     //also stop the matching pushes
                     var pushIds = [];
                     for (var i in d.push_list) {
                       //                streamname                        target
-                      if ((push[1] == d.push_list[i][1]) && (push[2] == d.push_list[i][2])) {
+                      if ((push.stream == d.push_list[i][1]) && (push.target == d.push_list[i][2])) {
                         pushIds.push(d.push_list[i][0]);
                         $push.find('tr[data-pushid='+d.push_list[i][0]+']').html(
                           $('<td colspan=99>').html(
@@ -5969,8 +5969,8 @@ var UI = {
             }
             else {
               //it's a non-automatic push
-              if (push.length >= 6) {
-                var stats = push[5];
+              if ("stats" in push) {
+                var stats = push.stats;
                 $logs.append(
                   $("<div>").append(
                     "Active for: "+UI.format.duration(stats.active_seconds)
@@ -5999,10 +5999,10 @@ var UI = {
                   );
                 }
               }
-              if (push.length >= 5) {
+              if ("logs" in push) {
                 //there are logs
-                for (var i in push[4]) {
-                  var item = push[4][i];
+                for (var i in push.logs) {
+                  var item = push.logs[i];
                   $logs.append(
                     $("<div>").append(
                       UI.format.time(item[0])+' ['+item[1]+'] '+item[2]
@@ -6012,8 +6012,8 @@ var UI = {
               }
               
             }
-            return $('<tr>').css("vertical-align","top").attr('data-pushid',push[0]).attr("data-deactivated",deactivated).append(
-              $('<td>').text(push[1])
+            return $('<tr>').attr("title",push["x-LSP-notes"] ? push["x-LSP-notes"] : "").css("vertical-align","top").attr('data-pushid',id).attr("data-deactivated",deactivated).append(
+              $('<td>').text(push.stream)
             ).append(
               $('<td>').append($target.children())
             ).append(
@@ -6028,12 +6028,10 @@ var UI = {
               $push.append(buildTr(d.push_list[i],'Manual'));
             }
           }
-          if ('push_auto_list' in d) {
+          if ('auto_push' in d) {
             var deactivated = [];
-            for (var i in d.push_auto_list) {
-              var a = d.push_auto_list[i].slice();
-              a.unshift(-1);
-              var tr = buildTr(a,'Automatic');
+            for (var id in d.auto_push) {
+              var tr = buildTr(d.auto_push[id],'Automatic',id);
 
               //gather deactivated pushes and put them at the end of the table after completing the push_auto_list iterations
               if (tr.attr("data-deactivated") == "true") {
@@ -6229,6 +6227,8 @@ var UI = {
           
         },{push_settings:1,push_list:1,push_auto_list:1});
         
+        //$c.append(UI.modules.stream.pushes());
+
         break;
       case 'Start Push':
         
@@ -6241,15 +6241,19 @@ var UI = {
         }
         
         var allthestreams;
-        function buildTheThings(edit) {
-          var editid = false;
+        function buildTheThings(edit,editid) {
           var o = other.split("_");
           other = o[0];
           if (o.length == 2) { editid = o[1]; }
           
-          if ((editid !== false) && (typeof edit == "undefined")) {
+          if ((typeof editid != "undefined") && (typeof edit == "undefined")) {
             mist.send(function(d){
-              buildTheThings(d.push_auto_list[editid]);
+              if (editid in d.auto_push) {
+                buildTheThings(d.auto_push[editid],editid);
+              }
+              else {
+                buildTheThings(mist.convertPushArr2Obj(d.push_auto_list[editid],true));
+              }
             },{push_auto_list: 1});
             return;
           }
@@ -6296,11 +6300,11 @@ var UI = {
           var saveas = {params:{}};
           var params = []; //will contain all target url params as an array
           if ((other == "auto") && (typeof edit != "undefined")) {
-            saveas = {
-              "stream": edit[0],
-              "target": edit[1],
-              "params": {}
-            };
+            saveas = Object.assign({
+              "params": {},
+              start_rule: [null,null,null],
+              end_rule: [null,null,null]
+            },edit);
             
             var parts = saveas.target.split("?");
             if (parts.length > 1) {
@@ -6312,15 +6316,16 @@ var UI = {
                 saveas.params[param.shift()] = param.join("=");
               }
             }
-            
-            if (edit.length >= 3) { saveas.scheduletime = edit[2] != 0 ? edit[2] : null; }
-            if (edit.length >= 4) { saveas.completetime = edit[3] != 0 ? edit[3] : null; }
-            if (edit.length >= 5) { saveas.startVariableName     = edit[4] != '' ? edit[4] : null; }
-            if (edit.length >= 6) { saveas.startVariableOperator = edit[5] != '' ? edit[5] : null; }
-            if (edit.length >= 7) { saveas.startVariableValue    = edit[6] != '' ? edit[6] : null; }
-            if (edit.length >= 8) { saveas.endVariableName       = edit[7] != '' ? edit[7] : null; }
-            if (edit.length >= 9) { saveas.endVariableOperator   = edit[8] != '' ? edit[8] : null; }
-            if (edit.length >= 10){ saveas.endVariableValue      = edit[9] != '' ? edit[9] : null; }
+            /*if ("start_rule" in edit) {
+              saveas.startVariableName = edit.start_rule[0];
+              saveas.startVariableOperator = edit.start_rule[1];
+              saveas.startVariableValue = edit.start_rule[2];
+            }
+            if ("end_rule" in edit) {
+              saveas.endVariableName = edit.end_rule[0];
+              saveas.endVariableOperator = edit.end_rule[1];
+              saveas.endVariableValue = edit.end_rule[2];
+            }*/
 
           }
           var $additional_params = $("<div>").css("margin","1em 0");
@@ -6333,7 +6338,7 @@ var UI = {
               help: "When 'based on server time' is selected, a start and/or end timestamp can be configured. When it's 'based on a variable', the push will be activated while the specified variable matches the specified value.",
               type: "select",
               select: [["time","Based on server time"],["variable","Based on a variable"]],
-              value: (saveas.startVariableName || saveas.endVariableName ? "variable" : "time"),
+              value: (saveas.start_rule[0] || saveas.end_rule[0] ? "variable" : "time"),
               classes: ["activewhen"],
               "function": function(){
                 var $varbased = $autopush.find(".varbased").closest(".UIelement");
@@ -6346,8 +6351,7 @@ var UI = {
                 else {
                   $timebased.hide();
                   $varbased.css("display","");
-                  $autopush.find("[name=\"startVariableOperator\"]").trigger("change");
-                  $autopush.find("[name=\"endVariableOperator\"]").trigger("change");
+                  $autopush.find(".field.variableOperator").trigger("change");
                 }
               }
             },
@@ -6361,9 +6365,9 @@ var UI = {
               help: "This variable should be used to determine if this push should be started.",
               prefix: "$",
               datalist: Object.keys(mist.data.variable_list || []),
-              pointer: { main: saveas, index: "startVariableName" }
+              pointer: { main: saveas.start_rule, index: 0 }
             },{
-              classes: ["varbased"],
+              classes: ["varbased","variableOperator"],
               label: "Comparison operator",
               type: "select",
               select: [
@@ -6383,9 +6387,9 @@ var UI = {
               value: 2,
               css: {display:"none"},
               help: "How would you like to compare this variable?",
-              pointer: { main: saveas, index: "startVariableOperator" },
+              pointer: { main: saveas.start_rule, index: 1 },
               "function": function(){
-                var $varvalue = $autopush.find("[name=\"startVariableValue\"]").closest(".UIelement");
+                var $varvalue = $autopush.find(".field.startVariableValue").closest(".UIelement");
                 if (Number($(this).getval()) < 2) {
                   $varvalue.hide();
                 }
@@ -6394,12 +6398,12 @@ var UI = {
                 }
               }
             },{
-              classes: ["varbased"],
+              classes: ["varbased","startVariableValue"],
               label: "Variable value",
               type: "str",
               help: "The variable will be compared with this value to determine if this push should be started.<br>You can also enter another variable here!",
               datalist: Object.values(mist.data.variable_list || []).map(function(a){return typeof a == "string" ? a : a[3]}).concat(Object.keys(mist.data.variable_list || []).map(function(a){ return "$"+a; })),
-              pointer: { main: saveas, index: "startVariableValue" }
+              pointer: { main: saveas.start_rule, index: 2 }
             },
               $("<span>").addClass("UIelement").append(
               $("<h3>").text("Stop the push").addClass("varbased")
@@ -6410,7 +6414,7 @@ var UI = {
               help: "This variable should be used to determine if this push should be stopped.<br>You can leave this field blank if you do not want to have a stop condition. (You can always stop the push manually)",
               prefix: "$",
               datalist: Object.keys(mist.data.variable_list || []),
-              pointer: { main: saveas, index: "endVariableName" }
+              pointer: { main: saveas.end_rule, index: 0 }
             },{
               classes: ["varbased"],
               label: "Comparison operator",
@@ -6431,9 +6435,9 @@ var UI = {
               ],
               value: 2,
               help: "How would you like to compare this variable?",
-              pointer: { main: saveas, index: "endVariableOperator" },
+              pointer: { main: saveas.end_rule, index: 1 },
               "function": function(){
-                var $varvalue = $autopush.find("[name=\"endVariableValue\"]").closest(".UIelement");
+                var $varvalue = $autopush.find(".field.endVariableValue").closest(".UIelement");
                 if (Number($(this).getval()) < 2) {
                   $varvalue.hide();
                 }
@@ -6442,12 +6446,12 @@ var UI = {
                 }
               }
             },{
-              classes: ["varbased"],
+              classes: ["varbased","endVariableValue"],
               label: "Variable value",
               type: "str",
               help: "The variable will be compared with this value to determine if this push should be stopped.<br>You can also enter another variable here!",
               datalist: Object.values(mist.data.variable_list || []).map(function(a){return typeof a == "string" ? a : a[3]}).concat(Object.keys(mist.data.variable_list || []).map(function(a){ return "$"+a; })),
-              pointer: { main: saveas, index: "endVariableValue" }
+              pointer: { main: saveas.end_rule, index: 2 }
             },{
               classes: ["timebased"],
               type: "unix",
@@ -6654,6 +6658,14 @@ var UI = {
 
                 $additional_params.append(UI.buildUI(capaform)); 
               }
+            },{
+              label: "Notes",
+              type: "textarea",
+              rows: 4,
+              pointer: {
+                main: saveas,
+                index: "x-LSP-notes"
+              }
             },
             $additional_params,
             $autopush
@@ -6687,6 +6699,8 @@ var UI = {
                 delete saveas.endVariableValue;
                 delete saveas.completetime;
                 delete saveas.scheduletime;
+                saveas.start_rule.map(function(v){return null;});
+                saveas.end_rule.map(function(v){return null;});
               },
               'function': function(){
                 var params = saveas.params;
@@ -6700,19 +6714,16 @@ var UI = {
                     delete params[i];
                   }
                 }
-                if (saveas.startVariableName || saveas.endVariableName) {
+                if (saveas.start_rule[0] === null) {
+                  delete saveas.start_rule;
+                }
+                if (saveas.end_rule[0] === null) {
+                  delete saveas.end_rule;
+                }
+
+                if (("start_rule" in saveas) || ("end_rule" in saveas)) {
                   saveas.scheduletime = 0;
                   saveas.completetime = 0;
-                }
-                if (saveas.startVariableName === null) {
-                  delete saveas.startVariableName;
-                  delete saveas.startVariableOperator;
-                  delete saveas.startVariableValue;
-                }
-                if (saveas.endVariableName === null) {
-                  delete saveas.endVariableName;
-                  delete saveas.endVariableOperator;
-                  delete saveas.endVariableValue;
                 }
                 if (saveas.scheduletime) {
                   params["recstartunix"] = saveas.scheduletime;
@@ -6731,9 +6742,17 @@ var UI = {
                 delete saveas.custom_url_params;
                 
                 var obj = {};
-                obj[(other == 'auto' ? 'push_auto_add' : 'push_start')] = saveas;
-                if ((typeof edit != "undefined") && ((edit[0] != saveas.stream) || (edit[1] != saveas.target))) {
-                  obj.push_auto_remove = [edit];
+                if (other == "auto") {
+                  if (editid) {
+                    obj.push_auto_add = {};
+                    obj.push_auto_add[editid] = saveas;
+                  }
+                  else {
+                    obj.push_auto_add = saveas;
+                  }
+                }
+                else {
+                  obj.push_start = saveas;
                 }
                 
                 mist.send(function(){
@@ -6751,69 +6770,63 @@ var UI = {
           $main.append(UI.buildUI(build));
         }
         
-        if (mist.data.LTS) {
-          //gather wildcard streams
-          mist.send(function(d){
-            allthestreams = d.active_streams;
-            if (!allthestreams) { allthestreams = []; }
-            
-            var wildcards = [];
-            for (var i in allthestreams) {
-              if (allthestreams[i].indexOf('+') != -1) {
-                wildcards.push(allthestreams[i].replace(/\+.*/,'')+'+');
-              }
+        //gather wildcard streams
+        mist.send(function(d){
+          allthestreams = d.active_streams;
+          if (!allthestreams) { allthestreams = []; }
+
+          var wildcards = [];
+          for (var i in allthestreams) {
+            if (allthestreams[i].indexOf('+') != -1) {
+              wildcards.push(allthestreams[i].replace(/\+.*/,'')+'+');
             }
-            allthestreams = allthestreams.concat(wildcards);
-            
-            var browserequests = 0;
-            var browsecomplete = 0;
-            for (var i in mist.data.streams) {
-              allthestreams.push(i);
-              if (mist.inputMatch(UI.findInput('Folder').source_match,mist.data.streams[i].source)) {
-                //browse all the things
-                allthestreams.push(i+'+');
-                mist.send(function(d,opts){
-                  var s = opts.stream;
-                  
-                  for (var i in d.browse.files) {
-                    for (var j in mist.data.capabilities.inputs) {
-                      if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
-                      if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
-                        allthestreams.push(s+'+'+d.browse.files[i]);
-                      }
+          }
+          allthestreams = allthestreams.concat(wildcards);
+
+          var browserequests = 0;
+          var browsecomplete = 0;
+          for (var i in mist.data.streams) {
+            allthestreams.push(i);
+            if (mist.inputMatch(UI.findInput('Folder').source_match,mist.data.streams[i].source)) {
+              //browse all the things
+              allthestreams.push(i+'+');
+              mist.send(function(d,opts){
+                var s = opts.stream;
+
+                for (var i in d.browse.files) {
+                  for (var j in mist.data.capabilities.inputs) {
+                    if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
+                    if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                      allthestreams.push(s+'+'+d.browse.files[i]);
                     }
                   }
-                  
-                  browsecomplete++;
-                  
-                  if (browserequests == browsecomplete) {
-                    //filter to only unique and sort
-                    allthestreams = allthestreams.filter(function(e,i,arr){
-                      return arr.lastIndexOf(e) === i;
-                    }).sort();
-                    
-                    buildTheThings();
-                  }
-                },{browse:mist.data.streams[i].source},{stream: i});
-                browserequests++;
-              }
+                }
+
+                browsecomplete++;
+
+                if (browserequests == browsecomplete) {
+                  //filter to only unique and sort
+                  allthestreams = allthestreams.filter(function(e,i,arr){
+                    return arr.lastIndexOf(e) === i;
+                  }).sort();
+
+                  buildTheThings();
+                }
+              },{browse:mist.data.streams[i].source},{stream: i});
+              browserequests++;
             }
-            if (browserequests == browsecomplete) {
-              //filter to only unique and sort
-              allthestreams = allthestreams.filter(function(e,i,arr){
-                return arr.lastIndexOf(e) === i;
-              }).sort();
-              
-              buildTheThings();
-            }
-          },{
-            active_streams:1
-          });
-        }
-        else {
-          allthestreams = Object.keys(mist.data.streams);
-          buildTheThings();
-        }
+          }
+          if (browserequests == browsecomplete) {
+            //filter to only unique and sort
+            allthestreams = allthestreams.filter(function(e,i,arr){
+              return arr.lastIndexOf(e) === i;
+            }).sort();
+
+            buildTheThings();
+          }
+        },{
+          active_streams:1
+        });
         
         break;
       case 'Triggers':
@@ -9298,384 +9311,7 @@ var UI = {
         );
       },
       pushes: function(streamname){
-        var $pushes = $("<div>").addClass("pushes");
-
-        $pushes.html("Loading..");
-
-        
-        mist.send(function(d){
-          $pushes.html("");
-
-
-          function buildPushCont(type,values) {
-            function printPrettyComparison(a,b,c){
-              var str = "";
-              str += "$"+a+" ";
-              switch (Number(b)) {
-                case 0:  { str += "is true";  break; }
-                case 1:  { str += "is false"; break; }
-                case 2:  { str += "== "+c; break; }
-                case 3:  { str += "!= "+c; break; }
-                case 10: { str += "> (numerical) " +c; break; }
-                case 11: { str += ">= (numerical) "+c; break; }
-                case 12: { str += "< (numerical) " +c; break; }
-                case 13: { str += "<= (numerical) "+c; break; }
-                case 20: { str += "> (lexical) " +c; break; }
-                case 21: { str += ">= (lexical) "+c; break; }
-                case 22: { str += "< (lexical) " +c; break; }
-                case 23: { str += "<= (lexical) "+c; break; }
-                default: { str += "comparison operator unknown"; break; }
-              }
-              return str;
-            }
-
-            var layout = {
-              Target: function(push){
-                if (type == "Automatic") {
-                  return push[2];
-                }
-                if ((push.length >= 4) && (push[2] != push[3])) {
-                  return push[2]+$('<span>').html('&#187').addClass('unit').css('margin','0 0.5em').prop('outerHTML')+push[3];
-                }
-                return push[2];
-              },
-              Conditions: false,
-              Statistics: false,
-              Actions: $("<div>").addClass("buttons")
-            };
-            if (type == "Automatic") {
-              layout.Conditions = function(push){
-                var $conditions = $("<div>"); //temporary container
-                if (push[3]) {
-                  $conditions.append(
-                    $('<span>').text('schedule on '+(new Date(push[3]*1e3)).toLocaleString())
-                  );
-                }
-                if ((push.length >= 5) && (push[4])) {
-                  $conditions.append(
-                    $('<span>').text("complete on "+(new Date(push[4]*1e3)).toLocaleString())
-                  );
-                }
-                if ((push.length >= 8) && (push[5])) {
-                  $conditions.append(
-                    $('<span>').text("starts if "+printPrettyComparison(push[5],push[6],push[7]))
-                  );
-                }
-                if ((push.length >= 11) && (push[8])) {
-                  $conditions.append(
-                    $('<span>').text("stops if "+printPrettyComparison(push[8],push[9],push[10]))
-                  );
-                }
-                return $conditions.children().length ? $conditions.children() : "";
-              }
-            }
-            else {
-              layout.Statistics = {
-              create: function(){
-                  return $("<div>").addClass("statistics"); 
-              },
-              add: {
-                create: function(id){ 
-                    var labels = {
-                      active_seconds: "Active for: ",
-                      bytes: "Data transfered: ",
-                      mediatime: "Media time transfered: ",
-                      pkt_retrans_count: "Packets retransmitted: ",
-                      pkt_loss_count: "Packets lost: ",
-                      tracks: "Tracks: "
-                    };
-                    if (id in labels) {
-                      return $("<div>").attr("beforeifnotempty",labels[id]);
-                    }
-                  },
-                  update: function(val,allValues){
-                    var me = this;
-                    var formatting = {
-                      active_seconds: UI.format.duration,
-                      bytes: UI.format.bytes,
-                      mediatime: function(v){ return UI.format.duration(v*1e-3) },
-                      tracks: function(v){ return v.join(", "); },
-                      pkt_retrans_count: function(v){
-                        return UI.format.number(v || 0);
-                      },
-                      pkt_loss_count: function(v){
-                        return UI.format.number(v || 0)+" ("+UI.format.addUnit(UI.format.number(allValues.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")";
-                      }
-                    };
-
-                    if (this._id in formatting) {
-                      this.html(formatting[this._id](val));
-                    }
-
-                  }
-                }
-              }
-            }
-           layout.Actions.append(
-              $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
-                var push = $(this).closest("table").data("values")[$(this).closest("td").attr("data-pushid")];
-                if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
-                  $(this).html(
-                    $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
-                  );
-                  if (type == 'Automatic') {
-                    var a = push.slice(1);
-                    var me = this;
-                    mist.send(function(d){
-                      $(me).text("Done.");
-                      $table.update(d.push_auto_list);
-                      //use the reply to update the automatic pushes list
-                    },{push_auto_remove:[a]});
-                  }
-                  else {
-                    mist.send(function(d){ 
-                      //done
-                    },{'push_stop':[push[0]]});
-                  }
-                };
-              })
-            );
-            if (type == 'Automatic') {
-              layout.Actions.prepend(
-                $("<button>").text("Edit").click(function(){
-                  UI.navto("Start Push","auto_"+($(this).closest("td").attr("data-pushid")));
-                })
-              );
-            }
-
-
-
-
-            var $cont = $("<div>").attr("onempty","None.");
-            var $table;
-            if (type == "Automatic"){
-              $table = UI.dynamic({
-                create: function(){
-                  var $table = $("<table>");
-                  var $header = $("<tr>");
-                  $table.append(
-                    $("<thead>").append($header)
-                  );
-                  for (var i in layout) {
-                    if (!layout[i]) continue;
-                    var cell = $("<td>").addClass("header").text(i).attr("data-column",i);
-                    $header.append(cell);
-                  }
-                  return $table;
-                },
-                add: {
-                  create: function(id){
-                    var $tr = $("<tr>");
-                    $tr._children = {};
-                    for (var i in layout) {
-                      if (!layout[i]) continue;
-                      var $td = $("<td>").attr("data-pushid",id).attr("data-column",i);
-                      $tr._children[i] = $td;
-                      $tr.append($td);
-                      if (layout[i] instanceof jQuery) {
-                        $td.html(layout[i].clone(true));
-                      }
-                      else if (typeof layout[i] == "object") {
-                        $td.dynamic = UI.dynamic(layout[i]);
-                        $td.html($td.dynamic);
-                      }
-                    }
-                    return $tr;
-                  },
-                  update: function(push){
-                    for (var i in layout) {
-                      if (typeof layout[i] == "function") {
-                        var newvalue = layout[i](push);
-                        if (newvalue != this._children[i].raw) {
-                          this._children[i].html(newvalue);
-                          this._children[i].raw = newvalue;
-                        }
-                      }
-                    }
-                  }
-                },
-                update: function(values){
-                  var $table = this;
-                  $table.data("values",values);
-                  if (Object.keys(values).length) {
-                    if (!$table.parent().length) {
-                      $cont.append($table);
-                    }
-
-                    //hide conditions column if empty
-                    var showConditions = false;
-                    for (var i in $table.children) {
-                      var $row = $table.children[i];
-                      if ($row._children.Conditions.raw != "") {
-                        showConditions = true;
-                        break;
-                      }
-                    }
-                    if (showConditions) { $table.removeClass("hideConditioins"); }
-                    else { $table.addClass("hideConditions"); }
-                  }
-                  else if ($table[0].parentNode) {
-                    $table[0].parentNode.removeChild($table[0]);
-                  }
-
-                },
-                values: values,
-                getEntries: function(d){
-                  var out = {};
-                  var streamnameisbase = false;
-                  if (streamname.split("+").length == 1) {
-                    streamnameisbase = true;
-                  }
-                  for (var i in d) {
-                    var values = d[i];
-                    values.unshift(Number(i));
-                    //filter out other streams
-                    if ((values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
-                      out[values[0]] = values;
-                    }
-                  }
-                  return out;
-                }
-
-              });
-            }
-            else {
-              $table = UI.dynamic({
-                create: function(){
-                  var $table = $("<table>");
-                  $table.rows = {};
-                  for (var i in layout) {
-                    if (!layout[i]) continue;
-                    var row = $("<tr>").addClass(i).append($("<th>").text(i+":"));
-                    $table.append(row);
-                    $table.rows[i] = row;
-                  }
-                  $table.rows.Target.addClass("header");
-                  return $table;
-                },
-                add: {
-                  create: function(id){ 
-                    var $tr = $("<tr>").text(id); //dummy parent
-                    $tr.children = {};
-                    for (var i in layout) {
-                      if (!layout[i]) continue;
-                      var $td = $("<td>").attr("data-pushid",id);
-                      $tr.children[i] = $td;
-                      $tr.append($td);
-                      if (layout[i] instanceof jQuery) {
-                        $td.html(layout[i].clone(true));
-                      }
-                      else if (typeof layout[i] == "object") {
-                        $td.dynamic = UI.dynamic(layout[i]);
-                        $td.html($td.dynamic);
-                      }
-                    }
-                    //if the push is removed, remove the children (who are not in this dummy parent but in the main table)
-                    var oldremove = $tr.remove;
-                    $tr.remove = function(){
-                      for (var i in $tr.children) {
-                        $tr.children[i].remove();
-                      }
-                      return oldremove.apply(this,arguments);
-                    };
-                    return $tr;
-                  },
-                  update: function(push){
-                    for (var i in layout) {
-                      if (typeof layout[i] == "function") {
-                        var newvalue = layout[i](push);
-                        if (newvalue != this.children[i].raw) {
-                          this.children[i].html(newvalue);
-                          this.children[i].raw = newvalue;
-                        }
-                      }
-                      else if ((i == "Statistics") && (layout[i])) {
-                        if (push.length >= 5) {
-                          var v = {};
-                          if (push.length >= 6) {
-                            v = push[5];
-                          }
-                          v.logs = push[4];
-                          this.children[i].dynamic.update(v);
-                        }
-                      }
-                    }
-                  }
-                },
-                update: function(values){
-                  var $table = this;
-                  $table.data("values",values);
-                  if (Object.keys(values).length) {
-                    if (!$table.parent().length) {
-                      $cont.append($table);
-                    }
-                    for (var i in this.children) {
-                      if (!this.children[i].moved) {
-                        for (var j in this.children[i].children) {
-                          $table.rows[j].append(this.children[i].children[j]); //move the table cells into the correct rows
-                        }
-                        this.children[i].moved = true;
-                        this.children[i][0].parentNode.removeChild(this.children[i][0]); //remove the tr dummy element from the table, but don't trigger the removal of the cells
-                      }
-                    }
-                  }
-                  else if ($table[0].parentNode) {
-                    $table[0].parentNode.removeChild($table[0]);
-                  }
-                },
-                values: values,
-                getEntries: function(d){
-                  var out = {};
-                  var streamnameisbase = false;
-                  if (streamname.split("+").length == 1) {
-                    streamnameisbase = true;
-                  }
-                  for (var i in d) {
-                    var values = d[i];
-                    //filter out other streams
-                    if ((values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
-                      out[values[0]] = values;
-                    }
-                  }
-                  return out;
-                }
-              });
-            }
-            $cont.update = function(){ return $table.update.apply($table,arguments); }
-            return $cont;
-          }
-          
-          $pushes.append($("<h4>").text("Automatic pushes"));
-          $pushes.append($("<button>").text("Add an automatic push").click(function(){
-            UI.navto("Start Push","auto");
-          }));
-          //add auto pushes
-          $pushes.append(buildPushCont("Automatic",d.push_auto_list));
-
-
-          $pushes.append($("<h4>").text("Active pushes"));
-          $pushes.append($("<button>").text("Start a push").click(function(){
-            UI.navto("Start Push");
-          }));
-          //add active pushes
-          var pushes_container = buildPushCont("Manual",d.push_list);
-          $pushes.append(pushes_container);
-
-          UI.sockets.http.api.subscribe(function(d){
-            pushes_container.update(d.push_list);
-          },{push_list:1});
-
-
-
-        },{push_auto_list:1,push_list:1});
-
-
-        
-        return $("<section>").addClass("pushes").append(
-          $("<h3>").text("Pushes and recordings")
-        ).append(
-          $pushes
-        );
+        return UI.modules.pushes(streamname);
       },
       logs: function(streamname){
         var $logs = $("<div>").attr("onempty","None.").addClass("logs");
@@ -10523,7 +10159,386 @@ var UI = {
 
         return cont;
       }
-    }
+    },
+  pushes: function(streamname){
+    //if stream name is passed; filter the results to be only for that stream
+
+    var $pushes = $("<div>").addClass("pushes");
+    $pushes.html("Loading..");
+
+    mist.send(function(d){
+      $pushes.html("");
+
+      function buildPushCont(type,values) {
+        function printPrettyComparison(a,b,c){
+          var str = "";
+          str += "$"+a+" ";
+          switch (Number(b)) {
+            case 0:  { str += "is true";  break; }
+            case 1:  { str += "is false"; break; }
+            case 2:  { str += "== "+c; break; }
+            case 3:  { str += "!= "+c; break; }
+            case 10: { str += "> (numerical) " +c; break; }
+            case 11: { str += ">= (numerical) "+c; break; }
+            case 12: { str += "< (numerical) " +c; break; }
+            case 13: { str += "<= (numerical) "+c; break; }
+            case 20: { str += "> (lexical) " +c; break; }
+            case 21: { str += ">= (lexical) "+c; break; }
+            case 22: { str += "< (lexical) " +c; break; }
+            case 23: { str += "<= (lexical) "+c; break; }
+            default: { str += "comparison operator unknown"; break; }
+          }
+          return str;
+        }
+
+        var layout = {
+          Target: function(push){
+            if (type == "Automatic") {
+              return push.target;
+            }
+            if ((push.length >= 4) && (push[2] != push[3])) {
+              return push[2]+$('<span>').html('&#187').addClass('unit').css('margin','0 0.5em').prop('outerHTML')+push[3];
+            }
+            return push[2];
+          },
+          Conditions: false,
+          Statistics: false,
+          Actions: $("<div>").addClass("buttons")
+        };
+        if (type == "Automatic") {
+          layout.Conditions = function(push){
+            var $conditions = $("<div>"); //temporary container
+            if (push[3]) {
+              $conditions.append(
+                $('<span>').text('schedule on '+(new Date(push[3]*1e3)).toLocaleString())
+              );
+            }
+            if ((push.length >= 5) && (push[4])) {
+              $conditions.append(
+                $('<span>').text("complete on "+(new Date(push[4]*1e3)).toLocaleString())
+              );
+            }
+            if ((push.length >= 8) && (push[5])) {
+              $conditions.append(
+                $('<span>').text("starts if "+printPrettyComparison(push[5],push[6],push[7]))
+              );
+            }
+            if ((push.length >= 11) && (push[8])) {
+              $conditions.append(
+                $('<span>').text("stops if "+printPrettyComparison(push[8],push[9],push[10]))
+              );
+            }
+            return $conditions.children().length ? $conditions.children() : "";
+          }
+        }
+        else {
+          layout.Statistics = {
+            create: function(){
+              return $("<div>").addClass("statistics"); 
+            },
+            add: {
+              create: function(id){ 
+                var labels = {
+                  active_seconds: "Active for: ",
+                  bytes: "Data transfered: ",
+                  mediatime: "Media time transfered: ",
+                  pkt_retrans_count: "Packets retransmitted: ",
+                  pkt_loss_count: "Packets lost: ",
+                  tracks: "Tracks: "
+                };
+                if (id in labels) {
+                  return $("<div>").attr("beforeifnotempty",labels[id]);
+                }
+              },
+              update: function(val,allValues){
+                var me = this;
+                var formatting = {
+                  active_seconds: UI.format.duration,
+                  bytes: UI.format.bytes,
+                  mediatime: function(v){ return UI.format.duration(v*1e-3) },
+                  tracks: function(v){ return v.join(", "); },
+                  pkt_retrans_count: function(v){
+                    return UI.format.number(v || 0);
+                  },
+                  pkt_loss_count: function(v){
+                    return UI.format.number(v || 0)+" ("+UI.format.addUnit(UI.format.number(allValues.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")";
+                  }
+                };
+
+                if (this._id in formatting) {
+                  this.html(formatting[this._id](val));
+                }
+
+              }
+            }
+          }
+        }
+        layout.Actions.append(
+          $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
+            var push = $(this).closest("table").data("values")[$(this).closest("td").attr("data-pushid")];
+            if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
+              $(this).html(
+                $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
+              );
+              if (type == 'Automatic') {
+                var a = push.slice(1);
+                var me = this;
+                mist.send(function(d){
+                  $(me).text("Done.");
+                  $table.update(d.push_auto_list);
+                  //use the reply to update the automatic pushes list
+                },{push_auto_remove:[a]});
+              }
+              else {
+                mist.send(function(d){ 
+                  //done
+                },{'push_stop':[push[0]]});
+              }
+            };
+          })
+        );
+        if (type == 'Automatic') {
+          layout.Actions.prepend(
+            $("<button>").text("Edit").click(function(){
+              UI.navto("Start Push","auto_"+($(this).closest("td").attr("data-pushid")));
+            })
+          );
+        }
+
+
+
+
+        var $cont = $("<div>").attr("onempty","None.");
+        var $table;
+        if (type == "Automatic"){
+          $table = UI.dynamic({
+            create: function(){
+              var $table = $("<table>");
+              var $header = $("<tr>");
+              $table.append(
+                $("<thead>").append($header)
+              );
+              for (var i in layout) {
+                if (!layout[i]) continue;
+                var cell = $("<td>").addClass("header").text(i).attr("data-column",i);
+                $header.append(cell);
+              }
+              return $table;
+            },
+            add: {
+              create: function(id){
+                var $tr = $("<tr>");
+                $tr._children = {};
+                for (var i in layout) {
+                  if (!layout[i]) continue;
+                  var $td = $("<td>").attr("data-pushid",id).attr("data-column",i);
+                  $tr._children[i] = $td;
+                  $tr.append($td);
+                  if (layout[i] instanceof jQuery) {
+                    $td.html(layout[i].clone(true));
+                  }
+                  else if (typeof layout[i] == "object") {
+                    $td.dynamic = UI.dynamic(layout[i]);
+                    $td.html($td.dynamic);
+                  }
+                }
+                return $tr;
+              },
+              update: function(push){
+                for (var i in layout) {
+                  if (typeof layout[i] == "function") {
+                    var newvalue = layout[i](push);
+                    if (newvalue != this._children[i].raw) {
+                      this._children[i].html(newvalue);
+                      this._children[i].raw = newvalue;
+                    }
+                  }
+                }
+              }
+            },
+            update: function(values){
+              var $table = this;
+              $table.data("values",values);
+              if (Object.keys(values).length) {
+                if (!$table.parent().length) {
+                  $cont.append($table);
+                }
+
+                //hide conditions column if empty
+                var showConditions = false;
+                for (var i in $table.children) {
+                  var $row = $table.children[i];
+                  if ($row._children.Conditions.raw != "") {
+                    showConditions = true;
+                    break;
+                  }
+                }
+                if (showConditions) { $table.removeClass("hideConditioins"); }
+                else { $table.addClass("hideConditions"); }
+              }
+              else if ($table[0].parentNode) {
+                $table[0].parentNode.removeChild($table[0]);
+              }
+
+            },
+            values: values,
+            getEntries: function(d){
+              var out = {};
+              var streamnameisbase = false;
+              if (streamname && (streamname.split("+").length == 1)) {
+                streamnameisbase = true;
+              }
+              for (var i in d) {
+                var values = d[i];
+                values.unshift(Number(i));
+                //filter out other streams
+                if (!streamname || (values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
+                  out[values[0]] = values;
+                }
+              }
+              return out;
+            }
+
+          });
+        }
+        else {
+          $table = UI.dynamic({
+            create: function(){
+              var $table = $("<table>");
+              $table.rows = {};
+              for (var i in layout) {
+                if (!layout[i]) continue;
+                var row = $("<tr>").addClass(i).append($("<th>").text(i+":"));
+                $table.append(row);
+                $table.rows[i] = row;
+              }
+              $table.rows.Target.addClass("header");
+              return $table;
+            },
+            add: {
+              create: function(id){ 
+                var $tr = $("<tr>").text(id); //dummy parent
+                $tr.children = {};
+                for (var i in layout) {
+                  if (!layout[i]) continue;
+                  var $td = $("<td>").attr("data-pushid",id);
+                  $tr.children[i] = $td;
+                  $tr.append($td);
+                  if (layout[i] instanceof jQuery) {
+                    $td.html(layout[i].clone(true));
+                  }
+                  else if (typeof layout[i] == "object") {
+                    $td.dynamic = UI.dynamic(layout[i]);
+                    $td.html($td.dynamic);
+                  }
+                }
+                //if the push is removed, remove the children (who are not in this dummy parent but in the main table)
+                var oldremove = $tr.remove;
+                $tr.remove = function(){
+                  for (var i in $tr.children) {
+                    $tr.children[i].remove();
+                  }
+                  return oldremove.apply(this,arguments);
+                };
+                return $tr;
+              },
+              update: function(push){
+                for (var i in layout) {
+                  if (typeof layout[i] == "function") {
+                    var newvalue = layout[i](push);
+                    if (newvalue != this.children[i].raw) {
+                      this.children[i].html(newvalue);
+                      this.children[i].raw = newvalue;
+                    }
+                  }
+                  else if ((i == "Statistics") && (layout[i])) {
+                    if (push.length >= 5) {
+                      var v = {};
+                      if (push.length >= 6) {
+                        v = push[5];
+                      }
+                      v.logs = push[4];
+                      this.children[i].dynamic.update(v);
+                    }
+                  }
+                }
+              }
+            },
+            update: function(values){
+              var $table = this;
+              $table.data("values",values);
+              if (Object.keys(values).length) {
+                if (!$table.parent().length) {
+                  $cont.append($table);
+                }
+                for (var i in this.children) {
+                  if (!this.children[i].moved) {
+                    for (var j in this.children[i].children) {
+                      $table.rows[j].append(this.children[i].children[j]); //move the table cells into the correct rows
+                    }
+                    this.children[i].moved = true;
+                    this.children[i][0].parentNode.removeChild(this.children[i][0]); //remove the tr dummy element from the table, but don't trigger the removal of the cells
+                  }
+                }
+              }
+              else if ($table[0].parentNode) {
+                $table[0].parentNode.removeChild($table[0]);
+              }
+            },
+            values: values,
+            getEntries: function(d){
+              var out = {};
+              var streamnameisbase = false;
+              if (streamname && (streamname.split("+").length == 1)) {
+                streamnameisbase = true;
+              }
+              for (var i in d) {
+                var values = d[i];
+                //filter out other streams
+                if (!streamname || (values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
+                  out[values[0]] = values;
+                }
+              }
+              return out;
+            }
+          });
+        }
+        $cont.update = function(){ return $table.update.apply($table,arguments); }
+        return $cont;
+      }
+
+      $pushes.append($("<h4>").text("Automatic pushes"));
+      $pushes.append($("<button>").text("Add an automatic push").click(function(){
+        UI.navto("Start Push","auto");
+      }));
+      //add auto pushes
+      $pushes.append(buildPushCont("Automatic",d.push_auto_list));
+
+
+      $pushes.append($("<h4>").text("Active pushes"));
+      $pushes.append($("<button>").text("Start a push").click(function(){
+        UI.navto("Start Push");
+      }));
+      //add active pushes
+      var pushes_container = buildPushCont("Manual",d.push_list);
+      $pushes.append(pushes_container);
+
+      UI.sockets.http.api.subscribe(function(d){
+        pushes_container.update(mist.convertPushArr2Obj(d.push_list));
+      },{push_list:1});
+
+
+    },{push_auto_list:1,push_list:1});
+
+
+
+    return $("<section>").addClass("pushes").append(
+      $("<h3>").text("Pushes and recordings")
+    ).append(
+      $pushes
+    );
+
+  }
   },
   sockets: {
     http_host: null,
@@ -11291,6 +11306,44 @@ var mist = {
       }
     }
     return build;
+  },
+  convertPushArr2Obj: function(push,isAutoPush) {
+    var out = {
+      id: push[0],
+      stream: push[1],
+      target: push[2]
+    };
+    if (isAutoPush) {
+      if (push.length >= 4) {
+        if (push[3]) out.scheduletime = push[3];
+        if (push.length >= 5) {
+          if (push[4]) out.completetime = push[4];
+          if (push.length >= 8) {
+            if (push[5]) {
+              out.start_rule([push[5],push[6],push[7]]);
+            }
+            if (push.length >= 11) {
+              if (push[8]) {
+                out.end_rule([push[8],push[9],push[10]]);
+              }
+            }
+          }
+        }
+      }
+    }
+    else {
+      //it's an active push
+      if (push.length >= 4) {
+        if (push[3]) out.resolved_target = push[3];
+        if (push.length >= 5) {
+          if (push[4]) out.logs = push[4];
+          if (push.length >= 6) {
+            if (push[5]) out.stats = push[5];
+          }
+        }
+      }
+    }
+    return out;
   },
   stored: {
     get: function(){

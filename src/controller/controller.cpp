@@ -626,21 +626,11 @@ int main(int argc, char **argv){
   Util::Config::binaryType = Util::CONTROLLER;
   Controller::conf.activate();
   Controller::conf.setMutexAborter(&Controller::configMutex);
-  if (getenv("ATHEIST") || getenv("APPLEIST")){return main_loop(argc, argv);}
+  if (getenv("ATHEIST") || getenv("CTRL_ATHEIST")) { return main_loop(argc, argv); }
+  setenv("CTRL_ATHEIST", "1", 1);
   uint64_t reTimer = 0;
   while (Controller::conf.is_active){
-    Util::Procs::fork_prepare();
-    pid_t pid = fork();
-    if (pid == 0){
-      Util::Procs::fork_complete();
-      #if defined(__APPLE__)
-      setenv("APPLEIST", "1", 1);
-      execvp(argv[0], argv);
-      return -1;
-      #endif
-      return main_loop(argc, argv);
-    }
-    Util::Procs::fork_complete();
+    pid_t pid = Util::Procs::StartPiped(argv);
 #ifdef __CYGWIN__
     setenv("NO_WIPE_SHM", "1", 1);
 #endif

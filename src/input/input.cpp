@@ -447,7 +447,9 @@ namespace Mist{
       }
     }
 
-    if (!checkArguments()){
+    char *isChild = getenv("HOLY_CHILD");
+    if (isChild) { unsetenv("HOLY_CHILD"); }
+    if (!isChild && !checkArguments()) {
       Util::logExitReason(ER_UNKNOWN, "Setup failed - exiting");
       return exitAndLogReason();
     }
@@ -456,7 +458,7 @@ namespace Mist{
     IPC::semaphore pullLock;
 
     // If we're not converting, we might need a lock.
-    if (streamName.size()){
+    if (!isChild && streamName.size()) {
       if (needsLock()){
         // needsLock() == true means this input is the sole responsible input for a stream
         // That means it's MistInBuffer for live, or the actual input binary for VoD
@@ -512,11 +514,10 @@ namespace Mist{
       }
     }
 
-
-    if (getenv("NOFORK") || getenv("ATHEIST")){
+    if (isChild || getenv("NOFORK") || getenv("ATHEIST")) {
       config->activate();
-      INFO_MSG("Not using angel process due to ATHEIST environment variable");
-      if (playerLock){
+      if (!isChild) { INFO_MSG("Not using angel process due to ATHEIST environment variable"); }
+      if ((isChild && isChild[0] == '1') || playerLock) {
         // Re-init streamStatus, previously closed
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
@@ -531,8 +532,7 @@ namespace Mist{
       }else{
         return exitAndLogReason();
       }
-      if (playerLock){
-        playerLock.unlink();
+      if ((isChild && isChild[0] == '1') || playerLock) {
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
         streamStatus.init(pageName, 2, false, false);
@@ -561,31 +561,10 @@ namespace Mist{
     uint64_t reTimer = 0;
 #endif
 
+    setenv("HOLY_CHILD", playerLock ? "1" : "0", 1);
     while (config->is_active){
-      Util::Procs::fork_prepare();
-      pid_t pid = fork();
-      if (pid == 0){
-        Util::Procs::fork_complete();
-        config->installDefaultChildSignalHandler();
-        if (playerLock){
-          // Re-init streamStatus, previously closed
-          char pageName[NAME_BUFFER_SIZE];
-          snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-          streamStatus.init(pageName, 2, false, false);
-          if (!streamStatus){streamStatus.init(pageName, 2, true, false);}
-          streamStatus.master = false;
-          if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
-        }
-        // Abandon all semaphores, ye who enter here.
-        playerLock.abandon();
-        pullLock.abandon();
-        if (!preRun()){
-          return exitAndLogReason();
-        }
-        return run();
-      }
-      Util::Procs::fork_complete();
-      if (pid == -1){
+      pid_t pid = Util::Procs::StartPiped(argv);
+      if (!pid) {
         FAIL_MSG("Unable to spawn input process");
         // We failed. Release the kra... semaphores!
         // post() contains an is-open check already, no need to double-check.

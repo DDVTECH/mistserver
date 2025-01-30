@@ -110,7 +110,7 @@ namespace Mist{
     int ret;
 
     // Start a MistOutHTTP process, connected to this SSL connection
-    int fderr = 2;
+    int fdErr = 2;
     int fd[2];
     if (socketpair(PF_LOCAL, SOCK_STREAM, 0, fd) != 0){
       FAIL_MSG("Could not open anonymous socket for SSL<->HTTP connection!");
@@ -135,7 +135,7 @@ namespace Mist{
     args.push_back("");
     Util::Procs::socketList.insert(fd[0]);
     setenv("MIST_BOUND_ADDR", myConn.getBoundAddress().c_str(), 1);
-    pid_t http_proc = Util::Procs::StartPiped(args, &(fd[1]), &(fd[1]), &fderr);
+    pid_t http_proc = Util::Procs::StartPiped(args, &(fd[1]), &(fd[1]), &fdErr);
     unsetenv("MIST_BOUND_ADDR");
     close(fd[1]);
     if (http_proc < 2){
@@ -206,7 +206,8 @@ namespace Mist{
   }
 
   /// Listens for HTTPS requests, accepting them and connecting them to a HTTP socket
-  void OutHTTPS::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
+  void OutHTTPS::listener(Util::Config & conf,
+                          std::function<void(Socket::Connection &, Socket::Server &)> callback) {
     if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2){
       FAIL_MSG("The cert/key required options were not passed!");
       return;

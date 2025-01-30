@@ -7,9 +7,11 @@
 #define PACKAGE_VERSION "unknown"
 #endif
 
-#include <sys/wait.h>
 #include "json.h"
+
+#include <functional>
 #include <string>
+#include <sys/wait.h>
 
 /// Contains utility code, not directly related to streaming media
 namespace Util{
@@ -58,10 +60,9 @@ namespace Util{
     void activate();
     void installDefaultChildSignalHandler();
     int threadServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));
-    int forkServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));
-    int serveThreadedSocket(int (*callback)(Socket::Connection &S));
+    int serveThreadedSocket(int (*callback)(Socket::Connection &));
     int serveForkedSocket(int (*callback)(Socket::Connection &S));
-    int servePlainSocket(int (*callback)(Socket::Connection &S));
+    int serveCallbackSocket(std::function<void(Socket::Connection &, Socket::Server &)> callback);
     void addOptionsFromCapabilities(const JSON::Value &capabilities);
     void addBasicConnectorOptions(JSON::Value &capabilities);
     void addStandardPushCapabilities(JSON::Value &capabilities);
@@ -72,6 +73,9 @@ namespace Util{
   extern std::string listenInterface;
   /// The port the current serveSocket function is listening on
   extern uint32_t listenPort;
+
+  /// Gets the directory and name of the binary the executable is stored in.
+  std::string getMyPathWithBin();
 
   /// Gets directory the current executable is stored in.
   std::string getMyPath();

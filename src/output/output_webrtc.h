@@ -93,7 +93,8 @@ namespace Mist{
     OutWebRTC(Socket::Connection &myConn);
     ~OutWebRTC(){}
     static bool listenMode(){return !(config->getString("ip").size());}
-    static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
+    static void listener(Util::Config & conf,
+                         std::function<void(Socket::Connection &, Socket::Server &)> callback);
     static void init(Util::Config *cfg);
     virtual void sendNext();
     virtual void onWebsocketFrame();

@@ -516,28 +516,6 @@ int Util::Config::threadServer(Socket::Server &server_socket, int (*callback)(So
   return 0;
 }
 
-int Util::Config::forkServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &)){
-  Util::Procs::socketList.insert(server_socket.getSocket());
-  while (is_active && server_socket.connected()){
-    Socket::Connection S = server_socket.accept();
-    if (S.connected()){// check if the new connection is valid
-      pid_t myid = fork();
-      if (myid == 0){// if new child, start MAINHANDLER
-        server_socket.drop();
-        return callback(S);
-      }else{// otherwise, do nothing or output debugging text
-        HIGH_MSG("Forked new process %i for socket %i", (int)myid, S.getSocket());
-        S.drop();
-      }
-    }else{
-      Util::sleep(10); // sleep 10ms
-    }
-  }
-  Util::Procs::socketList.erase(server_socket.getSocket());
-  if (!is_restarting){server_socket.close();}
-  return 0;
-}
-
 int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
   Socket::Server server_socket;
   if (Socket::checkTrueSocket(0)){
@@ -567,6 +545,20 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
 }
 
 int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
+  return serveCallbackSocket([&callback](Socket::Connection & C, Socket::Server & S) {
+    /// \todo This is not crossplatform compatible, use startpiped instead.
+    pid_t myid = fork();
+    if (myid == 0) { // if new child, start MAINHANDLER
+      S.drop();
+      callback(C);
+    } else { // otherwise, do nothing or output debugging text
+      HIGH_MSG("Forked new process %i for socket %i", (int)myid, S.getSocket());
+      S.drop();
+    }
+  });
+}
+
+int Util::Config::serveCallbackSocket(std::function<void(Socket::Connection &, Socket::Server &)> callback) {
   Socket::Server server_socket;
   if (Socket::checkTrueSocket(0)){
     server_socket = Socket::Server(0);
@@ -589,9 +581,19 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
       close(oldSock);
     }
   }
-  int r = forkServer(server_socket, callback);
+  Util::Procs::socketList.insert(server_socket.getSocket());
+  while (is_active && server_socket.connected()) {
+    Socket::Connection S = server_socket.accept();
+    if (S.connected()) { // check if the new connection is valid
+      callback(S, server_socket);
+    } else {
+      Util::sleep(10); // sleep 10ms
+    }
+  }
+  Util::Procs::socketList.erase(server_socket.getSocket());
+  if (!is_restarting) { server_socket.close(); }
   serv_sock_fd = -1;
-  return r;
+  return 0;
 }
 
 /// Activated the stored config. This will:
@@ -984,8 +986,8 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
 
 }
 
-/// Gets directory the current executable is stored in.
-std::string Util::getMyPath(){
+/// Gets the directory and name of the binary the executable is stored in.
+std::string Util::getMyPathWithBin() {
   char mypath[500];
 #ifdef __CYGWIN__
   GetModuleFileName(0, mypath, 500);
@@ -1003,7 +1005,12 @@ std::string Util::getMyPath(){
   }
 #endif
 #endif
-  std::string tPath = mypath;
+  return mypath;
+}
+
+/// Gets directory the current executable is stored in.
+std::string Util::getMyPath() {
+  std::string tPath = getMyPathWithBin();
   size_t slash = tPath.rfind('/');
   if (slash == std::string::npos){
     slash = tPath.rfind('\\');

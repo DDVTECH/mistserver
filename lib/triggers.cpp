@@ -101,7 +101,7 @@ namespace Triggers{
       unsetenv("MIST_TRIG_DEF");
       unsetenv("MIST_INSTANCE");
       unsetenv("MIST_NAME");
-      if (fdIn == -1 || fdOut == -1 || myProc == -1){
+      if (fdIn == -1 || fdOut == -1 || !myProc) {
         FAIL_MSG("Could not execute trigger executable: %s", strerror(errno));
         submitTriggerStat(trigger, tStartMs, false);
         return defaultResponse;

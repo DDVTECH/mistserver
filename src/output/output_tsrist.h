@@ -32,7 +32,6 @@ namespace Mist{
     uint64_t connTime;
     bool pushOut;
     Util::ResizeablePointer packetBuffer;
-    Socket::UDPConnection pushSock;
     TS::Stream tsIn;
     TS::Assembler assembler;
     

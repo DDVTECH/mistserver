@@ -51,6 +51,13 @@ namespace Mist{
     cfg->addOption("noinput", option);
     option.null();
 
+    option["long"] = "connection_handler";
+    option["short"] = "Z";
+    option["arg"] = "string";
+    option["help"] = "Set if this is a connection handler instead of a listener";
+    option["value"].append("");
+    cfg->addOption("connection_handler", option);
+    option.null();
 
     capa["optional"]["default_track_sorting"]["name"] = "Default track sorting";
     capa["optional"]["default_track_sorting"]["help"] = "What tracks are selected first when no specific track selector is used for playback.";
@@ -170,8 +177,8 @@ namespace Mist{
     return false;
   }
 
-  void Output::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
-    conf.serveForkedSocket(callback);
+  void Output::listener(Util::Config & conf, std::function<void(Socket::Connection &, Socket::Server &)> callback) {
+    conf.serveCallbackSocket(callback);
   }
 
   void Output::setBlocking(bool blocking){

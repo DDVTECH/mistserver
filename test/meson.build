@@ -1,23 +1,34 @@
 
 # Testing binaries that are not unit tests, but intended for manual use
+convertertest = executable('convertertest', 'converter.cpp', header_tgts, dependencies: libmist_dep)
+downloadertest = executable('downloadertest', 'downloader.cpp', header_tgts, dependencies: libmist_dep)
+urireadertest = executable('urireadertest', 'urireader.cpp', header_tgts, dependencies: libmist_dep)
+jsontest = executable('jsontest', 'json.cpp', header_tgts, dependencies: libmist_dep)
+resolvetest = executable('resolvetest', 'resolve.cpp', header_tgts, dependencies: libmist_dep)
+streamstatustest = executable('streamstatustest', 'status.cpp', header_tgts, dependencies: libmist_dep)
+websockettest = executable('websockettest', 'websocket.cpp', header_tgts, dependencies: libmist_dep)
 
-logtest = executable('logtest', 'log.cpp', dependencies: libmist_dep)
-convertertest = executable('convertertest', 'converter.cpp', dependencies: libmist_dep)
-downloadertest = executable('downloadertest', 'downloader.cpp', dependencies: libmist_dep)
-urireadertest = executable('urireadertest', 'urireader.cpp', dependencies: libmist_dep)
-jsontest = executable('jsontest', 'json.cpp', dependencies: libmist_dep)
-resolvetest = executable('resolvetest', 'resolve.cpp', dependencies: libmist_dep)
-streamstatustest = executable('streamstatustest', 'status.cpp', dependencies: libmist_dep)
-websockettest = executable('websockettest', 'websocket.cpp', dependencies: libmist_dep)
+
 
 # Actual unit tests
+test('Redirecting log messages produces no error', exec_tgts.get('MistUtilLog'), suite:'Logs', args: ['BadBinary'], should_fail: true)
 
-sockbuftest = executable('sockbuftest', 'socketbuffer.cpp', dependencies: libmist_dep)
+sockbuftest = executable('sockbuftest', 'socketbuffer.cpp', header_tgts, dependencies: libmist_dep)
 test('Socket buffer test 8KiB', sockbuftest, args: ['1024'])
 test('Socket buffer test 64KiB', sockbuftest, args: ['8192'])
 test('Socket buffer test 8MiB', sockbuftest, args: ['1048576'])
 
-urltest = executable('urltest', 'url.cpp', dependencies: libmist_dep)
+# reference first arg - enum fun { BASIC = 0, NORES = 1, PRINT = 2, INPUT = 3, SLEEP = 4, FAIL = 5 };
+proctest = executable('proctest', 'procs.cpp', header_tgts, dependencies: libmist_dep)
+test('Start piped process', proctest, suite: 'Procs', args: ['0', '0', '1', '2'])
+test('Identical (bad) file descriptors', proctest, suite: 'Procs', args: ['1', '0', '0', '0'])
+test('Retrieve stdout from child', proctest, suite: 'Procs', args: ['2', '', '', ''])
+test('Child moves stdin to stdout ', proctest, suite: 'Procs', args: ['3', '', '', ''])
+test('Sleep then retrieve stdout', proctest, suite: 'Procs', args: ['4', '', '', ''])
+test('Retrieve stdout after fail', proctest, suite: 'Procs', args: ['5', '', '', ''])
+
+
+urltest = executable('urltest', 'url.cpp', header_tgts, dependencies: libmist_dep)
 urltest_vm = {'T_PATH':'', 'T_QUERY':'', 'T_FRAG':'', 'T_USER':'', 'T_PASS':'', 'T_NORM':'', 'T_EXT':''}
 urltest_v = urltest_vm + {'T_PROTO':'', 'T_HOST':'', 'T_PORT':'0'}
 test('HTTPS URL with parent directory', urltest, suite: 'URL parser',
@@ -147,13 +158,13 @@ test('RTSP linking', urltest, suite: 'URL parser',
 
 
 
-dtsc_sizing_test = executable('dtsc_sizing_test', 'dtsc_sizing.cpp', dependencies: libmist_dep)
+dtsc_sizing_test = executable('dtsc_sizing_test', 'dtsc_sizing.cpp', header_tgts, dependencies: libmist_dep)
 test('DTSC Sizing Test', dtsc_sizing_test)
 
-bitwritertest = executable('bitwritertest', 'bitwriter.cpp', dependencies: libmist_dep)
+bitwritertest = executable('bitwritertest', 'bitwriter.cpp', header_tgts, dependencies: libmist_dep)
 test('bitWriter Test', bitwritertest)
 
-httpparsertest = executable('httpparsertest', 'http_parser.cpp', dependencies: libmist_dep)
+httpparsertest = executable('httpparsertest', 'http_parser.cpp', header_tgts, dependencies: libmist_dep)
 test('GET request for /', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'GET / HTTP/1.1\n\n', 'T_COUNT':'1'})
 test('GET request for / with carriage returns', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'GET / HTTP/1.1\r\n\r\n', 'T_COUNT':'1'})
 test('POST request to /, raw body', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'POST / HTTP/1.1\nContent-Length: 4\nContent-Type: text/plain\n\ntest', 'T_COUNT':'1'})

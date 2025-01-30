@@ -688,43 +688,36 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   Util::Procs::setHandler();
 
   int pid = 0;
-  if (forkFirst){
-    DONTEVEN_MSG("Forking");
-    pid = fork();
-    if (pid == -1){
-      FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
-      if (!hadOriginal){unsetenv("MIST_ORIGINAL_SOURCE");}
-      return false;
-    }
-    if (pid && overrides.count("singular")){
-      Util::Procs::setHandler();
-      Util::Procs::remember(pid);
-    }
-  }else{
+  if (!forkFirst) {
     DONTEVEN_MSG("Not forking");
-  }
-
-  if (pid == 0){
-    for (std::set<int>::iterator it = Util::Procs::socketList.begin();
-         it != Util::Procs::socketList.end(); ++it){
-      close(*it);
-    }
+    for (auto sock : Util::Procs::socketList) { close(sock); }
     Socket::Connection io(0, 1);
     io.drop();
     std::stringstream args;
     for (size_t i = 0; i < 30; ++i){
-      if (!argv[i] || !argv[i][0]){break;}
+      if (!argv[i] || !argv[i][0]) { break; }
       args << argv[i] << " ";
     }
     INFO_MSG("Starting %s", args.str().c_str());
     execvp(argv[0], argv);
     FAIL_MSG("Starting process %s failed: %s", argv[0], strerror(errno));
     _exit(42);
-  }else if (spawn_pid != NULL){
-    *spawn_pid = pid;
   }
-  if (!hadOriginal){unsetenv("MIST_ORIGINAL_SOURCE");}
 
+  int fdErr = STDERR_FILENO;
+  pid = Util::Procs::StartPiped(argv, 0, 0, &fdErr);
+  if (!hadOriginal){unsetenv("MIST_ORIGINAL_SOURCE");}
+  if (!pid) {
+    FAIL_MSG("Starting process for stream %s failed: %s", streamname.c_str(), strerror(errno));
+    return false;
+  }
+
+  if (overrides.count("singular")) {
+    Util::Procs::setHandler();
+    Util::Procs::remember(pid);
+  }
+
+  if (spawn_pid) { *spawn_pid = pid; }
   unsigned int waiting = 0;
   while (!streamAlive(streamname) && ++waiting < 240){
     Util::wait(250);

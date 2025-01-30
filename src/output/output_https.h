@@ -26,7 +26,8 @@ namespace Mist{
     int run();
     static bool listenMode(){return true;}
     static void init(Util::Config *cfg);
-    static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
+    static void listener(Util::Config & conf,
+                         std::function<void(Socket::Connection &, Socket::Server &)> callback);
 
   private:
     mbedtls_net_context client_fd;

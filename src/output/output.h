@@ -60,7 +60,8 @@ namespace Mist{
     size_t prepareNext();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
     virtual void onRequest();
-    static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
+    static void listener(Util::Config & conf,
+                         std::function<void(Socket::Connection &, Socket::Server &)> callback);
     virtual void initialSeek(bool dryRun = false);
     uint64_t getMinKeepAway();
     virtual bool liveSeek(bool rateOnly = false);

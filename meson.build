@@ -237,21 +237,23 @@ subdir('mist')
 
 # Binaries
 subdir('src')
-subdir('test')
 
-exec_tgts = []
+exec_tgts = {}
 
 ## This makes sure all (installable) executables are build in top level directory
 ## Done because MistController expects its binaries to all be in the same directory
 foreach exec : executables
-  exec_tgts += executable(
+  exec_tgts += { exec.get('name'): executable(
     exec.get('name'),
     exec.get('sources'),
     dependencies: exec.get('deps'),
     cpp_args: exec.get('defines'),
     install: true,
-  )
+  ) }
 endforeach
+
+# Tests may use names in exec_tgts so we load it last
+subdir('test')
 
 # Docs
 doxygen = find_program('doxygen', required: false)

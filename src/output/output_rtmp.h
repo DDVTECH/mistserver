@@ -20,7 +20,8 @@ namespace Mist{
     void requestHandler(bool readable);
     bool onFinish();
 #ifdef SSL
-    static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
+    static void listener(Util::Config & conf,
+                         std::function<void(Socket::Connection &, Socket::Server &)> callback);
 #endif
 
   protected:

@@ -105,7 +105,8 @@ namespace Mist{
 
 #ifdef SSL
   /// Listens for HTTPS requests, accepting them and connecting them to a HTTP socket
-  void OutRTMP::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
+  void OutRTMP::listener(Util::Config & conf,
+                         std::function<void(Socket::Connection &, Socket::Server &)> callback) {
     // No cert or key? Non-SSL mode.
     if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2){
       INFO_MSG("No cert or key set, regular RTMP mode");

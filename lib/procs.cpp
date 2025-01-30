@@ -1,15 +1,19 @@
 /// \file procs.cpp
 /// Contains generic functions for managing processes.
 
-#include <thread>
-#include <mutex>
-#include "defines.h"
 #include "procs.h"
-#include "stream.h"
+
+#include "defines.h"
 #include "ev.h"
+#include "stream.h"
+
+#include <mutex>
 #include <signal.h>
+#include <spawn.h>
+#include <sstream>
 #include <string.h>
 #include <sys/types.h>
+#include <thread>
 
 #if defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__)
 #include <sys/wait.h>
@@ -282,7 +286,7 @@ void Util::Procs::reap(){
 
 /// Runs the given command and returns the stdout output as a string.
 /// \param maxWait amount of milliseconds to wait for new output to come in over stdout before aborting
-std::string Util::Procs::getOutputOf(char *const *argv, uint64_t maxWait){
+std::string Util::Procs::getOutputOf(const char *const *argv, uint64_t maxWait) {
   int fin = 0, fout = -1, ferr = 0;
   uint64_t deadline = Util::bootMS() + maxWait;
   pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
@@ -369,176 +373,181 @@ std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait,
   return std::string(ret, ret.size());
 }
 
-std::string Util::Procs::getOutputOf(std::deque<std::string> &argDeq, uint64_t maxWait){
-  std::string ret;
+std::string Util::Procs::getOutputOf(std::deque<std::string> & argDeq, uint64_t maxWait) {
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
-  ret = getOutputOf(argv, maxWait);
-  return ret;
+  return getOutputOf(argv, maxWait);
 }
 
-pid_t Util::Procs::StartPiped(std::deque<std::string> &argDeq, int *fdin, int *fdout, int *fderr){
-  pid_t ret;
+pid_t Util::Procs::StartPiped(std::deque<std::string> & argDeq, int *fdIn, int *fdOut, int *fdErr) {
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
-  ret = Util::Procs::StartPiped(argv, fdin, fdout, fderr);
-  return ret;
+  return Util::Procs::StartPiped(argv, fdIn, fdOut, fdErr);
+}
+
+pid_t Util::Procs::StartPiped(const char *const *argv) {
+  int fdIn = STDIN_FILENO, fdOut = STDOUT_FILENO, fdErr = STDERR_FILENO;
+  return Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr);
 }
 
 /// Starts a new process with given fds if the name is not already active.
 /// \return 0 if process was not started, process PID otherwise.
 /// \arg argv Command for this process.
-/// \arg fdin Standard input file descriptor. If null, /dev/null is assumed. Otherwise, if arg
+/// \arg fdIn Standard input file descriptor. If null, /dev/null is assumed. Otherwise, if arg
 /// contains -1, a new fd is automatically allocated and written into this arg. Then the arg will be
-/// used as fd. \arg fdout Same as fdin, but for stdout. \arg fdout Same as fdin, but for stderr.
-pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, int *fderr){
+/// used as fd. \arg fdOut Same as fdIn, but for stdout. \arg fdOut Same as fdIn, but for stderr.
+pid_t Util::Procs::StartPiped(const char *const *argv, int *fdIn, int *fdOut, int *fdErr) {
+  // NOTE: this function fails if you try and use the same values for all fds
   pid_t pid;
   int pipein[2], pipeout[2], pipeerr[2];
   setHandler();
-  if (fdin && *fdin == -1 && pipe(pipein) < 0){
-    ERROR_MSG("stdin pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
-    return 0;
-  }
-  if (fdout && *fdout == -1 && pipe(pipeout) < 0){
-    ERROR_MSG("stdout pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
-    if (*fdin == -1){
-      close(pipein[0]);
-      close(pipein[1]);
+  posix_spawn_file_actions_t childFdActions;
+  posix_spawn_file_actions_init(&childFdActions);
+  std::deque<int> fd_unused;
+
+  {
+    std::lock_guard<std::mutex> guard(plistMutex);
+    for (auto it : Util::Procs::socketList) {
+      errno = posix_spawn_file_actions_addclose(&childFdActions, it);
+#if defined(_WIN32) || defined(CYGWIN)
+      fcntl(it, F_SETFD, FD_CLOEXEC);
+#endif
+      if (errno) { INFO_MSG("errno closing socket %d: %s", it, strerror(errno)); }
     }
-    return 0;
   }
-  if (fderr && *fderr == -1 && pipe(pipeerr) < 0){
-    ERROR_MSG("stderr pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
-    if (*fdin == -1){
-      close(pipein[0]);
-      close(pipein[1]);
+
+  auto fdNotUnder3 = [&fd_unused](int & fd) {
+    while (fd < 3) {
+      fd_unused.push_back(fd);
+      fd = dup(fd);
     }
-    if (*fdout == -1){
-      close(pipeout[0]);
-      close(pipeout[1]);
+  };
+
+  if (fdIn && *fdIn == -1) {
+    if (pipe(pipein) < 0) {
+      ERROR_MSG("stdin pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+      return 0;
     }
-    return 0;
+    fdNotUnder3(pipein[0]);
+    fdNotUnder3(pipein[1]);
   }
-  int devnull = -1;
-  if (!fdin || !fdout || !fderr){
-    devnull = open("/dev/null", O_RDWR);
-    if (devnull == -1){
-      ERROR_MSG("Could not open /dev/null for process %s, reason: %s", argv[0], strerror(errno));
-      if (fdin && *fdin == -1){
+
+  if (fdOut && *fdOut == -1) {
+    if (pipe(pipeout) < 0) {
+      ERROR_MSG("stdout pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+      if (*fdIn == -1) {
         close(pipein[0]);
         close(pipein[1]);
       }
-      if (fdout && *fdout == -1){
+      return 0;
+    }
+    fdNotUnder3(pipeout[0]);
+    fdNotUnder3(pipeout[1]);
+  }
+
+  if (fdErr && *fdErr == -1) {
+    if (pipe(pipeerr) < 0) {
+      ERROR_MSG("stderr pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+      if (*fdIn == -1) {
+        close(pipein[0]);
+        close(pipein[1]);
+      }
+      if (*fdOut == -1) {
         close(pipeout[0]);
         close(pipeout[1]);
       }
-      if (fderr && *fderr == -1){
-        close(pipeerr[0]);
-        close(pipeerr[1]);
-      }
       return 0;
     }
+    fdNotUnder3(pipeerr[0]);
+    fdNotUnder3(pipeerr[1]);
   }
-  pid = fork();
-  if (pid == 0){// child
-    int ch_stdin = 0, ch_stdout = 0, ch_stderr = 0;
-    handler_set = false;
-    if (!fdin){
-      ch_stdin = dup(devnull);
-    }else if (*fdin == -1){
-      close(pipein[1]); // close unused write end
-      ch_stdin = dup(pipein[0]);
-      close(pipein[0]);
-    }else{
-      ch_stdin = dup(*fdin);
-    }
-    while (ch_stdin < 3){ch_stdin = dup(ch_stdin);}
-    if (!fdout){
-      ch_stdout = dup(devnull);
-    }else if (*fdout == -1){
-      close(pipeout[0]); // close unused read end
-      ch_stdout = dup(pipeout[1]);
-      close(pipeout[1]);
-    }else{
-      ch_stdout = dup(*fdout);
-    }
-    while (ch_stdout < 3){ch_stdout = dup(ch_stdout);}
-    if (!fderr){
-      ch_stderr = dup(devnull);
-    }else if (*fderr == -1){
-      close(pipeerr[0]); // close unused read end
-      ch_stderr = dup(pipeerr[1]);
-      close(pipeerr[1]);
-    }else{
-      ch_stderr = dup(*fderr);
-    }
-    while (ch_stderr < 3){ch_stderr = dup(ch_stderr);}
-    if (fdin && *fdin != -1){close(*fdin);}
-    if (fdout && *fdout != -1){close(*fdout);}
-    if (fderr && *fderr != -1){close(*fderr);}
-    if (devnull != -1){close(devnull);}
-    // Close all sockets in the socketList
-    for (std::set<int>::iterator it = Util::Procs::socketList.begin();
-         it != Util::Procs::socketList.end(); ++it){
-      close(*it);
-    }
-    //Black magic to make sure if 0/1/2 are not what we think they are, we end up with them not mixed up and weird.
-    dup2(ch_stdin, 0);
-    dup2(ch_stdout, 1);
-    dup2(ch_stderr, 2);
-    close(ch_stdout);
-    close(ch_stdin);
-    close(ch_stderr);
-    //There! Now we normalized our stdio
-    // Because execvp requires a char* const* and we have a const char* const*
-    execvp(argv[0], (char *const *)argv);
-    /*LTS-START*/
-    char *trggr = getenv("MIST_TRIGGER");
-    if (trggr && strlen(trggr)){
-      ERROR_MSG("%s trigger failed to execute %s: %s", trggr, argv[0], strerror(errno));
-      JSON::Value j;
-      j["trigger_fail"] = trggr;
-      Util::sendUDPApi(j);
-      std::cout << getenv("MIST_TRIG_DEF");
-      _exit(42);
-    }
-    /*LTS-END*/
-    ERROR_MSG("execvp failed for process %s, reason: %s", argv[0], strerror(errno));
-    _exit(42);
-  }else if (pid == -1){
-    ERROR_MSG("fork failed for process %s, reason: %s", argv[0], strerror(errno));
-    if (fdin && *fdin == -1){
-      close(pipein[0]);
+
+  while (fd_unused.size()) {
+    close(fd_unused.back());
+    fd_unused.pop_back();
+  }
+
+  std::set<int> fd_close;
+
+  if (!fdIn) {
+    posix_spawn_file_actions_addopen(&childFdActions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+  } else if (*fdIn == -1) {
+    posix_spawn_file_actions_addclose(&childFdActions, pipein[1]);
+    posix_spawn_file_actions_adddup2(&childFdActions, pipein[0], STDIN_FILENO);
+    posix_spawn_file_actions_addclose(&childFdActions, pipein[0]);
+  } else if (*fdIn != STDIN_FILENO) {
+    posix_spawn_file_actions_adddup2(&childFdActions, *fdIn, STDIN_FILENO);
+    fd_close.insert(*fdIn);
+  }
+
+  if (!fdOut) {
+    posix_spawn_file_actions_addopen(&childFdActions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+  } else if (*fdOut == -1) {
+    posix_spawn_file_actions_addclose(&childFdActions, pipeout[0]);
+    posix_spawn_file_actions_adddup2(&childFdActions, pipeout[1], STDOUT_FILENO);
+    posix_spawn_file_actions_addclose(&childFdActions, pipeout[1]);
+  } else if (*fdOut != STDOUT_FILENO) {
+    posix_spawn_file_actions_adddup2(&childFdActions, *fdOut, STDOUT_FILENO);
+    fd_close.insert(*fdOut);
+  }
+
+  if (!fdErr) {
+    posix_spawn_file_actions_addopen(&childFdActions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+  } else if (*fdErr == -1) {
+    posix_spawn_file_actions_addclose(&childFdActions, pipeerr[0]);
+    posix_spawn_file_actions_adddup2(&childFdActions, pipeerr[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&childFdActions, pipeerr[1]);
+  } else if (*fdErr != STDERR_FILENO) {
+    posix_spawn_file_actions_adddup2(&childFdActions, *fdErr, STDERR_FILENO);
+    fd_close.insert(*fdErr);
+  }
+
+  for (int fd : fd_close) { posix_spawn_file_actions_addclose(&childFdActions, fd); }
+  int ret;
+  // do{
+  ret = posix_spawnp(&pid, argv[0], &childFdActions, NULL, (char *const *)argv, environ);
+  // }while (ret && errno == EINTR);
+  posix_spawn_file_actions_destroy(&childFdActions);
+
+  std::stringstream args;
+  for (size_t i = 0; i < 30; ++i) {
+    if (!argv[i] || !argv[i][0]) { break; }
+    args << argv[i] << " ";
+  }
+
+  if (ret) { FAIL_MSG("Could not start process %s: %s", args.str().c_str(), strerror(errno)); }
+
+  if (fdIn && *fdIn == -1) {
+    close(pipein[0]); // close unused read end
+    if (ret) {
       close(pipein[1]);
-    }
-    if (fdout && *fdout == -1){
-      close(pipeout[0]);
-      close(pipeout[1]);
-    }
-    if (fderr && *fderr == -1){
-      close(pipeerr[0]);
-      close(pipeerr[1]);
-    }
-    if (devnull != -1){close(devnull);}
-    return 0;
-  }else{// parent
-    {
-      std::lock_guard<std::mutex> guard(plistMutex);
-      plist.insert(pid);
-    }
-    HIGH_MSG("Piped process %s started, PID %d", argv[0], pid);
-    if (devnull != -1){close(devnull);}
-    if (fdin && *fdin == -1){
-      close(pipein[0]); // close unused end end
-      *fdin = pipein[1];
-    }
-    if (fdout && *fdout == -1){
-      close(pipeout[1]); // close unused write end
-      *fdout = pipeout[0];
-    }
-    if (fderr && *fderr == -1){
-      close(pipeerr[1]); // close unused write end
-      *fderr = pipeerr[0];
+    } else {
+      *fdIn = pipein[1];
     }
   }
+  if (fdOut && *fdOut == -1) {
+    close(pipeout[1]); // close unused write end
+    if (ret) {
+      close(pipeout[0]);
+    } else {
+      *fdOut = pipeout[0];
+    }
+  }
+  if (fdErr && *fdErr == -1) {
+    close(pipeerr[1]); // close unused error end
+    if (ret) {
+      close(pipeerr[0]);
+    } else {
+      *fdErr = pipeerr[0];
+    }
+  }
+
+  if (ret) { return 0; }
+
+  {
+    std::lock_guard<std::mutex> guard(plistMutex);
+    plist.insert(pid);
+  }
+
+  HIGH_MSG("Piped process %s started, PID %d", args.str().c_str(), pid);
   return pid;
 }
 

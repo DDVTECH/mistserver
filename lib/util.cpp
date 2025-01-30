@@ -1,18 +1,21 @@
 // This line will make ftello/fseeko work with 64 bits numbers
 #define _FILE_OFFSET_BITS 64
 
+#include "util.h"
+
 #include "bitfields.h"
+#include "config.h"
 #include "defines.h"
 #include "dtsc.h"
 #include "procs.h"
 #include "timing.h"
-#include "util.h"
-#include "url.h"
 #include "urireader.h"
+#include "url.h"
+
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iomanip>
-#include <signal.h>
 #include <iostream>
+#include <signal.h>
 #include <sstream>
 #include <stdio.h>
 #include <sys/stat.h> // stat
@@ -485,131 +488,51 @@ namespace Util{
     // We don't do anything if set, since the controller wants the messages raw.
     if (getenv("MIST_CONTROL")){return;}
     setenv("MIST_CONTROL", "1", 1);
-    // Okay, we're stand-alone, lets do some parsing!
-    int true_stderr = dup(STDERR_FILENO);
-    int pipeErr[2];
-    if (pipe(pipeErr) >= 0){
-      // Start reading log messages from the unnamed pipe
-      Util::Procs::fork_prepare();
-      pid_t pid = fork();
-      if (pid == 0){// child
-        Util::Procs::fork_complete();
-        close(pipeErr[1]); // close the unneeded pipe file descriptor
-        // Close all sockets in the socketList
-        for (std::set<int>::iterator it = Util::Procs::socketList.begin();
-             it != Util::Procs::socketList.end(); ++it){
-          close(*it);
-        }
-        close(2);
-        struct sigaction new_action;
-        new_action.sa_handler = SIG_IGN;
-        sigemptyset(&new_action.sa_mask);
-        new_action.sa_flags = 0;
-        sigaction(SIGINT, &new_action, NULL);
-        sigaction(SIGHUP, &new_action, NULL);
-        sigaction(SIGTERM, &new_action, NULL);
-        sigaction(SIGPIPE, &new_action, NULL);
-        Util::logParser(pipeErr[0], true_stderr, isatty(true_stderr));
-        exit(0);
-      }
-      Util::Procs::fork_complete();
-      if (pid == -1){
-        FAIL_MSG("Failed to fork child process for log handling!");
-      }else{
-        dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
-      }
-      close(pipeErr[1]); // close the unneeded pipe file descriptor
-      close(pipeErr[0]);
-      close(true_stderr);
+
+    // Okay, we're stand-alone, lets do some parsing using these cool file descriptors!
+    int fdIn = -1, fdOut = 2;
+
+    // The target calls logParser(0, 1, isatty(1)) and then exits
+    std::string childCmd = Util::getMyPath() + "MistUtilLog";
+    const char *argvv[2];
+    argvv[0] = childCmd.c_str();
+    argvv[1] = 0;
+
+    // Start a new process for parsing the logs
+    if (!Util::Procs::StartPiped(argvv, &fdIn, &fdOut, 0)) {
+      FAIL_MSG("Failed to spawn child process for log handling!");
+    } else {
+      dup2(fdIn, STDERR_FILENO); // Cause stderr to write to the pipe
+      close(fdIn);
     }
   }
 
-  /// \brief Forks to a log converter, which spawns an external writer and pretty prints it stdout and stderr
+  /// \brief Spawns a log converter, which spawns an external writer and pretty prints it stdout and stderr
   pid_t startConverted(const char *const *argv, int &outFile){
-    int p[2];
-    if (pipe(p) == -1){
-      ERROR_MSG("Unable to create pipe in order to connect to the STDIN of the target binary");
+    int idx = 0;
+    while (argv[idx]) { ++idx; }
+
+    int fdIn = -1, fdOut = STDOUT_FILENO, fdErr = STDERR_FILENO;
+    char *const *childArgs = (char *const *)malloc(sizeof(char *) * (idx + 2));
+    memcpy((void *)(childArgs + 1), argv, sizeof(char *) * idx);
+    std::string childCmd = Util::getMyPath() + "MistUtilLog";
+    ((char **)childArgs)[0] = (char *)childCmd.c_str(); // they call me a two star programmer
+    ((char **)childArgs)[idx + 1] = (char *)childCmd.c_str();
+
+    pid_t pid = Util::Procs::StartPiped(childArgs, &fdIn, &fdOut, &fdErr);
+
+    if (!pid) {
+      FAIL_MSG("Failed to spawn child process for log handling!");
       return -1;
     }
-    Util::Procs::fork_prepare();
-    pid_t converterPid = fork();
-    // Child process
-    if (converterPid == 0){
-      Util::Procs::fork_complete();
-      close(p[1]);
-      // Override signals
-      struct sigaction new_action;
-      new_action.sa_handler = SIG_IGN;
-      sigemptyset(&new_action.sa_mask);
-      new_action.sa_flags = 0;
-      sigaction(SIGINT, &new_action, NULL);
-      sigaction(SIGHUP, &new_action, NULL);
-      sigaction(SIGTERM, &new_action, NULL);
-      sigaction(SIGPIPE, &new_action, NULL);
-      // Start external writer
-      int fdOut = -1;
-      int fdErr = -1;
-      pid_t binPid = Util::Procs::StartPiped(argv, &p[0], &fdOut, &fdErr);
-      close(p[0]);
-      if (binPid == -1){
-        FAIL_MSG("Failed to start binary `%s`", argv[0]);
-      }
-      // Close all sockets in the socketList
-      for (std::set<int>::iterator it = Util::Procs::socketList.begin();
-            it != Util::Procs::socketList.end(); ++it){
-        close(*it);
-      }
-      // Okay, so.... hear me out here.
-      // This code normalizes the stdin and stdout file descriptors, so that
-      // they are connected to the pipes we're reading from the child process.
-      // This is not technically needed, but it makes it easier to debug pipe-
-      // related problems, and works around a nasty issue were left-over stdout
-      // connected to another converted process may keep that other process alive
-      // when it really shouldn't.
-      // This isn't pretty, it's not fully correct, but it's good enough for now.
-      // If somebody writes a prettier version of this, please do sent a pull request.
-      // Thanks <3
-      std::set<int> toClose;
-      while (fdErr == 0 || fdErr == 1){
-        int tmp = dup(fdErr);
-        if (tmp > -1){
-          toClose.insert(fdErr);
-          fdErr = tmp;
-        }
-      }
-      while (fdOut == 0 || fdOut == 1){
-        int tmp = dup(fdOut);
-        if (tmp > -1){
-          toClose.insert(fdOut);
-          fdOut = tmp;
-        }
-      }
-      while (toClose.size()){
-        close(*toClose.begin());
-        toClose.erase(toClose.begin());
-      }
-      dup2(fdErr, 1);
-      dup2(fdOut, 0);
-      close(fdErr);
-      close(fdOut);
-      // Read pipes and write to the stdErr of parent process
-      Util::logConverter(1, 0, 2, argv[0], binPid);
-      exit(0);
-    }
-    if (converterPid == -1){
-      FAIL_MSG("Failed to fork log converter for log handling!");
-      close(p[1]);
-    }else{
-      Util::Procs::remember(converterPid);
-      outFile = p[1];
-    }
-    close(p[0]);
-    Util::Procs::fork_complete();
-    return converterPid;
+
+    outFile = fdIn;
+    Util::Procs::remember(pid);
+    return pid;
   }
 
   void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid){
-    Socket::Connection errStream(-1, inErr);
+    Socket::Connection errStream(-1, inErr); // TODO: monitor pid and return from this function with the same exit code
     Socket::Connection outStream(-1, inOut);
     errStream.setBlocking(false);
     outStream.setBlocking(false);

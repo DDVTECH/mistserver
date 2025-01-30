@@ -208,7 +208,8 @@ namespace Mist{
 
   /* ------------------------------------------------ */
 
-  void OutWebRTC::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
+  void OutWebRTC::listener(Util::Config & conf,
+                           std::function<void(Socket::Connection &, Socket::Server &)> callback) {
     Util::ResizeablePointer sndBuf;
 
     Socket::UDPConnection * sndr = 0;
@@ -291,7 +292,6 @@ namespace Mist{
     // Close the socket if not restarting
     if (!conf.is_restarting){lstn.close();}
   }
-
 
   OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
 #ifdef WITH_DATACHANNELS

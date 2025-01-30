@@ -6,6 +6,7 @@ utils = [
     {'name': 'AMF',     'file': 'amf'},
     {'name': 'Certbot', 'file': 'certbot'},
     {'name': 'Nuke',    'file': 'nuke'},
+    {'name': 'Log',     'file': 'log'},
 ]
 
 if get_option('LOAD_BALANCE')

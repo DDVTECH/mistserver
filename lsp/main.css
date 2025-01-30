@@ -161,6 +161,10 @@ nav > *, header > * {
   position: relative;
 }
 
+body[data-browser="firefox"] .textures {
+  /* for some reason the textures slow down firefox if the screen is fairly wide */
+  display: none;
+}
 nav .textures, header .textures {
   position: absolute;
   top: 0; bottom: 0;
@@ -207,6 +211,7 @@ header .textures:after {
 nav:hover .textures:after {
   opacity: 1;
 }
+
 nav .menu {
   display: flex;
   flex-flow: column nowrap;

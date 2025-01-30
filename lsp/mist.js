@@ -13,6 +13,30 @@ $(function(){
   UI.buildMenu();
   UI.stored.getOpts();
 
+  document.body.setAttribute("data-browser",function(){
+    var ua = window.navigator.userAgent;
+    
+    if ((ua.indexOf("MSIE ") >= 0) || (ua.indexOf("Trident/") >= 0)) {
+      return "ie";
+    }
+    if (ua.indexOf("Edge/") >= 0) {
+      return "edge";
+    }
+    if ((ua.indexOf("Opera") >= 0) || (ua.indexOf('OPR') >= 0)) {
+      return "opera";
+    }
+    if (ua.indexOf("Chrome") >= 0) {
+      return "chrome";
+    }
+    if (ua.indexOf("Safari") >= 0) {
+      return "safari";
+    }
+    if (ua.indexOf("Firefox") >= 0) {
+      return "firefox";
+    }
+    return false; //unknown
+  }());
+
   $("body").on("keydown",function(e){
     switch (e.key) {
       case "Escape": {

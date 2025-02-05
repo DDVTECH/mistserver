@@ -66,6 +66,7 @@ namespace Socket{
   std::string resolveHostToBestExternalAddrGuess(const std::string &host, int family = AF_UNSPEC,
                                                  const std::string &hint = "");
   bool getSocketName(int fd, std::string &host, uint32_t &port);
+  bool getAddrName(const void * sockaddr, std::string &host, uint32_t &port);
   bool getPeerName(int fd, std::string &host, uint32_t &port);
   bool getPeerName(int fd, std::string &host, uint32_t &port, sockaddr * tmpaddr, socklen_t * addrlen);
 
@@ -278,6 +279,7 @@ namespace Socket{
     void SetDestination(std::string hostname, uint32_t port);
     bool setDestination(sockaddr * addr, size_t size);
     const Util::ResizeablePointer & getRemoteAddr() const;
+    const Util::ResizeablePointer & getLocalAddr() const;
     void GetDestination(std::string &hostname, uint32_t &port);
     void GetLocalDestination(std::string &hostname, uint32_t &port);
     std::string getBinDestination();

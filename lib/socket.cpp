@@ -45,11 +45,13 @@ static const char *gai_strmagic(int errcode){
 }
 
 std::string Socket::sockaddrToString(const sockaddr* A){
-  char addressBuffer[INET6_ADDRSTRLEN];
-  if (inet_ntop(AF_INET, A, addressBuffer, INET6_ADDRSTRLEN)){
-    return addressBuffer;
+  std::string ret;
+  uint32_t port;
+  if (getAddrName(A, ret, port)){
+    return ret;
+  }else{
+    return "";
   }
-  return "";
 }
 
 static std::string getIPv6BinAddr(const struct sockaddr_in6 &remoteaddr){
@@ -360,13 +362,12 @@ std::string Socket::resolveHostToBestExternalAddrGuess(const std::string &host, 
   return newaddr;
 }
 
-/// Gets bound host and port for a socket and returns them by reference.
+
+/// Gets host and port for an address and returns them by reference.
 /// Returns true on success and false on failure.
-bool Socket::getSocketName(int fd, std::string &host, uint32_t &port){
-  struct sockaddr_in6 tmpaddr;
-  socklen_t len = sizeof(tmpaddr);
-  if (getsockname(fd, (sockaddr *)&tmpaddr, &len)){return false;}
-  static char addrconv[INET6_ADDRSTRLEN];
+bool Socket::getAddrName(const void * sockaddr, std::string &host, uint32_t &port){
+  const struct sockaddr_in6 & tmpaddr = *(const sockaddr_in6*)sockaddr;
+  char addrconv[INET6_ADDRSTRLEN];
   if (tmpaddr.sin6_family == AF_INET6){
     host = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
     if (host.substr(0, 7) == "::ffff:"){host = host.substr(7);}
@@ -383,25 +384,21 @@ bool Socket::getSocketName(int fd, std::string &host, uint32_t &port){
   return false;
 }
 
+
+/// Gets bound host and port for a socket and returns them by reference.
+/// Returns true on success and false on failure.
+bool Socket::getSocketName(int fd, std::string &host, uint32_t &port){
+  struct sockaddr_in6 tmpaddr;
+  socklen_t len = sizeof(tmpaddr);
+  if (getsockname(fd, (sockaddr *)&tmpaddr, &len)){return false;}
+  return getAddrName(&tmpaddr, host, port);
+}
+
 /// Gets peer host and port for a socket and returns them by reference.
 /// Returns true on success and false on failure.
 bool Socket::getPeerName(int fd, std::string &host, uint32_t &port, sockaddr * tmpaddr, socklen_t * addrlen){
   if (getpeername(fd, tmpaddr, addrlen)){return false;}
-  static char addrconv[INET6_ADDRSTRLEN];
-  if (tmpaddr->sa_family == AF_INET6){
-    host = inet_ntop(AF_INET6, &(((sockaddr_in6*)tmpaddr)->sin6_addr), addrconv, INET6_ADDRSTRLEN);
-    if (host.substr(0, 7) == "::ffff:"){host = host.substr(7);}
-    port = ntohs(((sockaddr_in6 *)tmpaddr)->sin6_port);
-    HIGH_MSG("Peer IPv6 addr [%s:%" PRIu32 "]", host.c_str(), port);
-    return true;
-  }
-  if (tmpaddr->sa_family == AF_INET){
-    host = inet_ntop(AF_INET, &(((sockaddr_in *)tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-    port = ntohs(((sockaddr_in *)tmpaddr)->sin_port);
-    HIGH_MSG("Peer IPv4 addr [%s:%" PRIu32 "]", host.c_str(), port);
-    return true;
-  }
-  return false;
+  return getAddrName(tmpaddr, host, port);
 }
 
 /// Gets peer host and port for a socket and returns them by reference.
@@ -2155,14 +2152,14 @@ void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
 
 /// Allocates enough space for the largest type of address we support, so that receive calls can write to it.
 void Socket::UDPConnection::allocateDestination(){
-  if (!destAddr.size()){
+  if (destAddr.size() < sizeof(sockaddr_in6)){
     destAddr.truncate(0);
     destAddr.allocate(sizeof(sockaddr_in6));
     memset(destAddr, 0, sizeof(sockaddr_in6));
     ((struct sockaddr *)(char*)destAddr)->sa_family = AF_UNSPEC;
     destAddr.append(0, sizeof(sockaddr_in6));
   }
-  if (!recvAddr.size()){
+  if (recvAddr.size() < sizeof(sockaddr_in6)){
     recvAddr.truncate(0);
     recvAddr.allocate(sizeof(sockaddr_in6));
     memset(recvAddr, 0, sizeof(sockaddr_in6));
@@ -2172,7 +2169,7 @@ void Socket::UDPConnection::allocateDestination(){
 #ifdef HASPKTINFO
   const int opt = 1;
   if (setsockopt(sock, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt))){
-    WARN_MSG("Could not set IPv4 packet info receiving enabled!");
+    if (family != AF_INET6){WARN_MSG("Could not set IPv4 packet info receiving enabled!");}
   }
   if (family == AF_INET6){
     if (setsockopt(sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &opt, sizeof(opt))){
@@ -2200,7 +2197,7 @@ bool Socket::UDPConnection::setDestination(sockaddr * addr, size_t size){
   // UDP sockets can on-the-fly switch between IPv4/IPv6 if necessary
   if (family != addr->sa_family){
     if (ignoreSendErrors){return false;}
-    WARN_MSG("Switching UDP socket from %s to %s", addrFam(family), addrFam(((sockaddr*)(char*)destAddr)->sa_family));
+    WARN_MSG("Switching UDP socket from %s to %s", addrFam(family), addrFam(addr->sa_family));
     close();
     family = addr->sa_family;
     sock = socket(family, SOCK_DGRAM, 0);
@@ -2236,6 +2233,10 @@ const Util::ResizeablePointer & Socket::UDPConnection::getRemoteAddr() const{
   return destAddr;
 }
 
+const Util::ResizeablePointer & Socket::UDPConnection::getLocalAddr() const{
+  return recvAddr;
+}
+
 /// Gets the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
@@ -2244,25 +2245,11 @@ void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
     port = 0;
     return;
   }
-  char addr_str[INET6_ADDRSTRLEN + 1];
-  addr_str[INET6_ADDRSTRLEN] = 0; // set last byte to zero, to prevent walking out of the array
-  if (((struct sockaddr *)(char*)destAddr)->sa_family == AF_INET6){
-    if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)(char*)destAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-      destIp = addr_str;
-      port = ntohs(((struct sockaddr_in6 *)(char*)destAddr)->sin6_port);
-      return;
-    }
+  if (!getAddrName(destAddr, destIp, port)){
+    destIp = "";
+    port = 0;
+    FAIL_MSG("Could not get destination for UDP socket");
   }
-  if (((struct sockaddr_in *)(char*)destAddr)->sin_family == AF_INET){
-    if (inet_ntop(AF_INET, &(((struct sockaddr_in *)(char*)destAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-      destIp = addr_str;
-      port = ntohs(((struct sockaddr_in *)(char*)destAddr)->sin_port);
-      return;
-    }
-  }
-  destIp = "";
-  port = 0;
-  FAIL_MSG("Could not get destination for UDP socket");
 }// Socket::UDPConnection GetDestination
 
 /// Gets the properties of the receiving end of the local UDP socket.
@@ -2273,25 +2260,11 @@ void Socket::UDPConnection::GetLocalDestination(std::string &destIp, uint32_t &p
     port = 0;
     return;
   }
-  char addr_str[INET6_ADDRSTRLEN + 1];
-  addr_str[INET6_ADDRSTRLEN] = 0; // set last byte to zero, to prevent walking out of the array
-  if (((struct sockaddr *)(char*)recvAddr)->sa_family == AF_INET6){
-    if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)(char*)recvAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-      destIp = addr_str;
-      port = ntohs(((struct sockaddr_in6 *)(char*)recvAddr)->sin6_port);
-      return;
-    }
+  if (!getAddrName(recvAddr, destIp, port)){
+    destIp = "";
+    port = 0;
+    FAIL_MSG("Could not get destination for UDP socket");
   }
-  if (((struct sockaddr *)(char*)recvAddr)->sa_family == AF_INET){
-    if (inet_ntop(AF_INET, &(((struct sockaddr_in *)(char*)recvAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-      destIp = addr_str;
-      port = ntohs(((struct sockaddr_in *)(char*)recvAddr)->sin_port);
-      return;
-    }
-  }
-  destIp = "";
-  port = 0;
-  FAIL_MSG("Could not get destination for UDP socket");
 }// Socket::UDPConnection GetDestination
 
 /// Gets the properties of the receiving end of this UDP socket.
@@ -2596,11 +2569,13 @@ repeatAddressFinding:
       }
     }
     checkRecvBuf();
-    char human_addr[INET6_ADDRSTRLEN];
-    char human_port[16];
-    getnameinfo(rp->ai_addr, rp->ai_addrlen, human_addr, INET6_ADDRSTRLEN, human_port, 16,
-                NI_NUMERICHOST | NI_NUMERICSERV);
-    MEDIUM_MSG("Attempting bind to %s:%s (%s)", human_addr, human_port, addrFam(rp->ai_family));
+    std::string tryHost;
+    uint32_t tryPort;
+    if (!getAddrName(rp->ai_addr, tryHost, tryPort)){
+      tryHost = "unknown";
+      tryPort = 0;
+    }
+    MEDIUM_MSG("Attempting bind to %s:%" PRIu32 " (%s)", tryHost.c_str(), tryPort, addrFam(rp->ai_family));
     family = rp->ai_family;
     hints.ai_family = family;
     if (family == AF_INET6){
@@ -2608,6 +2583,11 @@ repeatAddressFinding:
       if (memcmp((char *)&(addr6->sin6_addr), "\000\000\000\000\000\000\000\000\000\000\377\377", 12) == 0){
         // IPv6-mapped IPv4 address - 13th byte ([12]) holds the first IPv4 byte
         multicast = (((char *)&(addr6->sin6_addr))[12] & 0xF0) == 0xE0;
+        // IPv4 multicast on a IPv6 socket? Abort this attempt - we should use the IPv4 native one later instead.
+        if (multicast){
+          close();
+          continue;
+        }
       }else{
         //"normal" IPv6 address - prefix ff00::/8
         multicast = (((char *)&(addr6->sin6_addr))[0] == 0xFF);
@@ -2640,22 +2620,22 @@ repeatAddressFinding:
       boundAddr = iface;
       boundMulti = multicastInterfaces;
       boundPort = portNo;
-      INFO_MSG("UDP bind success %d on %s:%u (%s)", sock, human_addr, portNo, addrFam(rp->ai_family));
+      INFO_MSG("UDP bind success %d on %s:%" PRIu32 " (%s)", sock, tryHost.c_str(), tryPort, addrFam(rp->ai_family));
       break;
     }
     if (err_str.size()){err_str += ", ";}
-    err_str += human_addr;
+    err_str += tryHost;
     err_str += ":";
     err_str += strerror(errno);
     close(); // we open a new socket for each attempt
   }
   freeaddrinfo(addr_result);
   if (sock == -1){
-    FAIL_MSG("Could not open %s for UDP: %s", iface.c_str(), err_str.c_str());
     if (repeatWithIPv4 && hints.ai_family != AF_INET){
       hints.ai_family = AF_INET;
       goto repeatAddressFinding;
     }
+    FAIL_MSG("Could not open %s for %s UDP: %s", iface.c_str(), addrFam(hints.ai_family), err_str.c_str());
     return 0;
   }
 
@@ -2751,22 +2731,10 @@ bool Socket::UDPConnection::connect(){
   {
     std::string destIp;
     uint32_t port = 0;
-    char addr_str[INET6_ADDRSTRLEN + 1];
-    if (((struct sockaddr *)(char*)recvAddr)->sa_family == AF_INET6){
-      if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)(char*)recvAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-        destIp = addr_str;
-        port = ntohs(((struct sockaddr_in6 *)(char*)recvAddr)->sin6_port);
-      }
-    }
-    if (((struct sockaddr *)(char*)recvAddr)->sa_family == AF_INET){
-      if (inet_ntop(AF_INET, &(((struct sockaddr_in *)(char*)recvAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-        destIp = addr_str;
-        port = ntohs(((struct sockaddr_in *)(char*)recvAddr)->sin_port);
-      }
-    }
+    getAddrName(recvAddr, destIp, port);
     int ret = ::bind(sock, (const struct sockaddr*)(char*)recvAddr, recvAddr.size());
     if (!ret){
-      INFO_MSG("Bound socket %d to %s:%" PRIu32, sock, destIp.c_str(), port);
+      INFO_MSG("Bound socket %d to %s %s:%" PRIu32, sock, addrFam(((struct sockaddr *)(char*)recvAddr)->sa_family), destIp.c_str(), port);
     }else{
       FAIL_MSG("Failed to bind socket %d (%s) %s:%" PRIu32 ": %s", sock, addrFam(((struct sockaddr *)(char*)recvAddr)->sa_family), destIp.c_str(), port, strerror(errno));
       return false;
@@ -2776,24 +2744,12 @@ bool Socket::UDPConnection::connect(){
   {
     std::string destIp;
     uint32_t port;
-    char addr_str[INET6_ADDRSTRLEN + 1];
-    if (((struct sockaddr *)(char*)destAddr)->sa_family == AF_INET6){
-      if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)(char*)destAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-        destIp = addr_str;
-        port = ntohs(((struct sockaddr_in6 *)(char*)destAddr)->sin6_port);
-      }
-    }
-    if (((struct sockaddr *)(char*)destAddr)->sa_family == AF_INET){
-      if (inet_ntop(AF_INET, &(((struct sockaddr_in *)(char*)destAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
-        destIp = addr_str;
-        port = ntohs(((struct sockaddr_in *)(char*)destAddr)->sin_port);
-      }
-    }
+    getAddrName(destAddr, destIp, port);
     int ret = ::connect(sock, (const struct sockaddr*)(char*)destAddr, destAddr.size());
     if (!ret){
       INFO_MSG("Connected socket to %s:%" PRIu32, destIp.c_str(), port);
     }else{
-      FAIL_MSG("Failed to connect socket to %s:%" PRIu32 ": %s", destIp.c_str(), port, strerror(errno));
+      FAIL_MSG("Failed to connect socket to %s %s:%" PRIu32 ": %s (%d)", addrFam(((struct sockaddr *)(char*)destAddr)->sa_family), destIp.c_str(), port, strerror(errno), errno);
       return false;
     }
   }

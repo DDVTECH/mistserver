@@ -141,11 +141,17 @@ void parseThread(void *mistIn){
   }
 
   std::string reason = "unknown reason";
-  if (!(Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT)){reason = "thread timeout";}
-  if (!cfgPointer->is_active){reason = "input shutting down";}
-  if (!(!liveStream.isDataTrack(tid) || userConn)){
-    reason = "buffer disconnect";
-    cfgPointer->is_active = false;
+  if (!(Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT)){
+    reason = "thread timeout";
+  }else{
+    if (!cfgPointer->is_active){
+      reason = "input shutting down";
+    }else{
+      if (liveStream.isDataTrack(tid) && !userConn){
+        reason = "buffer disconnect";
+        cfgPointer->is_active = false;
+      }
+    }
   }
   INFO_MSG("Shutting down thread for %zu because %s", tid, reason.c_str());
   {

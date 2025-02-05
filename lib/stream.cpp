@@ -492,7 +492,7 @@ std::set<std::string> Util::streamTags(const std::string &streamname){
     const std::string & strm = rlxStreams.getPointer("stream", cPos);
     if (strm != streamname){continue;}
 
-    // Found it! Fill and break, since only one match can exist.
+    // Found it! Fill and return, since only one match can exist.
     std::string tags = rlxStreams.getPointer("tags", cPos);
     while (tags.size()){
       size_t endPos = tags.find(' ');
@@ -506,7 +506,16 @@ std::set<std::string> Util::streamTags(const std::string &streamname){
       if (endPos == tags.size()){break;}
       tags.erase(0, endPos+1);
     }
-    break;
+    return ret;
+  }
+  // Not found - grab the defaults from the config, if any
+  const JSON::Value stream_cfg = getStreamConfig(streamname);
+  if (stream_cfg){
+    if (stream_cfg.isMember("tags")){
+      jsonForEachConst(stream_cfg["tags"], it){
+        ret.insert(it->asStringRef());
+      }
+    }
   }
   return ret;
 }

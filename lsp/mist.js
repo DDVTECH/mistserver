@@ -5224,7 +5224,7 @@ var UI = {
             //sanatize saveas, remove options not in capabilities
             var input = mist.data.capabilities.inputs[type];
             for (var i in saveas) {
-              if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes")) { continue; }
+              if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes") || (i == "tags")) { continue; }
               if (("optional" in input) && (i in input.optional)) { continue; }
               if (("required" in input) && (i in input.required)) { continue; }
               if ((i == "always_on") && ("always_match" in input) && (mist.inputMatch(input.always_match,saveas.source))) { continue; }
@@ -5610,6 +5610,14 @@ var UI = {
               update_input_options(source);
             }
           },$source_datalist,$source_info,{
+            label: "Initial tags",
+            type: "inputlist",
+            help: "You can configure tags that are applied to this stream when it starts. You can use tags to associate configuration or behavior with multiple streams.<br><br>Note that tags are not applied retroactively - if your stream is already active when you edit this field, changes will not take effect until the stream restarts.",
+            pointer: {
+              main: saveas,
+              index: "tags"
+            }
+          },{
             label: 'Stop sessions',
             type: 'checkbox',
             help: 'When saving these stream settings, kill this stream\'s current connections.',
@@ -6417,9 +6425,9 @@ var UI = {
           }
           var build = [
             {
-              label: 'Stream name',
+              label: 'Stream',
               type: 'str',
-              help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:\
+              help: 'This may either be a full stream name, a partial wildcard stream name, a full wildcard stream name, or a tag preceded by a # (e.g. #tag1).<br>For example, given the stream <i>a</i> you can use:\
               <ul>\
               <li><i>a</i>: the stream configured as <i>a</i></li>\
               <li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li>\
@@ -6430,6 +6438,10 @@ var UI = {
                 index: 'stream'
               },
               validate: ['required',function(val,me){
+                if (val[0] == "#") {
+                  //it's a tag, we're good
+                  return false;
+                }
                 var shouldbestream = val.split('+');
                 shouldbestream = shouldbestream[0];
                 if (shouldbestream in mist.data.streams) {
@@ -6954,9 +6966,14 @@ var UI = {
             main: saveas,
             index: 'appliesto'
           },
-          help: 'For triggers that can apply to specific streams, this value decides what streams they are triggered for. (none checked = always triggered)',
-          type: 'checklist',
-          checklist: Object.keys(mist.data.streams),
+          help: 'For triggers that can apply to specific streams, this value decides what streams they are triggered for.<br><br>Leave this list empty to apply the trigger to all streams.<br><br>These may either be a full stream name, a partial wildcard stream name, a full wildcard stream name, or a tag preceded by a # (e.g. #tag1).<br>For example, given the stream <i>a</i> you can use:\
+              <ul>\
+              <li><i>a</i>: the stream configured as <i>a</i></li>\
+              <li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li>\
+              <li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li>\
+              </ul>',
+          type: 'inputlist',
+          datalist: Object.keys(mist.data.streams),
           value: (prev[1] != "" ? [prev[1]] : [])
         },$('<br>'),{
           label: 'Handler (URL or executable)',
@@ -8217,13 +8234,13 @@ var UI = {
           inputs: options.stats ? $("<span>").attr("beforeifnotempty","Inputs: ") : false,
           outputs: options.stats? $("<span>").attr("beforeifnotempty","Outputs: ") : false,
           tags: options.tags ? {
-            cont: $("<div>").attr("beforeifnotempty","Tags: "),
+            cont: $("<div>").attr("beforeifnotempty","Current tags: "),
             children: {},
             ele: function(tag){
               var $ele = $("<span>").addClass("tag").text(tag);
               if (options.tags != "readonly") {
                 $ele.append(
-                  $("<button>").text("🗙").attr("title","Remove tag").click(function(){
+                  $("<button>").text("🗙").attr("title","Remove this tag from the current stream tags.\nNote that if this tag is configured in the stream's settings, when you remove it here, it will be re-added if the stream restarts. To remove it permanently you must also remove it in the stream's settings.").click(function(){
                     var $me = $(this);
                     var untag = {};
                     untag[streamname] = tag;
@@ -8260,7 +8277,7 @@ var UI = {
               }
             }
           } : false,
-          addtag: options.tags && (options.tags != "readonly") ? $("<div>").addClass("input_container").css("display","block").html(
+          addtag: options.tags && (options.tags != "readonly") ? $("<div>").addClass("input_container").attr("title","Add a tag to this stream's current tags.\nNote that tags added here will not be applied when the stream restarts. To do that, add the tag through the stream settings.").css("display","block").html(
             $("<input>").attr("placeholder","Tag name").on("keydown",function(e){
               switch (e.key) {
                 case " ": {
@@ -8274,7 +8291,7 @@ var UI = {
               }
             })
           ).append(
-            $("<button>").text("Add tag").click(function(){
+            $("<button>").text("Add to current tags").click(function(){
               var addtag = {};
               var $me = $(this);
               var $input = $me.parent().find("input");

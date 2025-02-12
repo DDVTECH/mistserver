@@ -91,12 +91,12 @@ namespace Controller{
     currentConnectors.clear();
   }
 
-  static inline void builPipedPart(JSON::Value &p, char *argarr[], int &argnum, const JSON::Value &argset){
+  static inline void buildPipedPart(JSON::Value &p, std::deque<std::string> &argDeq, const JSON::Value &argset){
     jsonForEachConst(argset, it){
       if (it->isMember("option") && p.isMember(it.key())){
         if (!it->isMember("type")){
           if (JSON::Value(p[it.key()]).asBool()){
-            argarr[argnum++] = (char *)((*it)["option"].c_str());
+            argDeq.push_back((*it)["option"]);
           }
           continue;
         }
@@ -109,35 +109,34 @@ namespace Controller{
         }
         if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
           jsonForEach(p[it.key()], iVal){
-            (*iVal) = iVal->asString();
-            argarr[argnum++] = (char *)((*it)["option"].c_str());
-            argarr[argnum++] = (char *)((*iVal).c_str());
+            argDeq.push_back((*it)["option"]);
+            argDeq.push_back(iVal->asString());
           }
           continue;
         }
         if (p[it.key()].asStringRef().size() > 0){
-          argarr[argnum++] = (char *)((*it)["option"].c_str());
-          argarr[argnum++] = (char *)(p[it.key()].c_str());
+          argDeq.push_back((*it)["option"]);
+          argDeq.push_back(p[it.key()].asString());
         }else{
-          argarr[argnum++] = (char *)((*it)["option"].c_str());
+          argDeq.push_back((*it)["option"]);
         }
       }
     }
   }
 
-  static inline void buildPipedArguments(JSON::Value &p, char *argarr[], const JSON::Value &capabilities){
-    int argnum = 0;
+  static inline void buildPipedArguments(JSON::Value &p, std::deque<std::string> &argDeq, const JSON::Value &capabilities){
     static std::string tmparg;
-    tmparg = Util::getMyPath() + std::string("MistOut") + p["connector"].asStringRef();
-    struct stat buf;
-    if (::stat(tmparg.c_str(), &buf) != 0){
-      tmparg = Util::getMyPath() + std::string("MistConn") + p["connector"].asStringRef();
+    tmparg = std::string("MistOut") + p["connector"].asStringRef();
+    if (!Util::Procs::HasMistBinary(tmparg)){
+      tmparg = std::string("MistConn") + p["connector"].asStringRef();
+      if (!Util::Procs::HasMistBinary(tmparg)) {
+        return;
+      }
     }
-    if (::stat(tmparg.c_str(), &buf) != 0){return;}
-    argarr[argnum++] = (char *)tmparg.c_str();
+    argDeq.push_back(tmparg);
     const JSON::Value &pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
-    if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
-    if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
+    if (pipedCapa.isMember("required")){buildPipedPart(p, argDeq, pipedCapa["required"]);}
+    if (pipedCapa.isMember("optional")){buildPipedPart(p, argDeq, pipedCapa["optional"]);}
   }
 
   ///\brief Checks current protocol configuration, updates state of enabled connectors if
@@ -160,8 +159,6 @@ namespace Controller{
 
     // used for building args
     int err = fileno(stderr);
-    char *argarr[15]; // approx max # of args (with a wide margin)
-    int i;
 
     std::string tmp;
 
@@ -254,13 +251,12 @@ namespace Controller{
           !Util::Procs::isActive(currentConnectors[*runningConns.begin()])){
         Log("CONF", "Starting connector: " + *runningConns.begin());
         action = true;
-        // clear out old args
-        for (i = 0; i < 15; i++){argarr[i] = 0;}
+        std::deque<std::string> argDeq;
         // get args for this connector
         JSON::Value p = JSON::fromString(*runningConns.begin());
-        buildPipedArguments(p, (char **)&argarr, capabilities);
+        buildPipedArguments(p, argDeq, capabilities);
         // start piped w/ generated args
-        currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
+        currentConnectors[*runningConns.begin()] = Util::Procs::StartPipedMist(argDeq, 0, 0, &err);
         Triggers::doTrigger("OUTPUT_START", *runningConns.begin()); // LTS
       }
       runningConns.erase(runningConns.begin());

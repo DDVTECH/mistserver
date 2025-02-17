@@ -280,20 +280,21 @@ var UI = {
     element: $('<div>').attr('id','tooltip')
   },
   context_menu: function(){
-    var $ele = $("<section>").attr("id","context_menu");
+    var $ele = $("<section>").attr("id","context_menu").click(function(e){ e.stopPropagation(); });
     $ele[0].style.display = "none";
     this.ele = $ele;
     UI.elements.context_menu = this;
     
     this.pos = function(pos){
-      var $parent = $ele.parent();
-      
+      var $parent = $ele.offsetParent();
+      var parpos = $parent[0].getBoundingClientRect();
+
       var mh = $parent.height() - $ele.outerHeight();
       var mw = $parent.width() - $ele.outerWidth();
 
-      
-      $ele.css('left',Math.min(pos.pageX - $parent.position().left,mw));
-      $ele.css('top',Math.min(pos.pageY - $parent.position().top,mh));
+
+      $ele.css('left',Math.min(pos.pageX - parpos.x,mw));
+      $ele.css('top',Math.min(pos.pageY - parpos.y,mh));
     };
     this.show = function(html,pos){
       if ((typeof html == "string") || (html instanceof jQuery)) {
@@ -340,17 +341,9 @@ var UI = {
               }
 
               if (entry.length >=3) {
-                //icon
-                if (entry[2].length > 1) {
-                  //it's probably an image, not an asci icon
-                  $entry.append(
-                    $("<div>").addClass("icon").attr("data-icon",entry[2])
-                  );
-                }
-                else {
-                  $entry.attr("data-icon",entry[2]);
-                }
-
+                $entry.append(
+                  $("<div>").addClass("icon").attr("data-icon",entry[2])
+                );
 
                 if (entry.length >= 4) {
                   //title
@@ -370,6 +363,7 @@ var UI = {
       }
 
       if (!$ele.parent()) { $("body").append($ele); }
+      $ele[0].style.display = "";
       if (pos) { this.pos(pos); }
 
       $ele[0].style.display = "";
@@ -626,17 +620,46 @@ var UI = {
 
     return controls;
   },
-  sortableItems: function(item_container,getVal,controls){
+  sortableItems: function(item_container,getVal,options){
+    options = Object.assign({
+      controls: false, //container of header-like elements that will be clickable to sort the index it belongs to
+      sortby: false, //initial index to sort by 
+      sortdir: 1, //initial sorting direction
+      container: item_container,
+      sortsave: false //name of the mist.stored variable where the last used sorting should be stored
+    },options);
 
     /*function getVal(row) {
       return row._cells[sortby].raw;
     }*/
 
-    var lastsortby;
-    var lastsortdir = 1;
-    if (controls) {
-      lastsortby = controls.getAttribute("data-sortby");
-      lastsortdir = controls.getAttribute("data-sortdir") ? controls.getAttribute("data-sortdir") : 1;
+    var lastsortby = options.sortby;
+    var lastsortdir = options.sortdir;
+    if (options.controls) {
+      if (options.controls.getAttribute("data-sortby")) {
+        lastsortby = options.controls.getAttribute("data-sortby");
+      }
+      if (options.controls.getAttribute("data-sortdir")) {
+        lastsortdir = options.controls.getAttribute("data-sortdir");
+      }
+      for (var i = 0; i < options.controls.children.length; i++) {
+        if (options.controls.children[i].hasAttribute("data-index")) {
+          options.controls.children[i].addEventListener("click",function(){
+            var v = this.getAttribute("data-index");
+            item_container.sort(v);
+          });
+        }
+      }
+    }
+
+    if (options.sortsave) {
+      var stored = mist.stored.get();
+      if (!(options.sortsave in stored)) {
+        stored[options.sortsave] = {};
+      }
+      var result = Object.assign({by: lastsortby, dir: lastsortdir},stored[options.sortsave]);
+      lastsortby = result.by;
+      lastsortdir = result.dir;
     }
 
     item_container.sort = function(sortby,sortdir){
@@ -646,26 +669,31 @@ var UI = {
           sortdir *= -1;
         }
       } 
-      sortby = sortby ? sortby : lastsortby;
+      sortby = (sortby || (sortby == "")) ? sortby : lastsortby;
 
       lastsortby = sortby;
       lastsortdir = sortdir;
-      if (controls) {
-        controls.setAttribute("data-sortby",sortby);
-        controls.setAttribute("data-sortdir",sortdir);
-        var old = controls.querySelector("[data-sorting]");
+      if (options.sortsave) {
+        mist.stored.set(options.sortsave,{by: sortby, dir: sortdir});
+      }
+      if (options.controls) {
+        options.controls.setAttribute("data-sortby",sortby);
+        options.controls.setAttribute("data-sortdir",sortdir);
+        var old = options.controls.querySelector("[data-sorting]");
         if (old) { old.removeAttribute("data-sorting"); }
-        controls.querySelector("[data-index=\""+sortby+"\"]").setAttribute("data-sorting","");
+        var a = options.controls.querySelector("[data-index=\""+sortby+"\"]");
+        if (a) a.setAttribute("data-sorting","");
       }
 
       var compare = new Intl.Collator('en',{numeric:true, sensitivity:'accent'}).compare;
-      for (var i = 0; i < this.children.length-1; i++) {
-        var row = this.children[i];
-        var next = this.children[i+1];
+      for (var i = 0; i < options.container.children.length-1; i++) {
+        var row = options.container.children[i];
+        var next = options.container.children[i+1];
+        //console.warn("sorting: comparing",getVal.call(row,sortby),getVal.call(next,sortby))
         if (sortdir * compare(getVal.call(row,sortby),getVal.call(next,sortby)) > 0) {
           //the next row should be before the current one
           //put it before and then check if it needs to go up further
-          this.insertBefore(next,row); 
+          options.container.insertBefore(next,row); 
           if (i > 0) {
             i = i-2;
           }
@@ -673,6 +701,8 @@ var UI = {
       }
 
     };
+
+    if (lastsortby !== false) { item_container.sort(); }
 
   },
   humanMime: function (type) {
@@ -1141,10 +1171,10 @@ var UI = {
           $bc.append($b);
           switch (button.type) {
             case 'cancel':
-              $b.addClass('cancel').click(button['function']);
+              $b.addClass('cancel').attr("data-icon","❌").click(button['function']);
               break;
             case 'save':
-              $b.addClass('save').click(function(e){
+              $b.addClass('save').attr("data-icon","✔️").click(function(e){
                 var fn = $(this).data('opts')['preSave'];
                 if (fn) { fn.call(this); }
                 
@@ -4573,7 +4603,7 @@ var UI = {
 
         var stored = mist.stored.get();
         var sortstreams = {
-          by: name,
+          by: "name",
           dir: 1
         };
         var pagesize;
@@ -4608,7 +4638,7 @@ var UI = {
               UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
             })
           ).append(
-            $('<button>').text('Create a new stream').click(function(){
+            $('<button>').attr("data-icon","➕").text('Create a new stream').click(function(){
               UI.navto('Edit');
             })
           ),
@@ -4636,7 +4666,7 @@ var UI = {
 
               UI.sortableItems(cont,function(sortby){
                 return this.sortValues[sortby];
-              },false); //add a sorting function to the container, but do not apply sort attributes
+              },{}); //add a sorting function to the container, but do not apply sort attributes
 
               return cont;
             },
@@ -4922,18 +4952,7 @@ var UI = {
             var label = i in headers ? headers[i] : UI.format.capital(i);
             var $th = $("<th>").text(label);
             if (label != "") {
-              $th.attr("data-index",i).click(function(){
-                var v = $(this).attr("data-index");
-                if (sortstreams.by == v) {
-                  sortstreams.dir *= -1;
-                }
-                else {
-                  sortstreams.by = v;
-                  sortstreams.dir = 1;
-                }
-                mist.stored.set("sortstreams",sortstreams);
-                $streams.sort($(this).attr("data-index"));
-              });
+              $th.attr("data-index",i);
             }
             $tr.append($th);
           }
@@ -4943,7 +4962,7 @@ var UI = {
 
               UI.sortableItems(tbody,function(sortby){
                 return this._cells[sortby].raw;
-              },$tr[0]);
+              },{controls:$tr[0],sortsave:"sortstreams"});
 
               tbody.remove = function(){
                 if (this.parentNode) {
@@ -5754,480 +5773,18 @@ var UI = {
 
         break;
       case 'Push':
-        var $c = $('<div>').text('Loading..'); //will contain everything
-        $main.append($c);
-        
-        mist.send(function(d){
-          $c.html(UI.buildUI([{
-            type: 'help',
-            help: 'You can push streams to files or other servers, allowing them to broadcast your stream as well.'
-          }]));
-          
-          
-          var push_settings = d.push_settings;
-          if (!push_settings) { push_settings = {}; }
-          
-          var $push = $('<table>').append(
-            $('<tr>').append(
-              $('<th>').text('Stream')
-            ).append(
-              $('<th>').text('Target')
-            ).append(
-              $('<th>')
-            ).append(
-              $('<th>')
-            )
-          );
-          var $autopush = $push.clone();
-          //check if push ids have been stopped untill the answer is yes
-          function checkgone(ids) {
-            setTimeout(function(){
-              mist.send(function(d){
-                var gone = false;
-                if (('push_list' in d) && (d.push_list) && (d.push_list.length)) {
-                  gone = true;
-                  for (var i in d.push_list) {
-                    if (ids.indexOf(d.push_list[i][0]) > -1) {
-                      gone = false;
-                      break;
-                    }
-                  }
-                }
-                else {
-                  gone = true;
-                }
-                if (gone) {
-                  for (var i in ids) {
-                    $push.find('tr[data-pushid='+ids[i]+']').remove();
-                  }
-                }
-                else {
-                  checkgone();
-                }
-              },{push_list:1});
-            },1e3);
-          }
-          var showing = false;
-          function buildTr(push,type,id) {
-            if (Array.isArray(push)) {
-              push = mist.convertPushArr2Obj(push,type == "Automatic");
-              id = push.id;
-            }
-            var $target = $('<span>');
-            var $logs = $("<span>");
-            var deactivated = false;
-            if (type == "Automatic") {
-
-              function printPrettyComparison(a,b,c){
-                var str = "";
-                str += "$"+a+" ";
-                switch (Number(b)) {
-                  case 0:  { str += "is true";  break; }
-                  case 1:  { str += "is false"; break; }
-                  case 2:  { str += "== "+c; break; }
-                  case 3:  { str += "!= "+c; break; }
-                  case 10: { str += "> (numerical) " +c; break; }
-                  case 11: { str += ">= (numerical) "+c; break; }
-                  case 12: { str += "< (numerical) " +c; break; }
-                  case 13: { str += "<= (numerical) "+c; break; }
-                  case 20: { str += "> (lexical) " +c; break; }
-                  case 21: { str += ">= (lexical) "+c; break; }
-                  case 22: { str += "< (lexical) " +c; break; }
-                  case 23: { str += "<= (lexical) "+c; break; }
-                  default: { str += "comparison operator unknown"; break; }
-                }
-                return str;
-              }
-
-              $target.append(
-                $('<span>').text(push.target)
-              );
-              if ("scheduletime" in push) {
-                $target.append(
-                  $('<span>').text(', schedule on '+(new Date(push.scheduletime*1e3)).toLocaleString())
-                );
-              }
-              if ("completetime" in push) {
-                $target.append(
-                  $('<span>').text(", complete on "+(new Date(push.completetime*1e3)).toLocaleString())
-                );
-              }
-              if ("start_rule" in push) {
-                $target.append(
-                  $('<span>').text(", starts if "+printPrettyComparison.apply(this,push.start_rule))
-                );
-              }
-              if ("end_rule" in push) {
-                $target.append(
-                  $('<span>').text(", stops if "+printPrettyComparison.apply(this,push.end_rule))
-                );
-              }
-
-            }
-            else if (push.target != push.resolved_target) {
-              $target.append(
-                $('<span>').text(push.target)
-              ).append(
-                $('<span>').html('&#187').addClass('unit').css('margin','0 0.5em')
-              ).append(
-                $('<span>').text(push.resolved_target)
-              );
-            }
-            else {
-              $target.append(
-                $('<span>').text(push.target)
-              );
-            }
-            var $buttons = $('<td>').append(
-              $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
-                if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push.stream+' to '+push.target)) {
-                  var $tr = $(this).closest('tr');
-                  $tr.html(
-                    $('<td colspan=99>').html(
-                      $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
-                    )
-                  );
-                  if (type == 'Automatic') {
-                    mist.send(function(){
-                      $tr.remove();
-                    },{'push_auto_remove':id});
-                  }
-                  else {
-                    mist.send(function(d){
-                      checkgone([id]);
-                    },{'push_stop':[id]});
-                  }
-                }
-              })
-            );
-            if (type == 'Automatic') {
-              if (push.stream.indexOf("💤deactivated💤_") == 0) {
-                push.stream = push.stream.slice(16);
-                deactivated = true;
-                $buttons.append(
-                  $("<button>").text("Activate").click(function(){
-                    //push.stream has already been edited to have the normal (activated) stream name; just edit to the push object as is
-                    var o = {};
-                    o[id] = push;
-                    mist.send(function(){
-                      UI.navto("Push");
-                    },{
-                      push_auto_add: o
-                    });
-
-                  })
-                );
-              }
-              else {
-                $buttons.append(
-                  $("<button>").text("Deactivate").click(function(){
-                    push.stream = "💤deactivated💤_"+push.stream;
-                    var o = {};
-                    o[id] = push;
-                    mist.send(function(){
-                      UI.navto("Push");
-                    },{
-                      push_auto_add: o
-                    });
-                  })
-                );
-              }
-              $buttons.prepend(
-                $("<button>").text("Edit").click(function(){
-                  UI.navto("Start Push","auto_"+id);
-                })
-              );
-              $buttons.append(
-                $('<button>').text('Stop pushes').click(function(){
-                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push.stream+' to '+push.target+"\"?"+(!deactivated && (push_settings.wait != 0) ? "\n\nRetrying is enabled. That means the push will just restart. You'll probably want to set that to 0." : ''))) {
-                    var $button = $(this);
-                    $button.text('Stopping pushes..');
-                    //also stop the matching pushes
-                    var pushIds = [];
-                    for (var i in d.push_list) {
-                      //                streamname                        target
-                      if ((push.stream == d.push_list[i][1]) && (push.target == d.push_list[i][2])) {
-                        pushIds.push(d.push_list[i][0]);
-                        $push.find('tr[data-pushid='+d.push_list[i][0]+']').html(
-                          $('<td colspan=99>').html(
-                            $('<span>').addClass('red').text('Stopping..')
-                          )
-                        );
-                      }
-                    }
-
-                    mist.send(function(){
-                      $button.text('Stop pushes');
-                      checkgone(pushIds);
-                    },{
-                      push_stop: pushIds
-                    });
-                  }
-                })
-              );
-              
-            }
-            else {
-              //it's a non-automatic push
-              if ("stats" in push) {
-                var stats = push.stats;
-                $logs.append(
-                  $("<div>").append(
-                    "Active for: "+UI.format.duration(stats.active_seconds)
-                  )
-                ).append(
-                  $("<div>").append(
-                    "Data transferred: "+UI.format.bytes(stats.bytes)
-                  )
-                ).append(
-                  $("<div>").append(
-                    "Media time transferred: "+UI.format.duration(stats.mediatime*1e-3)
-                  )
-                );
-                if ("pkt_retrans_count" in stats) {
-                  $logs.append(
-                    $("<div>").append(
-                      "Packets retransmitted: "+UI.format.number(stats.pkt_retrans_count || 0)
-                    )
-                  );
-                }
-                if ("pkt_loss_count" in stats) {
-                  $logs.append(
-                    $("<div>").append(
-                      "Packets lost: "+UI.format.number(stats.pkt_loss_count || 0)+" ("+UI.format.addUnit(UI.format.number(stats.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")"
-                    )
-                  );
-                }
-              }
-              if ("logs" in push) {
-                //there are logs
-                for (var i in push.logs) {
-                  var item = push.logs[i];
-                  $logs.append(
-                    $("<div>").append(
-                      UI.format.time(item[0])+' ['+item[1]+'] '+item[2]
-                    )
-                  );
-                }
-              }
-              
-            }
-            return $('<tr>').attr("title",push["x-LSP-notes"] ? push["x-LSP-notes"] : "").css("vertical-align","top").attr('data-pushid',id).attr("data-deactivated",deactivated).append(
-              $('<td>').text(push.stream)
-            ).append(
-              $('<td>').append($target.children())
-            ).append(
-              $("<td>").addClass("logs").append($logs.children())
-            ).append(
-              $buttons
-            );
-          }
-          
-          if ('push_list' in d) {
-            for (var i in d.push_list) {
-              $push.append(buildTr(d.push_list[i],'Manual'));
-            }
-          }
-          if ('auto_push' in d) {
-            var deactivated = [];
-            for (var id in d.auto_push) {
-              var tr = buildTr(d.auto_push[id],'Automatic',id);
-
-              //gather deactivated pushes and put them at the end of the table after completing the push_auto_list iterations
-              if (tr.attr("data-deactivated") == "true") {
-                deactivated.push(tr);
-              }
-              else {
-                $autopush.append(tr);
-              }
-            }
-            for (var i in deactivated) {
-              $autopush.append(deactivated[i]);
-            }
-          }
-          
-          $c.append(
-            $('<h3>').text('Automatic push settings')
-          ).append(
-            UI.buildUI([
-              {
-                label: 'Delay before retry',
-                unit: 's',
-                type: 'int',
-                min: 0,
-                help: 'How long the delay should be before MistServer retries an automatic push.<br>If set to 0, it does not retry.',
-                'default': 3,
-                pointer: {
-                  main: push_settings,
-                  index: 'wait'
-                }
-              },{
-                label: 'Maximum retries',
-                unit: '/s',
-                type: 'int',
-                min: 0,
-                help: 'The maximum amount of retries per second (for all automatic pushes).<br>If set to 0, there is no limit.',
-                'default': 0,
-                pointer: {
-                  main: push_settings,
-                  index: 'maxspeed'
-                }
-              },{
-                type: 'buttons',
-                buttons: [{
-                  type: 'save',
-                  label: 'Save',
-                  'function': function(){
-                    mist.send(function(d){
-                      UI.navto('Push');
-                    },{
-                      push_settings: push_settings
-                    })
-                  }
-                }]
-              }
-            ])
-          ).append(
-            $('<h3>').text('Automatic pushes')
-          ).append(
-            $('<button>').text('Add an automatic push').click(function(){
-              UI.navto('Start Push','auto');
-            })
-          );
-          if ($autopush.find('tr').length == 1) {
-            $c.append(
-              $('<div>').text('No automatic pushes have been configured.').addClass('text').css('margin-top','0.5em')
-            );
-          }
-          else {
-            $c.append($autopush);
-          }
-          
-          $c.append(
-            $('<h3>').text('Pushes')
-          ).append(
-            $('<button>').text('Start a push').click(function(){
-              UI.navto('Start Push');
-            })
-          );
-          if ($push.find('tr').length == 1) {
-            $c.append(
-              $('<div>').text('No pushes are active.').addClass('text').css('margin-top','0.5em')
-            );
-          }
-          else {
-            var streams = [];
-            var targets = [];
-            var $select_streams = $('<select>').css('margin-left','0.5em').append(
-              $('<option>').text('Any stream').val('')
-            );
-            var $select_targets = $('<select>').css('margin-left','0.5em').append(
-              $('<option>').text('Any target').val('')
-            );
-            for (var i in d.push_list) {
-              if (streams.indexOf(d.push_list[i][1]) == -1) {
-                streams.push(d.push_list[i][1]);
-              }
-              if (targets.indexOf(d.push_list[i][2]) == -1) {
-                targets.push(d.push_list[i][2]);
-              }
-            }
-            streams.sort();
-            targets.sort();
-            for (var i in streams) {
-              $select_streams.append(
-                $('<option>').text(streams[i])
-              );
-            }
-            for (var i in targets) {
-              $select_targets.append(
-                $('<option>').text(targets[i])
-              );
-            }
-            
-            $c.append(
-              $('<button>').text('Stop all pushes').click(function(){
-                var push_list = [];
-                for (var i in d.push_list) {
-                  push_list.push(d.push_list[i][0]);
-                }
-                if (push_list.length == 0) { return; }
-                if (confirm('Are you sure you want to stop all pushes?')) {
-                  mist.send(function(d){
-                    checkgone(push_list);
-                  },{push_stop:push_list});
-                  $push.find('tr:not(:first-child)').html(
-                    $('<td colspan=99>').append(
-                      $('<span>').addClass('red').text('Stopping..')
-                    )
-                  );
-                  $(this).remove();
-                }
-                
-              })
-            ).append(
-              $('<label>').css('margin-left','1em').append(
-                $('<span>').text('Stop all pushes that match: ').css('font-size','0.9em')
-              ).append(
-                $select_streams
-              ).append(
-                $('<span>').css('margin-left','0.5em').text('and').css('font-size','0.9em')
-              ).append(
-                $select_targets
-              ).append(
-                $('<button>').css('margin-left','0.5em').text('Apply').click(function(){
-                  var s = $select_streams.val();
-                  var t = $select_targets.val();
-                  
-                  if ((s == '') && (t == '')) { return alert('Looks like you want to stop all pushes. Maybe you should use that button?'); }
-                  var pushes = {};
-                  
-                  for (var i in d.push_list) {
-                    if  (((s == '') || (d.push_list[i][1] == s)) && ((t == '') || (d.push_list[i][2] == t))) {
-                      pushes[d.push_list[i][0]] = d.push_list[i];
-                    }
-                  }
-                  
-                  if (Object.keys(pushes).length == 0) {
-                    return alert('No matching pushes.');
-                  }
-                  
-                  var msg = 'Are you sure you want to stop these pushes?'+"\n\n";
-                  for (var i in pushes) {
-                    msg += pushes[i][1]+' to '+pushes[i][2]+"\n";
-                  }
-                  if (confirm(msg)) {
-                    pushes = Object.keys(pushes);
-                    mist.send(function(d){
-                      checkgone(pushes);
-                    },{'push_stop':pushes});
-                    for (var i in pushes) {
-                      $push.find('tr[data-pushid='+pushes[i]+']').html(
-                        $('<td colspan=99>').html(
-                          $('<span>').addClass('red').text('Stopping..')
-                        )
-                      );
-                    }
-                  }
-                })
-              )
-            ).append($push);
-          }
-          
-          UI.interval.set(function(){
-            mist.send(function(d){
-              var $header = $push.find("tr").first();
-              $push.empty();
-              $push.append($header);
-              for (var i in d.push_list) {
-                $push.append(buildTr(d.push_list[i]));
-              }
-            },{push_list:1});
-          },5e3);
-          
-        },{push_settings:1,push_list:1,push_auto_list:1});
-        
-        //$c.append(UI.modules.stream.pushes());
+        $main.html(
+          $("<h2>").text("Pushes and recordings")
+        ).append(
+          UI.buildUI([{
+            type: "help",
+            help: "You can record streams to a file, or push streams to other servers, allowing them to broadcast your stream as well.<br>You can right click a push or stream name for actions."
+          }])
+        ).append(UI.modules.pushes({
+          push_settings:true,
+          collapsible: true,
+          filter: true
+        }));
 
         break;
       case 'Start Push':
@@ -6252,7 +5809,7 @@ var UI = {
                 buildTheThings(d.auto_push[editid],editid);
               }
               else {
-                buildTheThings(mist.convertPushArr2Obj(d.push_auto_list[editid],true));
+                buildTheThings(); //not found: Create new push
               }
             },{push_auto_list: 1});
             return;
@@ -6292,41 +5849,38 @@ var UI = {
           file_match.sort();
           prot_match.sort();
           
+          var saveas = {params:{}};
           if (other == 'auto') {
             $main.find('h2').text('Add automatic push');
+            saveas.enabled = true;
           }
           
           
-          var saveas = {params:{}};
           var params = []; //will contain all target url params as an array
-          if ((other == "auto") && (typeof edit != "undefined")) {
-            saveas = Object.assign({
-              "params": {},
+          if (other == "auto") {
+            saveas = Object.assign(saveas,{
               start_rule: [null,null,null],
               end_rule: [null,null,null]
-            },edit);
-            
-            var parts = saveas.target.split("?");
-            if (parts.length > 1) {
-              params = parts.pop(); //contains the part that comes after the ?, eg recstartunix=123&scheduletime=456
-              saveas.target = parts.join("?"); //the rest of the url string can go back into the target
-              params = params.split("&");
-              for (var i in params) {
-                var param = params[i].split("=");
-                saveas.params[param.shift()] = param.join("=");
+            });
+            if (typeof edit != "undefined") {
+              saveas = Object.assign(saveas,edit);
+
+              if (saveas.stream.indexOf("💤deactivated💤_") == 0) {
+                saveas.enabled = false;
+                saveas.stream = saveas.stream.slice(16);
+              }
+
+              var parts = saveas.target.split("?");
+              if (parts.length > 1) {
+                params = parts.pop(); //contains the part that comes after the ?, eg recstartunix=123&scheduletime=456
+                saveas.target = parts.join("?"); //the rest of the url string can go back into the target
+                params = params.split("&");
+                for (var i in params) {
+                  var param = params[i].split("=");
+                  saveas.params[param.shift()] = param.join("=");
+                }
               }
             }
-            /*if ("start_rule" in edit) {
-              saveas.startVariableName = edit.start_rule[0];
-              saveas.startVariableOperator = edit.start_rule[1];
-              saveas.startVariableValue = edit.start_rule[2];
-            }
-            if ("end_rule" in edit) {
-              saveas.endVariableName = edit.end_rule[0];
-              saveas.endVariableOperator = edit.end_rule[1];
-              saveas.endVariableValue = edit.end_rule[2];
-            }*/
-
           }
           var $additional_params = $("<div>").css("margin","1em 0");
           var $autopush = $("<div>");
@@ -6507,7 +6061,15 @@ var UI = {
               }],
               datalist: allthestreams,
               value: prev[1] != "" ? prev[1] : "" //if we came here from a page where other exists (like the Status tab) prefill it, it's probably a stream
-            },{
+            },other == "auto" ? {
+              label: "Enabled",
+              type: "checkbox",
+              help: "When an automatic push is disabled, it will not start new pushes.",
+              pointer: { 
+                main: saveas,
+                index: "enabled"
+              }
+            } : $(""),{
               label: 'Target',
               type: 'str',
               help: 'Where the stream will be pushed to.<br>\
@@ -6689,6 +6251,25 @@ var UI = {
               label: 'Save',
               preSave: function(){
                 //is executed before the variables are saved
+
+                if (other == "auto") {
+                  var scheduletime = $("[name=\"scheduletime\"]").getval();
+                  var startunix = $("[name=\"startunix\"]").getval();
+                  if (typeof editid == "undefined") {
+                    //we're adding a new auto push
+                    if (scheduletime && (!startunix)) {
+                      //schedultime is set, but startunix is not
+                      $("[name=\"startunix\"]").setval(scheduletime);
+                    }
+                  }
+                  else if (saveas.params.startunix && saveas.scheduletime) {
+                    if ((scheduletime != saveas.scheduletime) && (startunix == saveas.params.startunix)) {
+                      //scheduletime has changed, but startunix has not
+                      $("[name=\"startunix\"]").setval(scheduletime);
+                    }
+                  }
+                }
+
                 
                 //clean the object of old settings that may not be part of the current form 
                 delete saveas.startVariableName;
@@ -6699,10 +6280,18 @@ var UI = {
                 delete saveas.endVariableValue;
                 delete saveas.completetime;
                 delete saveas.scheduletime;
-                saveas.start_rule.map(function(v){return null;});
-                saveas.end_rule.map(function(v){return null;});
+                if (saveas.start_rule) saveas.start_rule.map(function(v){return null;});
+                if (saveas.end_rule) saveas.end_rule.map(function(v){return null;});
+
               },
               'function': function(){
+                if (other == "auto") {
+                  if (!saveas.enabled) {
+                    saveas.stream = "💤deactivated💤_"+saveas.stream;
+                  }
+                  delete saveas.enabled;
+                }
+
                 var params = saveas.params;
                 for (var i in params) {
                   if (params[i] === null) {
@@ -6714,19 +6303,16 @@ var UI = {
                     delete params[i];
                   }
                 }
-                if (saveas.start_rule[0] === null) {
+                if (saveas.start_rule && (saveas.start_rule[0] === null)) {
                   delete saveas.start_rule;
                 }
-                if (saveas.end_rule[0] === null) {
+                if (saveas.end_rule && (saveas.end_rule[0] === null)) {
                   delete saveas.end_rule;
                 }
 
                 if (("start_rule" in saveas) || ("end_rule" in saveas)) {
                   saveas.scheduletime = 0;
                   saveas.completetime = 0;
-                }
-                if (saveas.scheduletime) {
-                  params["recstartunix"] = saveas.scheduletime;
                 }
                 if (Object.keys(params).length || (saveas.custom_url_params && saveas.custom_url_params.length)) {
                   var str = [];
@@ -9311,7 +8897,11 @@ var UI = {
         );
       },
       pushes: function(streamname){
-        return UI.modules.pushes(streamname);
+        return UI.modules.pushes({
+          stream: streamname,
+          logs: false,
+          stop_pushes: false
+        });
       },
       logs: function(streamname){
         var $logs = $("<div>").attr("onempty","None.").addClass("logs");
@@ -10160,385 +9750,948 @@ var UI = {
         return cont;
       }
     },
-  pushes: function(streamname){
-    //if stream name is passed; filter the results to be only for that stream
+    pushes: function(options){
+      if (!options) {
+        options = {};
+      }
+      options = Object.assign({
+        stream: false, //if stream is passed; filter the results to be only for that stream
+        logs: true,
+        stop_pushes: true,
+        form: false,
+        collapsible: false
+      },options);
 
-    var $pushes = $("<div>").addClass("pushes");
-    $pushes.html("Loading..");
+      var $pushes = $("<div>").addClass("pushes");
+      $pushes.html("Loading..");
 
-    mist.send(function(d){
-      $pushes.html("");
+      mist.send(function(d){
+        $pushes.html("");
+        mist.data.push_list = d.push_list;
 
-      function buildPushCont(type,values) {
-        function printPrettyComparison(a,b,c){
-          var str = "";
-          str += "$"+a+" ";
-          switch (Number(b)) {
-            case 0:  { str += "is true";  break; }
-            case 1:  { str += "is false"; break; }
-            case 2:  { str += "== "+c; break; }
-            case 3:  { str += "!= "+c; break; }
-            case 10: { str += "> (numerical) " +c; break; }
-            case 11: { str += ">= (numerical) "+c; break; }
-            case 12: { str += "< (numerical) " +c; break; }
-            case 13: { str += "<= (numerical) "+c; break; }
-            case 20: { str += "> (lexical) " +c; break; }
-            case 21: { str += ">= (lexical) "+c; break; }
-            case 22: { str += "< (lexical) " +c; break; }
-            case 23: { str += "<= (lexical) "+c; break; }
-            default: { str += "comparison operator unknown"; break; }
-          }
-          return str;
-        }
+        var context_menu = new UI.context_menu();
+        $pushes.append(context_menu.ele);
 
-        var layout = {
-          Target: function(push){
-            if (type == "Automatic") {
-              return push.target;
-            }
-            if ((push.length >= 4) && (push[2] != push[3])) {
-              return push[2]+$('<span>').html('&#187').addClass('unit').css('margin','0 0.5em').prop('outerHTML')+push[3];
-            }
-            return push[2];
-          },
-          Conditions: false,
-          Statistics: false,
-          Actions: $("<div>").addClass("buttons")
-        };
-        if (type == "Automatic") {
-          layout.Conditions = function(push){
-            var $conditions = $("<div>"); //temporary container
-            if (push[3]) {
-              $conditions.append(
-                $('<span>').text('schedule on '+(new Date(push[3]*1e3)).toLocaleString())
-              );
-            }
-            if ((push.length >= 5) && (push[4])) {
-              $conditions.append(
-                $('<span>').text("complete on "+(new Date(push[4]*1e3)).toLocaleString())
-              );
-            }
-            if ((push.length >= 8) && (push[5])) {
-              $conditions.append(
-                $('<span>').text("starts if "+printPrettyComparison(push[5],push[6],push[7]))
-              );
-            }
-            if ((push.length >= 11) && (push[8])) {
-              $conditions.append(
-                $('<span>').text("stops if "+printPrettyComparison(push[8],push[9],push[10]))
-              );
-            }
-            return $conditions.children().length ? $conditions.children() : "";
-          }
-        }
-        else {
-          layout.Statistics = {
-            create: function(){
-              return $("<div>").addClass("statistics"); 
-            },
-            add: {
-              create: function(id){ 
-                var labels = {
-                  active_seconds: "Active for: ",
-                  bytes: "Data transfered: ",
-                  mediatime: "Media time transfered: ",
-                  pkt_retrans_count: "Packets retransmitted: ",
-                  pkt_loss_count: "Packets lost: ",
-                  tracks: "Tracks: "
-                };
-                if (id in labels) {
-                  return $("<div>").attr("beforeifnotempty",labels[id]);
-                }
-              },
-              update: function(val,allValues){
-                var me = this;
-                var formatting = {
-                  active_seconds: UI.format.duration,
-                  bytes: UI.format.bytes,
-                  mediatime: function(v){ return UI.format.duration(v*1e-3) },
-                  tracks: function(v){ return v.join(", "); },
-                  pkt_retrans_count: function(v){
-                    return UI.format.number(v || 0);
-                  },
-                  pkt_loss_count: function(v){
-                    return UI.format.number(v || 0)+" ("+UI.format.addUnit(UI.format.number(allValues.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")";
+        if (options.push_settings) {
+          $pushes.append(
+            $("<section>").append(
+              $('<h3>').text('Automatic push settings')
+            ).append(
+              UI.buildUI([
+                {
+                  type: "help",
+                  help: "These settings only apply to automatic pushes."
+                },{
+                  label: 'Delay before retry',
+                  unit: 's',
+                  type: 'int',
+                  min: 0,
+                  help: 'How long the delay should be before MistServer retries an automatic push.<br>If set to 0, it does not retry.',
+                  'default': 3,
+                  pointer: {
+                    main: d.push_settings,
+                    index: 'wait'
                   }
-                };
-
-                if (this._id in formatting) {
-                  this.html(formatting[this._id](val));
+                },{
+                  label: 'Maximum retries',
+                  unit: '/s',
+                  type: 'int',
+                  min: 0,
+                  help: 'The maximum amount of retries per second (for all automatic pushes).<br>If set to 0, there is no limit.',
+                  'default': 0,
+                  pointer: {
+                    main: d.push_settings,
+                    index: 'maxspeed'
+                  }
+                },{
+                  type: 'buttons',
+                  buttons: [{
+                    type: 'save',
+                    label: 'Save',
+                    'function': function(){
+                      mist.send(function(d){
+                        UI.navto('Push');
+                      },{
+                        push_settings: d.push_settings
+                      })
+                    }
+                  }]
                 }
-
-              }
-            }
-          }
-        }
-        layout.Actions.append(
-          $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
-            var push = $(this).closest("table").data("values")[$(this).closest("td").attr("data-pushid")];
-            if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
-              $(this).html(
-                $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
-              );
-              if (type == 'Automatic') {
-                var a = push.slice(1);
-                var me = this;
-                mist.send(function(d){
-                  $(me).text("Done.");
-                  $table.update(d.push_auto_list);
-                  //use the reply to update the automatic pushes list
-                },{push_auto_remove:[a]});
-              }
-              else {
-                mist.send(function(d){ 
-                  //done
-                },{'push_stop':[push[0]]});
-              }
-            };
-          })
-        );
-        if (type == 'Automatic') {
-          layout.Actions.prepend(
-            $("<button>").text("Edit").click(function(){
-              UI.navto("Start Push","auto_"+($(this).closest("td").attr("data-pushid")));
-            })
+              ])
+            )
           );
         }
 
+        if (options.filter) {
+          $pushes.append(
+            UI.buildUI([{
+              label: "Filter the pushes below",
+              classes: ["filter"],
+              help: "Pushes that do not contain this text in their stream, target or notes will be hidden.",
+              "function": function(e){
+                var val = $(this).getval();
+                var $tables = $pushes.find("table[data-pushtype]").each(function(i,table){
+                  table.filter(val);
+                })
+              },
+              css: {"margin-top":"3em"}
+            }]).css( {"margin-bottom":0} )
 
+          );
+        }
 
+        function buildPushCont(type,values) {
+          function printPrettyComparison(a,b,c){
+            var str = "";
+            str += "$"+a+" ";
+            switch (Number(b)) {
+              case 0:  { str += "is true";  break; }
+              case 1:  { str += "is false"; break; }
+              case 2:  { str += "== "+c; break; }
+              case 3:  { str += "!= "+c; break; }
+              case 10: { str += "> (numerical) " +c; break; }
+              case 11: { str += ">= (numerical) "+c; break; }
+              case 12: { str += "< (numerical) " +c; break; }
+              case 13: { str += "<= (numerical) "+c; break; }
+              case 20: { str += "> (lexical) " +c; break; }
+              case 21: { str += ">= (lexical) "+c; break; }
+              case 22: { str += "< (lexical) " +c; break; }
+              case 23: { str += "<= (lexical) "+c; break; }
+              default: { str += "comparison operator unknown"; break; }
+            }
+            return str;
+          }
 
-        var $cont = $("<div>").attr("onempty","None.");
-        var $table;
-        if (type == "Automatic"){
-          $table = UI.dynamic({
-            create: function(){
-              var $table = $("<table>");
-              var $header = $("<tr>");
-              $table.append(
-                $("<thead>").append($header)
+          var layout = {
+            "": function(push){
+              var $cont = $("<label>").addClass("toggle-switch").append(
+                $("<input>").attr("type","checkbox").prop("checked",!push.deactivated).change(function(){
+                  if (push.deactivated) {
+                    //push.stream has already been edited to have the normal (activated) stream name; just edit to the push object as is
+                    var $me = $(this);
+                    var o = {};
+                    o[push.id] = push;
+                    mist.send(function(d){
+                      $table.update(d.auto_push);
+                    },{
+                      push_auto_add: o
+                    });
+                  }
+                  else {
+                    push.stream = "💤deactivated💤_"+push.stream;
+                    var o = {};
+                    o[push.id] = push;
+                    mist.send(function(d){
+                      $table.update(d.auto_push);
+                    },{
+                      push_auto_add: o
+                    });
+                  }
+                })
+              ).append(
+                $("<div>").addClass("slider")
+              ).append(
+                $("<span>").text(push.deactivated ? "Disabled" : "Enabled").hide() //for sorting
+              ).click(function(e){
+                e.stopPropagation();
+              })
+              return $cont;
+            },
+            Stream: function(push){
+              if (push.stream[0] == "#") return push.stream;
+              return $("<a>").text(push.stream).click(function(e){
+                UI.navto("Preview",push.stream);
+                e.stopPropagation();
+              }).on("contextmenu",function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                var streamname = push.stream;
+
+                var header = [
+                  $("<div>").addClass("header").text(streamname)
+                ];
+                var gototabs = [
+                  ["<span>Edit "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")+"</span>",function(){ UI.navto("Edit",streamname); },"Edit","Change the settings of this stream."],
+                  ["Stream status",function(){ UI.navto("Status",streamname); },"Status","See more details about the status of this stream."],
+                  ["Preview stream",function(){ UI.navto("Preview",streamname); },"Preview","Watch the stream."]
+                ];
+
+                var menu = [header];
+                menu.push(gototabs);
+
+                context_menu.show(menu,e);
+
+              });
+            },
+            Target: function(push){
+              var $cont = $("<div>"); //temporary, to hold multiple children
+              var t = push.target;
+              if ((type != "Automatic") && (push.target != push.resolved_target)) {
+                t = push.resolved_target;
+              }
+              //split url params
+              t = t.split("?");
+              var params = [];
+              if (t.length > 1) params = t.pop().split("&");
+              var main = t.join("?");
+              $cont.append(
+                $("<span>").text(main).attr("title",push.target)
               );
-              for (var i in layout) {
-                if (!layout[i]) continue;
-                var cell = $("<td>").addClass("header").text(i).attr("data-column",i);
-                $header.append(cell);
-              }
-              return $table;
-            },
-            add: {
-              create: function(id){
-                var $tr = $("<tr>");
-                $tr._children = {};
-                for (var i in layout) {
-                  if (!layout[i]) continue;
-                  var $td = $("<td>").attr("data-pushid",id).attr("data-column",i);
-                  $tr._children[i] = $td;
-                  $tr.append($td);
-                  if (layout[i] instanceof jQuery) {
-                    $td.html(layout[i].clone(true));
-                  }
-                  else if (typeof layout[i] == "object") {
-                    $td.dynamic = UI.dynamic(layout[i]);
-                    $td.html($td.dynamic);
-                  }
+              if (params.length) {
+                $cont.append(
+                  $("<span>").addClass("param").text("?"+params[0])
+                );
+                for (var i = 1; i < params.length; i++) {
+                  $cont.append(
+                    $("<span>").addClass("param").text("&"+params[i])
+                  );
                 }
-                return $tr;
-              },
-              update: function(push){
-                for (var i in layout) {
-                  if (typeof layout[i] == "function") {
-                    var newvalue = layout[i](push);
-                    if (newvalue != this._children[i].raw) {
-                      this._children[i].html(newvalue);
-                      this._children[i].raw = newvalue;
+              }
+              return $cont.children();
+            },
+            Conditions: false,
+            Notes: false,
+            Statistics: false,
+            Actions: function(push,type) {
+              var $cont = $("<div>").addClass("buttons");
+              if (type == 'Automatic') {
+                $cont.append(
+                  $("<button>").text("Edit").click(function(e){
+                    e.stopPropagation();
+                    UI.navto("Start Push","auto_"+push.id);
+                  })
+                );
+              }
+              $cont.append(
+                $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(e){
+                  e.stopPropagation();
+
+                  if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push.stream+' to '+push.target)) {
+                    $(this).html(
+                      $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
+                    );
+                    if (type == 'Automatic') {
+                      var me = this;
+                      mist.send(function(d){
+                        $(me).text("Done.");
+                        $table.update(d.auto_push);
+                        //use the reply to update the automatic pushes list
+                      },{push_auto_remove:push.id});
                     }
-                  }
-                }
-              }
-            },
-            update: function(values){
-              var $table = this;
-              $table.data("values",values);
-              if (Object.keys(values).length) {
-                if (!$table.parent().length) {
-                  $cont.append($table);
-                }
-
-                //hide conditions column if empty
-                var showConditions = false;
-                for (var i in $table.children) {
-                  var $row = $table.children[i];
-                  if ($row._children.Conditions.raw != "") {
-                    showConditions = true;
-                    break;
-                  }
-                }
-                if (showConditions) { $table.removeClass("hideConditioins"); }
-                else { $table.addClass("hideConditions"); }
-              }
-              else if ($table[0].parentNode) {
-                $table[0].parentNode.removeChild($table[0]);
-              }
-
-            },
-            values: values,
-            getEntries: function(d){
-              var out = {};
-              var streamnameisbase = false;
-              if (streamname && (streamname.split("+").length == 1)) {
-                streamnameisbase = true;
-              }
-              for (var i in d) {
-                var values = d[i];
-                values.unshift(Number(i));
-                //filter out other streams
-                if (!streamname || (values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
-                  out[values[0]] = values;
-                }
-              }
-              return out;
-            }
-
-          });
-        }
-        else {
-          $table = UI.dynamic({
-            create: function(){
-              var $table = $("<table>");
-              $table.rows = {};
-              for (var i in layout) {
-                if (!layout[i]) continue;
-                var row = $("<tr>").addClass(i).append($("<th>").text(i+":"));
-                $table.append(row);
-                $table.rows[i] = row;
-              }
-              $table.rows.Target.addClass("header");
-              return $table;
-            },
-            add: {
-              create: function(id){ 
-                var $tr = $("<tr>").text(id); //dummy parent
-                $tr.children = {};
-                for (var i in layout) {
-                  if (!layout[i]) continue;
-                  var $td = $("<td>").attr("data-pushid",id);
-                  $tr.children[i] = $td;
-                  $tr.append($td);
-                  if (layout[i] instanceof jQuery) {
-                    $td.html(layout[i].clone(true));
-                  }
-                  else if (typeof layout[i] == "object") {
-                    $td.dynamic = UI.dynamic(layout[i]);
-                    $td.html($td.dynamic);
-                  }
-                }
-                //if the push is removed, remove the children (who are not in this dummy parent but in the main table)
-                var oldremove = $tr.remove;
-                $tr.remove = function(){
-                  for (var i in $tr.children) {
-                    $tr.children[i].remove();
-                  }
-                  return oldremove.apply(this,arguments);
-                };
-                return $tr;
-              },
-              update: function(push){
-                for (var i in layout) {
-                  if (typeof layout[i] == "function") {
-                    var newvalue = layout[i](push);
-                    if (newvalue != this.children[i].raw) {
-                      this.children[i].html(newvalue);
-                      this.children[i].raw = newvalue;
+                    else {
+                      mist.send(function(d){ 
+                        //done
+                      },{'push_stop':[push.id]});
                     }
-                  }
-                  else if ((i == "Statistics") && (layout[i])) {
-                    if (push.length >= 5) {
-                      var v = {};
-                      if (push.length >= 6) {
-                        v = push[5];
+                  };
+                })
+              );
+              if (type == "Automatic") {
+                if (options.stop_pushes) {
+                  $cont.append(
+                    $('<button>').text('Stop pushes').click(function(e){
+                      e.stopPropagation();
+
+                      var msg = "Are you sure you want to stop all pushes matching \n\""+push.stream+' to '+push.target+"\"?";
+                      if (push.stream[0] == "#") {
+                        msg = "Are you sure you want to stop all pushes to "+push.target+"\"?";
                       }
-                      v.logs = push[4];
-                      this.children[i].dynamic.update(v);
-                    }
-                  }
+                      if (!push.deactivated && (d.push_settings.wait != 0)) {
+                        msg += "\n\nRetrying is enabled. That means the push will probably just restart. You'll probably want to set 'Delay before retry' to 0, or disable the autopush first.";
+                      }
+
+                      if (confirm(msg)) {
+                        var $button = $(this);
+                        $button.text('Stopping pushes..');
+                        //also stop the matching pushes
+                        var pushIds = [];
+                        var push_list = mist.data.push_list;
+                        for (var i in push_list) {
+                          if ((push.target == push_list[i][2]) && ((push.stream[0] == "#")  || (push.stream == push_list[i][1]))) {
+                            pushIds.push(push_list[i][0]);
+                            $pushes.find('table[data-pushtype="active"] tr[data-pushid='+push_list[i][0]+']').html(
+                              $('<td colspan=99>').html(
+                                $('<span>').addClass('red').text('Stopping..')
+                              )
+                            );
+                          }
+                        }
+
+                        mist.send(function(){
+                          $button.text('Stop pushes');
+                        },{
+                          push_stop: pushIds
+                        });
+                      }
+                    })
+                  );
                 }
               }
-            },
-            update: function(values){
-              var $table = this;
-              $table.data("values",values);
-              if (Object.keys(values).length) {
-                if (!$table.parent().length) {
-                  $cont.append($table);
-                }
-                for (var i in this.children) {
-                  if (!this.children[i].moved) {
-                    for (var j in this.children[i].children) {
-                      $table.rows[j].append(this.children[i].children[j]); //move the table cells into the correct rows
-                    }
-                    this.children[i].moved = true;
-                    this.children[i][0].parentNode.removeChild(this.children[i][0]); //remove the tr dummy element from the table, but don't trigger the removal of the cells
-                  }
-                }
-              }
-              else if ($table[0].parentNode) {
-                $table[0].parentNode.removeChild($table[0]);
-              }
-            },
-            values: values,
-            getEntries: function(d){
-              var out = {};
-              var streamnameisbase = false;
-              if (streamname && (streamname.split("+").length == 1)) {
-                streamnameisbase = true;
-              }
-              for (var i in d) {
-                var values = d[i];
-                //filter out other streams
-                if (!streamname || (values[1] == streamname) || (!streamnameisbase && (values[1].split("+")[0] == streamname))) {
-                  out[values[0]] = values;
-                }
-              }
-              return out;
+
+              return $cont;
             }
+          };
+          if (options.stream) {
+            delete layout.Stream;
+          }
+          if (type == "Automatic") {
+            layout.Conditions = function(push){
+              var $conditions = $("<div>");
+              if ("scheduletime" in push) {
+                $conditions.append(
+                  $('<span>').text('schedule on '+(new Date(push.scheduletime*1e3)).toLocaleString())
+                );
+              }
+              if ("completetime" in push) {
+                $conditions.append(
+                  $('<span>').text("complete on "+(new Date(push.completetime*1e3)).toLocaleString())
+                );
+              }
+              if ("start_rule" in push) {
+                $conditions.append(
+                  $('<span>').text("starts if "+printPrettyComparison.apply(this,push.start_rule))
+                );
+              }
+              if ("end_rule" in push) {
+                $conditions.append(
+                  $('<span>').text("stops if "+printPrettyComparison.apply(this,push.end_rule))
+                );
+              }
+              return $conditions.children().length ? $conditions : "";
+            }
+            layout.Notes = function(push){
+              if (("x-LSP-notes" in push) && (push["x-LSP-notes"])) {
+                return push["x-LSP-notes"];
+              }
+              return "";
+            };
+          }
+          else {
+            delete layout[""];
+            layout.Statistics = {
+              create: function(){
+                return $("<div>").addClass("statistics"); 
+              },
+              add: {
+                create: function(id){
+                  var $ele = $("<div>");
+                  var labels = {
+                    pid: "Pid: ",
+                    active_seconds: "Active for: ",
+                    bytes: "Data transfered: ",
+                    mediatime: "Media time transfered: ",
+                    pkt_retrans_count: "Packets retransmitted: ",
+                    pkt_loss_count: "Packets lost: ",
+                    tracks: "Tracks: "
+                  };
+                  if ((options.logs) && (id == "logs")) {
+                    return UI.dynamic({
+                      create: function(){
+                        return $("<div>").addClass("logs");
+                      },
+                      add: {
+                        create: function(){
+                          return $("<div>");
+                        },
+                        update: function(item){
+                          this.html(UI.format.time(item[0])+' ['+item[1]+'] '+item[2])
+                        }
+                      }
+                    });
+                  }
+                  if (id in labels) {
+                    return $ele.attr("beforeifnotempty",labels[id]);
+                  }
+                },
+                update: function(val,allValues){
+                  var me = this;
+                  var formatting = {
+                    pid: function(v){ return v;},
+                    active_seconds: UI.format.duration,
+                    bytes: UI.format.bytes,
+                    mediatime: function(v){ return UI.format.duration(v*1e-3) },
+                    tracks: function(v){ return v.join(", "); },
+                    pkt_retrans_count: function(v){
+                      return UI.format.number(v || 0);
+                    },
+                    pkt_loss_count: function(v){
+                      return UI.format.number(v || 0)+" ("+UI.format.addUnit(UI.format.number(allValues.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")";
+                    }
+                  };
+
+                  if (this._id in formatting) {
+                    this.html(formatting[this._id](val));
+                  }
+
+                }
+              }
+            }
+          }
+
+          var $cont = $("<div>").attr("onempty","None.");
+          var $table;
+          if (type == "Automatic"){
+            $table = UI.dynamic({
+              create: function(){
+                var $table = $("<table>").attr("data-pushtype","auto");
+                var $header = $("<tr>");
+                $table.append(
+                  $("<thead>").append($header)
+                ).append(
+                  $("<tbody>")
+                );
+                for (var i in layout) {
+                  if (!layout[i]) continue;
+                  var cell = $("<th>").addClass("header").text(i).attr("data-index",i);
+                  $header.append(cell);
+                }
+                $header.find("[data-index=\"Actions\"]").removeAttr("data-index").text("");
+
+                UI.sortableItems($table,function(sortby){
+                  return $table._children[this.getAttribute("data-pushid")]._children[sortby].raw;
+                },{
+                  controls: $header[0],
+                  sortby: "Stream",
+                  sortsave: "sort_autopushes",
+                  container: $table[0].children[1] //tbody
+                });
+
+                $table[0].filter = function(str){
+                  if (typeof str == "undefined") {
+                    str = $pushes.find("input.filter").getval();
+                    if (!str) str = "";
+                  }
+                  str = str.toLowerCase();
+                  function match(value) {
+                    if ((typeof value == "undefined") || (value === null)) return false;
+                    return value.toLowerCase().indexOf(str) >= 0;
+                  }
+
+                  for (var i in $table._children) {
+                    var item = $table._children[i];
+                    var push = item.values;
+                    if (match(push.stream) || match(push.target) || match(push["x-LSP-notes"])) {
+                      item[0].classList.remove("hidden");
+                    }
+                    else {
+                      item[0].classList.add("hidden");
+                    }
+                  }
+                };
+
+                return $table;
+              },
+              add: {
+                create: function(id){
+                  var $tr = $("<tr>").attr("data-pushid",id);
+                  $tr._children = {};
+                  for (var i in layout) {
+                    if (!layout[i]) continue;
+                    var $td = $("<td>").attr("data-index",i);
+                    $tr._children[i] = $td;
+                    $tr.append($td);
+                    if (layout[i] instanceof jQuery) {
+                      $td.html(layout[i].clone(true));
+                    }
+                    else if (typeof layout[i] == "object") {
+                      $td.dynamic = UI.dynamic(layout[i]);
+                      $td.html($td.dynamic);
+                    }
+                  }
+                  $tr.click(function(e){
+                    if (window.getSelection().toString().length) { return; }
+                    var push = $table._children[id].values;
+                    UI.navto("Start Push","auto_"+push.id);
+                  });
+                  $tr.on("contextmenu",function(e){
+                    e.preventDefault();
+                    var push = $table._children[id].values;
+
+                    var $header = $("<div>").addClass("header");
+                    if (!options.stream) {
+                      $header.append(
+                        $("<span>").text(push.stream)
+                      ).append(
+                        $("<span>").addClass("unit").text(" » ")
+                      );
+                    }
+                    $header.append(
+                      $("<span>").addClass("target").append(
+                        $table._children[id]._children["Target"].children().clone()
+                      )
+                    );
+                    if (push["x-LSP-notes"]) {
+                      $header.append(
+                        $("<div>").addClass("description").text(push["x-LSP-notes"])
+                      );
+                    }
+                    var actions = [];
+                    actions.push(["Edit",function(){
+                      UI.navto("Start Push","auto_"+push.id);
+                    },"Edit","Edit this automatic push"]);
+                    if (push.deactivated) {
+                      actions.push(["Enable",function(){
+                        //push.stream has already been edited to have the normal (activated) stream name; just edit to the push object as is
+                        var $me = $(this);
+                        var o = {};
+                        o[push.id] = push;
+                        mist.send(function(d){
+                          $table.update(d.auto_push);
+                          context_menu.hide();
+                        },{
+                          push_auto_add: o
+                        });
+
+                      },"wake","Enable this automatic push"]);
+                    }
+                    else {
+                      actions.push(["Disable",function(){
+                        push.stream = "💤deactivated💤_"+push.stream;
+                        var o = {};
+                        o[push.id] = push;
+                        mist.send(function(d){
+                          $table.update(d.auto_push);
+                          context_menu.hide();
+                        },{
+                          push_auto_add: o
+                        });
+                      },"💤	","Disable this automatic push: it will not start new pushes but will remain listed"]);
+                    }
+                    actions.push(["Remove",function(){
+                      if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push.stream+" to "+push.target)) {
+                        $(this).html(
+                          $("<span>").addClass("red").text("Removing..")
+                        );
+                        var me = this;
+                        mist.send(function(d){
+                          $(me).text("Done.");
+                          $table.update(d.auto_push);
+                          //use the reply to update the automatic pushes list
+                          context_menu.hide();
+                        },{push_auto_remove:push.id});
+                      }
+                    },"trash","Remove this automatic push."]);
+                    if (options.stop_pushes) {
+                      actions.push(["Stop pushes",function(e){
+                        e.stopPropagation();
+
+                        var msg = "Are you sure you want to stop all pushes matching \n\""+push.stream+' to '+push.target+"\"?";
+                        if (push.stream[0] == "#") {
+                          msg = "Are you sure you want to stop all pushes to "+push.target+"\"?";
+                        }
+                        if (!push.deactivated && (d.push_settings.wait != 0)) {
+                          msg += "\n\nRetrying is enabled. That means the push will probably just restart. You'll probably want to set 'Delay before retry' to 0, or deactive the autopush first.";
+                        }
+
+                        if (confirm(msg)) {
+                          var $button = $(this);
+                          var $icon = $button.children().first();
+                          $button.text('Stopping pushes..').prepend($icon);
+                          //also stop the matching pushes
+                          var pushIds = [];
+                          var push_list = mist.data.push_list;
+                          for (var i in push_list) {
+                            if ((push.target == push_list[i][2]) && ((push.stream[0] == "#")  || (push.stream == push_list[i][1]))) {
+                              pushIds.push(push_list[i][0]);
+                              $pushes.find('table[data-pushtype="active"] tr[data-pushid='+push_list[i][0]+']').html(
+                                $('<td colspan=99>').html(
+                                  $('<span>').addClass('red').text('Stopping..')
+                                )
+                              );
+                            }
+                          }
+
+                          mist.send(function(){
+                            $button.text('Stop pushes').prepend($icon);
+                            context_menu.hide();
+                          },{
+                            push_stop: pushIds
+                          });
+                        }
+                      },"stop","Stop all active pushes "+(push.stream[0] == "#" ? "" : "matching '"+push.stream+"'")+" to '"+push.target+"'."]);
+                      actions.push(["Stop & remove",function(e){
+                        e.stopPropagation();
+
+                        var msg = "Are you sure you want to stop all pushes matching \n\""+push.stream+' to '+push.target+"\",\n and then remove this automatic push?";
+                        if (push.stream[0] == "#") {
+                          msg = "Are you sure you want to stop all pushes to "+push.target+"\",\n and then remove this automatic push?";
+                        }
+
+                        if (confirm(msg)) {
+                          var $button = $(this);
+                          var $icon = $button.children().first();
+                          $button.text('Stopping pushes..').prepend($icon);
+                          //also stop the matching pushes
+                          var pushIds = [];
+                          var push_list = mist.data.push_list;
+                          for (var i in push_list) {
+                            if ((push.target == push_list[i][2]) && ((push.stream[0] == "#")  || (push.stream == push_list[i][1]))) {
+                              pushIds.push(push_list[i][0]);
+                              $pushes.find('table[data-pushtype="active"] tr[data-pushid='+push_list[i][0]+']').html(
+                                $('<td colspan=99>').html(
+                                  $('<span>').addClass('red').text('Stopping..')
+                                )
+                              );
+                            }
+                          }
+
+                          mist.send(function(d){
+                            $button.text('Stop pushes').prepend($icon);
+                            $table.update(d.auto_push);
+                            context_menu.hide();
+                          },{
+                            push_stop: pushIds,
+                            push_auto_remove: push.id
+                          });
+                        }
+                      },"stop_remove","Stop all active pushes "+(push.stream[0] == "#" ? "" : "matching '"+push.stream+"'")+" to '"+push.target+"' and then remove this automatic push."]);
+                    }
+
+                    var menu = [[$header],actions];
+
+                    context_menu.show(menu,e);
+                  });
+
+                  return $tr;
+                },
+                update: function(push){
+                  for (var i in layout) {
+                    if (typeof layout[i] == "function") {
+                      var newvalue = layout[i](push,type);
+                      if (newvalue != this._children[i].raw) {
+                        if (newvalue instanceof jQuery) {
+                          this._children[i].raw = $("<div>").html(newvalue).prop("innerHTML");
+                        }
+                        else {
+                          this._children[i].raw = newvalue;
+                        }
+                        this._children[i].html(newvalue);
+                        if (i == "Notes") { this._children[i].attr("title",newvalue); }
+                      }
+                    }
+                  }
+                  this.sort();
+                },
+                getEntries: function(values){
+                  out = Object.assign({},values);
+                  out.deactivated = values.stream.indexOf("💤deactivated💤_") == 0;
+                  if (out.deactivated) {
+                    out.stream = out.stream.slice(16);
+                  }
+                  return out;
+                }
+              },
+              update: function(values){
+                var $table = this;
+                $table.data("values",values);
+
+                function isColumnUsed(column) {
+                  for (var i in $table._children) {
+                    var $row = $table._children[i];
+                    if ($row._children[column].raw != "") {
+                      return true;
+                    }
+                  }
+                  return false;
+                }
+
+                if (Object.keys(values).length) {
+                  if (!$table.parent().length) {
+                    $cont.append($table);
+                  }
+                }
+                else if ($table[0].parentNode) {
+                  $table[0].parentNode.removeChild($table[0]);
+                }
+                $table.sort();
+                if (options.filter) $table[0].filter();
+              },
+              values: values,
+              getEntries: function(d){
+                var out = {};
+                var streamnameisbase = false;
+                if (options.stream && (options.stream.split("+").length == 1)) {
+                  streamnameisbase = true;
+                }
+                for (var i in d) {
+                  var values = d[i];
+                  values.id = i;
+                  var sn = values.stream.replace("💤deactivated💤_","");
+                  //filter out other streams
+                  if (!options.stream || (sn == options.stream) || (!streamnameisbase && (sn.split("+")[0] == options.stream))) {
+                    out[values.id] = values;
+                  }
+                }
+                return out;
+              }
+
+            });
+          }
+          else {
+            $table = UI.dynamic({
+              create: function(){
+                var $table = $("<table>").attr("data-pushtype","active");
+                var $header = $("<tr>");
+                $table.append(
+                  $("<thead>").append($header)
+                ).append(
+                  $("<tbody>")
+                );
+                for (var i in layout) {
+                  if (!layout[i]) continue;
+                  var cell = $("<th>").addClass("header").text(i).attr("data-index",i);
+                  $header.append(cell);
+                }
+                //it makes no sense to make these columns sortable
+                $header.find("[data-index=\"Actions\"]").removeAttr("data-index").text("");
+
+                //add sensible sorting by allowing to choose which stat to sort
+                var stored = mist.stored.get()
+                if (!("sort_pushes" in stored)) { stored.sort_pushes = {}; }
+                var $whichStat = $("<select>").append(
+                  $("<option>").text("Pid").val("pid")
+                ).append(
+                  $("<option>").text("Time active").val("active_seconds")
+                ).append(
+                  $("<option>").text("Transfered data").val("bytes")
+                ).append(
+                  $("<option>").text("Transfered media time").val("mediatime")
+                ).val(stored.sort_pushes_statistics_type ? stored.sort_pushes_statistics_type : "pid").change(function(){
+                  mist.stored.set("sort_pushes_statistics_type",$(this).val());
+                  $table.sort("Statistics");
+                });
+
+                $header.find("[data-index=\"Statistics\"]").append($whichStat);
+
+                UI.sortableItems($table,function(sortby){
+                  if (sortby == "Statistics") {
+                    var stats = $table._children[this.getAttribute("data-pushid")].values;
+                    if (stats) stats = stats.stats;
+                    var which = $whichStat.val();
+                    if (stats && (which in stats)) { return stats[which]; }
+                    return null;
+                  }
+                  return $table._children[this.getAttribute("data-pushid")]._children[sortby].raw;
+                },{
+                  controls: $header[0],
+                  sortby: "Statistics", 
+                  sortsave: "sort_pushes",
+                  container: $table[0].children[1] //tbody
+                });
+
+                $table[0].filter = function(str){
+                  if (typeof str == "undefined") {
+                    str = $pushes.find("input.filter").getval();
+                    if (!str) str = "";
+                  }
+                  function match(value) {
+                    if ((typeof value == "undefined") || (value === null)) return false;
+                    return value.toLowerCase().indexOf(str) >= 0;
+                  }
+
+                  for (var i in $table._children) {
+                    var item = $table._children[i];
+                    var push = item.values;
+                    if (match(push.stream) || match(push.target) || match(push.resolved_target)) {
+                      item[0].classList.remove("hidden");
+                    }
+                    else {
+                      item[0].classList.add("hidden");
+                    }
+                  }
+                }
+
+
+                return $table;
+              },
+              add: {
+                create: function(id){ 
+                  var $tr = $("<tr>").attr("data-pushid",id);
+                  $tr._children = {};
+                  for (var i in layout) {
+                    if (!layout[i]) continue;
+                    var $td = $("<td>").attr("data-index",i);
+                    $tr._children[i] = $td;
+                    $tr.append($td);
+                    if (layout[i] instanceof jQuery) {
+                      $td.html(layout[i].clone(true));
+                    }
+                    else if (typeof layout[i] == "object") {
+                      $td.dynamic = UI.dynamic(layout[i]);
+                      $td.html($td.dynamic);
+                    }
+                  }
+
+                  $tr.on("contextmenu",function(e){
+                    e.preventDefault();
+                    var push = $table._children[id].values;
+
+                    var $header = $("<div>").addClass("header");
+                    if (!options.stream) {
+                      $header.append(
+                        $("<span>").text(push.stream)
+                      ).append(
+                        $("<span>").addClass("unit").text(" » ")
+                      );
+                    }
+                    $header.append(
+                      $("<span>").addClass("target").append(
+                        $table._children[id]._children["Target"].children().clone()
+                      )
+                    );
+                    var actions = [];
+                    actions.push(["Stop",function(){
+                      if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push.stream+" to "+push.target)) {
+                        $(this).html(
+                          $("<span>").addClass("red").text("Stopping..")
+                        );
+                        mist.send(function(d){ 
+                          //done
+                        },{'push_stop':[push.id]});
+                      }
+                    },"trash","Stop this push."]);
+                    var menu = [[$header],actions];
+
+                    context_menu.show(menu,e);
+                  });
+                  return $tr;
+                },
+                update: function(push){
+                  for (var i in layout) {
+                    if (typeof layout[i] == "function") {
+                      var newvalue = layout[i](push,type);
+                      if (newvalue != this._children[i].raw) {
+                        this._children[i].html(newvalue);
+                        this._children[i].raw = newvalue;
+                      }
+                    }
+                    else if ((i == "Statistics") && (layout[i])) {
+                      var v = {
+                        pid: push.id
+                      };
+                      if (push.stats) { v = Object.assign(v,push.stats); }
+                      v.logs = push.logs;
+                      this._children[i].dynamic.update(v);
+                    }
+                  }
+                }
+              },
+              update: function(values){
+                var $table = this;
+                $table.data("values",values);
+                if (Object.keys(values).length) {
+                  if (!$table.parent().length) {
+                    $cont.append($table);
+                  }
+                }
+                else if ($table[0].parentNode) {
+                  $table[0].parentNode.removeChild($table[0]);
+                }
+                $table.sort();
+                if (options.filter) $table[0].filter();
+              },
+              values: values,
+              getEntries: function(d){
+                var out = {};
+                var streamnameisbase = false;
+                if (options.stream && (options.stream.split("+").length == 1)) {
+                  streamnameisbase = true;
+                }
+                for (var i in d) {
+                  var values = mist.convertPushArr2Obj(d[i]);
+                  //filter out other streams
+                  if (!options.stream || (values.stream == options.stream) || (!streamnameisbase && (values.stream.split("+")[0] == options.stream))) {
+                    out[values.id] = values;
+                  }
+                }
+                return out;
+              }
+            });
+          }
+          $cont.update = function(){ return $table.update.apply($table,arguments); }
+          return $cont;
+        }
+
+
+        $pushes.append(
+          $("<section>").append(
+            $("<h3>").text("Automatic pushes")
+          ).append(
+            $("<div>").addClass("buttons").append(
+              $("<button>").attr("data-icon","➕").text("Add an automatic push").click(function(){
+                UI.navto("Start Push","auto");
+              })
+            )
+          ).append(
+            buildPushCont("Automatic",d.auto_push)
+          )
+        );
+
+        var pushes_container = buildPushCont("Manual",d.push_list);
+        $pushes.append(
+          $("<section>").append(
+            $("<h3>").text("Active pushes")
+          ).append(
+            $("<div>").addClass("buttons").append(
+              $("<button>").attr("data-icon","➕").text("Start a push").click(function(){
+                UI.navto("Start Push");
+              })
+            ).append(
+              options.stop_pushes ? 
+              $("<button>").attr("data-icon","stop").text("Stop all pushes listed below").click(function(){
+                var pushIds = [];
+                var $table = $pushes.find("table[data-pushtype=\"active\"]");
+                var $rows = $table.find("tr[data-pushid]:visible");
+                $rows.each(function(i,row){
+                  pushIds.push($(this).attr("data-pushid"))
+                });
+                if (pushIds.length) {
+                  if (confirm("Are you sure you want to stop "+pushIds.length+" push"+(pushIds.length > 1 ? "es?" : "?"))) {
+                    $rows.each(function(){
+                      $(this).html(
+                        $('<td colspan=99>').html(
+                          $('<span>').addClass('red').text('Stopping..')
+                        )
+                      )
+                    });
+                    mist.send(function(){
+                      //done
+                    },{
+                      push_stop: pushIds
+                    });
+                  }
+                }
+              })
+              : ""
+            )
+          ).append(
+            pushes_container
+          )
+        );
+
+        UI.sockets.http.api.subscribe(function(d){
+          pushes_container.update(d.push_list);
+          mist.data.push_list = d.push_list;
+        },{push_list:1});
+
+        if (options.collapsible) {
+          $pushes.find("section").addClass("collapsible").addClass("expanded").each(function(){
+            $(this).children().first().click(function(){
+              $(this).closest("section.collapsible").toggleClass("expanded")
+            });
           });
         }
-        $cont.update = function(){ return $table.update.apply($table,arguments); }
-        return $cont;
-      }
-
-      $pushes.append($("<h4>").text("Automatic pushes"));
-      $pushes.append($("<button>").text("Add an automatic push").click(function(){
-        UI.navto("Start Push","auto");
-      }));
-      //add auto pushes
-      $pushes.append(buildPushCont("Automatic",d.push_auto_list));
 
 
-      $pushes.append($("<h4>").text("Active pushes"));
-      $pushes.append($("<button>").text("Start a push").click(function(){
-        UI.navto("Start Push");
-      }));
-      //add active pushes
-      var pushes_container = buildPushCont("Manual",d.push_list);
-      $pushes.append(pushes_container);
+      },{push_auto_list:1,push_list:1,push_settings:1});
 
-      UI.sockets.http.api.subscribe(function(d){
-        pushes_container.update(mist.convertPushArr2Obj(d.push_list));
-      },{push_list:1});
+      return $("<section>").addClass("pushes").append(
+        $("<h3>").text("Pushes and recordings")
+      ).append(
+        $pushes
+      );
 
-
-    },{push_auto_list:1,push_list:1});
-
-
-
-    return $("<section>").addClass("pushes").append(
-      $("<h3>").text("Pushes and recordings")
-    ).append(
-      $pushes
-    );
-
-  }
+    }
   },
   sockets: {
     http_host: null,
@@ -11351,10 +11504,13 @@ var mist = {
     },
     set: function(name,val){
       var settings = this.get();
+      var oldval = JSON.stringify(settings[name]);
       settings[name] = val;
-      mist.send(function(){
-        
-      },{ui_settings: settings});
+      if (oldval != JSON.stringify(val)) {
+        mist.send(function(){
+          //done
+        },{ui_settings: settings});
+      }
     },
     del: function(name){
       delete mist.data.ui_settings[name];

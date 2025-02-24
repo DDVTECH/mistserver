@@ -353,8 +353,8 @@ namespace Mist{
         }
         userSelect.clear();
         userSelect[vidTrack].reload(streamName, vidTrack);
-        targetParams["video"] = JSON::Value(vidTrack).asString();
-        targetParams["audio"] = JSON::Value(vidTrack).asString();
+        if (M.getType(vidTrack) == "video"){targetParams["video"] = JSON::Value(vidTrack).asString();}
+        if (M.getType(vidTrack) == "audio"){targetParams["audio"] = JSON::Value(vidTrack).asString();}
       }else{
         userSelect.clear();
         userSelect[vidTrack].reload(streamName, vidTrack);

@@ -1,20 +1,21 @@
 #!/bin/bash
 
-CHANGES="$(git diff --name-only --cached | grep lsp/)";
-readarray -t CHANGES <<<"$CHANGES";
+echo "Minimizing LSP.."
 
-elementIn () {
-  local e match="$1";
-  shift;
-  for e; do [[ "$e" == "$match" ]] && return 0; done;
-  return 1;
-}
+terser -mo minified.js -- plugins/md5.js plugins/cattablesort.js mist.js
 
-echo "Minimizing LSP..";
+if [ $? -eq 0 ]; then
+  echo "Done."
+else
+  exit 1
+fi
 
-#if elementIn "lsp/plugins/md5.js" "${CHANGES[@]}" || elementIn "lsp/plugins/cattablesort.js" "${CHANGES[@]}" || elementIn "lsp/mist.js" "${CHANGES[@]}" ; then
-  echo "  Generating minified.js.."
-  java -jar closure-compiler.jar --warning_level QUIET  plugins/md5.js plugins/cattablesort.js mist.js > minified.js
-#fi
 
-echo "Done.";
+git add minified.js
+echo "Staged."
+CONFLICTS=`git diff --name-only --diff-filter=U`
+if [ -z "$CONFLICTS" ] ; then
+  git status | grep "rebase in progress" > /dev/null && echo "No more conflicts; continuing rebase!" && git rebase --continue
+fi
+
+exit 0

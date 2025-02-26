@@ -389,21 +389,40 @@ int main(int argc, char *argv[]){
 
     capa["optional"]["rate"]["name"] = "Bitrate";
     capa["optional"]["rate"]["help"] = "Bitrate of the encoding";
-    capa["optional"]["rate"]["type"] = "str";
+    capa["optional"]["rate"]["type"] = "uint";
     capa["optional"]["rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
     capa["optional"]["rate"]["sort"] = "cba";
+    capa["optional"]["rate"]["unit"][0u][0u] = "1";
+    capa["optional"]["rate"]["unit"][0u][1u] = "bit/s";
+    capa["optional"]["rate"]["unit"][1u][0u] = "1000";
+    capa["optional"]["rate"]["unit"][1u][1u] = "kbit/s";
+    capa["optional"]["rate"]["unit"][2u][0u] = "1000000";
+    capa["optional"]["rate"]["unit"][2u][1u] = "Mbit/s";
 
     capa["optional"]["min_rate"]["name"] = "Minimum bitrate";
     capa["optional"]["min_rate"]["help"] = "Minimum bitrate of the encoding";
     capa["optional"]["min_rate"]["type"] = "str";
     capa["optional"]["min_rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
     capa["optional"]["min_rate"]["sort"] = "cbb";
-
+    capa["optional"]["min_rate"]["unit"][0u][0u] = "1";
+    capa["optional"]["min_rate"]["unit"][0u][1u] = "bit/s";
+    capa["optional"]["min_rate"]["unit"][1u][0u] = "1000";
+    capa["optional"]["min_rate"]["unit"][1u][1u] = "kbit/s";
+    capa["optional"]["min_rate"]["unit"][2u][0u] = "1000000";
+    capa["optional"]["min_rate"]["unit"][2u][1u] = "Mbit/s";
+    
     capa["optional"]["max_rate"]["name"] = "Maximum bitrate";
     capa["optional"]["max_rate"]["help"] = "Maximum bitrate of the encoding";
     capa["optional"]["max_rate"]["type"] = "str";
     capa["optional"]["max_rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
     capa["optional"]["max_rate"]["sort"] = "cbc";
+    capa["optional"]["max_rate"]["unit"][0u][0u] = "1";
+    capa["optional"]["max_rate"]["unit"][0u][1u] = "bit/s";
+    capa["optional"]["max_rate"]["unit"][1u][0u] = "1000";
+    capa["optional"]["max_rate"]["unit"][1u][1u] = "kbit/s";
+    capa["optional"]["max_rate"]["unit"][2u][0u] = "1000000";
+    capa["optional"]["max_rate"]["unit"][2u][1u] = "Mbit/s";
+
 
     capa["optional"]["profile"]["name"] = "Transcode profile";
     capa["optional"]["profile"]["help"] = "Limits the output to a specific H.264 profile";

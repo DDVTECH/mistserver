@@ -491,6 +491,7 @@ namespace Mist{
     capa["optional"]["maxpktsize"]["short"] = "M";
     capa["optional"]["maxpktsize"]["type"] = "uint";
     capa["optional"]["maxpktsize"]["default"] = (1350 - 28);
+    capa["optional"]["maxpktsize"]["unit"] = "bytes";
 
     capa["optional"]["losttimeout"]["name"] = "RTP lost timeout";
     capa["optional"]["losttimeout"]["help"] = "Amount of packets any track will wait for a packet to arrive before considering it lost";

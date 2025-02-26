@@ -2083,6 +2083,15 @@ int main(int argc, char *argv[]){
     capa["optional"]["bitrate"]["help"] = "Set the target bitrate in bits per second";
     capa["optional"]["bitrate"]["type"] = "uint";
     capa["optional"]["bitrate"]["default"] = 2000000;
+    capa["optional"]["bitrate"]["unit"][0u][0u] = "1";
+    capa["optional"]["bitrate"]["unit"][0u][1u] = "bit/s";
+    capa["optional"]["bitrate"]["unit"][1u][0u] = "1000";
+    capa["optional"]["bitrate"]["unit"][1u][1u] = "kbit/s";
+    capa["optional"]["bitrate"]["unit"][2u][0u] = "1000000";
+    capa["optional"]["bitrate"]["unit"][2u][1u] = "Mbit/s";
+    capa["optional"]["bitrate"]["unit"][3u][0u] = "1000000000";
+    capa["optional"]["bitrate"]["unit"][3u][1u] = "Gbit/s";
+
 
     capa["optional"]["resolution"]["name"] = "resolution";
     capa["optional"]["resolution"]["help"] = "Resolution of the output stream, e.g. 1920x1080";

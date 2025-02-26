@@ -283,6 +283,7 @@ var UI = {
     var $ele = $("<section>").attr("id","context_menu").click(function(e){ e.stopPropagation(); });
     $ele[0].style.display = "none";
     this.ele = $ele;
+
     UI.elements.context_menu = this;
     
     this.pos = function(pos){
@@ -628,10 +629,6 @@ var UI = {
       container: item_container,
       sortsave: false //name of the mist.stored variable where the last used sorting should be stored
     },options);
-
-    /*function getVal(row) {
-      return row._cells[sortby].raw;
-    }*/
 
     var lastsortby = options.sortby;
     var lastsortdir = options.sortdir;
@@ -1171,10 +1168,10 @@ var UI = {
           $bc.append($b);
           switch (button.type) {
             case 'cancel':
-              $b.addClass('cancel').attr("data-icon","❌").click(button['function']);
+              $b.addClass('cancel').attr("data-icon","cross").click(button['function']);
               break;
             case 'save':
-              $b.addClass('save').attr("data-icon","✔️").click(function(e){
+              $b.addClass('save').attr("data-icon","check").click(function(e){
                 var fn = $(this).data('opts')['preSave'];
                 if (fn) { fn.call(this); }
                 
@@ -1267,9 +1264,9 @@ var UI = {
           if ('max' in e) {
             $field.attr('max',e.max);
           }
-          if ('step' in e) {
-            $field.attr('step',e.step);
-          }
+          if (!('step' in e)) { e.step = 1; }
+          $field.attr('step',e.step);
+          
           if ('validate' in e) {
             e.validate.push('int');
           }
@@ -1451,7 +1448,7 @@ var UI = {
             var keyup = function(e){
               if ($(this).is(":last-child")) {
                 if ($(this).find(".field").getval() != "") {
-                  var $clone = $part.clone().keyup(keyup);
+                  var $clone = $part.clone(true).keyup(keyup);
                   $clone.find(".field").setval("");
                   $(this).after($clone);
                 }
@@ -1636,6 +1633,8 @@ var UI = {
         }
       }
       $field.addClass('field').data('opts',e);
+
+      //add generic field options
       if ('pointer' in e) { $field.attr('name',e.pointer.index); }
       $fc.append($field);
       if ('classes' in e) {
@@ -1650,9 +1649,70 @@ var UI = {
         $field.attr('placeholder',e['default']);
       }
       if ('unit' in e) {
-        $fc.append(
-          $('<span>').addClass('unit').html(e.unit)
-        );
+        if (Array.isArray(e.unit)) {
+          var $unit = $("<select>").change(function(){
+            var $field = $(this).closest(".field_container").find(".field");
+            var e = $field.data("opts");
+            var curval = $field.getval(); //get "raw" value of field
+
+            //save factor and apply to min/max attributes
+            e.factor = Number($(this).val());
+            if ("min" in e) {
+              $field.attr("min",e.min / e.factor);
+            }
+            if ("max" in e) {
+              $field.attr("max",e.max / e.factor);
+            }
+            if ("step" in e) {
+              $field.attr("step",e.step / e.factor);
+            }
+            if ("placeholder" in e) {
+              $field.attr("placeholder",e.placeholder / e.factor);
+            }
+
+            //set "raw" value of field to update displayed value
+            if (Number(curval) != 0) $field.setval(curval);
+          });
+          for (var i in e.unit) {
+            $unit.append($("<option>").val(e.unit[i][0]).text(e.unit[i][1]));
+          }
+          $fc.append(
+            $('<span>').addClass('unit').html($unit)
+          );
+          $unit.trigger("change");
+          $field.change(function(e,kind){
+            //initially, set the unit selector to the unit that has the shortest value string length
+            //this will not trigger when the value field is changed for other reasons
+            if (kind == "initial") {
+              var val = $(this).getval();
+              var opts = $(this).data("opts");
+              if ((opts.placeholder) && (Number(val) == 0)) {
+                val = opts.placeholder;
+              }
+              if (Number(val) != 0) {
+                //set unit to "shortest" value
+                var shortest = 1e9;
+                var unit = false;
+                for (var i in opts.unit) {
+                  //calculate display value for this unit
+                  var display = (val / opts.unit[i][0]).toString();
+                  if (display.length < shortest) {
+                    shortest = display.length;
+                    unit = opts.unit[i][0];
+                  }
+                }
+                if (unit) {
+                  $(this).closest(".field_container").find(".unit select").val(unit).trigger("change");
+                }
+              }
+            }
+          });
+        }
+        else {
+          $fc.append(
+            $('<span>').addClass('unit').html(e.unit)
+          );
+        }
       }
       if ('prefix' in e) {
         $fc.prepend(
@@ -1743,14 +1803,30 @@ var UI = {
           });
           $fc.append($browse_button);
           $browse_button.click(function(){
-            var $c = $(this).closest('.grouper');
             var $bc = $('<div>').addClass('browse_container');
-            var $field = $c.find('.field').attr('readonly','readonly').css('opacity',0.5);
+            var $field = $(this).siblings(".field");
+            var $fields;
+            var $c = $(this).closest('.grouper');
+            if ($c.length) {
+              $c.append($bc);
+              $fields = $field;
+            }
+            else {
+              //this browse field is probably part of an inputlist
+              if ($(this).closest(".inputlist").length) {
+                $bc.insertAfter($(this).closest(".listitem"));
+                $fields = $bc.siblings(".field_container").find('.field');
+              }
+              else{
+                throw "Could not locate browse grouper container";
+              }
+            }
+            $fields.attr('readonly','readonly').attr("disabled","disabled").css('opacity',0.5);
             var $browse_button = $(this);
             var $cancel = $('<button>').text('Stop browsing').click(function(){
-                $browse_button.show();
                 $bc.remove();
-                $field.removeAttr('readonly').css('opacity',1);
+                $fields.removeAttr('readonly').removeAttr("disabled").css('opacity',1);
+                $field.trigger("change");
             });
             
             var $path = $('<span>').addClass('field');
@@ -1759,7 +1835,6 @@ var UI = {
             var $folder = $('<a>').addClass('folder');
             var filetypes = $field.data('filetypes');
             
-            $c.append($bc);
             $bc.append(
               $('<label>').addClass('UIelement').append(
                 $('<span>').addClass('label').text('Current folder:')
@@ -1776,7 +1851,7 @@ var UI = {
               $folder_contents.text('Loading..');
               mist.send(function(d){
                 $path.text(d.browse.path[0]);
-                if (mist.data.LTS) { $field.setval(d.browse.path[0]+'/'); }
+                $field.setval(d.browse.path[0]+'/').trigger("keyup");
                 $folder_contents.html(
                   $folder.clone(true).text('..').attr('title','Folder up')
                 );
@@ -1814,9 +1889,10 @@ var UI = {
                     $file.click(function(){
                       var src = $(this).attr('title');
                       
-                      $field.setval(src).removeAttr('readonly').css('opacity',1);
-                      $browse_button.show();
+                      $field.setval(src);
+                      $fields.removeAttr('readonly').removeAttr("disabled").css('opacity',1);
                       $bc.remove();
+                      $field.trigger("keyup").trigger("change");
                     });
                   }
                 }
@@ -1851,7 +1927,6 @@ var UI = {
             path.pop();
             path = path.join(seperator);
             
-            $browse_button.hide();
             browse(path);
             
           });
@@ -1917,13 +1992,13 @@ var UI = {
         $field.data('pointer',e.pointer).addClass('isSetting');
         if (e.pointer.main) {
           var val = e.pointer.main[e.pointer.index];
-          if (val != 'undefined') {
-            $field.setval(val);
+          if (typeof val != 'undefined') {
+            $field.setval(val,["initial"]);
           }
         }
       }
       if ((($field.getval() == "") || ($field.getval() == null) || !("pointer" in e)) && ('value' in e)) {
-        $field.setval(e.value);
+        $field.setval(e.value,["initial"]);
       }
       if ('datalist' in e) {
         var r = 'datalist_'+i+MD5($field[0].outerHTML); //magic to hopefully make sure the id is unique
@@ -1977,19 +2052,42 @@ var UI = {
               case 'int':
                 f = function(val,me) {
                   var ele = $(me).data('opts');
-                  if (!$(me)[0].validity.valid) {
-                    var msg = 'Please enter an integer';
-                    var msgs = [];
-                    if ('min' in ele) {
-                      msgs.push(' greater than or equal to '+ele.min);
+                  if (!me.validity.valid) {
+                    if ("factor" in ele && (ele.factor != 1)) {
+                      var msg = 'Please enter a number';
+                      var msgs = [];
+                      if (me.validity.stepMismatch) {
+                        msg += " divisible by "+(ele.step/ele.factor);
+                      }
+                      else if (me.validity.rangeUnderflow || me.validity.rangeOverflow) {
+                        var unit = $(me).closest(".field_container").find(".unit select option:selected").text();
+                        if ('min' in ele) {
+                          msgs.push(' greater than or equal to '+(ele.min/ele.factor)+" "+unit);
+                        }
+                        if ('max' in ele) {
+                          msgs.push(' smaller than or equal to '+(ele.max/ele.factor)+" "+unit);
+                        }
+                      }
+                      return {
+                        msg: msg+msgs.join(' and')+'.',
+                        classes: ['red']
+                      };
+
                     }
-                    if ('max' in ele) {
-                      msgs.push(' smaller than or equal to '+ele.max);
+                    else {
+                      var msg = 'Please enter an integer';
+                      var msgs = [];
+                      if ('min' in ele) {
+                        msgs.push(' greater than or equal to '+ele.min);
+                      }
+                      if ('max' in ele) {
+                        msgs.push(' smaller than or equal to '+ele.max);
+                      }
+                      return {
+                        msg: msg+msgs.join(' and')+'.',
+                        classes: ['red']
+                      };
                     }
-                    return {
-                      msg: msg+msgs.join(' and')+'.',
-                      classes: ['red']
-                    };
                   }
                 }
                 break;
@@ -2676,7 +2774,7 @@ var UI = {
         tickColor: 0,
         tickDecimals: 1,
         tickFormatter: function(val,axis){
-          return UI.format.bytes(val,true);
+          return UI.format.bits(val*8,true).html();
         },
         tickLength: 0,
         ticks: function(axis,a,b,c,d){
@@ -2717,7 +2815,7 @@ var UI = {
           }
           
           size *= magn;
-          size = size * Math.pow(1024,exponent);
+          size = size * Math.pow(1000,exponent);
           
           if (axis.minTickSize != null && size < axis.minTickSize) {
             size = axis.minTickSize;
@@ -2878,13 +2976,20 @@ var UI = {
       var out =  (minus ? "- " : "")+$s[0].innerHTML;
       return out;
     },
-    number: function(num) {
+    number: function(num,opts) {
       if ((isNaN(Number(num))) || (num == 0)) { return num; }
+
+      opts = Object.assign({
+        round: true
+      },opts);
+
       
       //rounding
-      var sig = 3;
-      var mult = Math.pow(10,sig - Math.floor(Math.log(num)/Math.LN10) - 1);
-      num = Math.round(num * mult) / mult;
+      if (opts.round) {
+        var sig = 3;
+        var mult = Math.pow(10,sig - Math.floor(Math.log(num)/Math.LN10) - 1);
+        num = Math.round(num * mult) / mult;
+      }
       
       //thousand seperation
       if (num >= 1e4) {
@@ -2932,39 +3037,102 @@ var UI = {
       );
       return $s[0].innerHTML;
     },
-    bytes: function(val,persec){
-      var suffix = ['bytes','KiB','MiB','GiB','TiB','PiB'];
-      if (val == 0) { 
+    bitbytes: function(val,opts){
+      opts = Object.assign({
+        persec: false,
+        bytes: false,
+        base: 1000,
+        info: true
+      },opts);
+
+      var suffix = {
+        bits: {
+          1000: ['bit','kbit','Mbit','Gbit','Tbit','Pbit','Ebit','Zbit'],
+          1024: ['bit','Kibit','Mibit','Gibit','Tibit','Pibit','Eibit','Zibit']
+        },
+        bytes: {
+          1000: ['byte','kbyte','Mbyte','Gbyte','Tbyte','Pbyte','Ebyte','Zbyte'],
+          1024: ['byte','Kibyte','Mibyte','Gibyte','Tibyte','Pibyte','Eibyte','Zibyte']
+        }
+      };
+      if (!(opts.base in suffix[opts.bytes ? "bytes" : "bits"])) {
+        opts.base = 1000;
+      }
+      suffix = suffix[[opts.bytes ? "bytes" : "bits"]][opts.base];
+      var persec = "";
+      if (opts.persec) {
+        persec = "/s";
+      }
+
+      var newval = val;
+      var unit;
+      if (newval == 0) { 
         unit = suffix[0];
       }
       else {
-        var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(1024));
+        var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(opts.base));
         if (exponent < 0) {
           unit = suffix[0];
         }
         else {
-          val = val / Math.pow(1024,exponent);
+          newval = newval / Math.pow(opts.base,exponent);
           unit = suffix[exponent];
         }
       }
-      return UI.format.addUnit(UI.format.number(val),unit+(persec ? '/s' : ''));
+      if ((unit == suffix[0]) && (newval != 1)) {
+        unit += "s";
+      }
+
+      return $("<span>").text(
+        UI.format.number(newval)
+      ).append(
+        $("<span>").addClass("unit").text(unit+persec).append(opts.info && (val != 0) ? 
+          $("<span>").addClass("info").text("i").hover(function(e){
+            var $header = $("<h3>").html(UI.format.addUnit(UI.format.number(newval),unit+persec));
+            if (newval != val) {
+              $header.append(": "+UI.format.addUnit(UI.format.number(Math.round(val),{round:false}),(opts.bytes ? "bytes" : "bits")+persec));
+            }
+            UI.tooltip.show(e,
+              $("<div>").append(
+                $header
+              ).append(
+                $("<p>").text("These are "+(opts.bytes ? "bytes" : "bits")+(persec == "" ? "" : " per second")+" with a base of "+opts.base+" ("+(opts.base == 1000 ? "decimal" : "binary")+"). This equals:")
+              ).append(
+                $("<ul>").append(
+                  $("<li>").append(UI.format.bitbytes(val,{
+                    bytes: opts.bytes,
+                    persec: opts.persec,
+                    base: opts.base == 1000 ? 1024 : 1000,
+                    info: false
+                  }))
+                ).append(
+                  $("<li>").append(UI.format.bitbytes(opts.bytes ? val*8 : val/8,{
+                    bytes: !opts.bytes,
+                    persec: opts.persec,
+                    base: opts.base,
+                    info: false
+                  }))
+                ).append(
+                  $("<li>").append(UI.format.bitbytes(opts.bytes ? val*8 : val/8,{
+                    bytes: !opts.bytes,
+                    persec: opts.persec,
+                    base: opts.base == 1000 ? 1024 : 1000,
+                    info: false
+                  }))
+                )
+              )
+            );
+          },function(){
+            UI.tooltip.hide();
+          })
+        : "")
+      );
+    },
+    bytes: function(val,persec){
+      return UI.format.bitbytes(val,{bytes: true, persec: persec, base: 1024});
     },
     bits: function(val,persec){
-      var suffix = ['b','Kib','Mib','Gib','Tib','Pib'];
-      if (val == 0) { 
-        unit = suffix[0];
-      }
-      else {
-        var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(1024));
-        if (exponent < 0) {
-          unit = suffix[0];
-        }
-        else {
-          val = val / Math.pow(1024,exponent);
-          unit = suffix[exponent];
-        }
-      }
-      return UI.format.addUnit(UI.format.number(val),unit+(persec ? 'ps' : ''));
+      return UI.format.bitbytes(val,{persec: persec, base: 1000});
     }
   },
   navto: function(tab,other){
@@ -3301,165 +3469,338 @@ var UI = {
             value: $errors
           },
           $("<br>"),
-          $("<h3>").text("Write config now"),
-          {
-            type: "help",
-            help: "Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box."
-          },{
-            type: 'checkbox',
-            label: 'Force configurations save',
-            pointer: {
-              main: s,
-              index: 'save'
-            }            
-          },{
-            type: 'buttons',
-            buttons: [{
-              type: 'save',
-              label: 'Save',
-              'function': function(){
-                var save = {};
-                
-                if (s.save) {
-                  save.save = s.save;
-                }
-                delete s.save;
-                mist.send(function(){
-                  UI.navto('Overview');
-                },save)
-              }
-            }]
-          }
-        ]));
-        if (mist.data.LTS) {
-          function update_update(d) {
-            function update_progress(d) {
-              if (!d.update) {
-                UI.showTab("Overview");
-                return;
-              }
-              var perc = "";
-              if ("progress" in d.update) {
-                perc = " ("+d.update.progress+"%)";
-              }
-              $versioncheck.text("Updating.."+perc);
-              add_logs(d.log);
-              setTimeout(function(){
-                mist.send(function(d){
-                  update_progress(d);
-                },{update:true});
-              },1e3);
-            }
-            function add_logs(log) {
-              var msgs = log.filter(function(a){return a[1] == "UPDR"});
-              if (msgs.length) {
-                var $cont = $("<div>");
-                $versioncheck.append($cont);
-                for (var i in msgs) {
-                  $cont.append(
-                    $("<div>").text(msgs[i][2])
-                  );
-                  
-                }
-              }
-            }
-            
-            if ((!d.update) || (!('uptodate' in d.update))) {
-              
-              $versioncheck.text('Unknown, checking..');
-              setTimeout(function(){
-                mist.send(function(d){
-                  if ("update" in d) {
-                    update_update(d);
+          $("<span>").addClass("bigbuttons").append(
+            $("<button>").attr("data-icon","disk").text("Force configuration save").attr("title","Force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer.").click(function(){
+              var $me = $(this);
+              $me.text("Saving..");
+              mist.send(function(){
+                $me.attr("data-icon","check").text("Configuration saved!");
+                setTimeout(function(){
+                  $me.attr("data-icon","disk").text("Force configuration save");
+                },5e3);
+              },{save:true})
+            })
+          ).append(
+            $("<button>").attr("data-icon","down").text("Download configuration").attr("title","Download the current MistServer configuration file so you can save it on your computer as a backup, or so you can transfer it to other MistServer instances.").click(function(){
+              var $me = $(this);
+              $me.text("Loading..");
+              mist.send(function(d){
+                $me.attr("data-icon","check").text("Configuration retrieved");
+
+                var file = new Blob([JSON.stringify(d.config_backup)], {type: "text/plain"});
+                var filename = "MistServer_config_"+(mist.data.config.serverid ? mist.data.config.serverid+"_" : "")+(new Date().toISOString())+".json";
+                function showErr(err) {
+                  console.warn(err);
+                  var msg = "Download failed";
+                  if (err.name == "AbortError") {
+                    msg = "Download aborted";
                   }
-                },{checkupdate:true});
-              },5e3);
-              return;
-            }
-            else if (d.update.error) {
-              $versioncheck.addClass('red').text(d.update.error);
-              return;
-            }
-            else if (d.update.uptodate) {
-              $versioncheck.text('Your version is up to date.').addClass('green');
-              return;
-            }
-            else if (d.update.progress) {
-              $versioncheck.addClass('orange').removeClass('red').text('Updating..');
-              update_progress(d);
-            }
-            else {
-              $versioncheck.text("");
-              $versioncheck.append(
-                $("<span>").addClass('red').text('On '+new Date(d.update.date).toLocaleDateString()+' version '+d.update.version+' became available.')
-              );
-              if (!d.update.url || (d.update.url.slice(-4) != ".zip")) {
-                //show update button if not windows version
-                $versioncheck.append(
-                  $('<button>').text('Rolling update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
-                    if (confirm('Are you sure you want to execute a rolling update?')) {
-                      $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
-                      
+                  $me.attr("data-icon","cross").text(msg);
+                  setTimeout(function(){
+                    $me.attr("data-icon","down").text("Download configuration");
+                  },5e3);
+                }
+                if (window.showSaveFilePicker) {
+                  try {
+                    // Show the file save dialog.
+                    showSaveFilePicker({
+                      startIn: "downloads",
+                      suggestedName: filename
+                    }).then(function(handle){
+                      handle.createWritable().then(function(writable){
+                        writable.write(file).then(function(){
+                          writable.close().then(function(){
+                            $me.attr("data-icon","check").text("Configuration saved!");
+
+                            setTimeout(function(){
+                              $me.attr("data-icon","down").text("Download configuration");
+                            },5e3);
+                          }).catch(showErr);
+                        }).catch(showErr);
+                      }).catch(showErr);
+                    }).catch(showErr);
+                    return;
+                  }
+                  catch (err) {
+                    showErr(err);
+                  }
+                }
+                if (window.navigator.msSaveOrOpenBlob) { // IE10+
+                  window.navigator.msSaveOrOpenBlob(file,filename);
+                }
+                else { // Others
+                  var a = document.createElement("a");
+                  var url = URL.createObjectURL(file);
+                  a.href = url;
+                  a.download = filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  setTimeout(function() {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url); 
+                    $me.attr("data-icon","check").text("Configuration saved!");
+                  },0); 
+                }
+
+                setTimeout(function(){
+                  $me.attr("data-icon","down").text("Download configuration");
+                },5e3);
+              },{config_backup:true});
+            })
+          ).append(
+            $("<button>").attr("data-icon","up").text("Upload configuration").attr("title","Upload a MistServer configuration file and apply its settings. This can be used to restore a backup or to import configuration that you've downloaded from other MistServer instances.\nYour current config will be overwritten!").click(function(){
+              var $me = $(this);
+
+              function compareAndSubmit(file) {
+                return new Promise(function(resolve,reject){
+                  file.text().then(function(text){
+                    try {
+                      var json = JSON.parse(text);
+                    }
+                    catch (e) {
+                      reject("Selected file does not contain json");
+                    }
+                    if (json){
+                      //retrieve current config
                       mist.send(function(d){
-                        update_progress(d);
-                      },{autoupdate: true});
+                        var currentconfig = d.config_backup;
+
+                        //compare config file with current config
+                        var out = [];
+                        var map = {
+                          streams:   function(d){ return d.streams ? Object.keys(d.streams).length : 0 },
+                          protocols: function(d){ return d.config && d.config.protocols ? d.config.protocols.length : 0 },
+                          "automatic pushes":    function(d){ return d.auto_push ? Object.keys(d.auto_push).length : 0 },
+                          triggers:  function(d){ return d.config && d.config.triggers ? Object.entries(d.config.triggers).map(function(a){ return a[1].length}).reduce(function(sum,a){ return sum+a; },0) : 0 }
+                        };
+                        for (var kind in map) {
+                          var o = map[kind](currentconfig);
+                          var n = map[kind](json);
+                          if (o != n) {
+                            out.push("- "+UI.format.capital(kind)+": "+o+" to "+n);
+                          }
+                        }
+                        var msg = "Are you sure you want to apply this config? Your current config will be overwritten!\n\n";
+                        if (out.length) {
+                          msg += "These are some of the changes:\n";
+                          msg += out.join("\n")+"\n";
+                        }
+                        else {
+                          var kinds = Object.keys(map);
+                          msg += "There are no changes in the amount of "+kinds.slice(0,-1).join(", ")+" or "+kinds.slice(-1)+" configured.\n";
+                        }
+                        var lcurrent = new TextEncoder().encode(JSON.stringify(currentconfig)).length;
+                        var lnew = file.size;
+                        if (lcurrent != lnew) {
+                          var perc = lnew/lcurrent;
+                          msg += "The config file size will be "
+                          if (perc > 1) {
+                            perc--;
+                            msg += "increased";
+                          }
+                          else {
+                            perc = 1 - perc;
+                            msg += "decreased";
+                          }
+                          msg += " by "+Math.round(perc*100)+"%.\n";
+                        }
+                        else {
+                          msg += "The config file size will not change.\n"
+                        }
+
+
+                        if (confirm(msg)) {
+                          mist.send(function(){
+                            resolve();
+                            UI.navto('Overview');
+                          },{config_restore: json});
+                        }
+                        else {
+                          reject("Upload canceled");
+                        }
+                      },{config_backup: true});
+
+                    }
+                    else {
+                      reject("Selected file does not contain json");
                     }
                   })
-                );
+                });
               }
-              var a = $("<a>").attr("href",d.update.url).attr("target","_blank").text("Manual download");
-              a[0].protocol = "https:";
-              $versioncheck.append(
-                $("<div>").append(a)
-              );
+
+              if (window.showOpenFilePicker) {
+                function showErr(err) {
+                  console.warn(err);
+                  var msg = "Upload failed";
+                  if (err.name == "AbortError") {
+                    msg = "Upload aborted";
+                  }
+                  $me.attr("data-icon","cross").text(msg);
+                  setTimeout(function(){
+                    $me.attr("data-icon","up").text("Upload configuration");
+                  },5e3);
+                }
+                try {
+                  showOpenFilePicker({
+                    startIn: "downloads",
+                    types: [
+                      {
+                        description: "Configuration files",
+                        accept: {
+                          "text/*": [".json",".config",".cfg",".conf",".txt"]
+                        }
+                      }
+                    ]
+                  }).then(function(handles){
+                    handles[0].getFile().then(function(file){
+                      compareAndSubmit(file).catch(showErr);
+                    }).catch(showErr);
+                  }).catch(showErr);
+                }
+                catch (e) {
+                  showErr(e);
+                }
+              }
+              else {
+                var $input = $("<input>").attr("type","file").hide().change(function(e){
+                  if (this.files && this.files.length) {
+                    compareAndSubmit(this.files[0]).catch(showErr).finally(function(){
+                      $input.remove();
+                    });
+                    return;
+                  }
+                });
+                $me.append($input.click());
+              }
+            })
+          )
+        ]));
+        
+        function update_update(d) {
+          function update_progress(d) {
+            if (!d.update) {
+              UI.showTab("Overview");
+              return;
             }
+            var perc = "";
+            if ("progress" in d.update) {
+              perc = " ("+d.update.progress+"%)";
+            }
+            $versioncheck.text("Updating.."+perc);
             add_logs(d.log);
+            setTimeout(function(){
+              mist.send(function(d){
+                update_progress(d);
+              },{update:true});
+            },1e3);
+          }
+          function add_logs(log) {
+            var msgs = log.filter(function(a){return a[1] == "UPDR"});
+            if (msgs.length) {
+              var $cont = $("<div>");
+              $versioncheck.append($cont);
+              for (var i in msgs) {
+                $cont.append(
+                  $("<div>").text(msgs[i][2])
+                );
+                
+              }
+            }
           }
           
-          update_update(mist.data);
-          
-          //show license information
-          if ("license" in mist.data.config) {
-            if (("active_products" in mist.data.config.license) && (Object.keys(mist.data.config.license.active_products).length)) {
-              var $t = $("<table>").css("text-indent","0");
-              $activeproducts.html($t);
-              $t.append(
-                $("<tr>").append(
-                  $("<th>").append("Product")
-                ).append(
-                  $("<th>").append("Updates until")
-                ).append(
-                  $("<th>").append("Use until")
-                ).append(
-                  $("<th>").append("Max. simul. instances")
-                )
+          if ((!d.update) || (!('uptodate' in d.update))) {
+            
+            $versioncheck.text('Unknown, checking..');
+            setTimeout(function(){
+              mist.send(function(d){
+                if ("update" in d) {
+                  update_update(d);
+                }
+              },{checkupdate:true});
+            },5e3);
+            return;
+          }
+          else if (d.update.error) {
+            $versioncheck.addClass('red').text(d.update.error);
+            return;
+          }
+          else if (d.update.uptodate) {
+            $versioncheck.text('Your version is up to date.').addClass('green');
+            return;
+          }
+          else if (d.update.progress) {
+            $versioncheck.addClass('orange').removeClass('red').text('Updating..');
+            update_progress(d);
+          }
+          else {
+            $versioncheck.text("");
+            $versioncheck.append(
+              $("<span>").addClass('red').text('On '+new Date(d.update.date).toLocaleDateString()+' version '+d.update.version+' became available.')
+            );
+            if (!d.update.url || (d.update.url.slice(-4) != ".zip")) {
+              //show update button if not windows version
+              $versioncheck.append(
+                $('<button>').text('Rolling update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
+                  if (confirm('Are you sure you want to execute a rolling update?')) {
+                    $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
+                    
+                    mist.send(function(d){
+                      update_progress(d);
+                    },{autoupdate: true});
+                  }
+                })
               );
-              for (var i in mist.data.config.license.active_products) {
-                var p = mist.data.config.license.active_products[i];
-                $t.append(
-                  $("<tr>").append(
-                    $("<td>").append(p.name)
-                  ).append(
-                    $("<td>").append((p.updates_final ? p.updates_final : "&infin;"))
-                  ).append(
-                    $("<td>").append((p.use_final ? p.use_final : "&infin;"))
-                  ).append(
-                    $("<td>").append((p.amount ? p.amount : "&infin;"))
-                  )
-                );
-              }
             }
-            else {
-              $activeproducts.text("None. ");
-            }
-            $activeproducts.append(
-              $("<a>").text("More details").attr("href","https://shop.mistserver.org/myinvoices").attr("target","_blank")
+            var a = $("<a>").attr("href",d.update.url).attr("target","_blank").text("Manual download");
+            a[0].protocol = "https:";
+            $versioncheck.append(
+              $("<div>").append(a)
             );
           }
+          add_logs(d.log);
         }
-        else {
-          $versioncheck.text('');
+        
+        update_update(mist.data);
+        
+        //show license information
+        if ("license" in mist.data.config) {
+          if (("active_products" in mist.data.config.license) && (Object.keys(mist.data.config.license.active_products).length)) {
+            var $t = $("<table>").css("text-indent","0");
+            $activeproducts.html($t);
+            $t.append(
+              $("<tr>").append(
+                $("<th>").append("Product")
+              ).append(
+                $("<th>").append("Updates until")
+              ).append(
+                $("<th>").append("Use until")
+              ).append(
+                $("<th>").append("Max. simul. instances")
+              )
+            );
+            for (var i in mist.data.config.license.active_products) {
+              var p = mist.data.config.license.active_products[i];
+              $t.append(
+                $("<tr>").append(
+                  $("<td>").append(p.name)
+                ).append(
+                  $("<td>").append((p.updates_final ? p.updates_final : "&infin;"))
+                ).append(
+                  $("<td>").append((p.use_final ? p.use_final : "&infin;"))
+                ).append(
+                  $("<td>").append((p.amount ? p.amount : "&infin;"))
+                )
+              );
+            }
+          }
+          else {
+            $activeproducts.text("None. ");
+          }
+          $activeproducts.append(
+            $("<a>").text("More details").attr("href","https://shop.mistserver.org/myinvoices").attr("target","_blank")
+          );
         }
+        
         function updateViewers() {
           var request = {
             totals:{
@@ -3571,25 +3912,6 @@ var UI = {
         var s_balancer = {
           location: "location" in mist.data.config ? mist.data.config.location : {}
         };
-
-        var b = {limit:""};
-        if ("bandwidth" in mist.data) {
-          b = mist.data.bandwidth;
-          if (b == null) { b = {}; }
-          if (!b.limit) {
-            b.limit = "";
-          }
-        }
-        var $bitunit = $("<select>").html(
-          $("<option>").val(1).text("bytes/s")
-        ).append(
-          $("<option>").val(1024).text("KiB/s")
-        ).append(
-          $("<option>").val(1048576).text("MiB/s")
-        ).append(
-          $("<option>").val(1073741824).text("GiB/s")
-        );
-
 
         $main.html(UI.buildUI([
           $("<h2>").text("General settings"),{
@@ -3877,94 +4199,111 @@ var UI = {
           $variables
         ]));
 
+        var $balancer = $("<div>").text("Loading..");
         $main.append(UI.buildUI([
-          $('<h3>').text("Load balancer"),
-          {
+          $('<h3>').text("Load balancer"),{
             type: "help",
             help: "If you're using MistServer's load balancer, the information below is passed to it so that it can make informed decisions."
           },
-
-          {
-            type: "selectinput",
-            label: "Server's bandwidth limit",
-            selectinput: [
-              ["","Default (1 gbps)"],
-              [{
-                label: "Custom",
-                type: "int",
-                min: 0,
-                unit: $bitunit
-              },"Custom"]
-            ],
-            pointer: {
-              main: b,
-              index: "limit"
-            },
-            help: "This is the amount of traffic this server is willing to handle."
-          },{
-            type: "inputlist",
-            label: "Bandwidth exceptions",
-            pointer: {
-              main: b,
-              index: "exceptions"
-            },
-            help: "Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>"
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server latitude",
-            pointer: {
-              main: s_balancer.location,
-              index: "lat"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server longitude",
-            pointer: {
-              main: s_balancer.location,
-              index: "lon"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
-          },{
-            type: "str",
-            label: "Server location name",
-            pointer: {
-              main: s_balancer.location,
-              index: "name"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location."
-          },{
-            type: 'buttons',
-            buttons: [{
-              type: 'save',
-              label: 'Save',
-              'function': function(ele){
-                $(ele).text("Saving..");
-
-                var save = {config: s_balancer};
-                
-                var bandwidth = {};
-                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
-                bandwidth.exceptions = b.exceptions;
-                if (bandwidth.exceptions === null) {
-                  bandwidth.exceptions = [];
-                }
-                save.bandwidth = bandwidth;
-                
-                mist.send(function(){
-                  UI.navto('Overview');
-                },save)
-              }
-            }]
-          }
+          $balancer
         ]));
+        mist.send(function(d){
+          var b = {limit:""};
+          if ("bandwidth" in d) {
+            b = d.bandwidth;
+            if (b == null) { b = {}; }
+            if (!b.limit) {
+              b.limit = "";
+            }
+          }
 
+          $balancer.html(UI.buildUI([
+            {
+              type: "selectinput",
+              label: "Server's bandwidth limit",
+              selectinput: [
+                ["","Default (1 Gbit/s)"],
+                [{
+                  label: "Custom",
+                  type: "number",
+                  min: 0,
+                  unit: [ //save the value in bytes/s, display it in bits/s with a base of 1000
+                    [.125,"bit/s"],
+                    [125,"kbit/s"],
+                    [125e3,"Mbit/s"],
+                    [125e6,"Gbit/s"]
+                  ]
+                },"Custom"]
+              ],
+              pointer: {
+                main: b,
+                index: "limit"
+              },
+              help: "This is the amount of traffic this server is willing to handle."
+            },{
+              type: "inputlist",
+              label: "Bandwidth exceptions",
+              pointer: {
+                main: b,
+                index: "exceptions"
+              },
+              help: "Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>"
+            },{
+              type: "int",
+              step: 0.00000001,
+              label: "Server latitude",
+              pointer: {
+                main: s_balancer.location,
+                index: "lat"
+              },
+              help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
+            },{
+              type: "int",
+              step: 0.00000001,
+              label: "Server longitude",
+              pointer: {
+                main: s_balancer.location,
+                index: "lon"
+              },
+              help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
+            },{
+              type: "str",
+              label: "Server location name",
+              pointer: {
+                main: s_balancer.location,
+                index: "name"
+              },
+              help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location."
+            },{
+              type: 'buttons',
+              buttons: [{
+                type: 'save',
+                label: 'Save',
+                'function': function(ele){
+                  $(ele).text("Saving..");
+
+                  var save = {config: s_balancer};
+
+                  var bandwidth = {};
+                  bandwidth.limit = b.limit;
+                  bandwidth.exceptions = b.exceptions;
+                  if (bandwidth.exceptions === null) {
+                    bandwidth.exceptions = [];
+                  }
+                  save.bandwidth = bandwidth;
+
+                  mist.send(function(){
+                    UI.navto('Overview');
+                  },save)
+                }
+              }]
+            }
+          ]));
+
+        },{bandwidth:true});
 
         var $uploaders = $("<div>").html("Loading..");
         $main.append(UI.buildUI([
-
           $('<h3>').text("External writers"),
           {
             type: "help",
@@ -4638,12 +4977,13 @@ var UI = {
               UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
             })
           ).append(
-            $('<button>').attr("data-icon","➕").text('Create a new stream').click(function(){
+            $('<button>').attr("data-icon","plus").text('Create a new stream').click(function(){
               UI.navto('Edit');
             })
           ),
           {
             label: "Filter streams",
+            classes: ["filter"],
             help: "Stream names that do not contain the text you enter here will be hidden.",
             "function": function(e){
               var val = $(this).getval();
@@ -4657,6 +4997,7 @@ var UI = {
 
 
         var current_streams = $.extend({},mist.data.streams);
+        var context_menu = new UI.context_menu();
 
         if (other == "thumbnails") {
           $streams = UI.dynamic({
@@ -4907,11 +5248,15 @@ var UI = {
               var state = $("<div>").attr("data-streamstatus",0).text("Inactive");
               if ("stats" in d) {
                 if (this.raw == d.stats[1]) { return; }
-                var s = ["Offline","Initializing","Booting","Waiting for data","Available","Shutting down","Invalid state"];
+                var s = ["Inactive","Initializing","Booting","Waiting for data","Available","Shutting down","Invalid state"];
                 state = $("<div>").attr("data-streamstatus",d.stats[1]).text(s[d.stats[1]]);
                 this.raw = d.stats[1];
               }
               $(this).html(state).addClass("activestream");
+            },
+            tags: function(d){
+              //this is a dynamic element
+              this.update(d);
             },
             viewers: function(d){
               var out = "";
@@ -4919,6 +5264,7 @@ var UI = {
                 if (this.raw == d.stats[2]) { return; }
                 out = d.stats[2];
                 this.raw = d.stats[2];
+                if (out == 0) out = "";
               }
               $(this).html(out);
             },
@@ -4928,6 +5274,7 @@ var UI = {
                 if (this.raw == d.stats[3]) { return; }
                 out = d.stats[3];
                 this.raw = d.stats[3];
+                if (out == 0) out = "";
               }
               $(this).html(out);
             },
@@ -4937,6 +5284,7 @@ var UI = {
                 if (this.raw == d.stats[4]) { return; }
                 out = d.stats[4];
                 this.raw = d.stats[4];
+                if (out == 0) out = "";
               }
               $(this).html(out);
             }
@@ -4980,9 +5328,32 @@ var UI = {
                 row._cells = {};
                 for (var i in $table.layout) {
                   var td = document.createElement("td");
+                  td.setAttribute("data-index",i);
                   row._cells[i] = td;
                   row.append(td);
                 }
+                var tags_td = row._cells.tags;
+                row._cells.tags = UI.modules.stream.tags({
+                  streamname: streamname,
+                  context_menu: context_menu,
+                  onclick: function(e,id){
+                    if (this.getAttribute("data-type") > 0) {
+                      var $filter = $form.find(".field.filter");
+                      if ($filter.getval() == "#"+id) {
+                        var last = $filter.data("lastval");
+                        $filter.setval(last ? last : "");
+                      }
+                      else {
+                        $filter.data("lastval",$filter.getval());
+                        $filter.setval("#"+id);
+                      }
+                    }
+                  },
+                  getStreamstatus: function(){
+                    return this.closest("tr").querySelector("[data-streamstatus]").getAttribute("data-streamstatus");
+                  }
+                });
+                tags_td.appendChild(row._cells.tags);
 
                 row.addEventListener("contextmenu",function(e){
                   e.preventDefault();
@@ -5029,22 +5400,35 @@ var UI = {
 
 
         $streams.filter = function(str){
-          str = str.toLowerCase();
-          for (var i = 0; i < this.children.length; i++) {
-            var item = this.children[i];
-            if (item.getAttribute("data-id").toLowerCase().indexOf(str) >= 0) {
-              item.classList.remove("hidden");
+          if (str[0] == "#") {
+            //filter tags
+            str = str.slice(1);
+            for (var i = 0; i < this.children.length; i++) {
+              var item = this.children[i];
+              if ((str in item._cells.tags.values) && (item._cells.tags.values[str] > 0)) {
+                item.classList.remove("hidden");
+              }
+              else {
+                item.classList.add("hidden");
+              }
             }
-            else {
-              item.classList.add("hidden");
+          }
+          else {
+            //filter stream name
+            str = str.toLowerCase();
+            for (var i = 0; i < this.children.length; i++) {
+              var item = this.children[i];
+              if (item.getAttribute("data-id").toLowerCase().indexOf(str) >= 0) {
+                item.classList.remove("hidden");
+              }
+              else {
+                item.classList.add("hidden");
+              }
             }
           }
           $streams.show_page();
         };
 
-
-
-        var context_menu = new UI.context_menu();
         $main.append(context_menu.ele);
         context_menu.fill = function(streamname,e){
           var header = [
@@ -5629,13 +6013,33 @@ var UI = {
               update_input_options(source);
             }
           },$source_datalist,$source_info,{
-            label: "Initial tags",
+            label: "Persistent tags",
             type: "inputlist",
-            help: "You can configure tags that are applied to this stream when it starts. You can use tags to associate configuration or behavior with multiple streams.<br><br>Note that tags are not applied retroactively - if your stream is already active when you edit this field, changes will not take effect until the stream restarts.",
+            help: "You can configure persistent tags that are applied to this stream when it starts. You can use tags to associate configuration or behavior with multiple streams.<br><br>Note that tags are not applied retroactively - if your stream is already active when you edit this field, changes will not take effect until the stream restarts.",
             pointer: {
               main: saveas,
               index: "tags"
-            }
+            },
+            input: {
+              type: "str",
+              prefix: "#"
+            },
+            validate: [function(val,me){
+              val = val.join("");
+              if (val.indexOf(" ") > -1) {
+                return {
+                  msg: 'Spaces are not allowed in tag names.',
+                  classes: ['red']
+                };
+              }
+              if (val.indexOf("#") > -1) {
+                return {
+                  msg: 'You don\'t need to prefix these values with a #.',
+                  classes: ['orange'],
+                  "break": false
+                };
+              }
+            }]
           },{
             label: 'Stop sessions',
             type: 'checkbox',
@@ -6686,7 +7090,7 @@ var UI = {
                   params: saveas.params,
                   'default': saveas['default']
                 };
-                if (!("triggers" in mist.data.config)) {
+                if (!("triggers" in mist.data.config) || (mist.data.config.triggers === null)) {
                   mist.data.config.triggers = {};
                 }
                 if (!(saveas.triggeron in mist.data.config.triggers)) {
@@ -7065,7 +7469,7 @@ var UI = {
               {
                 header: 'Physical memory',
                 body: [
-                  UI.format.bytes(mem.used*1024*1024)+' ('+UI.format.addUnit(load.memory,'%')+')',
+                  $("<span>").append(UI.format.bytes(mem.used*1024*1024)).append(' ('+UI.format.addUnit(load.memory,'%')+')'),
                   UI.format.bytes(mem.cached*1024*1024),
                   UI.format.bytes(mem.free*1024*1024),
                   UI.format.bytes(mem.total*1024*1024)
@@ -7297,14 +7701,23 @@ var UI = {
       ele.add = function(id) {
         var child = options.add.call(ele,id);
         if (!child) { return; }
-        child.remove = function(){
-          var child = this;
-          if (child instanceof jQuery) { child = child[0]; }
-          if (child.parentNode) {
-            child.parentNode.removeChild(child);
-          }
-          delete ele._children[id];
-        };
+        if (typeof child.remove != "function") {
+          child.remove = function(){
+            var child = this;
+            if (child instanceof jQuery) { child = child[0]; }
+            if (child.parentNode) {
+              child.parentNode.removeChild(child);
+            }
+            delete ele._children[id];
+          };
+        }
+        else {
+          var remove = child.remove;
+          child.remove = function(){
+            remove.apply(this,arguments);
+            delete ele._children[id];
+          };
+        }
 
         child._id = id;
         ele._children[id] = child;
@@ -7875,57 +8288,17 @@ var UI = {
 
         var activestream = {
           mode: 0,
-          cont: $("<div>").addClass("activestream"),
-          status: options.status ? $("<div>").attr("data-streamstatus",0).text("Offline").hide() : false,
+          cont: $("<div>").addClass("activestream").attr("data-state",0),
+          status: options.status ? $("<div>").attr("data-streamstatus",0).text("Inactive").hide() : false,
           viewers: options.stats ? $("<span>").attr("beforeifnotempty","Viewers: ") : false,
           inputs: options.stats ? $("<span>").attr("beforeifnotempty","Inputs: ") : false,
           outputs: options.stats? $("<span>").attr("beforeifnotempty","Outputs: ") : false,
-          tags: options.tags ? {
-            cont: $("<div>").attr("beforeifnotempty","Current tags: "),
-            children: {},
-            ele: function(tag){
-              var $ele = $("<span>").addClass("tag").text(tag);
-              if (options.tags != "readonly") {
-                $ele.append(
-                  $("<button>").text("🗙").attr("title","Remove this tag from the current stream tags.\nNote that if this tag is configured in the stream's settings, when you remove it here, it will be re-added if the stream restarts. To remove it permanently you must also remove it in the stream's settings.").click(function(){
-                    var $me = $(this);
-                    var untag = {};
-                    untag[streamname] = tag;
-                    $me.parent().text("Removing..");
-                    mist.send(function(){
-                      //done
-                      $me.parent().remove();
-                    },{
-                      untag_stream: untag
-                    });
-                  })
-                );
-              }
-              this.children[tag] = $ele;
-              return $ele;
-            },
-            update: function(d){
-              var tags = d == "" ? [] : d.split(" ");
-              var seen = {};
-              //add new tags to element
-              for (var i in tags) {
-                var t = tags[i];
-                seen[t] = 1;
-                if (!(t in this.children)) {
-                  this.cont.append(this.ele(t));
-                }
-              }
-              //remove tags that are not in the new data
-              for (var i in this.children) {
-                if (!(i in seen)) { 
-                  this.children[i].remove();
-                  delete this.children[i];
-                }
-              }
-            }
-          } : false,
+          context_menu: false,
+          tags: false,
           addtag: options.tags && (options.tags != "readonly") ? $("<div>").addClass("input_container").attr("title","Add a tag to this stream's current tags.\nNote that tags added here will not be applied when the stream restarts. To do that, add the tag through the stream settings.").css("display","block").html(
-            $("<input>").attr("placeholder","Tag name").on("keydown",function(e){
+            $("<span>").attr("showifstate","0").text("Transient tags can be added here once the stream is active.")
+          ).append(
+            $("<input>").attr("showifstate","1").attr("placeholder","Tag name").on("keydown",function(e){
               switch (e.key) {
                 case " ": {
                   e.preventDefault();
@@ -7938,45 +8311,72 @@ var UI = {
               }
             })
           ).append(
-            $("<button>").text("Add to current tags").click(function(){
+            $("<button>").attr("showifstate","1").text("Add transient tag").click(function(){
               var addtag = {};
               var $me = $(this);
               var $input = $me.parent().find("input");
-              addtag[streamname] = $input.val();
-              $me.text("Adding..")
-              mist.send(function(){
+              var save = {tag_stream:{}};
+              save.tag_stream[streamname] = $input.val();
+              $me.text("Adding..");
+              mist.send(function(d){
                 $me.text("Add tag");
                 $input.val("");
-              },{
-                tag_stream: addtag
-              })
+              },save);
             })
           ) : false,
           livestreamhint: options.livestreamhint ? UI.modules.stream.livestreamhint(streamname) : false
         };
 
+        activestream.tags = false;
+        if (options.tags) {
+          if (options.tags != "readonly") {
+            activestream.context_menu = new UI.context_menu();
+          }
+          activestream.tags = UI.modules.stream.tags({
+            streamname: streamname,
+            readonly: (options.tags == "readonly"),
+            context_menu: activestream.context_menu,
+            getStreamstatus: function(){
+              return this.closest("[data-state]").getAttribute("data-state");
+            }
+          });
+          activestream.tags.update(); //create initial data (retrieve configured tags from data.streams)
+        }
+
+
         activestream.cont.html(
           activestream.status
         ).append(
           activestream.viewers
-        ).append(activestream.inputs).append(activestream.outputs).append(activestream.tags ? activestream.tags.cont : false)
+        ).append(activestream.inputs).append(activestream.outputs).append(activestream.tags ? activestream.tags : false)
         .append(activestream.addtag).append(
           options.thumbnail ? UI.modules.stream.thumbnail(streamname) : false
-        ).append(activestream.livestreamhint);
+        ).append(
+          activestream.livestreamhint
+        );
+
+        if (activestream.context_menu) {
+          activestream.cont.css("position","relative");
+          activestream.cont.append(activestream.context_menu.ele);
+        }
 
         UI.sockets.ws.active_streams.subscribe(function(type,data){
           if (options.status) activestream.status.css("display","");
           if (type == "stream") {
             if (data[0] == streamname) {
 
-              var s = ["Offline","Initializing","Booting","Waiting for data","Available","Shutting down","Invalid state"];
+              activestream.cont.attr("data-state",data[1]);
+
+              var s = ["Inactive","Initializing","Booting","Waiting for data","Available","Shutting down","Invalid state"];
               if (options.status) activestream.status.attr("data-streamstatus",data[1]).text(s[data[1]]);
               if (options.stats) {
                 activestream.viewers.text(data[2]);
                 activestream.inputs.text(data[3] > 0 ? data[3] : "");
                 activestream.outputs.text(data[4] > 0 ? data[4] : "");
               }
-              if (options.tags) activestream.tags.update(data[5]);
+              if (options.tags) {
+                activestream.tags.update({stats:data});
+              }
 
               if (activestream.livestreamhint) {
                 if (data[1] == 0) { activestream.livestreamhint.show(); }
@@ -8695,8 +9095,8 @@ var UI = {
             create: function(){
               var $cont = $("<div>").hide(); //dummy
               $cont.remove = function(){
-                for (var i in this.children) {
-                  this.children[i].remove();
+                for (var i in this._children) {
+                  this._children[i].remove();
                 }
               };
               return $cont;
@@ -8977,6 +9377,18 @@ var UI = {
 
             //  [UNIX_TIMESTAMP, "session identifier", "stream name", "connector name", "hostname", SECONDS_ACTIVE, BYTES_UP_TOTAL, BYTES_DOWN_TOTAL, "tags"]
 
+            var $up = $("<span>").html("↑").append(UI.format.bytes(data[6])); //bytes up
+            if (data[6] != 0) {
+              $up.append("(").append(
+                UI.format.bits(data[6]*8/data[5],true) //avg bitrate
+              ).append(")");
+            }
+            var $down = $("<span>").html("↓").append(UI.format.bytes(data[7])) //bytes down
+            if (data[7] != 0) {
+              $down.append("(").append(
+                UI.format.bits(data[7]*8/data[5],true) //avg bitrate
+              ).append(")");
+            }
 
             var $msg = $("<div>").html(
               $("<span>").addClass("description").text(UI.format.dateTime(data[0]))
@@ -8989,11 +9401,9 @@ var UI = {
             ).append(
               $("<span>").attr("beforeifnotempty","Connected for: ").html(UI.format.duration(data[5])) //seconds active
             ).append(
-              $("<span>").html("↑"+UI.format.bytes(data[6])) //bytes up
+              $up //bytes up
             ).append(
-              $("<span>").html("↓"+UI.format.bytes(data[7])) //bytes down
-            ).append(
-              $("<span>").attr("beforeifnotempty","Tags: ").text(data[8]) //tags
+              $down //bytes down
             );
             $accesslogs.append($msg);
 
@@ -9299,8 +9709,8 @@ var UI = {
             custom.controls = 0;
             break;
         }
-        
-        
+
+
         function embedhtml() {
           function randomstring(length){
             var s = '';
@@ -9332,9 +9742,9 @@ var UI = {
           if (done) { 
             UI.stored.saveOpt('embedoptions',embedoptions); 
           }
-          
+
           var target = streamname+'_'+randomstring(12);
-          
+
           var options = ['target: document.getElementById("'+target+'")'];
           for (var i in embedoptions) {
             if (i == "prioritize_type") {
@@ -9347,11 +9757,11 @@ var UI = {
               if ((embedoptions[i]) && (embedoptions[i] != "")) {
                 if (embedoptions[i] == "nextCombo") {
                   options.push("monitor: {\n"+
-                  "          action: function(){\n"+
-                  '            this.MistVideo.log("Switching to nextCombo because of poor playback in "+this.MistVideo.source.type+" ("+Math.round(this.vars.score*1000)/10+"%)");'+"\n"+
-                  "            this.MistVideo.nextCombo();\n"+
-                  "          }\n"+
-                  "        }");
+                    "          action: function(){\n"+
+                    '            this.MistVideo.log("Switching to nextCombo because of poor playback in "+this.MistVideo.source.type+" ("+Math.round(this.vars.score*1000)/10+"%)");'+"\n"+
+                    "            this.MistVideo.nextCombo();\n"+
+                    "          }\n"+
+                    "        }");
                 }
               }
               continue;
@@ -9360,7 +9770,7 @@ var UI = {
               options.push(i+': '+maybequotes(embedoptions[i]));
             }
           }
-          
+
           var output = [];
           output.push('<div class="mistvideo" id="'+target+'">');
           output.push('  <noscript>');
@@ -9392,7 +9802,7 @@ var UI = {
           output.push('    else { a(); }');
           output.push('  </script>');
           output.push('</div>');
-          
+
           return output.join("\n");
         }
 
@@ -9633,7 +10043,7 @@ var UI = {
               tkn = tkn[0];
               url = url.replace(tkn,(tkn[0] == "?") && (tkn.slice(-1) == "&") ? "?" : (tkn.slice(-1) == "&" ? "&" : ""));
             }
-            
+
 
             build.push({
               label: (human ? human+' <span class=description>('+source.type+')</span>' : UI.format.capital(source.type)),
@@ -9748,6 +10158,166 @@ var UI = {
 
 
         return cont;
+      },
+      tags: function(options){
+        //returns dynamic element
+        //call .update yourself :)
+        //data format we're expecting:
+        /*
+          {
+            tag1: 0, //this tag is in the config, but not in the active stream tags (it has been temp-removed)
+            tag2: 1, //this tag is in the active stream tags, but not in the config (it is transient)
+            tag3: 2  //this tag is both in the config and in the active stream tags
+          }
+        */
+        options = Object.assign({
+          streamname: false,
+          readonly: false,
+          context_menu: false,
+          onclick: false,
+          getStreamstatus: function(){ return 0; }
+        },options);
+
+        return UI.dynamic({
+          create: function(){
+            var ele = document.createElement("div");
+            ele.classList.add("tags");
+            return ele; 
+          },
+          add: {
+            create: function(id){
+              var tag = document.createElement("span");
+              tag.classList.add("tag");
+              tag.appendChild(document.createTextNode(id));
+
+              tag.remove = function(){
+                if (this.parentNode) {
+                  this.parentNode.removeChild(this);
+                }
+              };
+
+              if (options.onclick) tag.addEventListener("click",function(e) { 
+                return options.onclick.apply(this,[e,id])
+              });
+              if (!options.readonly && options.context_menu) {
+                tag.addEventListener("contextmenu",function(e){
+                  e.stopPropagation();
+                  e.preventDefault();
+                  var type = this.values;
+                  var stream = options.streamname;
+                  var state = options.getStreamstatus.apply(this,arguments);
+
+                  var menu = [];
+                  if (state != 0) {
+                    if (type == 0) {
+                      menu.push([
+                        "Re-activate tag",function(){
+                          var save = {tag_stream:{}};
+                          save.tag_stream[stream] = id;
+                          mist.send(function(){
+                            options.context_menu.hide();
+                          },save);
+                        },"➕",""
+                      ]);
+                    }
+                    else {
+                      menu.push([
+                        "Untag stream",function(){
+                          var save = {untag_stream:{}};
+                          save.untag_stream[stream] = id;
+                          mist.send(function(){
+                            options.context_menu.hide();
+                          },save);
+                        },"➖","Remove this tag from this stream."+(type == 2 ? "\nIt will not be removed from the config, so it will return when the stream restarts." : "")
+                      ]);
+                    }
+                  }
+                  options.context_menu.show([[
+                    $("<div>").addClass("header").append(
+                      $("<div>").text("#"+id)
+                    ).append(
+                      $("<div>").addClass("description").text({
+                        0: "Inactive tag",
+                        1: "Transient tag",
+                        2: "Persistent tag"
+                      }[type]).attr("title",this.getAttribute("title"))
+                    )
+                  ],menu.length ? menu : null],e);
+                });
+              }
+
+              return tag;
+            },
+            update: function(type){
+              //can change type, not name
+              var title = {
+                0: "This tag is inactive: it is in the stream config, but it has been removed. It will return when the stream restarts.",
+                1: "This tag is transient: it is not in the stream config. It will disappear when the stream becomes inactive.",
+                2: "This tag is persistent: it is in the stream config. It will remain when the stream restarts."
+              };
+
+              if (this.raw !== type) {
+                this.raw = type;
+                this.setAttribute("data-type",type);
+                this.setAttribute("title",title[type]);
+              }
+            }
+          },
+          getEntries: function(data){
+            /* expects data to be like this: 
+              {
+                tags: [], //perma-tags as saved in config
+                stats: [] //activestreams array
+              }
+              if tags is not set, it will attempt to read it from the stream config in mist.data.streams[streamname]
+            */
+            if (!data) { data = {}; }
+            if (Array.isArray(data)) {
+              data = {stats: data};
+            }
+            if (!("tags" in data)) {
+              data.tags = [];
+              var streambase = options.streamname.split("+")[0];
+              if (streambase in mist.data.streams) {
+                data.tags = mist.data.streams[streambase].tags;
+              }
+            }
+
+            //data format we're creating:
+            /*
+                {
+                  tag1: 0, //this tag is in the config, but not in the active stream tags (it has been temp-removed)
+                  tag2: 1, //this tag is in the active stream tags, but not in the config (it is transient)
+                  tag3: 2  //this tag is both in the config and in the active stream tags
+                }
+                */
+
+            var out = {};
+            for (var i in data.tags) {
+              out[data.tags[i]] = 0; //semi-permanent tag saved in config
+            }
+            if (data.stats && (data.stats.length >= 6) && (data.stats[1] != 0)) {
+              var transients = data.stats[5];
+              if ((typeof transients == "string") && (transients != "")) { transients = transients.split(" "); }
+              for (var i in transients) {
+                if (transients[i] in out) {
+                  out[transients[i]] = 2; //tag is both in config and in active stream tags
+                }
+                else {
+                  out[transients[i]] = 1; //transient tag that disappears if stream is taken offline
+                }
+              }
+            }
+            else {
+              for (var i in out) {
+                out[i] = 2;
+              }
+            }
+            //if (Object.keys(out).length) { console.warn(out,data) }
+
+            return out;
+          }
+        });
       }
     },
     pushes: function(options){
@@ -10078,8 +10648,9 @@ var UI = {
                   var labels = {
                     pid: "Pid: ",
                     active_seconds: "Active for: ",
-                    bytes: "Data transfered: ",
-                    mediatime: "Media time transfered: ",
+                    bytes: "Data transferred: ",
+                    mediatime: "Media time transferred: ",
+                    mediaremaining: "Media time until stream end: ",
                     pkt_retrans_count: "Packets retransmitted: ",
                     pkt_loss_count: "Packets lost: ",
                     tracks: "Tracks: "
@@ -10109,7 +10680,8 @@ var UI = {
                     pid: function(v){ return v;},
                     active_seconds: UI.format.duration,
                     bytes: UI.format.bytes,
-                    mediatime: function(v){ return UI.format.duration(v*1e-3) },
+                    mediatime: function(v){ return UI.format.duration(v*1e-3); },
+                    mediatimestamp: function(v){ return UI.format.duration(v*1e-3); },
                     tracks: function(v){ return v.join(", "); },
                     pkt_retrans_count: function(v){
                       return UI.format.number(v || 0);
@@ -10255,7 +10827,7 @@ var UI = {
                         },{
                           push_auto_add: o
                         });
-                      },"💤	","Disable this automatic push: it will not start new pushes but will remain listed"]);
+                      },"sleep","Disable this automatic push: it will not start new pushes but will remain listed"]);
                     }
                     actions.push(["Remove",function(){
                       if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push.stream+" to "+push.target)) {
@@ -10453,9 +11025,9 @@ var UI = {
                 ).append(
                   $("<option>").text("Time active").val("active_seconds")
                 ).append(
-                  $("<option>").text("Transfered data").val("bytes")
+                  $("<option>").text("Transferred data").val("bytes")
                 ).append(
-                  $("<option>").text("Transfered media time").val("mediatime")
+                  $("<option>").text("Transferred media time").val("mediatime")
                 ).val(stored.sort_pushes_statistics_type ? stored.sort_pushes_statistics_type : "pid").change(function(){
                   mist.stored.set("sort_pushes_statistics_type",$(this).val());
                   $table.sort("Statistics");
@@ -10484,6 +11056,7 @@ var UI = {
                     str = $pushes.find("input.filter").getval();
                     if (!str) str = "";
                   }
+                  str = str.toLowerCase(); 
                   function match(value) {
                     if ((typeof value == "undefined") || (value === null)) return false;
                     return value.toLowerCase().indexOf(str) >= 0;
@@ -10618,7 +11191,7 @@ var UI = {
             $("<h3>").text("Automatic pushes")
           ).append(
             $("<div>").addClass("buttons").append(
-              $("<button>").attr("data-icon","➕").text("Add an automatic push").click(function(){
+              $("<button>").attr("data-icon","plus").text("Add an automatic push").click(function(){
                 UI.navto("Start Push","auto");
               })
             )
@@ -10633,7 +11206,7 @@ var UI = {
             $("<h3>").text("Active pushes")
           ).append(
             $("<div>").addClass("buttons").append(
-              $("<button>").attr("data-icon","➕").text("Start a push").click(function(){
+              $("<button>").attr("data-icon","plus").text("Start a push").click(function(){
                 UI.navto("Start Push");
               })
             ).append(
@@ -10717,9 +11290,13 @@ var UI = {
         },
         subscribe: function(callback,command){
           this.command = Object.assign(this.command,command);
-          this.listeners.push(callback);
           if (!this.interval || !(this.interval in UI.interval.list)) {
+            this.listeners = [];
+            this.listeners.push(callback);
             this.init();
+          }
+          else {
+            this.listeners.push(callback);
           }
         }
       },
@@ -10856,14 +11433,20 @@ var UI = {
               me.listeners[i](type,data);
             }
           }
+          /*apiWs.onopen = function(){
+          };
           apiWs.onclose = function(){
+          };*/
+          var close = apiWs.close;
+          apiWs.close = function(){
+            //to prevent race conditions, overwrite the websocket close function to remove itself from the list before closing is complete
             me.listeners = [];
             me.messages = [];
             me.ws = false;
+            return close.apply(this,arguments);
           };
         },
         subscribe: function(callback){
-          if (!this.ws || (this.ws.readyState > 1)) { this.init(); }
           for (var i in this.messages) {
             callback(this.messages[i][0],this.messages[i][1]);
           }
@@ -10917,8 +11500,9 @@ var mist = {
     var obj = {
       url: mist.user.host,
       type: 'POST',
-      data: {command:JSON.stringify(data)},
-      dataType: 'jsonp',
+      contentType: "application/json",
+      data: JSON.stringify(data),
+      dataType: 'json',
       crossDomain: true,
       timeout: opts.timeout*1000,
       async: true,
@@ -11337,9 +11921,15 @@ var mist = {
             obj.type = 'unix';
             break;
           }
+          case 'inputlist': {
+            obj.type = "inputlist";
+            if ("input" in ele) obj.input = ele.input;
+            break;
+          }
           case 'json':
           case 'debug':
-          case 'inputlist': {
+          case 'inputlist':
+          case 'browse': {
             obj.type = ele.type;
             break;
           }
@@ -11615,11 +12205,20 @@ $.fn.getval = function(){
         break;
       }
     }
+
+    if (("factor" in opts) && (val !== null) && (val != "")) {
+      val *= opts.factor;
+    }
   }
+
   return val;
 }
-$.fn.setval = function(val){
+$.fn.setval = function(val,extraParameters){
   var opts = $(this).data('opts');
+  if (opts && ("factor" in opts) && (Number(val) != 0)) {
+    val /= opts.factor;
+  }
+
   $(this).val(val);
   if ((opts) && ('type' in opts)) {
     var type = opts.type;
@@ -11688,8 +12287,8 @@ $.fn.setval = function(val){
           }
         }
         if (!found) {
-          $(this).children("label").first().find(".field_container").children().first().setval(val);
-          $(this).children("select").first().val("CUSTOM").trigger("change");
+          $(this).children("label").first().find(".field_container").children().first().setval(val).trigger("change",extraParameters);
+          $(this).children("select").first().val("CUSTOM").trigger("change",extraParameters);
         }
         break;
       case "inputlist":
@@ -11778,7 +12377,7 @@ $.fn.setval = function(val){
       }
     }
   }
-  $(this).trigger('change');
+  $(this).trigger('change',extraParameters);
   return $(this);
 }
 function parseURL(url,set) {

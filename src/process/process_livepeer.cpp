@@ -652,9 +652,14 @@ int main(int argc, char *argv[]){
       grp["name"]["n"] = 0;
       grp["bitrate"]["name"] = "Bitrate";
       grp["bitrate"]["help"] = "Target bit rate of the output";
-      grp["bitrate"]["unit"] = "bits per second";
       grp["bitrate"]["type"] = "int";
       grp["bitrate"]["n"] = 1;
+      grp["bitrate"]["unit"][0u][0u] = "1";
+      grp["bitrate"]["unit"][0u][1u] = "bit/s";
+      grp["bitrate"]["unit"][1u][0u] = "1000";
+      grp["bitrate"]["unit"][1u][1u] = "kbit/s";
+      grp["bitrate"]["unit"][2u][0u] = "1000000";
+      grp["bitrate"]["unit"][2u][1u] = "Mbit/s";
     }{
       JSON::Value &grp = capa["required"]["target_profiles"]["optional"];
       grp["width"]["name"] = "Width";

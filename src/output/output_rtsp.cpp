@@ -89,6 +89,7 @@ namespace Mist{
     capa["optional"]["maxsend"]["type"] = "uint";
     capa["optional"]["maxsend"]["option"] = "--max-packet-size";
     capa["optional"]["maxsend"]["short"] = "m";
+    capa["optional"]["maxsend"]["unit"] = "bytes";
 
     capa["optional"]["ignsendport"]["name"] = "Ignore sending port #";
     capa["optional"]["ignsendport"]["help"] = "Ignore the sending port number of incoming data";

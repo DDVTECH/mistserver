@@ -338,7 +338,16 @@ namespace Mist{
     addBoolOpt(pp["srtopts"]["options"], "tsbpd", "Timestamp-based Packet Delivery mode", "In this mode the packet's time is assigned at the sending time (or allowed to be predefined), transmitted in the packet's header, and then restored on the receiver side so that the time intervals between consecutive packets are preserved when delivering to the application.", true);
 
     addBoolOpt(pp["srtopts"]["options"], "linger", "Linger closed sockets", "Whether to keep closed sockets around for 180 seconds of linger time or not.", true);
-    addIntOpt(pp["srtopts"]["options"], "maxbw", "Maximum send bandwidth", "Maximum send bandwidth in bytes per second, -1 for infinite, 0 for relative to input bandwidth.", -1,"bytes/s");
+    addIntOpt(pp["srtopts"]["options"], "maxbw", "Maximum send bandwidth", "Maximum send bandwidth, -1 for infinite, 0 for relative to input bandwidth.", -1,"bytes/s");
+    pp["srtopts"]["options"]["maxbw"]["unit"][0u][0u] = "0.125";
+    pp["srtopts"]["options"]["maxbw"]["unit"][0u][1u] = "bit/s";
+    pp["srtopts"]["options"]["maxbw"]["unit"][1u][0u] = "125";
+    pp["srtopts"]["options"]["maxbw"]["unit"][1u][1u] = "kbit/s";
+    pp["srtopts"]["options"]["maxbw"]["unit"][2u][0u] = "125000";
+    pp["srtopts"]["options"]["maxbw"]["unit"][2u][1u] = "Mbit/s";
+    pp["srtopts"]["options"]["maxbw"]["unit"][3u][0u] = "125000000";
+    pp["srtopts"]["options"]["maxbw"]["unit"][3u][1u] = "Gbit/s";
+
 
 
     pp["srtopts"]["options"]["pbkeylen"]["name"] = "Encryption key length";
@@ -365,6 +374,15 @@ namespace Mist{
     addIntOpt(pp["srtopts"]["options"], "ipttl", "TTL", "Time To Live for IPv4 connections or unicast hops for IPv6 connections. Defaults to system default.",0,"hops");
     addIntOpt(pp["srtopts"]["options"], "iptos", "Type of Service", "TOS for IPv4 connections or Traffic Class for IPv6 connections. Defaults to system default.");
     addIntOpt(pp["srtopts"]["options"], "inputbw", "Input bandwidth", "Estimated bandwidth of data to be sent. Default of 0 means automatic.",0,"bytes/s");
+    pp["srtopts"]["options"]["inputbw"]["unit"][0u][0u] = "0.125";
+    pp["srtopts"]["options"]["inputbw"]["unit"][0u][1u] = "bit/s";
+    pp["srtopts"]["options"]["inputbw"]["unit"][1u][0u] = "125";
+    pp["srtopts"]["options"]["inputbw"]["unit"][1u][1u] = "kbit/s";
+    pp["srtopts"]["options"]["inputbw"]["unit"][2u][0u] = "125000";
+    pp["srtopts"]["options"]["inputbw"]["unit"][2u][1u] = "Mbit/s";
+    pp["srtopts"]["options"]["inputbw"]["unit"][3u][0u] = "125000000";
+    pp["srtopts"]["options"]["inputbw"]["unit"][3u][1u] = "Gbit/s";
+
     addIntOpt(pp["srtopts"]["options"], "oheadbw", "Recovery Bandwidth Overhead", "Percentage of bandwidth to use for recovery.",25,"%");
     //addIntOpt(pp, "rcvlatency", "Receive Latency", "Latency in receive mode, in milliseconds", 120);
     //addIntOpt(pp, "peerlatency", "", "");

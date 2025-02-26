@@ -20,13 +20,16 @@ namespace Mist{
     capa["required"]["cert"]["option"] = "--cert";
     capa["required"]["cert"]["short"] = "C";
     capa["required"]["cert"]["default"] = "";
-    capa["required"]["cert"]["type"] = "str";
+    capa["required"]["cert"]["type"] = "inputlist";
+    capa["required"]["cert"]["input"]["type"] = "browse";
+
     capa["required"]["key"]["name"] = "Key";
     capa["required"]["key"]["help"] = "Private key for SSL";
     capa["required"]["key"]["option"] = "--key";
     capa["required"]["key"]["short"] = "K";
     capa["required"]["key"]["default"] = "";
-    capa["required"]["key"]["type"] = "str";
+    capa["required"]["key"]["type"] = "inputlist";
+    capa["required"]["key"]["input"]["type"] = "browse";
 
     capa["optional"]["wrappers"]["name"] = "Active players";
     capa["optional"]["wrappers"]["help"] = "Which players are attempted and in what order.";

@@ -1,6 +1,7 @@
 #include "controller_push.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
+#include <mist/auth.h>
 #include <mist/bitfields.h>
 #include <mist/config.h>
 #include <mist/json.h>
@@ -39,6 +40,57 @@ namespace Controller{
       activePushes[ret] = push;
       mustWritePushList = true;
     }
+  }
+
+  /// Canonizes the autopush argument from all previously used syntaxes into modern syntax
+  JSON::Value makePushObject(const JSON::Value & input){
+    JSON::Value ret; 
+    if (input.isArray() && input.size() >= 2){
+      ret["stream"] = input[0u].asStringRef();
+      ret["target"] = input[1u].asStringRef();
+      if (input.size() >= 3 && input[2u].asInt()){ret["scheduletime"] = input[2u].asInt();}
+      if (input.size() >= 4 && input[3u].asInt()){ret["completetime"] = input[3u].asInt();}
+      if (input.size() >= 7 && input[4u].asStringRef().size()){
+        ret["start_rule"][0u] = input[4u].asStringRef();
+        ret["start_rule"][1u] = input[5u].asInt();
+        ret["start_rule"][2u] = input[6u];
+      }
+      if (input.size() >= 10 && input[7u].asStringRef().size()){
+        ret["end_rule"][0u] = input[7u].asStringRef();
+        ret["end_rule"][1u] = input[8u].asInt();
+        ret["end_rule"][2u] = input[9u];
+      }
+      return ret;
+    }
+    if (input.isObject() && input.isMember("stream") && input.isMember("target")){
+      ret["stream"] = input["stream"];
+      ret["target"] = input["target"];
+      if (input.isMember("scheduletime") && input["scheduletime"].asInt()){
+        ret["scheduletime"] = input["scheduletime"].asInt();
+      }
+      if (input.isMember("completetime") && input["completetime"].asInt()){
+        ret["completetime"] = input["completetime"].asInt();
+      }
+      if (input.isMember("start_rule") && input["start_rule"].isArray() && input["start_rule"].size() == 3){
+        ret["start_rule"] = input["start_rule"];
+      }
+      if (input.isMember("end_rule") && input["end_rule"].isArray() && input["end_rule"].size() == 3){
+        ret["end_rule"] = input["end_rule"];
+      }
+      if (input.isMember("startVariableName") && input.isMember("startVariableOperator") && input.isMember("startVariableValue")){
+        ret["start_rule"][0u] = input["startVariableName"];
+        ret["start_rule"][1u] = input["startVariableOperator"];
+        ret["start_rule"][2u] = input["startVariableValue"];
+      }
+      if (input.isMember("endVariableName") && input.isMember("endVariableOperator") && input.isMember("endVariableValue")){
+        ret["end_rule"][0u] = input["endVariableName"];
+        ret["end_rule"][1u] = input["endVariableOperator"];
+        ret["end_rule"][2u] = input["endVariableValue"];
+      }
+      return ret;
+    }
+    ret.null();
+    return ret;
   }
 
   void setPushStatus(uint64_t id, const JSON::Value & status){
@@ -274,46 +326,43 @@ namespace Controller{
     return false;
   }
 
-  /// \brief Returns true if a push should be active, false if it shouldn't be active
-  bool checkPush(JSON::Value &thisPush){
-    uint64_t startTime = thisPush[2u].asInt();
-    std::string startVariableName = thisPush[4u].asString();
-    std::string endVariableName = thisPush[7u].asString();
+  /// \brief Returns what the push rule currently evaluates to
+  bool checkPushRule(const std::string & stream, const JSON::Value &rule){
+    // Invalid rule? Always false.
+    if (!rule.isArray() || rule.size() < 3){return false;}
+
+    // Get configured variable
+    std::string variable = "$" + rule[0u].asStringRef();
+    if (!Util::streamVariables(variable, stream)){
+      WARN_MSG("Could not find a variable with name \"%s\"", rule[0u].asStringRef().c_str());
+      return false;
+    }
+
+    // Get value to compare to
+    std::string compare = rule[2u].asStringRef();
+    if (compare.size()){Util::streamVariables(compare, stream);}
+
+    return checkCondition(JSON::Value(variable), rule[1u].asInt(), JSON::Value(compare));
+  }
+
+  bool checkPush(const JSON::Value & thisPush){
     // Get sanitized stream name
-    std::string stream = thisPush[0u].asString();
+    std::string stream = thisPush["stream"].asString();
     Util::sanitizeName(stream);
+
     // Skip if we have a start time which is in the future
-    if (startTime && *(stream.rbegin()) != '+' && startTime > Util::epoch()){return false;}
+    if (thisPush.isMember("scheduletime") && *(stream.rbegin()) != '+' && thisPush["scheduletime"].asInt() > Util::epoch()){
+      return false;
+    }
+
     // Check if it supposed to stop
-    if (endVariableName.size()){
-      // Get current value of configured variable
-      std::string currentValue = "$" + endVariableName;
-      if (!Util::streamVariables(currentValue, stream)){
-        WARN_MSG("Could not find a variable with name `%s`", endVariableName.c_str());
-        return false;
-      }
-      // Get matched value and apply variable substitution
-      std::string replacedMatchedValue = thisPush[9u].asString();
-      if (replacedMatchedValue.size()){Util::streamVariables(replacedMatchedValue, stream);}
-      JSON::Value matchedValue(replacedMatchedValue);
-      // Finally indicate that the push should not be active if the end condition resolves to true
-      if(checkCondition(JSON::Value(currentValue), thisPush[8u].asInt(), matchedValue)){return false;}
-    }
+    if (thisPush.isMember("end_rule") && checkPushRule(stream, thisPush["end_rule"])){return false;}
+
     // Check if it is allowed to start
-    if (startVariableName.size()){
-      // Get current value of configured variable
-      std::string currentValue = "$" + startVariableName;
-      if (!Util::streamVariables(currentValue, stream)){
-        WARN_MSG("Could not find a variable with name `%s`", startVariableName.c_str());
-        return false;
-      }
-      // Get matched value and apply variable substitution
-      std::string replacedMatchedValue = thisPush[6u].asString();
-      if (replacedMatchedValue.size()){Util::streamVariables(replacedMatchedValue, stream);}
-      JSON::Value matchedValue(replacedMatchedValue);
-      // Finally indicate that the push should not be active if the end condition resolves to true
-      return checkCondition(JSON::Value(currentValue), thisPush[5u].asInt(), matchedValue);
+    if (thisPush.isMember("start_rule")){
+      return checkPushRule(stream, thisPush["start_rule"]);
     }
+    // Without start rule, default to true.
     return true;
   }
 
@@ -327,22 +376,23 @@ namespace Controller{
         long long maxspeed = Controller::Storage["push_settings"]["maxspeed"].asInt();
         long long waittime = Controller::Storage["push_settings"]["wait"].asInt();
         long long curCount = 0;
-        jsonForEach(Controller::Storage["autopushes"], it){
-          std::string stream = (*it)[0u].asStringRef();
-          std::string target = (*it)[1u].asStringRef();
-          uint64_t startTime = (*it)[2u].asInt();
-          uint64_t endTime = (*it)[3u].asInt();
+        jsonForEach(Controller::Storage["auto_push"], it){
+          // Ignore invalid entries
+          if (!it->isMember("stream") || !it->isMember("target")){continue;}
+
+          std::string stream = (*it)["stream"].asStringRef();
+          std::string target = (*it)["target"].asStringRef();
           // Stop any auto pushes which have an elapsed end time
-          if (endTime && endTime < Util::epoch()){
-            INFO_MSG("Deleting autopush from %s to %s because end time passed", stream.c_str(), target.c_str());
+          if (it->isMember("completetime") && (*it)["completetime"].asInt() < Util::epoch()){
+            INFO_MSG("Deleting autopush %s because end time passed", it.key().c_str());
             stopActivePushes(stream, target);
-            removePush(*it);
+            removePush(it.key());
             break;
           }
           // Stop any active push if conditions are not met
           if (!checkPush(*it)){
             if (isPushActive(stream, target)){
-              MEDIUM_MSG("Conditions of push `%s->%s` evaluate to false. Stopping push...", stream.c_str(), target.c_str());
+              MEDIUM_MSG("Conditions of push %s evaluate to false. Stopping push...", it.key().c_str());
               stopActivePushes(stream, target);
             }
             continue;
@@ -350,7 +400,7 @@ namespace Controller{
           // We can continue if it is already running
           if (isPushActive(stream, target)){continue;}
           // Start the push if conditions are met
-          if (waittime || startTime){
+          if (waittime || it->isMember("scheduletime")){
             std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
             if (activeStreams.size()){
               for (std::set<std::string>::iterator jt = activeStreams.begin();
@@ -360,12 +410,12 @@ namespace Controller{
                   if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)){
                     waitingPushes[streamname].erase(target);
                     if (!waitingPushes[streamname].size()){waitingPushes.erase(streamname);}
-                    MEDIUM_MSG("Conditions of push `%s->%s` evaluate to true. Starting push...", stream.c_str(), target.c_str());
+                    MEDIUM_MSG("Conditions of push \"%s\" evaluate to true. Starting push...", it.key().c_str());
                     std::string tmpTarget = target;
                     startPush(streamname, tmpTarget);
                     curCount++;
                     // If no end time is given but there is a start time, remove the push after starting it
-                    if (startTime && !endTime){
+                    if (it->isMember("scheduletime") && !it->isMember("completetime")){
                       removePush(*it);
                       break;
                     }
@@ -429,200 +479,91 @@ namespace Controller{
 
   /// Adds a push to the list of auto-pushes.
   /// Auto-starts currently active matches immediately.
-  void addPush(JSON::Value &request, JSON::Value &response){
-    JSON::Value newPush;
-    if (request.isArray()){
-      newPush = request;
-    }else{
-      if (!request.isMember("stream") || !request["stream"].isString()){
-        ERROR_MSG("Automatic push not added: it does not contain a valid stream name");
+  void addPush(const JSON::Value &request, JSON::Value &response){
+    if (
+        (request.isArray() && request.size() >= 2 && request[0u].isString() && request[1u].isString())
+        ||
+        (request.isObject() && request.isMember("stream") && request.isMember("target"))
+        ){
+      // Object- or Array-style with direct stream/target arguments (and optional other params)
+      JSON::Value newPush = makePushObject(request);
+      if (newPush.isNull()){
+        WARN_MSG("Not a valid autopush definition: %s", request.toString().c_str());
         return;
       }
-      newPush.append(request["stream"]);
-      if (!request.isMember("target") || !request["target"].isString()){
-        ERROR_MSG("Automatic push not added: it does not contain a valid target");
-        return;
-      }
-      newPush.append(request["target"]);
-      if (request.isMember("scheduletime") && request["scheduletime"].isInt()){
-        newPush.append(request["scheduletime"]);
-      }else{
-        newPush.append(0u);
-      }
-      if (request.isMember("completetime") && request["completetime"].isInt()){
-        newPush.append(request["completetime"]);
-      }else{
-        newPush.append(0u);
-      }
-      if (request.isMember("startVariableName")){
-        newPush.append(request["startVariableName"]);
-      }else{
-        newPush.append("");
-      }
-      if (request.isMember("startVariableOperator")){
-        newPush.append(request["startVariableOperator"]);
-      }else{
-        newPush.append(0);
-      }
-      if (request.isMember("startVariableValue")){
-        newPush.append(request["startVariableValue"]);
-      }else{
-        newPush.append("");
-      }
-      if (request.isMember("endVariableName")){
-        newPush.append(request["endVariableName"]);
-      }else{
-        newPush.append("");
-      }
-      if (request.isMember("endVariableOperator")){
-        newPush.append(request["endVariableOperator"]);
-      }else{
-        newPush.append(0);
-      }
-      if (request.isMember("endVariableValue")){
-        newPush.append(request["endVariableValue"]);
-      }else{
-        newPush.append("");
+      Controller::Storage["auto_push"][Secure::md5(newPush.toString())] = newPush;
+    } else if (request.isArray() || request.isObject()){
+      // Array or Object list of pushes to add
+      jsonForEachConst(request, it){
+        JSON::Value newPush = makePushObject(*it);
+        if (newPush.isNull()){
+          WARN_MSG("Not a valid autopush definition: %s", it->toString().c_str());
+          continue;
+        }
+        // Use the given key, if any (only objects have them)
+        std::string key = it.key();
+        if (!key.size()){
+          key = Secure::md5(newPush.toString());
+        }
+        Controller::Storage["auto_push"][key] = newPush;
       }
     }
-    long long epo = Util::epoch();
-    if (request.size() < 2){
-      ERROR_MSG("Automatic push not added: should contain at least a stream name and target");
-      return;
-    }
-    // Init optional fields if they were omitted from the addPush request
-    // We only have a stream and target, so fill in the scheduletime and completetime
-    while(newPush.size() < 4){newPush.append(0u);}
-    // The request seems to be using variables and likely skipped the scheduletime and completetime set to 0
-    if (newPush[2].isString()){
-      JSON::Value modPush;
-      modPush.append(newPush[0u]);
-      modPush.append(newPush[1u]);
-      modPush.append(0u);
-      modPush.append(0u);
-      for (uint8_t idx = 2; idx < newPush.size(); idx++){
-        modPush.append(newPush[idx]);
-      }
-      newPush = modPush;
-    }
-    // Variable conditions are used. We should have either 7 (only start variable condition) or 10 values (start + stop variable conditions)
-    if (newPush.size() > 4){
-      if (newPush.size() == 7){
-        newPush.append("");
-        newPush.append(0u);
-        newPush.append("");
-      } else if (newPush.size() != 10){
-        ERROR_MSG("Automatic push not added: passed incomplete data for the start or stop variable");
-        return;
-      }
-    }else{
-      // Init the start and stop variable conditions
-      newPush.append("");
-      newPush.append(0u);
-      newPush.append("");
-      newPush.append("");
-      newPush.append(0u);
-      newPush.append("");
-    }
-    // Make sure all start variable values have been initialised
-    if (newPush.size() == 7 && (!newPush[5u].isString() || !newPush[6u].isInt() || !newPush[7u].isString()));
-    // Make sure all stop variable values have been initialised
-    if (newPush.size() == 10 && (!newPush[8u].isString() || !newPush[9u].isInt() || !newPush[10u].isString()));
-    // Final sanity checks on input
-    std::string stream = newPush[0u].asStringRef();
-    std::string target = newPush[1u].asStringRef();
-    uint64_t startTime = newPush[2u].asInt();
-    uint64_t endTime = newPush[3u].asInt();
-    if (endTime && endTime <= epo){
-      ERROR_MSG("Automatic push not added: removal time is in the past! (%" PRIu64 " <= %lld)", endTime, epo);
-      return;
-    }
-
-    // If we have an existing push: edit it
-    bool shouldSave = true;
-    jsonForEach(Controller::Storage["autopushes"], it){
-      if ((*it)[0u] == stream && (*it)[1u] == target){
-        (*it) = newPush;
-        shouldSave = false;
-      }
-    }
-    // If a newly added push only has a defined start time, immediately start it and never save it
-    if (startTime && !endTime){
-      INFO_MSG("Immediately starting push %s->%s as the added push only has a defined start time"
-                , stream.c_str(), target.c_str());
-      std::string tmpTarget = target;
-      startPush(stream, tmpTarget);
-      // Return push list
-      response["push_auto_list"] = Controller::Storage["autopushes"];
-      return;
-    }
-    // Save as a new variable if we have not edited an existing variable
-    if (shouldSave){
-      Controller::Storage["autopushes"].append(newPush);
-    }
-    // and start it immediately if conditions are met
-    if (!checkPush(newPush)){return;}
-    std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
-    if (activeStreams.size()){
-      for (std::set<std::string>::iterator jt = activeStreams.begin();
-            jt != activeStreams.end(); ++jt){
-        std::string streamname = *jt;
-        std::string tmpTarget = target;
-        startPush(streamname, tmpTarget);
-      }
-    }
-    // Return push list
-    response["push_auto_list"] = Controller::Storage["autopushes"];
-  }
-
-  /// Removes a push from the list of auto-pushes and returns the new list of pushes
-  /// Does not stop currently active matching pushes.
-  void removePush(const JSON::Value &request, JSON::Value &response){
-    removePush(request);
-    // Return push list
-    response["push_auto_list"] = Controller::Storage["autopushes"];
   }
 
   /// Removes a push from the list of auto-pushes
+  /// Does not stop currently active matching pushes.
   void removePush(const JSON::Value &pushInfo){
-    JSON::Value delPush;
-    if (pushInfo.isString()){
-      removeAllPush(pushInfo.asStringRef());
+    // If it's a push specification, remove all matching autopushes
+    JSON::Value delPush = makePushObject(pushInfo);
+    if (!delPush.isNull()){
+      jsonForEach(Controller::Storage["auto_push"], it){
+        if ((*it) == delPush){it.remove();}
+      }
       return;
     }
+    // If it's a string...
+    if (pushInfo.isString()){
+      // Remove by identifier if it exists
+      if (Controller::Storage["auto_push"].isMember(pushInfo.asStringRef())){
+        Controller::Storage["auto_push"].removeMember(pushInfo.asStringRef());
+      }else{
+        // Otherwise assume it's a stream name and remove all by stream name
+        removeAllPush(pushInfo.asStringRef());
+      }
+      return;
+    }
+    // Array of strings or push specifications? Delete them all one by one.
     if (pushInfo.isArray()){
-      delPush = pushInfo;
-    }else{
-      delPush.append(pushInfo["stream"]);
-      delPush.append(pushInfo["target"]);
+      jsonForEachConst(pushInfo, it){removePush(*it);}
     }
-    JSON::Value newautopushes;
-    jsonForEach(Controller::Storage["autopushes"], it){
-      if ((*it) != delPush){newautopushes.append(*it);}
-    }
-    Controller::Storage["autopushes"] = newautopushes;
   }
 
   /// Removes all auto pushes of a given streamname
   void removeAllPush(const std::string &streamname){
-    JSON::Value newautopushes;
-    jsonForEach(Controller::Storage["autopushes"], it){
-      if ((*it)[0u] != streamname){newautopushes.append(*it);}
+    jsonForEach(Controller::Storage["auto_push"], it){
+      if (!it->isMember("stream") || (*it)["stream"] == streamname){
+        it.remove();
+      }
     }
-    Controller::Storage["autopushes"] = newautopushes;
   }
 
   /// Starts all configured auto pushes for the given stream.
   void doAutoPush(std::string &streamname){
-    jsonForEach(Controller::Storage["autopushes"], it){
-      if ((*it)[2u].asInt() && (*it)[2u].asInt() < Util::epoch()){continue;}
-      const std::string &pStr = (*it)[0u].asStringRef();
-      if (Controller::streamMatches(streamname, pStr)){
+    jsonForEachConst(Controller::Storage["auto_push"], it){
+      // Skip invalid
+      if (!it->isMember("stream") || !it->isMember("target")){continue;}
+      // Skip if scheduled in the future
+      if (it->isMember("scheduletime") && (*it)["scheduletime"].asInt() < Util::epoch()){continue;}
+      // Check if the stream name matches
+      if (Controller::streamMatches(streamname, (*it)["stream"].asStringRef())){
+        // Clean up the stream name if needed
         std::string stream = streamname;
         Util::sanitizeName(stream);
-        // Check variable condition if it exists
-        if((*it)[4u].asStringRef().size() && !checkPush(*it)){continue;}
-        std::string target = (*it)[1u];
+        // Check variable conditions if they exist
+        if(it->isMember("end_rule") && checkPushRule(stream, (*it)["end_rule"])){continue;}
+        if(it->isMember("start_rule") && !checkPushRule(stream, (*it)["start_rule"])){continue;}
+        // Actually do the push; use a temp target as it might be rewritten
+        std::string target = (*it)["target"].asStringRef();
         startPush(stream, target);
       }
     }

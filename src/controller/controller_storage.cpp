@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <mist/defines.h>
+#include <mist/auth.h>
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
 #include <mist/triggers.h> //LTS
@@ -438,6 +439,19 @@ namespace Controller{
         Controller::Log("CONF", "Translated protocols to new versions");
       }
     }
+    // Convert autopushes array into auto_push object
+    // Only if auto_push does not exist yet and autopushes is non-empty
+    if (!Controller::Storage.isMember("auto_push") && Controller::Storage.isMember("autopushes") && Controller::Storage["autopushes"].isArray() && Controller::Storage["autopushes"].size()){
+      JSON::Value & aPush = Controller::Storage["auto_push"];
+      jsonForEachConst(Controller::Storage["autopushes"], it){
+        if (it->size() < 2){continue;} // Invalid entries
+        JSON::Value tmp = Controller::makePushObject(*it);
+        if (tmp.isNull()){continue;} // Invalid entries
+        aPush[Secure::md5(tmp.toString())] = tmp;
+      }
+      Controller::Log("CONF", "Converted old-style autopushes to new-style auto_push");
+    }
+
     Controller::lastConfigChange = Controller::lastConfigWrite = Util::epoch();
     Controller::lastConfigWriteAttempt.null();
     getConfigAsWritten(Controller::lastConfigWriteAttempt);

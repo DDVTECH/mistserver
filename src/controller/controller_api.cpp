@@ -1342,27 +1342,61 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   }
 
   if (Request.isMember("push_auto_add")){Controller::addPush(Request["push_auto_add"], Response);}
-
   if (Request.isMember("push_auto_remove")){
-    if (Request["push_auto_remove"].isArray()){
-      jsonForEach(Request["push_auto_remove"], it){Controller::removePush(*it, Response);}
-    }else{
-      Controller::removePush(Request["push_auto_remove"], Response);
+    Controller::removePush(Request["push_auto_remove"]);
+  }
+  if (Request.isMember("push_auto_list") || Request.isMember("push_auto_add") || Request.isMember("push_auto_remove")){
+    Response["auto_push"] = Controller::Storage["auto_push"];
+    JSON::Value & R = Response["push_auto_list"];
+    jsonForEachConst(Response["auto_push"], it){
+      if (!it->isMember("stream") || !it->isMember("target")){continue;}
+      JSON::Value tmp;
+      tmp.append((*it)["stream"]);
+      tmp.append((*it)["target"]);
+      if (it->isMember("scheduletime") || it->isMember("completetime") || it->isMember("start_rule") || it->isMember("end_rule")){
+        if (it->isMember("scheduletime")){
+          tmp.append((*it)["scheduletime"]);
+        }else{
+          tmp.append(JSON::Value());
+        }
+        if (it->isMember("completetime") || it->isMember("start_rule") || it->isMember("end_rule")){
+          if (it->isMember("completetime")){
+            tmp.append((*it)["completetime"]);
+          }else{
+            tmp.append(JSON::Value());
+          }
+          if (it->isMember("start_rule") || it->isMember("end_rule")){
+            if (it->isMember("start_rule")){
+              tmp.append((*it)["start_rule"][0u]);
+              tmp.append((*it)["start_rule"][1u]);
+              tmp.append((*it)["start_rule"][2u]);
+            }else{
+              tmp.append(JSON::Value());
+              tmp.append(JSON::Value());
+              tmp.append(JSON::Value());
+            }
+            if (it->isMember("end_rule")){
+              tmp.append((*it)["end_rule"][0u]);
+              tmp.append((*it)["end_rule"][1u]);
+              tmp.append((*it)["end_rule"][2u]);
+            }
+          }
+        }
+      }
+      R.append(tmp);
     }
-  }
 
-  if (Request.isMember("push_auto_list")){
-    Response["push_auto_list"] = Controller::Storage["autopushes"];
   }
-
   if (Request.isMember("push_settings")){
     Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
   }
 
+  // Variable related commands
   if (Request.isMember("variable_list")){Controller::listCustomVariables(Response["variable_list"]);}
   if (Request.isMember("variable_add")){Controller::addVariable(Request["variable_add"], Response["variable_list"]);}
   if (Request.isMember("variable_remove")){Controller::removeVariable(Request["variable_remove"], Response["variable_list"]);}
 
+  // External writer related commands
   if (Request.isMember("external_writer_remove")){Controller::removeExternalWriter(Request["external_writer_remove"]);}
   if (Request.isMember("external_writer_add")){Controller::addExternalWriter(Request["external_writer_add"]);}
   if (Request.isMember("external_writer_remove") || Request.isMember("external_writer_add") || 

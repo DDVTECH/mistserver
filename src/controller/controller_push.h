@@ -4,6 +4,9 @@
 #include <string>
 
 namespace Controller{
+  // Helper functions for converting
+  JSON::Value makePushObject(const JSON::Value & input);
+
   // Functions for current pushes, start/stop/list
   void startPush(const std::string &streamname, std::string &target);
   void stopPush(unsigned int ID);
@@ -14,8 +17,7 @@ namespace Controller{
   bool isPushActive(uint64_t id);
 
   // Functions for automated pushes, add/remove
-  void addPush(JSON::Value &request, JSON::Value &response);
-  void removePush(const JSON::Value &request, JSON::Value &response);
+  void addPush(const JSON::Value &request, JSON::Value &response);
   void removeAllPush(const std::string &streamname);
 
   // internal use only

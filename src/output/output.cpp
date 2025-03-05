@@ -398,7 +398,7 @@ namespace Mist{
     if (isPushing()){return;}
 
     //live streams that are no push outputs (recordings), wait for stream to be ready
-    if (!isRecording() && M && M.getLive() && !isReadyForPlay()){
+    if (M && M.getLive() && !isReadyForPlay()){
       uint64_t waitUntil = Util::bootSecs() + 45;
       while (M && M.getLive() && !isReadyForPlay()){
         if (Util::bootSecs() > waitUntil){

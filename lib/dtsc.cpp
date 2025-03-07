@@ -1423,7 +1423,7 @@ namespace DTSC{
       bool always_load = (trIt == tracks.end());
       if (always_load || trIt->second.track.isReload()){
         ret = true;
-        Track &t = trIt->second;
+        Track &t = tracks[i];
         if (always_load){
           VERYHIGH_MSG("Loading track: %s", trackList.getPointer(trackPageField, i));
         }else{

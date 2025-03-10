@@ -50,6 +50,8 @@ namespace Mist{
     uint64_t payloadType; ///< The payload type that was extracted from the `m=` media line in the SDP.
     std::string localIcePwd;
     std::string localIceUFrag;
+    std::string remoteIcePwd;
+    std::string remoteIceUFrag;
     uint32_t SSRC;             ///< The SSRC of the RTP packets.
     uint8_t ULPFECPayloadType; ///< When we've enabled FEC for a video stream this holds the payload
                                ///< type that is used to distinguish between ordinary video RTP
@@ -92,7 +94,7 @@ namespace Mist{
   public:
     OutWebRTC(Socket::Connection &myConn);
     ~OutWebRTC(){}
-    static bool listenMode(){return !(config->getString("ip").size());}
+    static bool listenMode();
     static void listener(Util::Config & conf,
                          std::function<void(Socket::Connection &, Socket::Server &)> callback);
     static void init(Util::Config *cfg);
@@ -135,20 +137,17 @@ namespace Mist{
     bool handleSignalingCommandRemoteOfferForInput(SDP::Session &sdpSession);
     bool handleSignalingCommandRemoteOfferForOutput(SDP::Session &sdpSession);
     void sendSignalingError(const std::string &commandType, const std::string &errorMessage);
+    void handleUDPPacket(WebRTCSocket & wSock, int sockNo);
 
-    bool createWebRTCTrackFromAnswer(const SDP::Media &mediaAnswer,
-                                     const SDP::MediaFormat &formatAnswer, WebRTCTrack &result);
     void sendRTCPFeedbackREMB(const WebRTCTrack &rtcTrack);
     void sendRTCPFeedbackPLI(const WebRTCTrack &rtcTrack); ///< Picture Los Indication: request keyframe.
     void sendRTCPFeedbackRR(WebRTCTrack &rtcTrack);
-    void sendRTCPFeedbackNACK(const WebRTCTrack &rtcTrack,
+    void sendRTCPFeedbackNACK(const WebRTCTrack & rtcTrack,
                               uint16_t missingSequenceNumber); ///< Notify sender that we're missing a sequence number.
-    void sendSPSPPS(size_t dtscIdx,
-                    WebRTCTrack &rtcTrack); ///< When we're streaming H264 to e.g. the browser we
-                                            ///< inject the PPS and SPS nals.
     void extractFrameSizeFromVP8KeyFrame(const DTSC::Packet &pkt);
     void updateCapabilitiesWithSDPOffer(SDP::Session &sdpSession);
-    bool bindUDPSocketOnLocalCandidateAddress(uint16_t port);
+    void setupIncomingMainSocket();
+    void setupOutgoingMainSocket();
     std::string getLocalCandidateAddress();
 
     SDP::Session sdp;      ///< SDP parser.
@@ -162,17 +161,26 @@ namespace Mist{
     uint16_t lastMediaSocket; //< Last socket number we received video/audio on
     uint16_t lastMetaSocket; //< Last socket number we received non-media data on
     uint16_t udpPort; ///< Port where we receive RTP, STUN, DTLS, etc.
-    std::map<uint64_t, WebRTCTrack> webrtcTracks; ///< WebRTCTracks indexed by payload type for incoming data and indexed by
-                                                  ///< myMeta.tracks[].trackID for outgoing data.
+
+    /// Candidate addresses for outgoing WebRTC connections
+    std::set<Socket::Address> outAddr;
+    std::string ice_ufrag;
+    std::string ice_pwd;
+
+    /// WebRTCTracks indexed by payload type for incoming data or indexed by track index for outgoing data.
+    std::map<uint64_t, WebRTCTrack> webrtcTracks;
+
     uint32_t SSRC; ///< The SSRC for this local instance. Is used when generating RTCP reports. */
     uint64_t rtcpTimeoutInMillis; ///< When current time in millis exceeds this timeout we have to
                                   ///< send a new RTCP packet.
     uint64_t rtcpKeyFrameTimeoutInMillis;
     uint64_t rtcpKeyFrameDelayInMillis;
+
     Util::ResizeablePointer rtpOutBuffer; ///< Buffer into which we copy (unprotected) RTP data that we need to deliver
                                           ///< to the other peer. This gets protected.
+    Util::ResizeablePointer initBuffer; ///< Buffer for track init data
     uint32_t videoBitrate; ///< The bitrate to use for incoming video streams. Can be configured via
-                           ///< the signaling channel. Defaults to 6mbit.
+                           ///< the signalling channel. Defaults to 6mbit.
     uint32_t videoConstraint;
 
     size_t audTrack, vidTrack, prevVidTrack, metaTrack;

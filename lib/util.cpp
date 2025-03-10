@@ -476,20 +476,27 @@ namespace Util{
   ResizeablePointer::ResizeablePointer(){
     currSize = 0;
     ptr = 0;
+    ro = false;
     maxSize = 0;
   }
 
+  /// Constructor for accessing existing memory. Should only be used to make const versions of this class!
+  ResizeablePointer::ResizeablePointer(const void *const data, const size_t len)
+    : ptr((void *)data), currSize(len), maxSize(len), ro(true) {}
+
   ResizeablePointer::~ResizeablePointer(){
-    if (ptr){free(ptr);}
+    if (ptr && !ro) { free(ptr); }
     currSize = 0;
     ptr = 0;
     maxSize = 0;
+    ro = false;
   }
 
   ResizeablePointer::ResizeablePointer(const ResizeablePointer & rhs){
     currSize = 0;
     ptr = 0;
     maxSize = 0;
+    ro = false;
     append(rhs, rhs.size());
   }
 
@@ -517,12 +524,15 @@ namespace Util{
     void * tmpPtr = ptr;
     size_t tmpCurrSize = currSize;
     size_t tmpMaxSize = maxSize;
+    bool tmpRo = ro;
     ptr = rhs.ptr;
     currSize = rhs.currSize;
     maxSize = rhs.maxSize;
+    ro = rhs.ro;
     rhs.ptr = tmpPtr;
     rhs.currSize = tmpCurrSize;
     rhs.maxSize = tmpMaxSize;
+    rhs.ro = tmpRo;
   }
 
   bool ResizeablePointer::assign(const void *p, uint32_t l){
@@ -563,6 +573,10 @@ namespace Util{
 
   bool ResizeablePointer::allocate(uint32_t l){
     if (l > maxSize){
+      if (ro) {
+        FAIL_MSG("Attempt to resize read-only pointer, ignored");
+        return false;
+      }
       void *tmp = realloc(ptr, l);
       if (!tmp){
         FAIL_MSG("Could not allocate %" PRIu32 " bytes of memory", l);

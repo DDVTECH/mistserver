@@ -24,6 +24,7 @@ namespace Event{
   Loop::Loop(){
     maxPlusOne = 0;
     cbCount = 0;
+    timerCount = 0;
     memset(sockets, 0, sizeof(sockets));
   }
 
@@ -70,6 +71,24 @@ namespace Event{
       return std::string::npos;
     }
     uint64_t startTime = Util::bootMS();
+    while (timerTimes.size() && timerTimes.begin()->first <= startTime) {
+      auto it = timerTimes.begin();
+      timerTimes.erase(it);
+      VERYHIGH_MSG("Firing timer %zu", it->second);
+      if (timerFuncs[it->second]()) {
+        // Reschedule the timer
+        timerTimes.insert({it->first + timerIntervals[it->second], it->second});
+      } else {
+        // Drop the timer
+        INFO_MSG("Stopping timer %zu", it->second);
+        timerFuncs.erase(it->second);
+        timerIntervals.erase(it->second);
+      }
+    }
+    if (timerTimes.size()) {
+      auto it = timerTimes.begin();
+      if (maxMs > it->first - startTime) { maxMs = it->first - startTime; }
+    }
     struct timeval timeout;
     bool hasSockets = false;
     fd_set rList;
@@ -172,6 +191,14 @@ namespace Event{
   void Loop::addSendQueue(Socket::UDPConnection * udpSock){
     if (!udpSock){return;}
     sendQueues.insert(udpSock);
+  }
+
+  void Loop::addInterval(std::function<bool()> cb, size_t millis) {
+    if (!millis) { return; }
+    timerFuncs[timerCount] = cb;
+    timerIntervals[timerCount] = millis;
+    timerTimes.insert({Util::bootMS() + millis, timerCount});
+    ++timerCount;
   }
 
   void Loop::remove(int sock){

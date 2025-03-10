@@ -51,14 +51,23 @@ namespace Buffer{
 /// Holds Socket tools.
 namespace Socket{
   class Address {
-    public:
+    private:
       std::string addr;
+
+    public:
       Address();
       Address(const std::string & rhs);
-      Address(const char *rhs);
+      Address(const char *rhs, size_t len = 0);
       Address(const Util::ResizeablePointer & rhs);
       std::string toString() const;
+      sa_family_t family() const;
+      bool is4in6() const;
+      uint16_t port() const;
+      std::string host() const;
+      operator bool() const;
+      const uint8_t *const ipPtr() const;
       operator sockaddr *() const { return (sockaddr *)addr.data(); }
+      size_t size() const { return addr.size(); }
       bool operator<(const Address & rhs) const;
       bool operator==(const Address & rhs) const;
   };
@@ -69,7 +78,7 @@ namespace Socket{
   bool matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix);
   bool compareAddress(const sockaddr* A, const sockaddr* B);
   std::string getBinForms(std::string addr);
-  std::deque<std::string> getAddrs(std::string addr, uint16_t port, int family = AF_UNSPEC);
+  std::deque<Socket::Address> getAddrs(std::string addr, uint16_t port, int family = AF_UNSPEC);
   // Returns a list of local addresses
   void getLocal(std::deque<std::string> & addrs);
   /// Returns true if given human-readable address (address, not hostname) is a local address.
@@ -275,12 +284,14 @@ namespace Socket{
     UDPConnection(const UDPConnection &o);
     UDPConnection(bool nonblock = false);
     UDPConnection(const void * dest, size_t destLen, const void * loc, size_t locLen);
+    UDPConnection(const Socket::Address & remote, const Socket::Address & local);
     ~UDPConnection();
     void assimilate(int sock);
     bool operator==(const UDPConnection& b) const;
+    bool equals(const Socket::Address & remote, const Socket::Address & local) const;
     operator bool() const;
 #ifdef SSL
-    void initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key);
+    void initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key, bool asClient = false);
     void deinitDTLS();
     bool handshakeComplete();
     int dTLSRead(unsigned char *buf, size_t len);
@@ -299,7 +310,8 @@ namespace Socket{
     void allocateDestination(bool setPktInfo = true);
     void setAddresses(void * dest, size_t destLen, void * loc, size_t locLen);
     void SetDestination(std::string hostname, uint32_t port);
-    bool setDestination(sockaddr * addr, size_t size);
+    bool setDestination(const sockaddr *addr, const size_t size);
+    bool setDestination(const Socket::Address & addr);
     const Util::ResizeablePointer & getRemoteAddr() const;
     const Util::ResizeablePointer & getLocalAddr() const;
     void GetDestination(std::string &hostname, uint32_t &port);
@@ -332,3 +344,5 @@ namespace Socket{
 #endif
   };
 }// namespace Socket
+
+std::ostream & operator<<(std::ostream & o, const Socket::Address & a);

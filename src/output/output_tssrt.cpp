@@ -134,8 +134,8 @@ namespace Mist{
 
       target = HTTP::URL(config->getString("target"));
 
-      std::deque<std::string> remoteAddr = Socket::getAddrs(remoteIP, remotePort);
-      std::deque<std::string> localAddr = Socket::getAddrs(target.host, target.getPort());
+      std::deque<Socket::Address> remoteAddr = Socket::getAddrs(remoteIP, remotePort);
+      std::deque<Socket::Address> localAddr = Socket::getAddrs(target.host, target.getPort());
 
       // Create UDP socket
       Socket::UDPConnection *udpSrv;
@@ -146,8 +146,7 @@ namespace Mist{
         udpSrv = new Socket::UDPConnection();
         udpSrv->bind(atoi(internalPort.c_str()), internalIP);
       } else {
-        udpSrv = new Socket::UDPConnection(remoteAddr.begin()->data(), remoteAddr.begin()->size(),
-                                           localAddr.begin()->data(), localAddr.begin()->size());
+        udpSrv = new Socket::UDPConnection(*remoteAddr.begin(), *localAddr.begin());
         udpSrv->connect();
       }
 

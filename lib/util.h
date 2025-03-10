@@ -55,6 +55,7 @@ namespace Util{
   class ResizeablePointer{
   public:
     ResizeablePointer();
+    ResizeablePointer(const void *const data, const size_t len);
     ResizeablePointer(const ResizeablePointer & rhs);
     ResizeablePointer& operator= (const ResizeablePointer& rhs);
     ~ResizeablePointer();
@@ -78,6 +79,7 @@ namespace Util{
     void *ptr;
     size_t currSize;
     size_t maxSize;
+    bool ro;
   };
 
   void logParser(int in, int out, bool colored,

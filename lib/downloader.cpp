@@ -38,7 +38,10 @@ namespace HTTP{
   uint32_t Downloader::getStatusCode(){return atoi(H.url.c_str());}
 
   /// Returns true if the HTTP Request is OK
-  bool Downloader::isOk(){return (getStatusCode() == 200);}
+  bool Downloader::isOk() {
+    uint32_t code = getStatusCode();
+    return code >= 200 && code <= 299;
+  }
 
   /// Returns the given header from the response, or empty string if it does not exist.
   std::string Downloader::getHeader(const std::string &headerName){

@@ -1,7 +1,8 @@
-#include "defines.h"
 #include "sdp_media.h"
+
+#include "defines.h"
+
 #include <algorithm>
-#include <cstdarg>
 #include <sstream>
 
 namespace SDP{
@@ -255,7 +256,6 @@ namespace SDP{
     framerate = 0.0;
     supportsRTCPMux = false;
     supportsRTCPReducedSize = false;
-    candidatePort = 0;
     SSRC = 0;
   }
 
@@ -441,11 +441,8 @@ namespace SDP{
     return true;
   }
   /// Extracts the fingerpint hash and value, from a line like:
-  /// a=fingerprint:sha-256
-  /// C7:98:6F:A9:55:75:C0:73:F2:EB:CF:14:B8:6E:58:FE:A5:F1:B0:C7:41:B7:BA:D3:4A:CF:7E:5C:69:8B:FA:F4
-  bool Media::parseFingerprintLine(const std::string &sdpLine){
-
-    // extract the <hash> type.
+  /// a=fingerprint:sha-256 C7:98:6F:A9:55:75:C0:73:F2:EB:CF:14:B8:6E:58:FE:A5:F1:B0:C7:41:B7:BA:D3:4A:CF:7E:5C:69:8B:FA:F4
+  bool Media::parseFingerprintLine(const std::string & sdpLine) {
     size_t start = sdpLine.find(":");
     if (start == std::string::npos){
       ERROR_MSG("Invalid `a=fingerprint:<hash> <value>` line, no `:` found.");
@@ -456,17 +453,12 @@ namespace SDP{
       ERROR_MSG("Invalid `a=fingerprint:<hash> <value>` line, no <space> found after `:`.");
       return false;
     }
-    if (end <= start){
-      ERROR_MSG("Invalid `a=fingerpint:<hash> <value>` line. Space before the `:` found.");
-      return false;
-    }
     fingerprintHash = sdpLine.substr(start, end - start);
     fingerprintValue = sdpLine.substr(end);
     return true;
   }
 
-  bool Media::parseSSRCLine(const std::string &sdpLine){
-
+  bool Media::parseSSRCLine(const std::string & sdpLine) {
     if (0 != SSRC){
       // We set our SSRC to the first one that we found.
       return true;
@@ -624,8 +616,20 @@ namespace SDP{
       }
       if (line.find("mozilla") != std::string::npos){mozilla = true;}
 
+      if (line.substr(0, 12) == "a=candidate:") {
+        size_t space4 = line.find(' ', line.find(' ', line.find(' ', line.find(' ') + 1) + 1) + 1);
+        size_t space5 = line.find(' ', space4 + 1);
+        size_t space6 = line.find(' ', space5 + 1);
+        std::string h = line.substr(space4 + 1, space5 - space4 - 1);
+        std::string i = line.substr(space5 + 1, space6 - space5 - 1);
+        INFO_MSG("Candidate %s:%s", h.c_str(), i.c_str());
+        auto newAddr = Socket::getAddrs(h, std::atoi(i.c_str()));
+        candidates.insert(newAddr.begin(), newAddr.end());
+        continue;
+      }
+
       // Parse session (or) media data.
-      else if (line.substr(0, 2) == "m="){
+      if (line.substr(0, 2) == "m=") {
         SDP::Media media;
         if (!media.parseMediaLine(line)){
           ERROR_MSG("Failed to parse the m= line.");
@@ -830,16 +834,7 @@ namespace SDP{
     return true;
   }
 
-  void Answer::setFingerprint(const std::string &fingerprintSha){
-    if (fingerprintSha.empty()){
-      WARN_MSG(
-          "Given fingerprint is empty; fine when you want to unset it; otherwise check your code.");
-    }
-    fingerprint = fingerprintSha;
-  }
-
-  void Answer::setDirection(const std::string &dir){
-    if (dir.empty()){WARN_MSG("Given direction string is empty; fine if you want to unset.");}
+  void Answer::setDirection(const std::string & dir) {
     direction = dir;
   }
 
@@ -886,27 +881,26 @@ namespace SDP{
 
   std::string Answer::toString(){
     if (direction.empty()){
-      FAIL_MSG("Cannot create SDP answer; direction not set. call setDirection().");
+      FAIL_MSG("Cannot create SDP answer; direction not set");
       return "";
     }
     if (candidates.empty()){
-      FAIL_MSG("Cannot create SDP answer; candidate not set. call setCandidate().");
+      FAIL_MSG("Cannot create SDP answer; candidate not set");
       return "";
     }
     if (fingerprint.empty()){
-      FAIL_MSG("Cannot create SDP answer; fingerprint not set. call setFingerpint().");
+      FAIL_MSG("Cannot create SDP answer; fingerprint not set");
       return "";
     }
 
-    std::string result;
-    output.clear();
+    std::stringstream o;
 
     // session
-    addLine("v=0");
-    addLine("o=- %s 0 IN IP4 0.0.0.0", generateSessionId().c_str());
-    addLine("s=-");
-    addLine("t=0 0");
-    addLine("a=ice-lite");
+    o << "v=0\r\n";
+    o << "o=- " << generateSessionId() << " 0 IN IP4 0.0.0.0\r\n";
+    o << "s=-\r\n";
+    o << "t=0 0\r\n";
+    o << "a=ice-lite\r\n";
 
     // session: bundle (audio and video use same candidate)
     if (isVideoEnabled && isAudioEnabled){
@@ -925,161 +919,122 @@ namespace SDP{
           bundled += sdpOffer.medias[i].mediaID;
         }
       }
-      addLine("a=group:BUNDLE %s", bundled.c_str());
+      o << "a=group:BUNDLE " << bundled << "\r\n";
     }
 
     // add medias (order is important)
-    for (size_t i = 0; i < sdpOffer.medias.size(); ++i){
-
-      SDP::Media &mediaOffer = sdpOffer.medias[i];
+    for (SDP::Media & mediaOffer : sdpOffer.medias) {
       std::string type = mediaOffer.type;
       SDP::Media *media = NULL;
-      SDP::MediaFormat *fmtMedia = NULL;
-      SDP::MediaFormat *fmtRED = NULL;
-      SDP::MediaFormat *fmtULPFEC = NULL;
+      SDP::MediaFormat *mFmt = NULL;
+      SDP::MediaFormat *rFmt = NULL;
+      SDP::MediaFormat *uFmt = NULL;
 
       bool isEnabled = false;
-      std::vector<uint8_t> supportedPayloadTypes;
       if (type != "audio" && type != "video" && type != "meta"){continue;}
 
-      // port = 9 (default), port = 0 (disable this media)
       if (type == "audio"){
         isEnabled = isAudioEnabled;
         media = &answerAudioMedia;
-        fmtMedia = &answerAudioFormat;
+        mFmt = &answerAudioFormat;
       }else if (type == "video"){
         isEnabled = isVideoEnabled;
         media = &answerVideoMedia;
-        fmtMedia = &answerVideoFormat;
-        fmtRED = media->getFormatForEncodingName("RED");
-        fmtULPFEC = media->getFormatForEncodingName("ULPFEC");
+        mFmt = &answerVideoFormat;
+        rFmt = media->getFormatForEncodingName("RED");
+        uFmt = media->getFormatForEncodingName("ULPFEC");
       }else if (type == "meta"){
         isEnabled = isMetaEnabled;
         media = &answerMetaMedia;
-        fmtMedia = &answerMetaFormat;
+        mFmt = &answerMetaFormat;
       }
 
       if (!media){
         WARN_MSG("No media found.");
         continue;
       }
-      if (!fmtMedia){
+      if (!mFmt) {
         WARN_MSG("No format found.");
         continue;
       }
-      // we collect all supported payload types (e.g. RED and
-      // ULPFEC have their own payload type). We then serialize
-      // them payload types into a string that is used with the
-      // `m=` line to indicate we have support for these.
-      supportedPayloadTypes.push_back((uint8_t)fmtMedia->payloadType);
-      if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) && fmtRED && fmtULPFEC){
-        supportedPayloadTypes.push_back(fmtRED->payloadType);
-        supportedPayloadTypes.push_back(fmtULPFEC->payloadType);
-      }
-
-      std::stringstream ss;
-      size_t nels = supportedPayloadTypes.size();
-      for (size_t k = 0; k < nels; ++k){
-        ss << (int)supportedPayloadTypes[k];
-        if ((k + 1) < nels){ss << " ";}
-      }
-      std::string payloadTypes = ss.str();
 
       std::string protocol = "UDP/TLS/RTP/SAVPF";
       if (type == "meta"){
         protocol = "UDP/DTLS/SCTP";
-        payloadTypes = "webrtc-datachannel";
         type = "application";
       }
 
       if (isEnabled){
-        addLine("m=%s 9 %s %s", type.c_str(), protocol.c_str(), payloadTypes.c_str());
+        // port 9 = enabled
+        o << "m=" << type << " 9 " << protocol << " ";
+        if (type == "application") {
+          o << "webrtc-datachannel";
+        } else {
+          o << mFmt->payloadType;
+          if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) && rFmt && uFmt) {
+            o << " " << rFmt->payloadType << " " << uFmt->payloadType;
+          }
+        }
+        o << "\r\n";
       }else{
-        addLine("m=%s %u %s %s", type.c_str(), 0, protocol.c_str(), mediaOffer.payloadTypes.c_str());
+        // port 0 = disabled
+        o << "m=" << type << " 0 " << protocol << " " << mediaOffer.payloadTypes << "\r\n";
       }
 
-      addLine("c=IN IP4 0.0.0.0");
-      if (!isEnabled){
-        // We have to add the direction otherwise we'll receive an error
-        // like "Answer tried to set recv when offer did not set send"
-        // from Firefox.
-        addLine("a=%s", direction.c_str());
-        continue;
-      }
+      o << "c=IN IP4 0.0.0.0\r\n";
+      o << "a=" << direction << "\r\n";
 
-      addLine("a=rtcp:9");
-      addLine("a=%s", direction.c_str());
-      addLine("a=setup:passive");
-      addLine("a=fingerprint:sha-256 %s", fingerprint.c_str());
-      addLine("a=ice-ufrag:%s", fmtMedia->iceUFrag.c_str());
-      addLine("a=ice-pwd:%s", fmtMedia->icePwd.c_str());
+      if (!isEnabled) { continue; }
+
+      o << "a=rtcp:9\r\n";
+      o << "a=setup:passive\r\n";
+      o << "a=fingerprint:sha-256 " << fingerprint << "\r\n";
+      o << "a=ice-ufrag:" << mFmt->iceUFrag << "\r\n";
+      o << "a=ice-pwd:" << mFmt->icePwd << "\r\n";
       if (type == "application"){
-        addLine("a=sctp-port:5000");
-        addLine("a=max-message-size:262144");
+        o << "a=sctp-port:5000\r\n";
+        o << "a=max-message-size:262144\r\n";
       }else{
-        addLine("a=rtcp-mux");
-        addLine("a=rtcp-rsize");
-        addLine("a=%s", fmtMedia->rtpmap.c_str());
+        o << "a=rtcp-mux\r\n";
+        o << "a=rtcp-rsize\r\n";
+        o << "a=" << mFmt->rtpmap << "\r\n";
       }
 
-      // BEGIN FEC/RTX: testing with just FEC or RTX
-      if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) && fmtRED && fmtULPFEC){
-        addLine("a=rtpmap:%u ulpfec/90000", fmtULPFEC->payloadType);
-        addLine("a=rtpmap:%u red/90000", fmtRED->payloadType);
+      if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) && rFmt && uFmt) {
+        o << "a=rtpmap:" << uFmt->payloadType << " ulpfec/90000\r\n";
+        o << "a=rtpmap:" << rFmt->payloadType << " red/90000\r\n";
       }
       if (videoLossPrevention & SDP_LOSS_PREVENTION_NACK){
-        addLine("a=rtcp-fb:%u nack", fmtMedia->payloadType);
+        o << "a=rtcp-fb:" << mFmt->payloadType << " nack\r\n";
       }
-      // END FEC/RTX
-      if (type == "video"){addLine("a=rtcp-fb:%u goog-remb", fmtMedia->payloadType);}
+      if (type == "video") { o << "a=rtcp-fb:" << mFmt->payloadType << " goog-remb\r\n"; }
 
-      if (!media->mediaID.empty()){addLine("a=mid:%s", media->mediaID.c_str());}
+      if (!media->mediaID.empty()) { o << "a=mid:" << media->mediaID << "\r\n"; }
 
-      if (fmtMedia->encodingName == "H264"){
-        std::string usedProfile = fmtMedia->getFormatParameterForName("profile-level-id");
+      if (mFmt->encodingName == "H264") {
+        std::string usedProfile = mFmt->getFormatParameterForName("profile-level-id");
         if (usedProfile != "42e01f"){
-          WARN_MSG("The selected profile-level-id was not 42e01f. We rewrite it into this because "
-                   "that's what we support atm.");
+          WARN_MSG("The selected profile-level-id was rewritten to 42e01f");
           usedProfile = "42e01f";
         }
-
-        addLine("a=fmtp:%u profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1",
-                fmtMedia->payloadType);
-      }else if (fmtMedia->encodingName == "OPUS"){
-        addLine("a=fmtp:%u minptime=10;useinbandfec=1", fmtMedia->payloadType);
+        o << "a=fmtp:" << mFmt->payloadType
+          << " profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1\r\n";
+      } else if (mFmt->encodingName == "OPUS") {
+        o << "a=fmtp:" << mFmt->payloadType << " minptime=10;useinbandfec=1\r\n";
       }
       //hacky way of adding sdes:mid extension line
       if (isVideoEnabled && isAudioEnabled){
-        for (std::set<std::string>::iterator it = media->extmap.begin(); it != media->extmap.end(); ++it){
-          if (it->find("sdes:mid") != std::string::npos){
-            addLine(*it);
-          }
+        for (const std::string & s : media->extmap) {
+          if (s.find("sdes:mid") != std::string::npos) { o << s << "\r\n"; }
         }
       }
-      for (auto c : candidates){
-        addLine("a=candidate:1 1 udp 2130706431 %s %u typ host", c.c_str(), port);
+      for (const std::string & c : candidates) {
+        o << "a=candidate:1 1 udp 2130706431 " << c << " " << port << " typ host\r\n";
       }
-      addLine("a=end-of-candidates");
+      o << "a=end-of-candidates\r\n";
     }
 
-    // combine all the generated lines.
-    size_t nlines = output.size();
-    for (size_t i = 0; i < nlines; ++i){result += output[i] + "\r\n";}
-
-    return result;
-  }
-
-  // The parameter here is NOT a reference, because va_start specifies that its parameter is not
-  // allowed to be one.
-  void Answer::addLine(const std::string fmt, ...){
-
-    char buffer[1024] ={};
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buffer, sizeof(buffer), fmt.c_str(), args);
-    va_end(args);
-
-    output.push_back(buffer);
+    return o.str();
   }
 
   // This function will check if the offer you passed into

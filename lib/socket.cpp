@@ -16,6 +16,7 @@
 #endif
 
 #include "defines.h"
+#include "ev.h"
 #include "socket.h"
 #include "timing.h"
 
@@ -73,23 +74,140 @@ Socket::Address::Address(const Util::ResizeablePointer & rhs) {
   addr.assign(rhs, rhs.size());
 }
 
-Socket::Address::Address(const char *rhs) {
-  addr = rhs;
+Socket::Address::Address(const char *rhs, size_t len) {
+  if (!len) {
+    switch (((struct sockaddr *)rhs)->sa_family) {
+      case AF_INET: len = sizeof(struct sockaddr_in); break;
+      case AF_INET6: len = sizeof(struct sockaddr_in6); break;
+      case PF_UNIX: len = sizeof(struct sockaddr_un); break;
+      default: break;
+    }
+  }
+  if (!len) {
+    FAIL_MSG("Cannot assign address from size-less pointer: address family not recognized");
+    addr.clear();
+  }
+  addr.assign(rhs, len);
 }
 
 std::string Socket::Address::toString() const {
-  std::string ip;
-  uint32_t port;
-  getAddrName(addr.c_str(), ip, port);
-  return ip + ':' + std::to_string(port);
+  if (!*this) { return "unset address"; }
+  sa_family_t f = family();
+  if (f == AF_INET) {
+    const sockaddr_in *A = (const sockaddr_in *)(sockaddr *)(*this);
+    return host() + ':' + std::to_string(ntohs(A->sin_port));
+  }
+  if (f == AF_INET6) {
+    const sockaddr_in6 *A = (const sockaddr_in6 *)(sockaddr *)(*this);
+    return "[" + host() + "]:" + std::to_string(ntohs(A->sin6_port));
+  }
+  return "unknown address type";
+}
+
+sa_family_t Socket::Address::family() const {
+  if (!*this) { return AF_UNSPEC; }
+  return ((sockaddr *)(*this))->sa_family;
+}
+
+bool Socket::Address::is4in6() const {
+  if (!*this) { return false; }
+  const sockaddr_in6 *A = (const sockaddr_in6 *)(sockaddr *)(*this);
+  if (A->sin6_family != AF_INET6) { return false; }
+  uint16_t *ip = (uint16_t *)&(A->sin6_addr);
+  if (ip[0] || ip[1] || ip[2] || ip[3] || ip[4]) { return false; }
+  return ip[5] == 0xffff;
+}
+
+Socket::Address::operator bool() const {
+  return addr.size();
+}
+
+const uint8_t *const Socket::Address::ipPtr() const {
+  sa_family_t fam = family();
+  if (fam == AF_INET) {
+    return (const uint8_t *const)&(((const sockaddr_in *)(sockaddr *)(*this))->sin_addr);
+  }
+  if (fam == AF_INET6) {
+    return (const uint8_t *const)&(((const sockaddr_in6 *)(sockaddr *)(*this))->sin6_addr);
+  }
+  return 0;
+}
+
+uint16_t Socket::Address::port() const {
+  sa_family_t f = family();
+  if (f == AF_INET) { return ntohs(((const sockaddr_in *)(sockaddr *)(*this))->sin_port); }
+  if (f == AF_INET6) { return ntohs(((const sockaddr_in6 *)(sockaddr *)(*this))->sin6_port); }
+  return 0;
+}
+
+std::string Socket::Address::host() const {
+  sa_family_t f = family();
+  if (f == AF_INET) {
+    // IPv4 - pretty easy, we simply convert to dotted-decimals notation and append the port
+    const sockaddr_in *A = (const sockaddr_in *)(sockaddr *)(*this);
+    uint8_t *ip = (uint8_t *)&(A->sin_addr);
+    return std::to_string(ip[0]) + '.' + std::to_string(ip[1]) + '.' + std::to_string(ip[2]) + '.' +
+      std::to_string(ip[3]);
+  }
+  if (f == AF_INET6) {
+    // IPv6 is... tricky.
+    // We split into 8 groups of 2 bytes in hex format separated by colons.
+    // The first-longest runs of zeroes is replaced by just double colons.
+    // If the first 5 groups are zero and group 6 is 0xffff, display the last 2 groups as an IPv4 address.
+    const sockaddr_in6 *A = (const sockaddr_in6 *)(sockaddr *)(*this);
+    uint8_t *ip = (uint8_t *)&(A->sin6_addr);
+    uint16_t g[8];
+    size_t runLen = 0;
+    size_t runStart = 0;
+    size_t curRunLen = 0;
+    size_t curRunStart = 0;
+    bool isIPv4 = true;
+    for (size_t i = 0; i < 8; ++i) {
+      g[i] = ((ip[2 * i] << 8) + ip[2 * i + 1]);
+      if (i < 5 && g[i]) { isIPv4 = false; }
+      if (i == 5 && g[i] != 0xffff) { isIPv4 = false; }
+      if (!g[i]) {
+        if (!curRunLen) { curRunStart = i; }
+        ++curRunLen;
+        if (curRunLen > runLen) {
+          runLen = curRunLen;
+          runStart = curRunStart;
+        }
+      } else {
+        curRunLen = 0;
+      }
+    }
+    std::stringstream r;
+    if (isIPv4) {
+      r << "::ffff:" << (int)ip[12] << '.' << (int)ip[13] << '.' << (int)ip[14] << '.' << (int)ip[15];
+    } else {
+      for (size_t i = 0; i < 8; ++i) {
+        if (runLen > 1 && runStart == i) {
+          r << ':';
+          if (runLen > 7) { r << ':'; }
+          i += runLen - 1;
+          continue;
+        }
+        if (i) { r << ':'; }
+        r << std::hex << g[i];
+      }
+    }
+    return r.str();
+  }
+  return "";
 }
 
 bool Socket::Address::operator<(const Address & rhs) const {
-  return toString() < rhs.toString();
+  return addr < rhs.addr;
 }
 
 bool Socket::Address::operator==(const Address & rhs) const {
-  return toString() == rhs.toString();
+  return addr.size() && rhs.addr.size() && addr == rhs.addr;
+}
+
+std::ostream & operator<<(std::ostream & o, const Socket::Address & a) {
+  o << a.toString();
+  return o;
 }
 
 std::string Socket::sockaddrToString(const sockaddr* A){
@@ -317,8 +435,8 @@ std::string Socket::getBinForms(std::string addr){
   return ret;
 }
 
-std::deque<std::string> Socket::getAddrs(std::string addr, uint16_t port, int family){
-  std::deque<std::string> ret;
+std::deque<Socket::Address> Socket::getAddrs(std::string addr, uint16_t port, int family) {
+  std::deque<Socket::Address> ret;
   struct addrinfo *result, *rp, hints;
   if (addr.substr(0, 7) == "::ffff:"){addr = addr.substr(7);}
   std::stringstream ss;
@@ -334,7 +452,7 @@ std::deque<std::string> Socket::getAddrs(std::string addr, uint16_t port, int fa
   if (!s){
     // Store each address in a string and put it in the deque.
     for (rp = result; rp != NULL; rp = rp->ai_next){
-      ret.push_back(std::string((char*)rp->ai_addr, rp->ai_addrlen));
+      ret.push_back(Socket::Address((char *)rp->ai_addr, rp->ai_addrlen));
     }
     freeaddrinfo(result);
   }
@@ -346,7 +464,7 @@ std::deque<std::string> Socket::getAddrs(std::string addr, uint16_t port, int fa
     if (!s){
       // Store each address in a string and put it in the deque.
       for (rp = result; rp != NULL; rp = rp->ai_next){
-        ret.push_back(std::string((char*)rp->ai_addr, rp->ai_addrlen));
+        ret.push_back(Socket::Address((char *)rp->ai_addr, rp->ai_addrlen));
       }
       freeaddrinfo(result);
     }
@@ -1920,18 +2038,6 @@ int Socket::Server::getSocket(){
   return sock;
 }
 
-
-#ifdef SSL
-static int dTLS_recv(void *s, unsigned char *buf, size_t len){
-  return ((Socket::UDPConnection*)s)->dTLSRead(buf, len);
-}
-
-static int dTLS_send(void *s, const unsigned char *buf, size_t len){
-  return ((Socket::UDPConnection*)s)->dTLSWrite(buf, len);
-}
-#endif
-
-
 /// Create a new UDP Socket.
 /// Will attempt to create an IPv6 UDP socket, on fail try a IPV4 UDP socket.
 /// If both fail, prints an DLVL_FAIL debug message.
@@ -1960,6 +2066,29 @@ Socket::UDPConnection::UDPConnection(const void * dest, size_t destLen, const vo
   if (loc && locLen){
     recvAddr.assign(loc, locLen);
     fam = ((sockaddr*)loc)->sa_family;
+  }
+}
+
+/// Create a new UDP socket, with local sender and/or remote destination pre-set.
+/// This ensure the address family matches, but does not bind or connect.
+Socket::UDPConnection::UDPConnection(const Socket::Address & remote, const Socket::Address & local) {
+  // Attempt to detect socket family; default to IPv6 if undetectable
+  int fam = AF_INET6;
+  if (remote) { fam = remote.family(); }
+  if (local) { fam = local.family(); }
+
+  // Init with detected family
+  init(false, fam);
+
+  // Allocate buffers and fill them with the addresses
+  allocateDestination(false);
+  if (remote) {
+    destAddr.assign(remote, remote.size());
+    fam = remote.family();
+  }
+  if (local) {
+    recvAddr.assign(local, local.size());
+    fam = local.family();
   }
 }
 
@@ -2048,7 +2177,7 @@ static int dtlsExtractKeyData( void *user, const unsigned char *ms, const unsign
 #endif
 
 #ifdef SSL
-void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key){
+void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key, bool asClient) {
   hasDTLS = true;
   nextDTLSRead.clear();
 
@@ -2078,8 +2207,8 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
   }
 
   /* load defaults into our ssl_conf */
-  r = mbedtls_ssl_config_defaults(&ssl_conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
-                                  MBEDTLS_SSL_PRESET_DEFAULT);
+  int endpoint = asClient ? MBEDTLS_SSL_IS_CLIENT : MBEDTLS_SSL_IS_SERVER;
+  r = mbedtls_ssl_config_defaults(&ssl_conf, endpoint, MBEDTLS_SSL_TRANSPORT_DATAGRAM, MBEDTLS_SSL_PRESET_DEFAULT);
   if (r){
     mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
     FAIL_MSG("dTLS could not set defaults: %s", mbedtls_msg);
@@ -2118,14 +2247,16 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
     return;
   }
 
-  // cookie setup (to prevent ddos, server-only)
-  r = mbedtls_ssl_cookie_setup(&cookie_ctx, mbedtls_ctr_drbg_random, &rand_ctx);
-  if (r){
-    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
-    FAIL_MSG("dTLS could not set SSL cookie: %s", mbedtls_msg);
-    return;
+  if (!asClient) {
+    // cookie setup (to prevent ddos, server-only)
+    r = mbedtls_ssl_cookie_setup(&cookie_ctx, mbedtls_ctr_drbg_random, &rand_ctx);
+    if (r) {
+      mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+      FAIL_MSG("dTLS could not set SSL cookie: %s", mbedtls_msg);
+      return;
+    }
+    mbedtls_ssl_conf_dtls_cookies(&ssl_conf, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, &cookie_ctx);
   }
-  mbedtls_ssl_conf_dtls_cookies(&ssl_conf, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, &cookie_ctx);
 
   // setup the ssl context
   r = mbedtls_ssl_setup(&ssl_ctx, &ssl_conf);
@@ -2136,18 +2267,37 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
   }
 
 #if MBEDTLS_VERSION_MAJOR > 2
-   mbedtls_ssl_set_export_keys_cb(&ssl_ctx, dtlsExtractKeyData, this);
+  mbedtls_ssl_set_export_keys_cb(&ssl_ctx, dtlsExtractKeyData, this);
 #endif
 
   // set input/output callbacks
-  mbedtls_ssl_set_bio(&ssl_ctx, (void *)this, dTLS_send, dTLS_recv, NULL);
+  mbedtls_ssl_set_bio(&ssl_ctx, (void *)this, [](void *s, const unsigned char *buf, size_t len) {
+    return ((Socket::UDPConnection *)s)->dTLSWrite(buf, len);
+  }, [](void *s, unsigned char *buf, size_t len) {
+    return ((Socket::UDPConnection *)s)->dTLSRead(buf, len);
+  }, NULL);
   mbedtls_ssl_set_timer_cb(&ssl_ctx, &timer_ctx, mbedtls_timing_set_delay, mbedtls_timing_get_delay);
 
-  // set transport ID (non-fatal on error)
-  r = mbedtls_ssl_set_client_transport_id(&ssl_ctx, (const unsigned char *)"mist", 4);
-  if (r){
-    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
-    WARN_MSG("dTLS could not set transport ID: %s", mbedtls_msg);
+  if (asClient) {
+    uint64_t timeout = Util::bootMS() + 10000;
+    Event::Loop ev;
+    ev.addSendQueue(this);
+    ev.addSocket(sock, [this](void *) {
+      while (Receive()) {};
+    }, 0);
+    while (!handshakeComplete() && Util::bootMS() < timeout) {
+      int ret = mbedtls_ssl_handshake(&ssl_ctx);
+      mbedtls_strerror(ret, mbedtls_msg, sizeof(mbedtls_msg));
+      ev.await(100);
+    }
+    if (!handshakeComplete()) { WARN_MSG("dTLS connect timeout on socket %d", sock); }
+  } else {
+    // set transport ID (non-fatal on error)
+    r = mbedtls_ssl_set_client_transport_id(&ssl_ctx, (const unsigned char *)"mist", 4);
+    if (r) {
+      mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+      WARN_MSG("dTLS could not set transport ID: %s", mbedtls_msg);
+    }
   }
 }
 
@@ -2284,18 +2434,17 @@ bool Socket::UDPConnection::operator==(const Socket::UDPConnection& b) const{
   if (sock == b.sock){return true;}
   // If either is closed (and the other is not), not equal.
   if (sock == -1 || b.sock == -1){return false;}
-  size_t recvSize = recvAddr.size();
-  if (b.recvAddr.size() < recvSize){recvSize = b.recvAddr.size();}
-  size_t destSize = destAddr.size();
-  if (b.destAddr.size() < destSize){destSize = b.destAddr.size();}
-  // They are equal if they hold the same local and remote address.
-  if (recvSize && destSize && destAddr && b.destAddr && recvAddr && b.recvAddr){
-    if (!memcmp(recvAddr, b.recvAddr, recvSize) && !memcmp(destAddr, b.destAddr, destSize)){
-      return true;
-    }
-  }
-  // All other cases, not equal
-  return false;
+  // They are inequal if they hold differing local or remote address.
+  if (recvAddr.size() != b.recvAddr.size()) { return false; }
+  if (destAddr.size() != b.destAddr.size()) { return false; }
+  if (memcmp(recvAddr, b.recvAddr, recvAddr.size())) { return false; }
+  if (memcmp(destAddr, b.destAddr, destAddr.size())) { return false; }
+  // Same local and remote address! They are equal.
+  return true;
+}
+
+bool Socket::UDPConnection::equals(const Socket::Address & remote, const Socket::Address & local) const {
+  return Socket::Address(recvAddr) == local && Socket::Address(destAddr) == remote;
 }
 
 Socket::UDPConnection::operator bool() const{return sock != -1;}
@@ -2350,16 +2499,16 @@ void Socket::UDPConnection::setAddresses(void * dest, size_t destLen, void * loc
 void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   DONTEVEN_MSG("Setting destination to %s:%u", destIp.c_str(), port);
 
-  std::deque<std::string> addrs = getAddrs(destIp, port, family);
-  for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
-    if (setDestination((sockaddr*)it->data(), it->size())){return;}
+  std::deque<Socket::Address> addrs = getAddrs(destIp, port, family);
+  for (auto & it : addrs) {
+    if (setDestination(it)) { return; }
   }
   destAddr.truncate(0);
   allocateDestination();
   FAIL_MSG("Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
 }// Socket::UDPConnection SetDestination
 
-bool Socket::UDPConnection::setDestination(sockaddr * addr, size_t size){
+bool Socket::UDPConnection::setDestination(const sockaddr *addr, const size_t size) {
   // UDP sockets can on-the-fly switch between IPv4/IPv6 if necessary
   if (family != addr->sa_family){
     if (ignoreSendErrors){return false;}
@@ -2393,6 +2542,10 @@ bool Socket::UDPConnection::setDestination(sockaddr * addr, size_t size){
     HIGH_MSG("Set UDP destination to %s:%d (%s)", trueDest.c_str(), truePort, addrFam(family));
   }
   return true;
+}
+
+bool Socket::UDPConnection::setDestination(const Socket::Address & addr) {
+  return setDestination((const sockaddr *)addr, addr.size());
 }
 
 const Util::ResizeablePointer & Socket::UDPConnection::getRemoteAddr() const{
@@ -2817,7 +2970,8 @@ repeatAddressFinding:
       boundAddr = iface;
       boundMulti = multicastInterfaces;
       boundPort = portNo;
-      INFO_MSG("UDP bind success %d on %s:%" PRIu32 " (%s)", sock, tryHost.c_str(), tryPort, addrFam(rp->ai_family));
+      INFO_MSG("UDP bind success %d on %s:%" PRIu32 " (%s)", sock, tryHost.c_str(), boundPort,
+               addrFam(rp->ai_family));
       break;
     }
     if (err_str.size()){err_str += ", ";}

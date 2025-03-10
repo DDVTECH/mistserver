@@ -124,7 +124,7 @@ namespace Socket{
     close();
     initializeEmpty();
     if (!rhs){return *this;}
-    memcpy(&remoteaddr, &(rhs.remoteaddr), sizeof(remoteaddr));
+    remoteaddr = rhs.remoteaddr;
     direction = rhs.direction;
     remotehost = rhs.remotehost;
     sock = rhs.sock;
@@ -158,16 +158,8 @@ namespace Socket{
     HIGH_MSG("Opening SRT connection in %s mode (%s) on socket %d", modeName.c_str(), direction.c_str(), _udpsocket.getSock());
 
     // Copy address from UDP socket
-    memcpy(&remoteaddr, _udpsocket.getDestAddr(), _udpsocket.getDestAddrLen());
-    static char addrconv[INET6_ADDRSTRLEN];
-    if (remoteaddr.sin6_family == AF_INET6){
-      remotehost = inet_ntop(AF_INET6, &(remoteaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-      HIGH_MSG("IPv6 addr [%s]", remotehost.c_str());
-    }
-    if (remoteaddr.sin6_family == AF_INET){
-      remotehost = inet_ntop(AF_INET, &(((sockaddr_in *)&remoteaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-      HIGH_MSG("IPv4 addr [%s]", remotehost.c_str());
-    }
+    remoteaddr = Socket::Address((const char *)_udpsocket.getDestAddr(), _udpsocket.getDestAddrLen());
+    HIGH_MSG("Addr [%s]", remoteaddr.toString().c_str());
 
     sock = srt_create_socket();
     HIGH_MSG("Opened SRT socket %d", sock);
@@ -241,14 +233,12 @@ namespace Socket{
     return "";
   }
 
-  std::string SRTConnection::getBinHost(){
+  std::string SRTConnection::getBinHost() {
     char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
-    switch (remoteaddr.sin6_family){
-    case AF_INET:
-      memcpy(tmpBuffer + 12, &(reinterpret_cast<const sockaddr_in *>(&remoteaddr)->sin_addr.s_addr), 4);
-      break;
-    case AF_INET6: memcpy(tmpBuffer, &(remoteaddr.sin6_addr.s6_addr), 16); break;
-    default: memset(tmpBuffer, 0, 16); break;
+    switch (remoteaddr.family()) {
+      case AF_INET: memcpy(tmpBuffer + 12, remoteaddr.ipPtr(), 4); break;
+      case AF_INET6: memcpy(tmpBuffer, remoteaddr.ipPtr(), 16); break;
+      default: memset(tmpBuffer, 0, 16); break;
     }
     return std::string(tmpBuffer, 16);
   }
@@ -392,29 +382,23 @@ namespace Socket{
              _host.c_str(), _port);
 
 #ifdef __CYGWIN__
-    std::deque<std::string> addrs = Socket::getAddrs(_host, _port, AF_INET);
-    std::deque<std::string> addrs6 = Socket::getAddrs(_host, _port, AF_INET6);
+    std::deque<Socket::Address> addrs = Socket::getAddrs(_host, _port, AF_INET);
+    std::deque<Socket::Address> addrs6 = Socket::getAddrs(_host, _port, AF_INET6);
     addrs.insert(addrs.end(), addrs6.begin(), addrs6.end());
 #else
-    std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
+    std::deque<Socket::Address> addrs = Socket::getAddrs(_host, _port);
 #endif
 
     if (modeName == "caller"){
       setBlocking(true);
-      for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
-        size_t maxSize = it->size();
-        if (maxSize > sizeof(remoteaddr)){maxSize = sizeof(remoteaddr);}
-        memcpy(&remoteaddr, it->data(), maxSize);
-
-        sockaddr *psa = (sockaddr *)&remoteaddr;
+      for (auto & it : addrs) {
+        remoteaddr = it;
         if (!open()) { return; }
         HIGH_MSG("Going to connect sock %d", sock);
-        if (srt_connect(sock, psa, sizeof remoteaddr) != SRT_ERROR){
+        if (srt_connect(sock, remoteaddr, remoteaddr.size()) != SRT_ERROR) {
           if (postConfigureSocket() == SRT_ERROR){ERROR_MSG("Error during postconfigure socket");}
-          std::string tgtHost;
-          uint32_t tgtPort;
-          Socket::getAddrName(psa, tgtHost, tgtPort);
-          INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s:%u -> %s:%" PRIu32, sock, getStateStr(), _host.c_str(), _port, tgtHost.c_str(), tgtPort);
+          INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s:%u -> %s", sock, getStateStr(),
+                   _host.c_str(), _port, it.toString().c_str());
           lastGood = Util::bootMS();
           return;
         }
@@ -424,16 +408,12 @@ namespace Socket{
       return;
     }
     if (modeName == "listener") {
-      for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
-        size_t maxSize = it->size();
-        if (maxSize > sizeof(remoteaddr)){maxSize = sizeof(remoteaddr);}
-        memcpy(&remoteaddr, it->data(), maxSize);
-
-        sockaddr *psa = (sockaddr *)&remoteaddr;
+      for (auto & it : addrs) {
+        remoteaddr = it;
         HIGH_MSG("Going to bind a server on %s:%u", _host.c_str(), _port);
 
         if (!open()) { return; }
-        if (srt_bind(sock, psa, sizeof remoteaddr) == SRT_ERROR){
+        if (srt_bind(sock, remoteaddr, remoteaddr.size()) == SRT_ERROR) {
           close();
           ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());
           continue;
@@ -664,18 +644,9 @@ namespace Socket{
     r.params = conn.params;
     r.postConfigureSocket();
     r.setBlocking(!nonblock);
-    static char addrconv[INET6_ADDRSTRLEN];
-
-    memcpy(&(r.remoteaddr), &tmpaddr, sizeof(tmpaddr));
-    if (tmpaddr.sin6_family == AF_INET6){
-      r.remotehost = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-      HIGH_MSG("IPv6 addr [%s]", r.remotehost.c_str());
-    }
-    if (tmpaddr.sin6_family == AF_INET){
-      r.remotehost = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-      HIGH_MSG("IPv4 addr [%s]", r.remotehost.c_str());
-    }
-    INFO_MSG("Accepted a socket coming from %s", r.remotehost.c_str());
+    r.remoteaddr = Socket::Address((const char *)&tmpaddr, len);
+    r.remotehost = r.remoteaddr.host();
+    INFO_MSG("Accepted a socket coming from %s", r.remoteaddr.toString().c_str());
     r.getBinHost();
     return r;
   }

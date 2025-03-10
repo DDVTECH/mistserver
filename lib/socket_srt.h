@@ -75,7 +75,7 @@ namespace Socket{
 
     std::string direction;
 
-    struct sockaddr_in6 remoteaddr;
+    Socket::Address remoteaddr;
     std::string remotehost;
     std::string getBinHost();
   private:

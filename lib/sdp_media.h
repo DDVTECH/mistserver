@@ -124,8 +124,6 @@ namespace SDP{
                                   ///< with WebRTC / STUN, see https://tools.ietf.org/html/rfc8122#section-5
     std::string mediaID; ///< From `a=mid:<value>`. When generating an WebRTC answer this value must
                          ///< be the same as in the offer.
-    std::string candidateIP; ///< Used when we generate a WebRTC answer.
-    uint16_t candidatePort;  ///< Used when we generate a WebRTC answer.
     uint32_t SSRC;        ///< From `a=ssrc:<SSRC> <something>`; the first SSRC that we encountered.
     double framerate;     ///< From `a=framerate`.
     bool supportsRTCPMux; ///< From `a=rtcp-mux`, indicates if it can mux RTP and RTCP on one
@@ -152,11 +150,12 @@ namespace SDP{
 
   public:
     std::vector<SDP::Media> medias; ///< For each `m=` line we create a `SDP::Media` instance. The
-                                    ///< stream specific infomration is stored in a `MediaFormat`
+                                    ///< stream specific information is stored in a `MediaFormat`
     std::string icePwd; ///< From `a=ice-pwd`, this property can be session-wide or media specific.
                         ///< Used with WebRTC and STUN when calculating the message-integrity.
     std::string iceUFrag; ///< From `a=ice-ufag`, this property can be session-wide or media specific. Used
                           ///< with WebRTC and STUN when calculating the message-integrity.
+    std::set<Socket::Address> candidates;
   };
 
   class Answer{
@@ -167,18 +166,15 @@ namespace SDP{
     bool hasAudio(); ///< Check if the offer has audio.
     bool enableVideo(const std::string &codecName, SDP::Session &sdpSession);
     bool enableAudio(const std::string &codecName, SDP::Session &sdpSession);
-    bool enableMeta(const std::string &codecName, SDP::Session &sdpSession);
-    void setFingerprint(const std::string &fingerprintSha); ///< Set the SHA265 that represents the
-                                                            ///< certificate that is used with DTLS.
+    bool enableMeta(const std::string & codecName, SDP::Session & sdpSession);
     void setDirection(const std::string &dir);
     bool setupVideoDTSCTrack(DTSC::Meta &M, size_t tid);
     bool setupAudioDTSCTrack(DTSC::Meta &M, size_t tid);
     std::string toString();
 
   private:
-    bool enableMedia(const std::string &type, const std::string &codecName, SDP::Media &outMedia,
-                     SDP::MediaFormat &outFormat, SDP::Session &sdpSession);
-    void addLine(const std::string fmt, ...);
+    bool enableMedia(const std::string & type, const std::string & codecName, SDP::Media & outMedia,
+                     SDP::MediaFormat & outFormat, SDP::Session & sdpSession);
     std::string generateSessionId();
     std::string generateIceUFrag(); ///< Generates the `ice-ufrag` value.
     std::string generateIcePwd();   ///< Generates the `ice-pwd` value.
@@ -198,9 +194,7 @@ namespace SDP{
     std::deque<std::string> candidates;
     uint16_t port;
     std::string fingerprint;
-    std::string direction;           ///< The direction used when generating the answer SDP string.
-    std::vector<std::string> output; ///< The lines that are used when adding lines (see `addLine()`
-                                     ///< for the answer sdp.).
+    std::string direction; ///< The direction used when generating the answer SDP string.
     uint8_t videoLossPrevention; ///< See the SDP_LOSS_PREVENTION_* values at the top of this header.
   };
 

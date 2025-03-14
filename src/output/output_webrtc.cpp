@@ -2357,10 +2357,6 @@ namespace Mist{
 
     if (currentRTPSocket != -1){
       myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
-    }else{
-      if (*(sockets[currentRTPSocket].udpSock)){
-        myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
-      }
     }
   }
 
@@ -2389,10 +2385,6 @@ namespace Mist{
 
     if (currentRTPSocket != -1){
       myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
-    }else{
-      if (*(sockets[currentRTPSocket].udpSock)){
-        myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
-      }
     }
   }
 
@@ -2431,10 +2423,6 @@ namespace Mist{
 
     if (currentRTPSocket != -1){
       myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
-    }else{
-      if (*(sockets[currentRTPSocket].udpSock)){
-        myConn.addUp(sockets[currentRTPSocket].sendRTCP((const char *)&buffer[0], buffer_size_in_bytes));
-      }
     }
   }
 
@@ -2506,10 +2494,6 @@ namespace Mist{
       }
       if (currentRTPSocket != -1){
         myConn.addUp(sockets[currentRTPSocket].sendRTCP(d, l));
-      }else{
-        if (*(sockets[currentRTPSocket].udpSock)){
-          myConn.addUp(sockets[currentRTPSocket].sendRTCP(d, l));
-        }
       }
     }, (uint32_t)rtcTrack.jitter);
   }

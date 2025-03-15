@@ -1671,7 +1671,7 @@ namespace Mist{
           if (!nSock.udpSock->cipher.size()){break;}
           if (wSock.srtpReader.init(nSock.udpSock->cipher, nSock.udpSock->remote_key, nSock.udpSock->remote_salt)){break;}
           if (wSock.srtpWriter.init(nSock.udpSock->cipher, nSock.udpSock->local_key, nSock.udpSock->local_salt)){break;}
-          if (!wSock.srtpReader.unprotectRtcp((uint8_t *)(char*)wSock.udpSock->data, &len)){
+          if (!wSock.srtpReader.unprotectRtp((uint8_t *)(char*)wSock.udpSock->data, &len)){
             INFO_MSG("Working cipher found! Using it.");
             wSock.udpSock->cipher = nSock.udpSock->cipher;
             wSock.udpSock->remote_key = nSock.udpSock->remote_key;

@@ -450,6 +450,7 @@ int main_loop(int argc, char **argv){
   Controller::loadActiveConnectors();
   Controller::externalWritersToShm();
 
+  Controller::E.addInterval(Controller::jwkUriCheck, 1000);
   Controller::E.addInterval(Controller::runStats, 1000);
   Controller::E.addInterval(Controller::updateLoad, 1000);
   Controller::variableTimer = Controller::E.addInterval(Controller::variableRun, 750);

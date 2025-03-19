@@ -269,7 +269,7 @@ namespace Mist {
     Util::ResizeablePointer digest_data;
     digest_data.append(temp+1, digest_pos);
     digest_data.append(temp+1+digest_pos+32, 1504-digest_pos);
-    Secure::hmac_sha256bin(digest_data, digest_data.size(), "Genuine Adobe Flash Player 001", 30, temp + 1 + digest_pos);
+    Secure::hmac_shabin(digest_data, digest_data.size(), "Genuine Adobe Flash Player 001", 30, temp + 1 + digest_pos, Secure::SHA256);
 
     myConn.SendNow(temp, 1536);
     while (!myConn.Received().available(1537) && myConn.connected() && config->is_active){
@@ -1718,8 +1718,6 @@ namespace Mist {
             }
           }
 
-          Util::sanitizeName(streamName);
-
           if (Triggers::shouldTrigger("PUSH_REWRITE")) {
             std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
             std::string newStream = streamName;
@@ -1741,8 +1739,6 @@ namespace Mist {
               }
             }
           }
-          Util::sanitizeName(streamName);
-          Util::setStreamName(streamName);
           if (!allowPush(app_name)) {
             onFinish();
             return;
@@ -1813,8 +1809,6 @@ namespace Mist {
           streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
         }
       }
-      Util::sanitizeName(streamName);
-      Util::setStreamName(streamName);
 
       if (config->getInteger("acceptable") == 2) { // Only allow incoming ( = 2)? Abort!
         AMF::Object amfReply;

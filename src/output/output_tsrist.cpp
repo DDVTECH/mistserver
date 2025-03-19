@@ -178,7 +178,6 @@ namespace Mist{
           return;
         }else{
           streamName = newStream;
-          Util::sanitizeName(streamName);
         }
       }
       if (!allowPush("")){

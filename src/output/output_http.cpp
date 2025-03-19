@@ -157,7 +157,6 @@ namespace Mist{
       if (match){
         if (streamname.size()){
           setenv("stream_raw", streamname.c_str(), 1);
-          Util::sanitizeName(streamname);
           setenv("stream", streamname.c_str(), 1);
         } else {
           unsetenv("stream");
@@ -366,6 +365,7 @@ namespace Mist{
         } else if (H.GetVar("sessId") != ""){
           tkn = H.GetVar("sessId");
         }
+        if (H.GetVar("jwt").size()) { tkn = H.GetVar("jwt"); }
       }
       if ((Comms::tknMode & 0x02) && !tkn.size()){
         // Get session token from the request cookie
@@ -375,6 +375,12 @@ namespace Mist{
         if (storage.count("tkn")){
           tkn = storage.at("tkn");
         }
+        if (storage.count("jwt")) { tkn = storage.at("jwt"); }
+      }
+
+      if (H.hasHeader("Authorization")) {
+        std::string auth = H.GetHeader("Authorization");
+        if (auth.size() > 7 && auth.substr(0, 7) == "Bearer ") { tkn = auth.substr(8); }
       }
       // Generate a session token if it is being sent as a cookie or url parameter and we couldn't read one
       if (!tkn.size() && Comms::tknMode > 3){

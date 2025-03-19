@@ -7,11 +7,16 @@
 
 #include <mist/auth.h>
 #include <mist/defines.h>
+#include <mist/downloader.h>
+#include <mist/encode.h>
+#include <mist/jwt.h>
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
 #include <mist/triggers.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <deque>
 #include <fstream>
 #include <iostream>
 #include <signal.h>
@@ -39,6 +44,12 @@ namespace Controller{
   uint32_t maxLogsRecs = 0;
   uint32_t maxAccsRecs = 0;
   uint64_t firstLog = 0;
+
+  HTTP::Downloader jwkDL;
+  std::map<std::string, std::deque<JWT::Key>> jwkResolved;
+  std::map<std::string, uint64_t> uriExpiresAt;
+  std::map<std::string, std::string> uriEndpoint;
+  std::map<std::string, JSON::Value> uriPerms;
 
   void *logMemory = 0;
   IPC::sharedPage *shmLogs = 0;
@@ -125,6 +136,88 @@ namespace Controller{
       rlxAccs->setString("tags", tags, newEndPos);
       rlxAccs->setEndPos(newEndPos + 1);
     }
+  }
+
+  size_t jwkUriCheck() {
+    if (jwkDL.isEventLooping()) return 5000;
+    size_t nowTime = Util::bootMS();
+    size_t nextCallTime = nowTime + 60000;
+
+    // Find all URIs in the storage and add them to the map if they are new
+    jsonForEachConst (Storage["jwks"], it) {
+      const std::string uri = (it->isArray() && it->size()) ? (*it)[0u].asStringRef() : it->asStringRef();
+      if (uri.find("://") == std::string::npos || uriExpiresAt.count(uri)) continue;
+      JSON::Value perms = (it->isArray() && it->size() > 1) ? (*it)[1u] : JSON::EMPTY;
+      uriExpiresAt[uri] = nowTime;
+      uriPerms[uri] = perms;
+    }
+
+    // When there is a URI expiring within 60s shorten the next call time
+    // Do not check explicitly for URI, the count() call is probably faster than find() on a JWK
+    std::string mostExpiredUri;
+    JSON::Value mostExpiredPerms;
+    for (auto jwk : uriExpiresAt) {
+      if (jwk.second >= nextCallTime) continue;
+      nextCallTime = jwk.second;
+      mostExpiredUri = jwk.first;
+      mostExpiredPerms = uriPerms[jwk.first];
+    }
+
+    // No (expired) URI means we do not have to download anything right now
+    nextCallTime = std::max(nextCallTime, nowTime);
+    if (mostExpiredUri.empty() || nextCallTime > nowTime) return nextCallTime - nowTime;
+
+    // Scooby Doo says 'ruh-roh! this uri is expired!'
+    jwkDL.getEventLooped(Controller::E, mostExpiredUri, 5, [mostExpiredPerms, nowTime, mostExpiredUri]() {
+      // Success callback function
+      uriExpiresAt[mostExpiredUri] = nowTime + 60000;
+      if (!jwkDL.isOk()) return;
+
+      // Set the new expiry time depending on the cache control header
+      const std::string & cc = jwkDL.getHeader("Cache-Control");
+      size_t pos = cc.find("max-age=");
+      if (pos != std::string::npos) { uriExpiresAt[mostExpiredUri] = nowTime + 1000 * std::atoi(cc.data() + pos + 8); }
+
+      // Get the response, should be either a 'well-known' response or an array of keys
+      const JSON::Value & response = JSON::fromString(jwkDL.data());
+
+      // In the event that the endpoint changed remove all old keys associated with it
+      std::string jwksUri = response["jwks_uri"].asString();
+      if (uriEndpoint.count(mostExpiredUri) && jwksUri != uriEndpoint[mostExpiredUri]) {
+        // Schedule JWK retrieval it within a second from now and erase from all structures
+        jwkResolved.erase(uriEndpoint[mostExpiredUri]);
+        uriExpiresAt.erase(uriEndpoint[mostExpiredUri]);
+      }
+
+      // Parse the JWKs endpoint from the generic well-known endpoint
+      if (jwksUri.size()) {
+        uriExpiresAt[jwksUri] = nowTime;
+        uriEndpoint[mostExpiredUri] = jwksUri;
+        uriPerms[jwksUri] = mostExpiredPerms;
+      } else {
+        uriExpiresAt.erase(jwksUri);
+        uriEndpoint.erase(mostExpiredUri);
+        uriPerms.erase(jwksUri);
+      }
+
+      // Parse any keys that are present in the 'keys' member
+      if (response["keys"].isArray()) {
+        jsonForEachConst (response["keys"], key) {
+          const std::string & kty = (*key)["kty"].asStringRef();
+          if (kty != "oct" && kty != "RSA" && kty != "EC") continue;
+          JWT::Key jwk = JWT::Key(*key, mostExpiredPerms);
+          jwkResolved[mostExpiredUri].emplace_back(jwk);
+        }
+      } else {
+        jwkResolved.erase(mostExpiredUri);
+      }
+      writeConfig();
+    }, [nowTime, mostExpiredUri]() {
+      // Failure callback function
+      uriExpiresAt[mostExpiredUri] = nowTime + 60000;
+    });
+
+    return nextCallTime - nowTime;
   }
 
   void normalizeTrustedProxies(JSON::Value &tp){
@@ -864,8 +957,7 @@ namespace Controller{
               }
             }
 
-            if (triggIt->isObject()){
-              if (!triggIt->isMember("handler") || (*triggIt)["handler"].isNull()){continue;}
+            if (triggIt->isObject()) {
               tPage.setString("url", (*triggIt)["handler"].asStringRef(), i);
               tPage.setInt("sync", ((*triggIt)["sync"].asBool() ? 1 : 0), i);
               char *strmP = tPage.getPointer("streams", i);
@@ -915,8 +1007,75 @@ namespace Controller{
       serverStartTriggered = true;
     }
     /*LTS-END*/
-  }
 
+    { // Scope for writing JWKs to their own shared memory page
+      jwkUriCheck();
+
+      // First retrieve all storage entries that are JWKs (non-URI)
+      jsonForEachConst (Storage["jwks"], it) {
+        if (it->isString() || (it->isArray() && (*it)[0u].isString())) continue;
+        JWT::Key jwk = JWT::Key((it->isArray()) ? (*it)[0u] : *it, (it->isArray()) ? (*it)[1u] : JSON::EMPTY);
+        jwkResolved["default"].emplace_back(jwk);
+      }
+
+      // Remove any nulled elements from the keystore and start setting up the shared page
+      IPC::sharedPage keyCfg;
+      keyCfg.init(SHM_JWK, 8 * 1024 * 1024, false, false);
+
+      if (keyCfg) {
+        Util::RelAccX tmpAccX(keyCfg.mapped, false);
+        if (tmpAccX.isReady()) { tmpAccX.setReload(); }
+        keyCfg.master = true;
+        keyCfg.close();
+      }
+
+      keyCfg.init(SHM_JWK, 8 * 1024 * 1024, true);
+      Util::RelAccX keyAccX(keyCfg.mapped, false);
+      keyAccX.addField("kid", RAX_64STRING);
+      keyAccX.addField("kty", RAX_32STRING);
+      keyAccX.addField("key", RAX_STRING, 8192);
+      keyAccX.addField("perms", RAX_UINT, 1);
+      keyAccX.addField("stream", RAX_128STRING);
+
+      // For faster writing to shared memory
+      Util::RelAccXFieldData kidFd = keyAccX.getFieldData("kid");
+      Util::RelAccXFieldData ktyFd = keyAccX.getFieldData("kty");
+      Util::RelAccXFieldData keyFd = keyAccX.getFieldData("key");
+      Util::RelAccXFieldData prmFd = keyAccX.getFieldData("perms");
+      Util::RelAccXFieldData strFd = keyAccX.getFieldData("stream");
+
+      uint32_t i = 0;
+      uint32_t max = (8 * 1024 * 1024 - keyAccX.getOffset()) / keyAccX.getRSize();
+
+      std::map<std::string, uint32_t> uniques;
+
+      // For each key in the storage write it to shared memory
+      for (auto jwkUriPair : jwkResolved) {
+        for (auto jwk : jwkUriPair.second) {
+          std::string raw = jwk.toString(false);
+          // Duplicate prevention based on full key matching
+          uint32_t j = i;
+          if (uniques.count(raw))
+            j = uniques[raw];
+          else
+            uniques.insert({raw, i++}); // inc. after insert
+
+          // Actually set the data in the memory page
+          keyAccX.setString(ktyFd, jwk["kty"], j);
+          keyAccX.setString(keyFd, raw, j);
+          keyAccX.setString(strFd, jwk.getStream(), j);
+          keyAccX.setString(kidFd, jwk["kid"], j);
+          keyAccX.setInt(prmFd, jwk.getPerms(), j);
+        }
+      }
+
+      if (i >= max) ERROR_MSG("Not all JWKs fit on the memory page!");
+      keyAccX.setRCount(std::min(i, max));
+      keyAccX.setEndPos(std::min(i, max));
+      keyAccX.setReady();
+      keyCfg.master = false;
+    }
+  }
 
   void addShmPage(const std::string & page){
     std::lock_guard<std::mutex> guard(shmListMutex);
@@ -933,6 +1092,5 @@ namespace Controller{
     }
     shmList.clear();
   }
-
 
 }// namespace Controller

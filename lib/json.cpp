@@ -643,17 +643,30 @@ JSON::Value &JSON::Value::assignFrom(const Value &rhs, const std::set<std::strin
 }
 
 /// Extends this JSON::Value object with the given JSON::Value object, skipping given member(s) recursively.
-JSON::Value &JSON::Value::extend(const Value &rhs, const std::set<std::string> &skip){
+JSON::Value & JSON::Value::extend(const Value & rhs, const std::set<std::string> & skip, const std::set<std::string> & incl) {
   // Null values turn into objects automatically for sanity reasons
   if (myType == EMPTY || myType == UNSET) { myType = OBJECT; }
   // Abort if either value is not an object
   if (myType != rhs.myType || myType != OBJECT){return *this;}
-  jsonForEachConst(rhs, i){
-    if (!skip.count(i.key())){
-      if (!objVal.count(i.key()) || !i->isObject()){
-        (*this)[i.key()] = *i;
-      }else{
-        (*this)[i.key()].extend(*i, skip);
+  if (incl.empty()) {
+    jsonForEachConst (rhs, i) {
+      if (!skip.count(i.key())) {
+        if (!objVal.count(i.key()) || !i->isObject()) {
+          (*this)[i.key()] = *i;
+        } else {
+          (*this)[i.key()].extend(*i, skip);
+        }
+      }
+    }
+  } else {
+    for (const std::string & k : incl) {
+      if (!rhs.isMember(k)) continue;
+      if (!skip.count(k)) {
+        if (!objVal.count(k) || !rhs[k].isObject()) {
+          (*this)[k] = rhs[k];
+        } else {
+          (*this)[k].extend(rhs[k], skip);
+        }
       }
     }
   }

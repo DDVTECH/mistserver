@@ -1,4 +1,7 @@
 #include "auth.h"
+
+#include "encode.h"
+
 #include <inttypes.h>
 #include <iomanip>
 #include <sstream>
@@ -11,12 +14,12 @@ namespace Secure{
   std::string md5(std::string input){return md5(input.data(), input.size());}
 
   /// Calculates a MD5 digest as per rfc1321, returning it as a hexadecimal alphanumeric string.
-  std::string md5(const char *input, const unsigned int in_len){
+  std::string md5(const char *input, size_t in_len) {
     char output[16];
     md5bin(input, in_len, output);
     std::stringstream outStr;
-    for (unsigned int i = 0; i < 16; ++i){
-      outStr << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(output[i] & 0xff);
+    for (size_t i = 0; i < 16; ++i) {
+      outStr << std::hex << std::setw(2) << std::setfill('0') << (size_t)(output[i] & 0xff);
     }
     return outStr.str();
   }
@@ -25,12 +28,12 @@ namespace Secure{
   std::string sha256(std::string input){return sha256(input.data(), input.size());}
 
   /// Calculates a SHA256 digest as per NSAs SHA-2, returning it as a hexadecimal alphanumeric string.
-  std::string sha256(const char *input, const unsigned int in_len){
+  std::string sha256(const char *input, size_t in_len) {
     char output[32];
     sha256bin(input, in_len, output);
     std::stringstream outStr;
-    for (unsigned int i = 0; i < 32; ++i){
-      outStr << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(output[i] & 0xff);
+    for (size_t i = 0; i < 32; ++i) {
+      outStr << std::hex << std::setw(2) << std::setfill('0') << (size_t)(output[i] & 0xff);
     }
     return outStr.str();
   }
@@ -41,7 +44,7 @@ namespace Secure{
   static inline void md5_add64(uint32_t *hash, const char *data){
     // Inspired by the pseudocode as available on Wikipedia on March 2nd, 2015.
     uint32_t M[16];
-    for (unsigned int i = 0; i < 16; ++i){
+    for (size_t i = 0; i < 16; ++i) {
       M[i] = data[i << 2] | (data[(i << 2) + 1] << 8) | (data[(i << 2) + 2] << 16) |
              (data[(i << 2) + 3] << 24);
     }
@@ -64,7 +67,7 @@ namespace Secure{
     uint32_t B = hash[1];
     uint32_t C = hash[2];
     uint32_t D = hash[3];
-    for (unsigned int i = 0; i < 64; ++i){
+    for (size_t i = 0; i < 64; ++i) {
       uint32_t F, g;
       if (i < 16){
         F = (B & C) | ((~B) & D);
@@ -94,11 +97,11 @@ namespace Secure{
 
   /// Calculates a MD5 digest as per rfc1321, returning it as binary.
   /// Assumes output is big enough to contain 16 bytes of data.
-  void md5bin(const char *input, const unsigned int in_len, char *output){
+  void md5bin(const char *input, size_t in_len, char *output) {
     // Initialize the hash, according to MD5 spec.
     uint32_t hash[] ={0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
     // Add as many whole blocks of 64 bytes as possible from the input, until < 64 are left.
-    unsigned int offset = 0;
+    size_t offset = 0;
     while (offset + 64 <= in_len){
       md5_add64(hash, input + offset);
       offset += 64;
@@ -149,23 +152,21 @@ namespace Secure{
     output[15] = (hash[3] >> 24) & 0xff;
   }
 
-  /// Right rotate function. Shifts bytes off the least significant end, wrapping them to the most significant end.
-  static inline uint32_t rr(uint32_t x, uint32_t c){
-    return ((x << (32 - c)) | ((x & 0xFFFFFFFF) >> c));
-  }
-
   /// Adds 64 bytes of data to the current SHA256 hash.
   /// hash is the current hash, represented by 8 unsigned longs.
   /// data is the 64 bytes of data that need to be added.
   static inline void sha256_add64(uint32_t *hash, const char *data){
     // Inspired by the pseudocode as available on Wikipedia on March 3rd, 2015.
     uint32_t w[64];
-    for (unsigned int i = 0; i < 16; ++i){
+    for (size_t i = 0; i < 16; ++i) {
       w[i] = (uint32_t)data[(i << 2) + 3] | ((uint32_t)data[(i << 2) + 2] << 8) |
              ((uint32_t)data[(i << 2) + 1] << 16) | ((uint32_t)data[(i << 2) + 0] << 24);
     }
 
-    for (unsigned int i = 16; i < 64; ++i){
+    // Right rotate function. Shifts bytes off the least significant end, wrapping them to the most significant end.
+    auto rr = [](uint64_t x, size_t c) -> uint64_t { return (x << (32 - c)) | ((x & 0xFFFFFFFF) >> c); };
+
+    for (size_t i = 16; i < 64; ++i) {
       uint32_t s0 = rr(w[i - 15], 7) ^ rr(w[i - 15], 18) ^ ((w[i - 15] & 0xFFFFFFFF) >> 3);
       uint32_t s1 = rr(w[i - 2], 17) ^ rr(w[i - 2], 19) ^ ((w[i - 2] & 0xFFFFFFFF) >> 10);
       w[i] = w[i - 16] + s0 + w[i - 7] + s1;
@@ -190,7 +191,7 @@ namespace Secure{
     uint32_t f = hash[5];
     uint32_t g = hash[6];
     uint32_t h = hash[7];
-    for (unsigned int i = 0; i < 64; ++i){
+    for (size_t i = 0; i < 64; ++i) {
       uint32_t temp1 = h + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + (g ^ (e & (f ^ g))) + k[i] + w[i];
       uint32_t temp2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & b) | (c & (a | b)));
       h = g;
@@ -214,12 +215,12 @@ namespace Secure{
 
   /// Calculates a SHA256 digest as per NSAs SHA-2, returning it as binary.
   /// Assumes output is big enough to contain 32 bytes of data.
-  void sha256bin(const char *input, const unsigned int in_len, char *output){
+  void sha256bin(const char *input, size_t in_len, char *output) {
     // Initialize the hash, according to MD5 spec.
     uint32_t hash[] ={0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
                        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
     // Add as many whole blocks of 64 bytes as possible from the input, until < 64 are left.
-    unsigned int offset = 0;
+    size_t offset = 0;
     while (offset + 64 <= in_len){
       sha256_add64(hash, input + offset);
       offset += 64;
@@ -285,12 +286,166 @@ namespace Secure{
     output[28] = (hash[7] >> 24) & 0xff;
   }
 
+  static inline void sha512_add128(uint64_t *hash, const char *data) {
+    uint64_t w[80];
+    // Initialize first 16 words from input (big-endian)
+    for (size_t i = 0; i < 16; ++i) {
+      w[i] = 0;
+      for (size_t j = 0; j < 8; ++j) { w[i] |= (uint64_t)data[i * 8 + j] << ((7 - j) * 8); }
+    }
+
+    auto rr = [](uint64_t x, size_t c) -> uint64_t { return (x >> c) | (x << (64 - c)); };
+
+    for (size_t i = 16; i < 80; ++i) {
+      uint64_t s0 = rr(w[i - 15], 1) ^ rr(w[i - 15], 8) ^ (w[i - 15] >> 7);
+      uint64_t s1 = rr(w[i - 2], 19) ^ rr(w[i - 2], 61) ^ (w[i - 2] >> 6);
+      w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+    }
+
+    static const uint64_t k[80] = {
+      0x428a2f98d728ae22ULL, 0x7137449123ef65cdULL, 0xb5c0fbcfec4d3b2fULL, 0xe9b5dba58189dbbcULL,
+      0x3956c25bf348b538ULL, 0x59f111f1b605d019ULL, 0x923f82a4af194f9bULL, 0xab1c5ed5da6d8118ULL,
+      0xd807aa98a3030242ULL, 0x12835b0145706fbeULL, 0x243185be4ee4b28cULL, 0x550c7dc3d5ffb4e2ULL,
+      0x72be5d74f27b896fULL, 0x80deb1fe3b1696b1ULL, 0x9bdc06a725c71235ULL, 0xc19bf174cf692694ULL,
+      0xe49b69c19ef14ad2ULL, 0xefbe4786384f25e3ULL, 0x0fc19dc68b8cd5b5ULL, 0x240ca1cc77ac9c65ULL,
+      0x2de92c6f592b0275ULL, 0x4a7484aa6ea6e483ULL, 0x5cb0a9dcbd41fbd4ULL, 0x76f988da831153b5ULL,
+      0x983e5152ee66dfabULL, 0xa831c66d2db43210ULL, 0xb00327c898fb213fULL, 0xbf597fc7beef0ee4ULL,
+      0xc6e00bf33da88fc2ULL, 0xd5a79147930aa725ULL, 0x06ca6351e003826fULL, 0x142929670a0e6e70ULL,
+      0x27b70a8546d22ffcULL, 0x2e1b21385c26c926ULL, 0x4d2c6dfc5ac42aedULL, 0x53380d139d95b3dfULL,
+      0x650a73548baf63deULL, 0x766a0abb3c77b2a8ULL, 0x81c2c92e47edaee6ULL, 0x92722c851482353bULL,
+      0xa2bfe8a14cf10364ULL, 0xa81a664bbc423001ULL, 0xc24b8b70d0f89791ULL, 0xc76c51a30654be30ULL,
+      0xd192e819d6ef5218ULL, 0xd69906245565a910ULL, 0xf40e35855771202aULL, 0x106aa07032bbd1b8ULL,
+      0x19a4c116b8d2d0c8ULL, 0x1e376c085141ab53ULL, 0x2748774cdf8eeb99ULL, 0x34b0bcb5e19b48a8ULL,
+      0x391c0cb3c5c95a63ULL, 0x4ed8aa4ae3418acbULL, 0x5b9cca4f7763e373ULL, 0x682e6ff3d6b2b8a3ULL,
+      0x748f82ee5defb2fcULL, 0x78a5636f43172f60ULL, 0x84c87814a1f0ab72ULL, 0x8cc702081a6439ecULL,
+      0x90befffa23631e28ULL, 0xa4506cebde82bde9ULL, 0xbef9a3f7b2c67915ULL, 0xc67178f2e372532bULL,
+      0xca273eceea26619cULL, 0xd186b8c721c0c207ULL, 0xeada7dd6cde0eb1eULL, 0xf57d4f7fee6ed178ULL,
+      0x06f067aa72176fbaULL, 0x0a637dc5a2c898a6ULL, 0x113f9804bef90daeULL, 0x1b710b35131c471bULL,
+      0x28db77f523047d84ULL, 0x32caab7b40c72493ULL, 0x3c9ebe0a15c9bebcULL, 0x431d67c49c100d4cULL,
+      0x4cc5d4becb3e42b6ULL, 0x597f299cfc657e2aULL, 0x5fcb6fab3ad6faecULL, 0x6c44198c4a475817ULL};
+
+    uint64_t a = hash[0], b = hash[1], c = hash[2], d = hash[3];
+    uint64_t e = hash[4], f = hash[5], g = hash[6], h = hash[7];
+
+    for (size_t i = 0; i < 80; ++i) {
+      uint64_t s1 = rr(e, 14) ^ rr(e, 18) ^ rr(e, 41);
+      uint64_t ch = (e & f) ^ ((~e) & g);
+      uint64_t temp1 = h + s1 + ch + k[i] + w[i];
+      uint64_t s0 = rr(a, 28) ^ rr(a, 34) ^ rr(a, 39);
+      uint64_t maj = (a & b) ^ (a & c) ^ (b & c);
+      uint64_t temp2 = s0 + maj;
+
+      h = g;
+      g = f;
+      f = e;
+      e = d + temp1;
+      d = c;
+      c = b;
+      b = a;
+      a = temp1 + temp2;
+    }
+
+    hash[0] += a;
+    hash[1] += b;
+    hash[2] += c;
+    hash[3] += d;
+    hash[4] += e;
+    hash[5] += f;
+    hash[6] += g;
+    hash[7] += h;
+  }
+
+  /// Handler function that calculates a SHA384 digest, returning it as binary.
+  void sha384bin(const char *input, size_t in_len, char *output) {
+    return sha512bin(input, in_len, output, true);
+  }
+
+  /// Handler function that calculates a SHA512 digest, returning it as binary.
+  void sha512bin(const char *input, size_t in_len, char *output) {
+    return sha512bin(input, in_len, output, false);
+  }
+
+  /// Calculates a SHA512 digest, returning it as binary.
+  /// Assumes output is big enough to contain 64 bytes of data.
+  void sha512bin(const char *input, size_t in_len, char *output, bool is384) {
+    // Initialize the hash, according to spec of either SHA-384 or SHA-512
+    uint64_t hash[8];
+    if (is384) {
+      hash[0] = 0xcbbb9d5dc1059ed8ULL;
+      hash[1] = 0x629a292a367cd507ULL;
+      hash[2] = 0x9159015a3070dd17ULL;
+      hash[3] = 0x152fecd8f70e5939ULL;
+      hash[4] = 0x67332667ffc00b31ULL;
+      hash[5] = 0x8eb44a8768581511ULL;
+      hash[6] = 0xdb0c2e0d64f98fa7ULL;
+      hash[7] = 0x47b5481dbefa4fa4ULL;
+    } else {
+      hash[0] = 0x6a09e667f3bcc908ULL;
+      hash[1] = 0xbb67ae8584caa73bULL;
+      hash[2] = 0x3c6ef372fe94f82bULL;
+      hash[3] = 0xa54ff53a5f1d36f1ULL;
+      hash[4] = 0x510e527fade682d1ULL;
+      hash[5] = 0x9b05688c2b3e6c1fULL;
+      hash[6] = 0x1f83d9abfb41bd6bULL;
+      hash[7] = 0x5be0cd19137e2179ULL;
+    }
+
+    // Add as many whole blocks of 128 bytes as possible from the input, until < 128 are left.
+    size_t offset = 0;
+    while (offset + 128 <= in_len) {
+      sha512_add128(hash, input + offset);
+      offset += 128;
+    }
+    // Copy the remainder to a 64 byte buffer.
+    char buffer[128] = {0};
+    memcpy(buffer, input + offset, in_len - offset);
+    offset = in_len - offset;
+
+    // Append 0x80 and zero pad
+    buffer[offset] = 0x80;
+    memset(buffer + offset + 1, 0, 128 - offset - 1);
+
+    if (offset > 111) {
+      sha512_add128(hash, buffer);
+      memset(buffer, 0, 128);
+    }
+
+    uint64_t low = in_len * 8ULL, high = 0;
+    for (size_t i = 0; i < 8; ++i) buffer[112 + i] = (high >> (56 - i * 8)) & 0xff;
+    for (size_t i = 0; i < 8; ++i) buffer[120 + i] = (low >> (56 - i * 8)) & 0xff;
+
+    // Process final block
+    sha512_add128(hash, buffer);
+
+    // Output result as big-endian
+    size_t out_bytes = is384 ? 6 : 8;
+    for (int i = 0; i < out_bytes; i++) {
+      for (int j = 0; j < 8; j++) { output[i * 8 + j] = (hash[i] >> (56 - j * 8)) & 0xff; }
+    }
+  }
+
+  /// Generic delegating function for different SHA algorithms that return the binary
+  void shabin(const char *input, size_t in_len, char *output, SHA alg) {
+    switch (alg) {
+      case SHA256: sha256bin(input, in_len, output); break;
+      case SHA384: sha384bin(input, in_len, output); break;
+      case SHA512: sha512bin(input, in_len, output); break;
+    }
+  }
+
+  /// Generic function that computes the base64url-encoded HMAC digest for the given SHA algorithm
+  std::string digest_hmac(const std::string & msg, const JSON::Value & _key, SHA alg) {
+    char binHash[64] = {0};
+    std::string key = Encodings::Base64::decode(_key["k"].asStringRef());
+    hmac_shabin(msg.c_str(), msg.size(), key.c_str(), key.size(), binHash, alg);
+    return Encodings::Base64::encode(std::string(binHash, alg / 8), true);
+  }
+
   /// Performs HMAC on msg with given key.
   /// Uses given hasher function, requires hashSize to be set accordingly.
   /// Output is returned as hexadecimal alphanumeric string.
   /// The hasher function must be the "bin" version of the hasher to have a compatible function signature.
-  std::string hmac(std::string msg, std::string key, unsigned int hashSize,
-                   void hasher(const char *, const unsigned int, char *), unsigned int blockSize){
+  std::string hmac(std::string msg, std::string key, size_t hashSize, void hasher(const char *, size_t, char *), size_t blockSize) {
     return hmac(msg.data(), msg.size(), key.data(), key.size(), hashSize, hasher, blockSize);
   }
 
@@ -298,14 +453,13 @@ namespace Secure{
   /// Uses given hasher function, requires hashSize to be set accordingly.
   /// Output is returned as hexadecimal alphanumeric string.
   /// The hasher function must be the "bin" version of the hasher to have a compatible function signature.
-  std::string hmac(const char *msg, const unsigned int msg_len, const char *key,
-                   const unsigned int key_len, unsigned int hashSize,
-                   void hasher(const char *, const unsigned int, char *), unsigned int blockSize){
+  std::string hmac(const char *msg, size_t msg_len, const char *key, size_t key_len, size_t hashSize,
+                   void hasher(const char *, size_t, char *), size_t blockSize) {
     char output[hashSize];
     hmacbin(msg, msg_len, key, key_len, hashSize, hasher, blockSize, output);
     std::stringstream outStr;
-    for (unsigned int i = 0; i < hashSize; ++i){
-      outStr << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(output[i] & 0xff);
+    for (size_t i = 0; i < hashSize; ++i) {
+      outStr << std::hex << std::setw(2) << std::setfill('0') << (size_t)(output[i] & 0xff);
     }
     return outStr.str();
   }
@@ -314,9 +468,8 @@ namespace Secure{
   /// Uses given hasher function, requires hashSize to be set accordingly.
   /// Output is written in binary form to output, and assumes hashSize bytes are available to be written to.
   /// The hasher function must be the "bin" version of the hasher to have a compatible function signature.
-  void hmacbin(const char *msg, const unsigned int msg_len, const char *key, const unsigned int key_len,
-               unsigned int hashSize, void hasher(const char *, const unsigned int, char *),
-               unsigned int blockSize, char *output){
+  void hmacbin(const char *msg, size_t msg_len, const char *key, size_t key_len, size_t hashSize,
+               void hasher(const char *, size_t, char *), size_t blockSize, char *output) {
     char key_data[blockSize]; // holds key as used in HMAC algorithm
     if (key_len > blockSize){
       // If the key given is too big, hash it.
@@ -330,7 +483,7 @@ namespace Secure{
     // key_data now contains hashSize bytes of key data, treated as per spec.
     char inner[blockSize + msg_len];  // holds data for inner hash
     char outer[blockSize + hashSize]; // holds data for outer hash
-    for (unsigned int i = 0; i < blockSize; ++i){
+    for (size_t i = 0; i < blockSize; ++i) {
       inner[i] = key_data[i] ^ 0x36;
       outer[i] = key_data[i] ^ 0x5c;
     }
@@ -342,21 +495,28 @@ namespace Secure{
     hasher(outer, blockSize + hashSize, output);
   }
 
-  /// Convenience function that returns the hexadecimal alphanumeric HMAC-SHA256 of msg and key
-  std::string hmac_sha256(std::string msg, std::string key){
-    return hmac_sha256(msg.data(), msg.size(), key.data(), key.size());
+  /// Generic convenience function that returns the hexadecimal alphanumeric HMAC of msg and key
+  std::string hmac_sha(std::string msg, std::string key, SHA alg) {
+    return hmac_sha(msg.data(), msg.size(), key.data(), key.size(), alg);
   }
 
-  /// Convenience function that returns the hexadecimal alphanumeric HMAC-SHA256 of msg and key
-  std::string hmac_sha256(const char *msg, const unsigned int msg_len, const char *key, const unsigned int key_len){
-    return hmac(msg, msg_len, key, key_len, 32, sha256bin, 64);
+  /// Generic convenience function that returns the hexadecimal alphanumeric HMAC of msg and key
+  std::string hmac_sha(const char *msg, size_t msg_len, const char *key, size_t key_len, SHA alg) {
+    switch (alg) {
+      case SHA256: return hmac(msg, msg_len, key, key_len, 32, sha256bin, 64);
+      case SHA384: return hmac(msg, msg_len, key, key_len, 48, sha384bin, 128);
+      case SHA512: return hmac(msg, msg_len, key, key_len, 64, sha512bin, 128);
+      default: return "";
+    }
   }
 
-  /// Convenience function that sets output to the HMAC-SHA256 of msg and key in binary format.
-  /// Assumes at least 32 bytes are available for writing in output.
-  void hmac_sha256bin(const char *msg, const unsigned int msg_len, const char *key,
-                      const unsigned int key_len, char *output){
-    return hmacbin(msg, msg_len, key, key_len, 32, sha256bin, 64, output);
+  /// Generic convenience function that sets output to the HMAC-SHA256/384/512 of msg and key in binary format.
+  /// Assumes at least 32/48/64 bytes are available for writing in output.
+  void hmac_shabin(const char *msg, size_t msg_len, const char *key, size_t key_len, char *output, SHA alg) {
+    switch (alg) {
+      case SHA256: return hmacbin(msg, msg_len, key, key_len, 32, sha256bin, 64, output);
+      case SHA384: return hmacbin(msg, msg_len, key, key_len, 48, sha384bin, 128, output);
+      case SHA512: return hmacbin(msg, msg_len, key, key_len, 64, sha512bin, 128, output);
+    }
   }
-
 }// namespace Secure

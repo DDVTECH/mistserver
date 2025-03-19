@@ -3,10 +3,12 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/ev.h>
+#include <mist/jwt.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
 #include <mist/util.h>
 
+#include <cstdint>
 #include <signal.h>
 #include <sstream>
 #include <stdio.h>
@@ -251,22 +253,36 @@ int main(int argc, char **argv){
   }
   bool shouldSleep = false;
 
-  //Scope to ensure the connections page is deleted before other cleanup happens
+  // Scope to ensure the connections page is deleted before other cleanup happens
   {
     // Open the shared memory page containing statistics for each individual connection in this session
     Comms::Connections connections;
     connections.reload(thisSessionId, true);
+    std::string shortString, longString;
 
-    // Do a USER_NEW trigger if it is defined for this stream
-    if (!thisType && Triggers::shouldTrigger("USER_NEW", thisStreamName)){
-      std::string payload = thisStreamName + "\n" + config.getString("ip") + "\n" +
-                            thisToken + "\n" + thisProtocol +
-                            "\n" + thisReqUrl + "\n" + thisSessionId;
-      if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
-        // Mark all connections of this session as finished, since this viewer is not allowed to view this stream
-        Util::logExitReason(ER_TRIGGER, "Session rejected by USER_NEW");
-        connections.setExit();
-        connections.finishAll();
+    // Set-up some variables for handling JSON web signatures
+    JWT::JWS jws;
+    JSON::Value claims;
+    bool validToken = false;
+
+    // For viewers, if token is a valid JWT, obey its content
+    if (!thisType) {
+      jws = JWT::JWS(thisToken, JWK_PERM_OUTPUT, false);
+
+      if (jws && jws.checkClaims(thisStreamName, thisHost)) {
+        // The JWS is compact and by the spec contains only one signature
+        validToken = jws.validateSignature();
+      }
+
+      // Do a USER_NEW trigger if it is defined for this stream and the JWT is not present or invalid
+      if (!validToken && Triggers::shouldTrigger("USER_NEW", thisStreamName)) {
+        std::string payload = thisStreamName + "\n" + config.getString("ip") + "\n" + thisToken + "\n" + thisProtocol +
+          "\n" + thisReqUrl + "\n" + thisSessionId + "\n" + ((validToken) ? "true" : "false");
+        if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)) {
+          Util::logExitReason(ER_TRIGGER, "Session rejected by USER_NEW");
+          connections.setExit();
+          connections.finishAll();
+        }
       }
     }
 
@@ -352,16 +368,22 @@ int main(int argc, char **argv){
       // Retrigger USER_NEW if a re-sync was requested
       if (!thisType && forceTrigger){
         forceTrigger = false;
+
+        // Change validity of token upon a re-sync (e.g. token expired or is now past 'nbf' time)
+        if (jws.checkClaims(thisStreamName, thisHost)) {
+          // The JWS is compact and by the spec contains only one signature
+          validToken = jws.validateSignature();
+        }
         std::string host;
         Socket::hostBytesToStr(thisHost.data(), 16, host);
-        if (Triggers::shouldTrigger("USER_NEW", thisStreamName)){
+        if (!validToken && Triggers::shouldTrigger("USER_NEW", thisStreamName)) {
           INFO_MSG("Triggering USER_NEW for stream %s", thisStreamName.c_str());
           std::string payload = thisStreamName + "\n" + host + "\n" +
                                 thisToken + "\n" + thisProtocol +
                                 "\n" + thisReqUrl + "\n" + thisSessionId;
           if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
             INFO_MSG("USER_NEW rejected stream %s", thisStreamName.c_str());
-            Util::logExitReason(ER_TRIGGER, "Session rejected by USER_NEW");
+            Util::logExitReason(ER_TRIGGER, "Session (re-sync) rejected by USER_NEW");
             connections.setExit();
             connections.finishAll();
             break;
@@ -378,6 +400,17 @@ int main(int argc, char **argv){
     }
     shouldSleep = connections.getExit();
     connections.setExit();
+    if (!thisType && shouldSleep) {
+      uint64_t sleepStart = Util::bootSecs();
+      uint64_t nbf = (jws.getPayload().isMember("nbf")) ? jws.getPayload()["nbf"].asInt() : UINT64_MAX;
+
+      // Keep session invalidated for 10 minutes, until session stop, or if JWTs 'nbf' turns valid
+      while (config.is_active && Util::bootSecs() - sleepStart < SESS_TIMEOUT) {
+        Util::sleep(1000 * std::min(5, (int)(SESS_TIMEOUT - Util::bootSecs() + sleepStart)));
+        if (nbf <= Util::epoch()) { break; }
+        if (forceTrigger) { break; }
+      }
+    }
   }//connections scope end
   if (Util::bootSecs() - lastSeen > STATS_DELAY){
     Util::logExitReason(ER_CLEAN_INACTIVE, "Session inactive for %d seconds", STATS_DELAY);

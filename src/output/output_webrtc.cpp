@@ -1356,8 +1356,6 @@ namespace Mist{
           return false;
         } else {
           streamName = newStream;
-          Util::sanitizeName(streamName);
-          Util::setStreamName(streamName);
         }
       }
 

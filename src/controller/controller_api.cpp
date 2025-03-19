@@ -15,12 +15,13 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/http_parser.h>
+#include <mist/jwt.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/url.h>
 
-#include <dirent.h> //for browse API call
+#include <dirent.h>
 #include <fstream>
 #include <signal.h>
 #include <sstream>
@@ -743,6 +744,235 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       out["location"]["name"] = in["location"]["name"].asStringRef();
     }
   }
+
+  /// Scope for replacing keys, adding keys and deleting keys, accepts single or arrays of keys
+  if (Request.isMember("jwks") || Request.isMember("addjwks") || Request.isMember("deletejwks")) {
+    JSON::Value in, &out = Controller::Storage["jwks"], *response = 0;
+
+    /// Helper function for setting default permissions
+    auto setDefaultPerms = [&](JSON::Value & perms) {
+      if (!perms.isMember("input")) perms["input"] = JWK_DFLT_INPUT;
+      if (!perms.isMember("output")) perms["output"] = JWK_DFLT_OUTPUT;
+      if (!perms.isMember("admin")) perms["admin"] = JWK_DFLT_ADMIN;
+      if (!perms.isMember("stream")) perms["stream"] = JWK_DFLT_STREAM;
+    };
+
+    /// Define a lambda for adding or deleting keys so we can deal with nested structures
+    std::function<void(const JSON::Value &, JSON::Value &)> parseKeys;
+    parseKeys = [&parseKeys, &response, &setDefaultPerms](const JSON::Value & in, JSON::Value & target) {
+      // Lambda to check for endpoint as elements or object itself may be a URL to an endpoint
+      auto addEndpoint = [&target, &response](const JSON::Value & jwk) {
+        std::string url = (jwk.isArray() && jwk.size()) ? jwk[0u].asStringRef() : jwk.asStringRef();
+        if (url.find("://") != std::string::npos) {
+          JSON::Value writeOut;
+          if (jwk.isArray() && jwk.size() > 1) {
+            writeOut.append(url);
+            writeOut.append(jwk[1u]);
+          } else {
+            writeOut = url;
+          }
+
+          // Append the result to both the target (will be written to storage) and API response
+          bool dupe = false;
+          jsonForEachConst (target, urlMaybePerms) {
+            JSON::Value urlNoPerms = urlMaybePerms->isArray() ? (*urlMaybePerms)[0u] : *urlMaybePerms;
+            if (url != urlNoPerms.asStringRef()) continue;
+            dupe = true;
+            break;
+          }
+
+          if (!dupe) {
+            target.append(writeOut);
+            response->append(writeOut);
+          }
+          return true;
+        }
+        return false;
+      };
+
+      // Check if the JSON value can be added to storage as string containing a URL
+      if (in.isArray() && in.size() == 1 && addEndpoint(in)) return;
+
+      // Wrap the object into an array so it is parsed correctly
+      if (in.isObject() && !in.isMember("keys")) {
+        JSON::Value wrapped;
+        wrapped.append(in);
+        parseKeys(wrapped, target);
+        return;
+      }
+
+      jsonForEachConst (in, it) {
+        // May be a URL to an endpoint, see if we can add it as URL
+        if (addEndpoint(*it)) continue;
+
+        // Check for nested structures of keys with or without permissions and call recursively if found
+        if ((it->isArray() && (*it)[0u].isObject() && (*it)[0u].isMember("keys") && (*it)[0u]["keys"].isArray()) ||
+            (it->isObject() && it->isMember("keys") && (*it)["keys"].isArray())) {
+          const JSON::Value & keyStore = it->isArray() ? (*it)[0u]["keys"] : (*it)["keys"];
+          const JSON::Value & perms = (it->isArray() && it->size() > 1 && (*it)[1u].isObject()) ? (*it)[1u] : JSON::Value();
+
+          jsonForEachConst (keyStore, jwk) {
+            if (!perms.isNull()) {
+              JSON::Value jwkWithPerms;
+              jwkWithPerms[0u] = *jwk;
+              jwkWithPerms[1u] = perms;
+              parseKeys(jwkWithPerms, target);
+            } else {
+              parseKeys(*jwk, target);
+            }
+          }
+          continue;
+        }
+
+        // May be a key object or array with key object and permissions object
+        if (!it->isMember("kty") && !(*it)[0u].isMember("kty")) continue;
+        const JSON::Value jwkIn = (it->isArray() && it->size()) ? (*it)[0u] : *it;
+        const JSON::Value prmIn = (it->isArray() && it->size()) ? (*it)[1u] : JSON::EMPTY;
+        JSON::Value jwkOut, prmOut, writeOut;
+
+        std::vector<std::string> p, unique;
+        const std::string & kty = jwkIn["kty"].asStringRef();
+        switch (kty.at(0)) {
+          case 'o':
+            jwkOut.extend(jwkIn, emptyset, {"k"});
+            unique = {"k"};
+            break;
+          case 'R':
+            jwkOut.extend(jwkIn, emptyset, {"n", "e", "d", "p", "q", "dp", "dq", "qi"});
+            unique = {"n"};
+            break;
+          case 'E':
+            jwkOut.extend(jwkIn, emptyset, {"crv", "x", "y", "d"});
+            unique = {"x", "y"};
+            break;
+          default: continue;
+        }
+        jwkOut.extend(jwkIn, emptyset, {"kty", "use", "key_ops", "alg", "kid", "x5u", "x5c", "x5t", "x5t#S256"});
+
+        // Detect duplicates
+        bool dupe = false, hasKid = jwkOut.isMember("kid");
+        jsonForEachConst (target, jwk) {
+          if (kty != (*jwk)["kty"].asStringRef()) continue;
+          if ((*jwk) == jwkOut || (hasKid && jwk->isMember("kid") && jwkOut["kid"] == (*jwk)["kid"])) dupe = true;
+          for (std::string str : unique) {
+            if (jwkOut[str] != (*jwk)[str]) continue;
+            dupe = true;
+            break;
+          }
+          if (dupe) break;
+        }
+
+        // Do not write anything if this is a duplicate, otherwise start setting permissions
+        if (dupe) continue;
+        prmOut.extend(prmIn, emptyset, {"input", "output", "admin", "stream"});
+
+        // Append the short result to the target, this will be written to storage
+        writeOut.append(jwkOut);
+        writeOut.append(prmOut);
+        target.append(writeOut);
+
+        // Set default permissions if they are missing for the API response
+        setDefaultPerms(prmOut);
+
+        // Append the long result to the API response
+        writeOut.null();
+        writeOut.append(jwkOut);
+        writeOut.append(prmOut);
+        response->append(writeOut);
+      }
+    };
+
+    /// Set the key(s) to be used with the JWTs; this replaces all stored keys
+    if (Request.isMember("jwks")) {
+      response = &Response["jwks"];
+      // When the request is not an array just return the stored list
+      if (!Request["jwks"].isArray() && Request["jwks"].asStringRef().find("://") == std::string::npos) {
+        jsonForEachConst (out, it) {
+          const JSON::Value jwk = (it->isArray() && it->size()) ? (*it)[0u] : *it;
+          JSON::Value write, prm = (it->isArray() && it->size()) ? (*it)[1u] : JSON::EMPTY;
+          setDefaultPerms(prm);
+          write.append(jwk);
+          write.append(prm);
+          Response["jwks"].append(write);
+        }
+      } else {
+        // Call the lambda with request as input and a new JSON array as output
+        in = Request["jwks"];
+        JSON::Value target;
+        parseKeys(in, target);
+        out = target;
+      }
+    }
+
+    /// Remove keys by id, full jwk, url, or array, in an array either with or without permissions
+    if (Request.isMember("deletejwks")) {
+      in = Request["deletejwks"];
+      response = &Response["deletejwks"];
+
+      // If the object is a key with a type move it into an array
+      if (in.isObject() && in.isMember("kty")) in.append((JSON::Value)in);
+
+      // For URLs simply move the JSON into a JSON array, otherwise assume its a key id
+      if (in.isString()) {
+        if (in.asStringRef().find("://") != std::string::npos)
+          in.append((JSON::Value)in);
+        else
+          in = JSON::fromString(R"([{"kid": ")" + in.asStringRef() + R"("}])");
+      }
+
+      // Iterate over the array and remove the first matching key, entries may be keys or key, perms
+      if (in.isArray()) {
+        jsonForEachConst (in, iter) {
+          const JSON::Value & iterIn = (iter->isArray() && (*iter)[1u].size()) ? (*iter)[0u] : *iter;
+          bool removed = false;
+          // Key ids are UUIDs and if it is set in the object we just delete the key that matches it
+          if (iterIn.isMember("kid") && iterIn["kid"].asStringRef().size()) {
+            jsonForEach (out, iterOut) {
+              if ((*iterOut).isMember("kid")) {
+                if (iterIn["kid"] == (*iterOut)["kid"]) {
+                  HIGH_MSG("Removing key with ID %s", iterIn["kid"].asStringRef().c_str());
+                  iterOut.remove();
+                  removed = true;
+                  break;
+                }
+              } else if (iterOut->isArray() && (*iterOut)[0u].isMember("kid")) {
+                if (iterIn["kid"] == (*iterOut)[0u]["kid"]) {
+                  HIGH_MSG("Removing key-perms array with ID %s", iterIn["kid"].asStringRef().c_str());
+                  iterOut.remove();
+                  removed = true;
+                  break;
+                }
+              }
+            }
+          } else {
+            // Otherwise we search for full keys or URLs and only delete on an exact match
+            jsonForEach (out, iterOut) {
+              if (iterIn == (*iterOut) || (iterOut->isArray() && iterIn == (*iterOut)[0u])) {
+                HIGH_MSG("Removing key object %s", iterIn.toString().c_str());
+                iterOut.remove();
+                removed = true;
+                break;
+              }
+            }
+          }
+          // If this entry could not be removed add it to the response
+          if (removed) response->append(iterIn);
+        }
+      }
+    }
+
+    /// Add keys to the keystore which is stored by the controller
+    if (Request.isMember("addjwks")) {
+      response = &Response["addjwks"];
+      // Set response and always create an array if the request is not already one
+      if (Request["addjwks"].isArray())
+        in = Request["addjwks"];
+      else
+        in.append(Request["addjwks"]);
+      parseKeys(in, out);
+    }
+  }
+
   if (Request.isMember("bandwidth")){
     if (Request["bandwidth"].isObject()){
       if (Request["bandwidth"].isMember("limit") && Request["bandwidth"]["limit"].isInt()){

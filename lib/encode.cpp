@@ -1,19 +1,12 @@
 #include "encode.h"
 
-namespace Encodings{
-
-  /// Needed for base64_encode function
-  const std::string Base64::chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-  /// Helper for base64_decode function
-  inline bool Base64::is_base64(unsigned char c){
-    return (isalnum(c) || (c == '+') || (c == '/'));
-  }
-
+namespace Encodings {
   /// Used to base64 encode data. Input is the plaintext as std::string, output is the encoded data
   /// as std::string. \param input Plaintext data to encode. \returns Base64 encoded data.
-  std::string Base64::encode(std::string const input){
+  std::string Base64::encode(const std::string input, bool isBase64URL) {
+    const char *chars = isBase64URL ? "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+                                    : "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
     std::string ret;
     unsigned int in_len = input.size();
     char quad[4], triple[3];
@@ -30,8 +23,18 @@ namespace Encodings{
       if (n < 2){quad[2] = '=';}
       for (i = 0; i < 4; i++){ret += quad[i];}
     }
+    if (isBase64URL) ret.erase(ret.find_last_not_of('=') + 1);
     return ret;
-  }// base64_encode
+  } // base64_encode
+
+  static size_t b64CharVal(char c) {
+    if (c >= 'A' && c <= 'Z') return c - 'A';
+    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+    if (c >= '0' && c <= '9') return c - '0' + 52;
+    if (c == '+' || c == '-') return 62;
+    if (c == '/' || c == '_') return 63;
+    return 64; // this should NEVER happen
+  }
 
   /// Used to base64 decode data. Input is the encoded data as std::string, output is the plaintext
   /// data as std::string. \param encoded_string Base64 encoded data to decode. \returns Plaintext
@@ -43,11 +46,11 @@ namespace Encodings{
     int in_ = 0;
     unsigned char char_array_4[4], char_array_3[3];
     std::string ret;
-    while (in_len-- && (encoded_string[in_] != '=') && is_base64(encoded_string[in_])){
+    while (in_len-- && (encoded_string[in_] != '=') && b64CharVal(encoded_string[in_]) != 64) {
       char_array_4[i++] = encoded_string[in_];
       in_++;
       if (i == 4){
-        for (i = 0; i < 4; i++){char_array_4[i] = chars.find(char_array_4[i]);}
+        for (i = 0; i < 4; i++) { char_array_4[i] = b64CharVal(char_array_4[i]); }
         char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
         char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
         char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
@@ -57,7 +60,7 @@ namespace Encodings{
     }
     if (i){
       for (j = i; j < 4; j++){char_array_4[j] = 0;}
-      for (j = 0; j < 4; j++){char_array_4[j] = chars.find(char_array_4[j]);}
+      for (j = 0; j < 4; j++) { char_array_4[j] = b64CharVal(char_array_4[j]); }
       char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
       char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
       char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
@@ -140,4 +143,4 @@ namespace Encodings{
     return out;
   }
 
-}// namespace Encodings
+} // namespace Encodings

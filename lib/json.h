@@ -57,7 +57,7 @@ namespace JSON{
     bool compareExcept(const Value &rhs, const std::set<std::string> &skip = emptyset) const;
     bool compareOnly(const Value &rhs, const std::set<std::string> &check = emptyset) const;
     // assignment operators
-    Value &extend(const Value &rhs, const std::set<std::string> &skip = emptyset);
+    Value & extend(const Value & rhs, const std::set<std::string> & skip = emptyset, const std::set<std::string> & incl = emptyset);
     Value &assignFrom(const Value &rhs, const std::set<std::string> &skip = emptyset);
     Value &operator=(const Value &rhs);
     Value &operator=(const std::string &rhs);

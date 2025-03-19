@@ -1,12 +1,16 @@
+#include "output_http_internal.h"
+
 #include "flashPlayer.h"
 #include "oldFlashPlayer.h"
-#include "output_http_internal.h"
+
 #include <mist/encode.h>
+#include <mist/jwt.h>
 #include <mist/langcodes.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
 #include <mist/url.h>
 #include <mist/websocket.h>
+
 #include <sys/stat.h>
 
 bool includeZeroMatches = false;
@@ -654,6 +658,19 @@ namespace Mist{
   }
 
   void OutHTTP::respondHTTP(const HTTP::Parser & req, bool headersOnly){
+    // Streamname may be a JWT, replace it with the subject field and set tkn to the JWT
+    if (JWT::isJWS(streamName)) {
+      JWT::JWS jws(streamName, true);
+      if (jws && !jws.hasWildcard() && jws.checkClaims("", getConnectedBinHost())) {
+        tkn = streamName;
+        streamName = jws.getPayload()["sub"].asStringRef();
+      }
+    }
+
+    // Sanitize the streamname (also if it was contained in a JWT)
+    Util::sanitizeName(streamName);
+    Util::setStreamName(streamName);
+
     origStreamName = streamName;
     includeZeroMatches = req.GetVar("inclzero").size();
 

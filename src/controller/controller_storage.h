@@ -29,10 +29,12 @@ namespace Controller{
   Util::RelAccX *accesslogAccessor();
   Util::RelAccX *streamsAccessor();
 
+  void logParser();
   void logAccess(const std::string &sessId, const std::string &strm, const std::string &conn,
                  const std::string &host, uint64_t duration, uint64_t up, uint64_t down,
                  const std::string &tags);
-  void logParser();
+
+  size_t jwkUriCheck();
 
   void normalizeTrustedProxies(JSON::Value &tp);
 

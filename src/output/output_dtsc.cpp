@@ -374,8 +374,6 @@ namespace Mist{
         default: break;
       }
     });
-    Util::sanitizeName(streamName);
-    Util::setStreamName(streamName);
     HTTP::URL qUrl;
     qUrl.protocol = "dtsc";
     qUrl.host = myConn.getBoundAddress();
@@ -423,8 +421,6 @@ namespace Mist{
         return;
       }
     } else {
-      Util::sanitizeName(streamName);
-      Util::setStreamName(streamName);
       if (Triggers::shouldTrigger("PUSH_REWRITE")) {
         std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
         std::string newStream = streamName;
@@ -438,8 +434,6 @@ namespace Mist{
           return;
         } else {
           streamName = newStream;
-          Util::sanitizeName(streamName);
-          Util::setStreamName(streamName);
         }
       }
       if (!allowPush(passString)) {

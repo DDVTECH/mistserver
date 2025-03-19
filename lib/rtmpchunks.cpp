@@ -64,7 +64,7 @@ bool ValidateClientScheme(uint8_t *pBuffer, uint8_t scheme){
   memcpy(pTempBuffer, pBuffer, clientDigestOffset);
   memcpy(pTempBuffer + clientDigestOffset, pBuffer + clientDigestOffset + 32, 1536 - clientDigestOffset - 32);
   char pTempHash[32];
-  Secure::hmac_sha256bin((char *)pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash);
+  Secure::hmac_shabin((char *)pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash, Secure::SHA256);
   bool result = (memcmp(pBuffer + clientDigestOffset, pTempHash, 32) == 0);
   MEDIUM_MSG("Client scheme validation %hhi %s", scheme, result ? "success" : "failed");
   return result;
@@ -578,7 +578,7 @@ bool RTMPStream::doHandshake(){
   char pTempBuffer[1504];
   memcpy(pTempBuffer, Server, serverDigestOffset);
   memcpy(pTempBuffer + serverDigestOffset, Server + serverDigestOffset + 32, 1504 - serverDigestOffset);
-  Secure::hmac_sha256bin(pTempBuffer, 1504, genuineFMSKey, 36, (char *)Server + serverDigestOffset);
+  Secure::hmac_shabin(pTempBuffer, 1504, genuineFMSKey, 36, (char *)Server + serverDigestOffset, Secure::SHA256);
 
   // SECOND 1536 bytes for server response
   if (_validationScheme == 5 && Version == 3){
@@ -586,8 +586,8 @@ bool RTMPStream::doHandshake(){
     memcpy(Server + 1536, Client, 1536);
   }else{
     char pTempHash[32];
-    Secure::hmac_sha256bin((char *)Client + keyChallengeIndex, 32, genuineFMSKey, 68, pTempHash);
-    Secure::hmac_sha256bin((char *)Server + 1536, 1536 - 32, pTempHash, 32, (char *)Server + 1536 * 2 - 32);
+    Secure::hmac_shabin((char *)Client + keyChallengeIndex, 32, genuineFMSKey, 68, pTempHash, Secure::SHA256);
+    Secure::hmac_shabin((char *)Server + 1536, 1536 - 32, pTempHash, 32, (char *)Server + 1536 * 2 - 32, Secure::SHA256);
   }
 
   Server[-1] = Version;

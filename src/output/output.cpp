@@ -1,33 +1,34 @@
+#include "output.h"
+
+#include <mist/bitfields.h>
+#include <mist/defines.h>
+#include <mist/encode.h>
+#include <mist/h264.h>
+#include <mist/http_parser.h>
+#include <mist/jwt.h>
+#include <mist/langcodes.h>
+#include <mist/procs.h>
+#include <mist/stream.h>
+#include <mist/timing.h>
+#include <mist/triggers.h>
+#include <mist/urireader.h>
+#include <mist/util.h>
+
 #include <algorithm>
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <fstream>
+#include <iomanip>
 #include <iterator> //std::distance
+#include <netdb.h>
 #include <semaphore.h>
+#include <sstream>
+#include <sys/file.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <iomanip>
-#include <fstream>
-#include <sstream>
-#include <sys/file.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-
-#include "output.h" 
-#include <mist/bitfields.h>
-#include <mist/defines.h>
-#include <mist/h264.h>
-#include <mist/http_parser.h>
-#include <mist/stream.h>
-#include <mist/timing.h>
-#include <mist/util.h>
-#include <mist/urireader.h>
-#include <mist/encode.h>
-#include <mist/langcodes.h>
-#include <mist/triggers.h>
-#include <mist/procs.h>
 
 namespace Mist{
   std::string sourceOverride;
@@ -354,13 +355,26 @@ namespace Mist{
   void Output::reconnect(){
     Comms::sessionConfigCache();
     thisPacket.null();
-    if (config->hasOption("noinput") && config->getBool("noinput")){
-      Util::sanitizeName(streamName);
+
+    // Streamname may be a JWT, replace it with the subject field and set tkn to the JWT
+    if (JWT::isJWS(streamName)) {
+      JWT::JWS jws(streamName, true);
+      if (jws && !jws.hasWildcard()) {
+        tkn = streamName;
+        streamName = jws.getPayload()["sub"].asStringRef();
+      }
+    }
+
+    // Sanitize the streamname (also if it was contained in a JWT)
+    Util::sanitizeName(streamName);
+    Util::setStreamName(streamName);
+
+    if (config->hasOption("noinput") && config->getBool("noinput")) {
       if (!Util::streamAlive(streamName)){
         onFail("Stream not active already, aborting");
         return;
       }
-    }else{
+    } else {
       if (!Util::startInput(streamName, sourceOverride, true, isPushing())) {
         // If stream is configured, use fallback stream setting, if set.
         JSON::Value strCnf = Util::getStreamConfig(streamName);
@@ -2834,7 +2848,16 @@ namespace Mist{
   }
 
   bool Output::checkStreamKey() {
-    if (!Util::checkStreamKey(streamName)) { return false; }
+    // No streamkey? Maybe its a valid JWT
+    if (!Util::checkStreamKey(streamName)) {
+      if (!JWT::isJWS(streamName)) { return false; }
+      JWT::JWS jws(streamName, JWK_PERM_INPUT, true);
+      if (!jws || jws.hasWildcard() || !jws.checkClaims("", getConnectedBinHost())) return false;
+
+      // Attempt to validate the signature and replace streamname with 'sub' if so
+      if (!jws.validateSignature()) return false;
+      streamName = jws.getPayload()["sub"].asStringRef();
+    }
 
     Util::sanitizeName(streamName);
     Util::setStreamName(streamName);
@@ -2872,6 +2895,9 @@ namespace Mist{
   bool Output::allowPush(const std::string &passwd){
     pushing = true;
     std::string strmSource;
+
+    Util::sanitizeName(streamName);
+    Util::setStreamName(streamName);
 
     // Initialize the stream source if needed, connect to it
     waitForStreamPushReady();

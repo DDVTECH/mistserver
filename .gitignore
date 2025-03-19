@@ -70,3 +70,4 @@ RelAccXSampler
 subprojects/
 !subprojects/packagefiles/
 !subprojects/*.wrap
+.vscode/

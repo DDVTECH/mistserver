@@ -408,8 +408,6 @@ namespace Mist{
               return;
             } else {
               streamName = newStream;
-              Util::sanitizeName(streamName);
-              Util::setStreamName(streamName);
             }
           }
           if (!allowPush(HTTP_R.GetVar("pass"))) {

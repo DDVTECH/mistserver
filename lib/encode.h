@@ -6,13 +6,12 @@ namespace Encodings{
 
   /// Holds base64 decoding and encoding functions.
   class Base64{
-  private:
-    static const std::string chars;
-    static inline bool is_base64(unsigned char c);
+    private:
+      static inline bool is_base64(unsigned char c);
 
-  public:
-    static std::string encode(std::string const input);
-    static std::string decode(std::string const &encoded_string);
+    public:
+      static std::string encode(const std::string input, bool isBase64URL = false);
+      static std::string decode(std::string const & encoded_string);
   };
 
   /// urlencoding and urldecoding functions

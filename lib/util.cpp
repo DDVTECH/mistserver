@@ -440,22 +440,24 @@ namespace Util{
     return ret;
   }
 
-  std::string generateUUID(){
-    const char * charset = "0123456789abcdef";
-    uint8_t randNums[36];
-    Util::getRandomBytes(&randNums, sizeof(randNums));
+  std::string generateUUID() {
+    const char *charset = "0123456789abcdef";
+    uint8_t randNums[16];
+    getRandomBytes(randNums, sizeof(randNums));
+
+    randNums[6] = (randNums[6] & 0x0F) | 0x40; // UUID-v4 compliance (byte 6 to xxxx0100)
+    randNums[8] = (randNums[8] & 0x3F) | 0x80; // RFC4122 compliance (byte 8 to xxxxxx10)
+
     std::string uuid = "00000000-0000-4000-D000-000000000000";
-    for (size_t i = 0; i < uuid.size(); ++i){
-      if (uuid[i] == 'D'){
-        uuid[i] = charset[8+randNums[i]%4];
-        continue;
-      }
-      if (uuid[i] != '0'){continue;}
-      uuid[i] = charset[randNums[i]%16];
+    size_t j = 0;
+    for (size_t i = 0; i < uuid.size(); ++i) {
+      if (uuid[i] == 'D')
+        uuid[i] = charset[8 + randNums[j++] % 4];
+      else if (uuid[i] == '0')
+        uuid[i] = charset[randNums[j++] % 16];
     }
     return uuid;
   }
-
 
   /// 64-bits version of ftell
   uint64_t ftell(FILE *stream){

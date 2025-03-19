@@ -232,6 +232,15 @@ static inline void show_stackframe(){}
 #define STRMSTAT_SHUTDOWN 5
 #define STRMSTAT_INVALID 255
 
+#define SHM_JWK "/MstJWK"
+#define JWK_PERM_ADMIN 1
+#define JWK_PERM_INPUT 2
+#define JWK_PERM_OUTPUT 4
+#define JWK_DFLT_ADMIN false
+#define JWK_DFLT_INPUT true
+#define JWK_DFLT_OUTPUT true
+#define JWK_DFLT_STREAM "*"
+
 #define SHM_TRIGGER "/MstTRGR%s" //%s trigger name
 #define SEM_LIVE "/MstSemLIVE%s"   //%s stream name
 #define SEM_INPUT "/MstSemInpt%s"  //%s stream name
@@ -316,6 +325,7 @@ static inline void show_stackframe(){}
 #define ER_UNSUPPORTED "UNSUPPORTED"
 #define ER_SEGFAULT "SEGFAULT"
 #define ER_TRIGGER "TRIGGER"
+#define ER_UNAUTHORISED "UNAUTHORISED"
 #define ER_SIGTRAP "SIGTRAP"
 #define ER_SIGABRT "SIGABRT"
 #define ER_SIGILL "SIGILL"

@@ -240,14 +240,12 @@ namespace Mist{
           INFO_MSG("Connection put into egress mode");
         }
       }
-      if (accTypes == 1){// Only allow outgoing
-        Util::sanitizeName(streamName);
-        Util::setStreamName(streamName);
+      if (accTypes == 1) { // Only allow outgoing
         srtConn->setBlocking(true);
         srtConn->direction = "output";
         parseData = true;
         wantRequest = true;
-      }else if (accTypes == 2){//Only allow incoming
+      } else if (accTypes == 2) { // Only allow incoming
         srtConn->setBlocking(false);
         srtConn->direction = "input";
         if (checkStreamKey()) {
@@ -256,8 +254,6 @@ namespace Mist{
             return;
           }
         } else {
-          Util::sanitizeName(streamName);
-          Util::setStreamName(streamName);
           if (Triggers::shouldTrigger("PUSH_REWRITE")) {
             HTTP::URL reqUrl;
             reqUrl.protocol = "srt";
@@ -276,8 +272,6 @@ namespace Mist{
               return;
             } else {
               streamName = newStream;
-              Util::sanitizeName(streamName);
-              Util::setStreamName(streamName);
             }
           }
           if (!streamName.size()) {

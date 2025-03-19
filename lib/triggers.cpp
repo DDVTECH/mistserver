@@ -51,8 +51,8 @@ namespace Triggers{
                             const std::string &payload, int sync, const std::string &defaultResponse){
     uint64_t tStartMs = Util::bootMS();
     if (!value.size()){
-      WARN_MSG("Trigger requested with empty destination");
-      return "true";
+      INFO_MSG("Blank %s trigger, responding: %s", trigger.c_str(), defaultResponse.c_str());
+      return defaultResponse;
     }
     INFO_MSG("Executing %s trigger: %s (%s)", trigger.c_str(), value.c_str(), sync ? "blocking" : "asynchronous");
     if (value.substr(0, 7) == "http://" || value.substr(0, 8) == "https://"){// interpret as url

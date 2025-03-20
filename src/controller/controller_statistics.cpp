@@ -252,8 +252,22 @@ bool Controller::streamMatches(const std::string &stream, const std::string &mat
   //Wildcard match, when ending in '+'
   if (*matchString.rbegin() == '+' && stream.substr(0, matchString.size()) == matchString){return true;}
   if (matchString[0] == '#'){
+    const std::string tag = matchString.substr(1);
     std::lock_guard<std::recursive_mutex> guard(statsMutex);
-    return streamStats.at(stream).tags.count(matchString.substr(1));//true if tag set, false otherwise
+    // Stream has stats? Check tag list in stats.
+    std::map<std::string, struct streamTotals>::iterator s = streamStats.find(stream);
+    if (s != streamStats.end()) {
+      return s->second.tags.count(tag);
+      // We always return, even if not found, since stats entries are always authoritative.
+    }
+    // Tag is queued? Return true. Not found? Continue.
+    if (tagQueue.count(stream) && tagQueue[stream].tags.count(tag)) { return true; }
+    // Stream has persistent tags? True if tag present in that list.
+    if (Storage["streams"].isMember(stream) && Storage["streams"][stream].isMember("tags")) {
+      jsonForEachConst (Storage["streams"][stream]["tags"], tagIt) {
+        if (tagIt->asStringRef() == tag) { return true; }
+      }
+    }
   }
   return false;//fallback response
 }

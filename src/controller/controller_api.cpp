@@ -1314,16 +1314,37 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       stream = Request["push_start"]["stream"].asStringRef();
       target = Request["push_start"]["target"].asStringRef();
     }
-    Util::sanitizeName(stream);
-    if (*stream.rbegin() != '+'){
-      startPush(stream, target);
-    }else{
-      std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
-      if (activeStreams.size()){
-        for (std::set<std::string>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
-          std::string streamname = *jt;
-          std::string target_tmp = target;
-          startPush(streamname, target_tmp);
+    if (stream.size()) {
+      if (stream[0] == '#') {
+        std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
+        jsonForEachConst (Storage["streams"], strmIt) {
+          if (Controller::streamMatches(strmIt.key(), stream)) {
+            activeStreams.insert(strmIt.key());
+          }
+        }
+        if (activeStreams.size()) {
+          for (std::set<std::string>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt) {
+            std::string streamname = *jt;
+            std::string target_tmp = target;
+            startPush(streamname, target_tmp);
+          }
+        }
+      } else {
+        Util::sanitizeName(stream);
+        if (stream.size()) {
+          if (*stream.rbegin() != '+') {
+            startPush(stream, target);
+          } else {
+            std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
+            if (activeStreams.size()) {
+              for (std::set<std::string>::iterator jt = activeStreams.begin();
+                   jt != activeStreams.end(); ++jt) {
+                std::string streamname = *jt;
+                std::string target_tmp = target;
+                startPush(streamname, target_tmp);
+              }
+            }
+          }
         }
       }
     }

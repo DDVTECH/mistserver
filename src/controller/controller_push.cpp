@@ -144,18 +144,18 @@ namespace Controller{
       std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       std::set<pid_t> toWipe;
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
-        if (Util::Procs::isActive(it->first)){
-          // Apply variable substitution to make sure another push target does not resolve to the same target
+        if (Util::Procs::isActive(it->first)) {
           if (it->second[1u].asStringRef() == streamname){
+            // First compare as-is, in case the string is simply identical
             std::string activeTarget = it->second[2u].asStringRef();
             std::string cmpTarget = target;
+            if (activeTarget == cmpTarget) { return true; }
+            // Also apply variable substitution to make sure another push target does not resolve to the same target
             Util::streamVariables(activeTarget, streamname);
             Util::streamVariables(cmpTarget, streamname);
-            if (activeTarget == cmpTarget){
-              return true;
-            }
+            if (activeTarget == cmpTarget) { return true; }
           }
-        }else{
+        } else {
           toWipe.insert(it->first);
         }
       }

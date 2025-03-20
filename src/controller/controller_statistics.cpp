@@ -1425,6 +1425,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
       //fields.append("zerounix");
       fields.append("health");
       fields.append("pid");
+      fields.append("tags");
     }
   }
   // collect the data first
@@ -1464,23 +1465,25 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
           F = it->second.currIns;
         }else if (j->asStringRef() == "outputs"){
           F = it->second.currOuts;
-        }else if (j->asStringRef() == "unspecified"){
+        } else if (j->asStringRef() == "tags") {
+          for (const std::string & t : it->second.tags) { F.append(t); }
+        } else if (j->asStringRef() == "unspecified") {
           F = it->second.currUnspecified;
-        }else if (j->asStringRef() == "views"){
+        } else if (j->asStringRef() == "views") {
           F = it->second.viewers;
-        }else if (j->asStringRef() == "viewseconds"){
+        } else if (j->asStringRef() == "viewseconds") {
           F = it->second.viewSeconds;
-        }else if (j->asStringRef() == "upbytes"){
+        } else if (j->asStringRef() == "upbytes") {
           F = it->second.upBytes;
-        }else if (j->asStringRef() == "downbytes"){
+        } else if (j->asStringRef() == "downbytes") {
           F = it->second.downBytes;
-        }else if (j->asStringRef() == "packsent"){
+        } else if (j->asStringRef() == "packsent") {
           F = it->second.packSent;
-        }else if (j->asStringRef() == "packloss"){
+        } else if (j->asStringRef() == "packloss") {
           F = it->second.packLoss;
-        }else if (j->asStringRef() == "packretrans"){
+        } else if (j->asStringRef() == "packretrans") {
           F = it->second.packRetrans;
-        }else if (j->asStringRef() == "firstms"){
+        } else if (j->asStringRef() == "firstms") {
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
             uint64_t fms = 0;
@@ -1490,7 +1493,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
             }
             F = fms;
           }
-        }else if (j->asStringRef() == "lastms"){
+        } else if (j->asStringRef() == "lastms") {
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
             uint64_t lms = 0;
@@ -1500,20 +1503,20 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
             }
             F = lms;
           }
-        }else if (j->asStringRef() == "zerounix"){
+        } else if (j->asStringRef() == "zerounix") {
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M && M.getLive()){
             F = (M.getBootMsOffset() + (Util::unixMS() - Util::bootMS())) / 1000;
           }
-        }else if (j->asStringRef() == "health"){
+        } else if (j->asStringRef() == "health") {
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){M.getHealthJSON(F);}
-        }else if (j->asStringRef() == "tracks"){
+        } else if (j->asStringRef() == "tracks") {
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
             F = (uint64_t)M.getValidTracks().size();
           }
-        }else if (j->asStringRef() == "sourcepids"){
+        } else if (j->asStringRef() == "sourcepids") {
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
             std::set<uint64_t> pids;
@@ -1527,7 +1530,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
               F.append(*pi);
             }
           }
-        }else if (j->asStringRef() == "status"){
+        } else if (j->asStringRef() == "status") {
           uint8_t ss = Util::getStreamStatus(it->first);
           switch (ss){
             case STRMSTAT_OFF: F = "Offline"; break;
@@ -1538,7 +1541,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
             case STRMSTAT_SHUTDOWN: F = "Shutting down"; break;
             default: F = "Invalid / Unknown"; break;
           }
-        }else if (j->asStringRef() == "pid"){
+        } else if (j->asStringRef() == "pid") {
           F.shrink(0);
           {
             char pageName[NAME_BUFFER_SIZE];

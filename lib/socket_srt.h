@@ -78,6 +78,7 @@ namespace Socket{
     std::string getBinHost();
   private:
     SRTSOCKET sock;
+    bool open();
     int eid;
     CBytePerfMon performanceMonitor;
 

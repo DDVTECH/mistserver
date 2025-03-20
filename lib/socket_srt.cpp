@@ -322,6 +322,21 @@ namespace Socket{
     return false;
   }
 
+  bool SRTConnection::open() {
+    close();
+    sock = srt_create_socket();
+    if (sock == SRT_INVALID_SOCK) {
+      ERROR_MSG("Error creating an SRT socket");
+      return false;
+    }
+    HIGH_MSG("Opened SRT socket %d", sock);
+    if (preConfigureSocket() == SRT_ERROR) {
+      ERROR_MSG("Error configuring SRT socket");
+      return false;
+    }
+    return true;
+  }
+
   ///Attempts a read, obeying the current blocking setting.
   ///May result in socket being disconnected when connection was lost during read.
   ///Returns amount of bytes actually read
@@ -367,19 +382,6 @@ namespace Socket{
     HIGH_MSG("Opening SRT connection %s in %s mode on %s:%d", modeName.c_str(), direction.c_str(),
              _host.c_str(), _port);
 
-    if (sock == SRT_INVALID_SOCK){
-      sock = srt_create_socket();
-      HIGH_MSG("Opened SRT socket %d", sock);
-      if (sock == SRT_INVALID_SOCK){
-        ERROR_MSG("Error creating an SRT socket");
-        return;
-      }
-      if (preConfigureSocket() == SRT_ERROR){
-        ERROR_MSG("Error configuring SRT socket");
-        return;
-      }
-    }
-
     if (modeName == "caller"){
       setBlocking(true);
       std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
@@ -389,6 +391,7 @@ namespace Socket{
         memcpy(&remoteaddr, it->data(), maxSize);
 
         sockaddr *psa = (sockaddr *)&remoteaddr;
+        if (!open()) { return; }
         HIGH_MSG("Going to connect sock %d", sock);
         if (srt_connect(sock, psa, sizeof remoteaddr) != SRT_ERROR){
           if (postConfigureSocket() == SRT_ERROR){ERROR_MSG("Error during postconfigure socket");}
@@ -399,8 +402,8 @@ namespace Socket{
           lastGood = Util::bootMS();
           return;
         }
+        close();
       }
-      close();
       ERROR_MSG("Can't connect SRT socket to any address for %s", _host.c_str());
       return;
     }
@@ -414,6 +417,7 @@ namespace Socket{
         sockaddr *psa = (sockaddr *)&remoteaddr;
         HIGH_MSG("Going to bind a server on %s:%u", _host.c_str(), _port);
 
+        if (!open()) { return; }
         if (srt_bind(sock, psa, sizeof remoteaddr) == SRT_ERROR){
           close();
           ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());

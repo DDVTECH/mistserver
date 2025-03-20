@@ -232,41 +232,45 @@ namespace Util{
             // Retrieve binary config
             std::string name = extWri.getPointer("name", i);
             std::string cmdline = extWri.getPointer("cmdline", i);
-            Util::RelAccX protocols = Util::RelAccX(extWri.getPointer("protocols", i));
-            uint8_t protocolCount = protocols.getPresent();
+            char *ptr = extWri.getPointer("protocols", i);
             JSON::Value protocolArray;
-            for (uint8_t idx = 0; idx < protocolCount; idx++){
-              protocolArray.append(protocols.getPointer("protocol", idx));
-            }
-            jsonForEach(protocolArray, protocol){
-              if (target.protocol != (*protocol).asStringRef()){ continue; }
-              HIGH_MSG("Using %s in order connect to URL with protocol %s", name.c_str(), target.protocol.c_str());
-              matchedProtocol = true;
-              // Split configured parameters for this writer on whitespace
-              // TODO: we might want to trim whitespaces and remove empty parameters
-              std::deque<std::string> parameterList;
-              Util::splitString(cmdline, ' ', parameterList);
-              // Build the startup command, which needs space for the program name, each parameter, the target url and a null at the end
-              char **cmd = (char**)malloc(sizeof(char*) * (parameterList.size() + 2));
-              size_t curArg = 0;
-              // Write each parameter
-              for (size_t j = 0; j < parameterList.size(); j++) {
-                cmd[curArg++] = (char*)parameterList[j].c_str();
-              }
-              // Write the target URL as the last positional argument then close with a null at the end
-              cmd[curArg++] = (char*)uri.c_str();
-              cmd[curArg++] = 0;
+            if (ptr) {
+              size_t offset = 0;
+              while (offset < 256 - 4 && *(uint32_t *)(ptr + offset)) {
+                uint32_t s = *(uint32_t *)(ptr + offset);
+                if (offset + 4 + s > 256) { break; }
+                if (target.protocol == std::string(ptr + offset + 4, s)) {
+                  HIGH_MSG("Using %s in order connect to URL with protocol %s", name.c_str(),
+                           target.protocol.c_str());
+                  matchedProtocol = true;
+                  // Split configured parameters for this writer on whitespace
+                  // TODO: we might want to trim whitespaces and remove empty parameters
+                  std::deque<std::string> parameterList;
+                  Util::splitString(cmdline, ' ', parameterList);
+                  // Build the startup command, which needs space for the program name, each parameter, the target url and a null at the end
+                  char **cmd = (char **)malloc(sizeof(char *) * (parameterList.size() + 2));
+                  size_t curArg = 0;
+                  // Write each parameter
+                  for (size_t j = 0; j < parameterList.size(); j++) {
+                    cmd[curArg++] = (char *)parameterList[j].c_str();
+                  }
+                  // Write the target URL as the last positional argument then close with a null at the end
+                  cmd[curArg++] = (char *)uri.c_str();
+                  cmd[curArg++] = 0;
 
-              pid_t child = startConverted(cmd, outFile);
-              if (child == -1){
-                ERROR_MSG("'%s' process did not start, aborting", cmd[0]);
-                return false;
+                  pid_t child = startConverted(cmd, outFile);
+                  if (child == -1) {
+                    ERROR_MSG("'%s' process did not start, aborting", cmd[0]);
+                    return false;
+                  }
+                  Util::Procs::forget(child);
+                  free(cmd);
+                  break;
+                }
+                offset += 4 + s;
               }
-              Util::Procs::forget(child);
-              free(cmd);
-              break;
             }
-            if (matchedProtocol){ break; }
+            if (matchedProtocol) { break; }
           }
         }
       }

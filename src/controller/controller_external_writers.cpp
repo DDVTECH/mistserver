@@ -33,34 +33,39 @@ namespace Controller{
     exwriAccx = Util::RelAccX(writersPage.mapped, false);
     exwriAccx.addField("name", RAX_32STRING);
     exwriAccx.addField("cmdline", RAX_256STRING);
-    exwriAccx.addField("protocols", RAX_NESTED, RAX_64STRING * writerCount * 8);
+    exwriAccx.addField("protocols", RAX_256RAW);
     // Set amount of records that can fit and how many will be used
     uint64_t reqCount = (pageSize - exwriAccx.getOffset()) / exwriAccx.getRSize();
     exwriAccx.setRCount(reqCount);
     exwriAccx.setPresent(reqCount);
     exwriAccx.setEndPos(writerCount);
-    // Do the same for the nested protocol field
     uint64_t index = 0;
     jsonForEach(Controller::Storage["extwriters"], it){
       std::string name = (*it)[0u].asString();
       std::string cmdline = (*it)[1u].asString();
       exwriAccx.setString("name", name, index);
       exwriAccx.setString("cmdline", cmdline, index);
-      // Create nested field for source match
-      uint8_t protocolCount = (*it)[2u].size();
-      Util::RelAccX protocolAccx = Util::RelAccX(exwriAccx.getPointer("protocols", index), false);
-      protocolAccx.addField("protocol", RAX_64STRING);
-      protocolAccx.setRCount(protocolCount);
-      protocolAccx.setPresent(protocolCount);
-      protocolAccx.setEndPos(protocolCount);
-      uint8_t binIt = 0;
-      jsonForEach((*it)[2u], protIt){
-        std::string thisProtocol = (*protIt).asString();
-        protocolAccx.setString("protocol", thisProtocol, binIt);
-        binIt++;
+
+      // Write protocol list (4b size prepended)
+      char *protP = exwriAccx.getPointer("protocols", index);
+      if (protP) {
+        ((unsigned int *)protP)[0] = 0; // reset first 4 bytes of stream list pointer
+        if ((*it)[2u].isArray() && (*it)[2u].size()) {
+          std::string protArray;
+          char tmpBuf[4];
+          jsonForEach ((*it)[2u], prIt) {
+            if (!prIt->asStringRef().size()) { continue; }
+            *(uint32_t *)tmpBuf = prIt->asStringRef().size();
+            protArray.append(tmpBuf, 4);
+            protArray.append(prIt->asStringRef());
+          }
+          if (protArray.size()) {
+            memcpy(protP, protArray.data(), std::min(protArray.size(), (size_t)256));
+          }
+        }
       }
+
       index++;
-      protocolAccx.setReady();
     }
     exwriAccx.setReady();
     // Leave the page in memory after returning

@@ -904,17 +904,19 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
               Util::RelAccX extWri(extwriPage.mapped, false);
               if (extWri.isReady()){
                 for (uint64_t i = 0; i < extWri.getEndPos(); i++){
-                  Util::RelAccX protocols = Util::RelAccX(extWri.getPointer("protocols", i));
-                  uint8_t protocolCount = protocols.getPresent();
-                  JSON::Value protocolArray;
-                  for (uint8_t idx = 0; idx < protocolCount; idx++){
-                    if (tUri.protocol == protocols.getPointer("protocol", idx)){
-                      output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
-                      break;
+                  char *ptr = extWri.getPointer("protocols", i);
+                  if (ptr) {
+                    size_t offset = 0;
+                    while (offset < 256 - 4 && *(uint32_t *)(ptr + offset)) {
+                      uint32_t s = *(uint32_t *)(ptr + offset);
+                      if (offset + 4 + s > 256) { break; }
+                      if (tUri.protocol == std::string(ptr + offset + 4, s)) {
+                        output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
+                        break;
+                      }
+                      offset += 4 + s;
                     }
-                    if (output_bin.size()){break;}
                   }
-                  if (output_bin.size()){break;}
                 }
               }
             }

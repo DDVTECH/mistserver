@@ -3,10 +3,9 @@
 
 #include <mist/json.h>
 #include <mist/socket.h>
-#include <string>
 
 namespace Controller{
-  void updateThread(void *np);
+  void updateThread();
   JSON::Value checkUpdateInfo();
   void checkUpdates();
   void insertUpdateInfo(JSON::Value &ret);

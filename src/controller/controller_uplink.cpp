@@ -1,7 +1,6 @@
 #include "controller_api.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
-#include "controller_limits.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
@@ -14,7 +13,7 @@
 #include <mist/timing.h>
 #include <stdlib.h>
 
-void Controller::uplinkConnection(void *np){
+void Controller::uplinkConnection(){
   std::string uplink_name = Controller::conf.getString("uplink-name");
   std::string uplink_pass = Controller::conf.getString("uplink-pass");
   std::string uplink_addr = Controller::conf.getString("uplink");

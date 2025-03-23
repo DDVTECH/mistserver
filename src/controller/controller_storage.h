@@ -1,6 +1,6 @@
 #include <mist/config.h>
 #include <mist/json.h>
-#include <mist/tinythread.h>
+#include <mutex>
 #include <mist/util.h>
 #include <string>
 
@@ -11,8 +11,8 @@ namespace Controller{
   extern std::string udpApiBindAddr; ///< Bound address where the UDP API listens
   extern Util::Config conf;          ///< Global storage of configuration.
   extern JSON::Value Storage;        ///< Global storage of data.
-  extern tthread::mutex logMutex;    ///< Mutex for log thread.
-  extern tthread::mutex configMutex; ///< Mutex for server config access.
+  extern std::mutex logMutex;    ///< Mutex for log thread.
+  extern std::mutex configMutex; ///< Mutex for server config access.
   extern bool isTerminal;            ///< True if connected to a terminal and not a log file.
   extern bool isColorized;           ///< True if we colorize the output
   extern uint64_t logCounter;        ///< Count of logged messages since boot

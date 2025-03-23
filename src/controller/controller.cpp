@@ -1,6 +1,8 @@
 /// \file controller.cpp
 /// Contains all code for the controller executable.
 
+#include <thread>
+#include <mutex>
 #include "controller_api.h"
 #include "controller_external_writers.h"
 #include "controller_capabilities.h"
@@ -22,7 +24,6 @@
 #include <mist/socket.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
-#include <mist/tinythread.h>
 #include <mist/util.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -78,7 +79,7 @@ static int configrw;
 /// Checks status of "protocols" (listening outputs)
 /// Updates config from disk when changed
 /// Writes config to disk after some time of no changes
-void statusMonitor(void *np){
+void statusMonitor(){
   Controller::loadActiveConnectors();
   while (Controller::conf.is_active){
 
@@ -107,7 +108,7 @@ void statusMonitor(void *np){
       // Read from disk if they are newer than our last read
       if (confTime && confTime > lastConfRead){
         INFO_MSG("Configuration files changed - reloading configuration from disk");
-        tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+        std::lock_guard<std::mutex> guard(Controller::configMutex);
         Controller::readConfigFromDisk();
         lastConfRead = Controller::lastConfigChange;
       }
@@ -115,14 +116,14 @@ void statusMonitor(void *np){
     if (configrw & 2){
       // Write to disk if we have made no changes in the last 60 seconds and the files are older than the last change
       if (Controller::lastConfigChange > Controller::lastConfigWrite && Controller::lastConfigChange < Util::epoch() - 60){
-        tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+        std::lock_guard<std::mutex> guard(Controller::configMutex);
         Controller::writeConfigToDisk();
         if (lastConfRead < Controller::lastConfigWrite){lastConfRead = Controller::lastConfigWrite;}
       }
     }
 
     { // this scope prevents the configMutex from being locked constantly
-      tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+      std::lock_guard<std::mutex> guard(Controller::configMutex);
       // checks online protocols, reports changes to status
       if (Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities)){
         Controller::writeProtocols();
@@ -351,7 +352,7 @@ int main_loop(int argc, char **argv){
         close(pipeErr[1]);               // close the unneeded pipe file descriptor
         // Start reading log messages from the unnamed pipe
         Util::Procs::socketList.insert(pipeErr[0]); // Mark this FD as needing to be closed before forking
-        tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + pipeErr[0]));
+        std::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + pipeErr[0]));
         msghandler.detach();
       }
     }else{
@@ -372,7 +373,7 @@ int main_loop(int argc, char **argv){
 
       // Start reading log messages from the named pipe
       Util::Procs::socketList.insert(inFD); // Mark this FD as needing to be closed before forking
-      tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + inFD));
+      std::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + inFD));
       msghandler.detach();
     }
     setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
@@ -522,20 +523,20 @@ int main_loop(int argc, char **argv){
   }
 
   // start stats thread
-  tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
+  std::thread statsThread(Controller::SharedMemStats, &Controller::conf);
   // start monitoring thread
-  tthread::thread monitorThread(statusMonitor, 0);
+  std::thread monitorThread(statusMonitor);
   // start UDP API thread
-  tthread::thread UDPAPIThread(Controller::handleUDPAPI, 0);
+  std::thread UDPAPIThread(Controller::handleUDPAPI);
   // start monitoring thread /*LTS*/
-  tthread::thread uplinkThread(Controller::uplinkConnection, 0); /*LTS*/
+  std::thread uplinkThread(Controller::uplinkConnection); /*LTS*/
   // start push checking thread
-  tthread::thread pushThread(Controller::pushCheckLoop, 0);
+  std::thread pushThread(Controller::pushCheckLoop);
   // start variable checking thread
-  tthread::thread variableThread(Controller::variableCheckLoop, 0);
+  std::thread variableThread(Controller::variableCheckLoop);
 #ifdef UPDATER
   // start updater thread
-  tthread::thread updaterThread(Controller::updateThread, 0);
+  std::thread updaterThread(Controller::updateThread);
 #endif
 
   Controller::Log("CONF", "Controller started");
@@ -595,8 +596,8 @@ int main_loop(int argc, char **argv){
   updaterThread.join();
 #endif
   // write config
-  tthread::lock_guard<tthread::mutex> guardLog(Controller::logMutex);
-  tthread::lock_guard<tthread::mutex> guardCnf(Controller::configMutex);
+  std::lock_guard<std::mutex> guardLog(Controller::logMutex);
+  std::lock_guard<std::mutex> guardCnf(Controller::configMutex);
   Controller::writeConfigToDisk(true);
   // stop all child processes
   Util::Procs::StopAll();

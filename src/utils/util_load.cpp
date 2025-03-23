@@ -1,22 +1,21 @@
 #include <cmath>
 #include <cstdlib>
-#include <fstream>
-#include <iostream>
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/downloader.h>
 #include <mist/timing.h>
-#include <mist/tinythread.h>
 #include <mist/util.h>
 #include <set>
 #include <stdint.h>
 #include <string>
+#include <thread>
+#include <mutex>
 
 Util::Config *cfg = 0;
 std::string passphrase;
 std::string fallback;
 bool localMode = false;
-tthread::mutex globalMutex;
+std::mutex globalMutex;
 
 size_t weight_cpu = 500;
 size_t weight_ram = 500;
@@ -103,7 +102,7 @@ int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & 
 
 class hostDetails{
 private:
-  tthread::mutex *hostMutex;
+  std::mutex *hostMutex;
   std::map<std::string, struct streamDetails> streams;
   std::set<std::string> conf_streams;
   std::set<std::string> tags;
@@ -149,22 +148,22 @@ public:
     }
   }
   void badNess(){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     addBandwidth += 1 * 1024 * 1024;
     addBandwidth *= 1.2;
   }
   /// Returns the count of viewers for a given stream s.
   size_t count(std::string &s){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     if (streams.count(s)){return streams[s].total;}
     return 0;
   }
   /// Fills out a by reference given JSON::Value with current state.
   void fillState(JSON::Value &r){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     r["cpu"] = (uint64_t)(cpu / 10);
     if (ramMax){r["ram"] = (uint64_t)((ramCurr * 100) / ramMax);}
     r["up"] = upSpeed;
@@ -191,8 +190,8 @@ public:
   }
   /// Fills out a by reference given JSON::Value with current streams viewer count.
   void fillStreams(JSON::Value &r){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     for (std::map<std::string, struct streamDetails>::iterator jt = streams.begin();
          jt != streams.end(); ++jt){
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
@@ -200,8 +199,8 @@ public:
   }
   /// Fills out a by reference given JSON::Value with current stream statistics.
   void fillStreamStats(const std::string & s, JSON::Value &r){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     for (std::map<std::string, struct streamDetails>::iterator jt = streams.begin();
          jt != streams.end(); ++jt){
       const std::string & n = jt->first;
@@ -220,16 +219,16 @@ public:
   }
   /// Returns viewcount for the given stream
   long long getViewers(const std::string &strm){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     if (!streams.count(strm)){return 0;}
     return streams[strm].total;
   }
   /// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
   uint64_t rate(std::string &s, double lati = 0, double longi = 0, const std::map<std::string, int32_t> &tagAdjust = blankTags){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     if (!ramMax || !availBandwidth){
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 0;
@@ -274,8 +273,8 @@ public:
   /// Scores this server as a source
   /// 0 means not possible, the higher the better.
   uint64_t source(const std::string &s, double lati, double longi, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     if (s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
     if (!ramMax || !availBandwidth){
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
@@ -315,15 +314,15 @@ public:
     return score;
   }
   std::string getUrl(std::string &s, std::string &proto){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     if (!outputs.count(proto)){return "";}
     const outUrl &o = outputs[proto];
     return o.pre + s + o.post;
   }
   void addViewer(std::string &s){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     uint64_t toAdd = 0;
     if (streams.count(s)){
       toAdd = streams[s].bandwidth;
@@ -340,8 +339,8 @@ public:
     addBandwidth += toAdd;
   }
   void update(JSON::Value &d){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new std::mutex();}
+    std::lock_guard<std::mutex> guard(*hostMutex);
     cpu = d["cpu"].asInt();
     if (d.isMember("bwlimit") && d["bwlimit"].asInt()){availBandwidth = d["bwlimit"].asInt();}
     if (d.isMember("loc")){
@@ -438,7 +437,7 @@ struct hostEntry{
   uint8_t state; // 0 = off, 1 = booting, 2 = running, 3 = requesting shutdown, 4 = requesting clean
   char name[HOSTNAMELEN];          // host+port for server
   hostDetails *details;    /// hostDetails pointer
-  tthread::thread *thread; /// thread pointer
+  std::thread *thread; /// thread pointer
 };
 
 hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
@@ -514,7 +513,7 @@ int handleRequest(Socket::Connection &conn){
         }
         // Remove server from list
         if (delserver.size()){
-          tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
+          std::lock_guard<std::mutex> globGuard(globalMutex);
           ret = "Server not monitored - could not delete from monitored server list!";
           for (HOSTLOOP){
             if (hosts[i].state == STATE_OFF){continue;}
@@ -531,7 +530,7 @@ int handleRequest(Socket::Connection &conn){
         }
         // Add server to list
         if (addserver.size()){
-          tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
+          std::lock_guard<std::mutex> globGuard(globalMutex);
           if (addserver.size() >= HOSTNAMELEN){
             H.SetBody("Host length too long for monitoring");
             H.setCORSHeaders();
@@ -953,7 +952,7 @@ int main(int argc, char **argv){
   JSON::Value &nodes = conf.getOption("server", true);
   conf.activate();
 
-  std::map<std::string, tthread::thread *> threads;
+  std::map<std::string, std::thread *> threads;
   jsonForEach(nodes, it){
     if (it->asStringRef().size() > 199){
       FAIL_MSG("Host length too long for monitoring, skipped: %s", it->asStringRef().c_str());
@@ -987,7 +986,7 @@ void initHost(hostEntry &H, const std::string &N){
   H.details = new hostDetails();
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
-  H.thread = new tthread::thread(handleServer, (void *)&H);
+  H.thread = new std::thread(handleServer, (void *)&H);
   INFO_MSG("Starting monitoring %s", H.name);
 }
 

@@ -5,7 +5,8 @@
 #include "defines.h"
 #include "stream.h"
 #include "timing.h"
-#include "tinythread.h"
+#include <thread>
+#include <mutex>
 #include <signal.h>
 #include <string.h>
 #include "procs.h"
@@ -472,7 +473,7 @@ int Util::Config::threadServer(Socket::Server &server_socket, int (*callback)(So
       cData->sock = new Socket::Connection(S);
       cData->cb = callback;
       // spawn a new thread for this connection
-      tthread::thread T(callThreadCallback, (void *)cData);
+      std::thread T(callThreadCallback, (void *)cData);
       // detach it, no need to keep track of it anymore
       T.detach();
       HIGH_MSG("Spawned new thread for socket %i", S.getSocket());
@@ -597,9 +598,9 @@ void Util::Config::activate(){
   is_active = true;
 }
 
-tthread::mutex * mutabort = 0;
+std::mutex * mutabort = 0;
 void Util::Config::setMutexAborter(void * mutex){
-  mutabort = (tthread::mutex*)mutex;
+  mutabort = (std::mutex*)mutex;
 }
 
 void Util::Config::setServerFD(int fd){

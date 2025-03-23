@@ -7,15 +7,15 @@
 #include <mist/json.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
-#include <mist/tinythread.h>
 #include <mist/triggers.h>
 #include <string>
+#include <mutex>
 
 namespace Controller{
 
   /// Internal list of currently active pushes
   std::map<pid_t, JSON::Value> activePushes;
-  tthread::recursive_mutex actPushMut;
+  std::recursive_mutex actPushMut;
 
   /// Internal list of waiting pushes
   std::map<std::string, std::map<std::string, unsigned int> > waitingPushes;
@@ -26,7 +26,7 @@ namespace Controller{
   /// Immediately starts a push for the given stream to the given target.
   /// Simply calls Util::startPush and stores the resulting PID in the local activePushes map.
   void startPush(const std::string &stream, std::string &target){
-    tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+    std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
     // Cancel if already active
     if (isPushActive(stream, target)){return;}
     std::string originalTarget = target;
@@ -95,13 +95,13 @@ namespace Controller{
   }
 
   void setPushStatus(uint64_t id, const JSON::Value & status){
-    tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+    std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
     if (!activePushes.count(id)){return;}
     activePushes[id][5].extend(status);
   }
 
   void pushLogMessage(uint64_t id, const JSON::Value & msg){
-    tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+    std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
     if (!activePushes.count(id)){return;}
     JSON::Value &log = activePushes[id][4];
     log.append(msg);
@@ -111,7 +111,7 @@ namespace Controller{
   bool isPushActive(uint64_t id){
     while (Controller::conf.is_active && !pushListRead){Util::sleep(100);}
     {
-      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       return activePushes.count(id);
     }
   }
@@ -121,7 +121,7 @@ namespace Controller{
     JSON::Value p;
 
     {
-      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       //ignore if the push does not exist
       if (!activePushes.count(id)){return;}
       p = activePushes[id];
@@ -141,7 +141,7 @@ namespace Controller{
   bool isPushActive(const std::string &streamname, const std::string &target){
     while (Controller::conf.is_active && !pushListRead){Util::sleep(100);}
     {
-      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       std::set<pid_t> toWipe;
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
         if (Util::Procs::isActive(it->first)){
@@ -171,7 +171,7 @@ namespace Controller{
   void stopActivePushes(const std::string &streamname, const std::string &target){
     while (Controller::conf.is_active && !pushListRead){Util::sleep(100);}
     {
-      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       std::set<pid_t> toWipe;
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
         if (Util::Procs::isActive(it->first)){
@@ -193,13 +193,13 @@ namespace Controller{
 
   /// Immediately stops a push with the given ID
   void stopPush(unsigned int ID){
-    tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+    std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
     if (ID > 1 && activePushes.count(ID)){Util::Procs::Stop(ID);}
   }
 
   /// Compactly writes the list of pushes to a pointer, assumed to be 8MiB in size
   static void writePushList(char *pwo){
-    tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+    std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
     char *max = pwo + 8 * 1024 * 1024 - 4;
     for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
       // check if the whole entry will fit
@@ -225,7 +225,7 @@ namespace Controller{
   void readPushList(){
     size_t recoverCount = 0;
     {
-      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       IPC::sharedPage pushReadPage("MstPush", 8 * 1024 * 1024, false, false);
       char * pwo = pushReadPage.mapped;
       if (pwo){
@@ -368,12 +368,12 @@ namespace Controller{
   }
 
   /// Loops, checking every second if any pushes need restarting.
-  void pushCheckLoop(void *np){
+  void pushCheckLoop(){
     IPC::sharedPage pushPage("MstPush", 8 * 1024 * 1024, true, false);
     while (Controller::conf.is_active){
       // this scope prevents the configMutex from being locked constantly
       {
-        tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+        std::lock_guard<std::mutex> guard(Controller::configMutex);
         long long maxspeed = Controller::Storage["push_settings"]["maxspeed"].asInt();
         long long waittime = Controller::Storage["push_settings"]["wait"].asInt();
         long long curCount = 0;
@@ -429,7 +429,7 @@ namespace Controller{
         //Check if any pushes have ended, clean them up
         std::set<pid_t> toWipe;
         {
-          tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+          std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
           for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
             if (!Util::Procs::isActive(it->first)){toWipe.insert(it->first);}
           }
@@ -451,7 +451,7 @@ namespace Controller{
     if (Util::Config::is_restarting){
       pushPage.master = false;
       // forget about all pushes, so they keep running
-      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
         Util::Procs::forget(it->first);
       }
@@ -462,7 +462,7 @@ namespace Controller{
   void listPush(JSON::Value &output){
     std::set<pid_t> toWipe;
     {
-      tthread::lock_guard<tthread::recursive_mutex> actGuard(actPushMut);
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       output.null();
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
         if (Util::Procs::isActive(it->first)){

@@ -20,10 +20,10 @@ namespace Controller{
   std::string udpApiBindAddr;
   Util::Config conf;
   JSON::Value Storage; ///< Global storage of data.
-  tthread::mutex configMutex;
-  tthread::mutex logMutex;
+  std::mutex configMutex;
+  std::mutex logMutex;
   std::set<std::string> shmList;
-  tthread::mutex shmListMutex;
+  std::mutex shmListMutex;
   uint64_t logCounter = 0;
   uint64_t lastConfigChange = 0;
   uint64_t lastConfigWrite = 0;
@@ -55,7 +55,7 @@ namespace Controller{
   ///\param message The message to be logged.
   void Log(const std::string &kind, const std::string &message, const std::string &stream, uint64_t progPid, bool noWriteToLog){
     if (noWriteToLog){
-      tthread::lock_guard<tthread::mutex> guard(logMutex);
+      std::lock_guard<std::mutex> guard(logMutex);
       JSON::Value m;
       uint64_t logTime = Util::epoch();
       m.append(logTime);
@@ -143,7 +143,7 @@ namespace Controller{
   }
 
   void initState(){
-    tthread::lock_guard<tthread::mutex> guard(logMutex);
+    std::lock_guard<std::mutex> guard(logMutex);
     shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024 * 1024, false, false); // max 1M of logs cached
     if (!shmLogs || !shmLogs->mapped){
       if (shmLogs){delete shmLogs;}
@@ -213,7 +213,7 @@ namespace Controller{
   }
 
   void deinitState(bool leaveBehind){
-    tthread::lock_guard<tthread::mutex> guard(logMutex);
+    std::lock_guard<std::mutex> guard(logMutex);
     if (!leaveBehind){
       if (rlxLogs){rlxLogs->setExit();}
       if (shmLogs){shmLogs->master = true;}
@@ -793,12 +793,12 @@ namespace Controller{
 
 
   void addShmPage(const std::string & page){
-    tthread::lock_guard<tthread::mutex> guard(shmListMutex);
+    std::lock_guard<std::mutex> guard(shmListMutex);
     shmList.insert(page);
   }
 
   void wipeShmPages(){
-    tthread::lock_guard<tthread::mutex> guard(shmListMutex);
+    std::lock_guard<std::mutex> guard(shmListMutex);
     if (!shmList.size()){return;}
     std::set<std::string>::iterator it;
     for (it = shmList.begin(); it != shmList.end(); ++it){

@@ -214,7 +214,7 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool au
       //Parse JSON and check command type
       JSON::Value command = JSON::fromString(W.data, W.data.size());
       if (command.isArray() && command[0u].asString() == "auth"){
-        tthread::lock_guard<tthread::mutex> guard(configMutex);
+        std::lock_guard<std::mutex> guard(configMutex);
         JSON::Value req;
         req["authorize"] = command[1u];
         authorized = authorize(req, req, C);
@@ -383,7 +383,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
           JSON::Value req;
           req["authorize"] = JSON::fromString(auth.substr(5));
           if (Storage["account"]){
-            tthread::lock_guard<tthread::mutex> guard(configMutex);
+            std::lock_guard<std::mutex> guard(configMutex);
             if (!Controller::conf.is_active){return 0;}
             authorized = authorize(req, req, conn);
             if (!authorized){
@@ -441,7 +441,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
       }
       if (H.url == "/api2"){Request["minimal"] = true;}
       {// lock the config mutex here - do not unlock until done processing
-        tthread::lock_guard<tthread::mutex> guard(configMutex);
+        std::lock_guard<std::mutex> guard(configMutex);
         if (!Controller::conf.is_active){return 0;}
         // if already authorized, do not re-check for authorization
         if (authorized && Storage["account"]){
@@ -480,7 +480,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
   return 0;
 }
 
-void Controller::handleUDPAPI(void *np){
+void Controller::handleUDPAPI(){
   Socket::UDPConnection uSock(true);
   uint16_t boundPort;
   {
@@ -509,7 +509,7 @@ void Controller::handleUDPAPI(void *np){
   boundAddr.setPort(boundPort);
   boundAddr.host = uSock.getBoundAddress();
   {
-    tthread::lock_guard<tthread::mutex> guard(configMutex);
+    std::lock_guard<std::mutex> guard(configMutex);
     udpApiBindAddr = boundAddr.getUrl();
     Controller::writeConfig();
   }
@@ -522,7 +522,7 @@ void Controller::handleUDPAPI(void *np){
       Request["minimal"] = true;
       JSON::Value Response;
       if (Request.isObject()){
-        tthread::lock_guard<tthread::mutex> guard(configMutex);
+        std::lock_guard<std::mutex> guard(configMutex);
         Response["authorize"]["local"] = true;
         handleAPICommands(Request, Response);
         Response.removeMember("authorize");
@@ -1104,7 +1104,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
   ///
   if (Request.isMember("clearstatlogs") || Request.isMember("log") || !Request.isMember("minimal")){
-    tthread::lock_guard<tthread::mutex> guard(logMutex);
+    std::lock_guard<std::mutex> guard(logMutex);
     if (!Controller::conf.is_active){return;}
     if (!Request.isMember("minimal") || Request.isMember("log")){
       Response["log"] = Controller::Storage["log"];

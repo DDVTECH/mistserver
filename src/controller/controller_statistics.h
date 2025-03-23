@@ -7,6 +7,7 @@
 #include <mist/shared_memory.h>
 #include <mist/socket.h>
 #include <mist/timing.h>
+#include <mist/config.h>
 #include <string>
 
 /// The STAT_CUTOFF define sets how many seconds of statistics history is kept.
@@ -117,7 +118,7 @@ namespace Controller{
   void fillActive(JSON::Value &req, JSON::Value &rep);
   void fillHasStats(JSON::Value &req, JSON::Value &rep);
   void fillTotals(JSON::Value &req, JSON::Value &rep);
-  void SharedMemStats(void *config);
+  void SharedMemStats(Util::Config *config);
   void sessions_invalidate(const std::string &streamname);
   void sessions_shutdown(JSON::Iter &i);
   void sessId_shutdown(const std::string &sessId);

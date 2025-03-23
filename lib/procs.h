@@ -2,7 +2,6 @@
 /// Contains generic function headers for managing processes.
 
 #pragma once
-#include "tinythread.h"
 #include <deque>
 #include <set>
 #include <string>
@@ -14,18 +13,8 @@ namespace Util{
 
   /// Deals with spawning, monitoring and stopping child processes
   class Procs{
-  private:
-    static tthread::mutex plistMutex;
-    static std::set<pid_t> plist; ///< Holds active process list.
-    static bool thread_handler;   ///< True while thread handler should be running.
-    static void childsig_handler(int signum);
-    static void exit_handler();
-    static char *const *dequeToArgv(std::deque<std::string> &argDeq);
-    static void grim_reaper(void *n);
   public:
     static bool childRunning(pid_t p);
-    static tthread::thread *reaper_thread;
-    static bool handler_set; ///< If true, the sigchld handler has been setup.
     static void fork_prepare();
     static void reap();
     static void fork_complete();

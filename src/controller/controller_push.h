@@ -1,6 +1,5 @@
 #include <mist/config.h>
 #include <mist/json.h>
-#include <mist/tinythread.h>
 #include <string>
 
 namespace Controller{
@@ -23,7 +22,7 @@ namespace Controller{
   // internal use only
   void removePush(const JSON::Value &pushInfo);
   void doAutoPush(std::string &streamname);
-  void pushCheckLoop(void *np);
+  void pushCheckLoop();
   bool isPushActive(const std::string &streamname, const std::string &target);
   void stopActivePushes(const std::string &streamname, const std::string &target);
   bool checkCondition(const JSON::Value &currentValue, const uint8_t &comparisonOperator, const JSON::Value &matchedValue);

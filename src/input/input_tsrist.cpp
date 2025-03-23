@@ -3,9 +3,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
 #include <mist/defines.h>
 #include <mist/downloader.h>
 #include <mist/flv_tag.h>
@@ -18,7 +15,6 @@
 #include <string>
 
 #include <mist/procs.h>
-#include <mist/tinythread.h>
 #include <sys/stat.h>
 
 Mist::InputTSRIST *connPtr = 0;

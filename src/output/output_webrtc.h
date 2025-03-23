@@ -8,7 +8,6 @@
 #include <mist/sdp_media.h>
 #include <mist/socket.h>
 #include <mist/stun.h>
-#include <mist/tinythread.h>
 #include <mist/websocket.h>
 #include <fstream>
 #include "output_webrtc_srtp.h"

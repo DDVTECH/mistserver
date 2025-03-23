@@ -1332,7 +1332,7 @@ namespace Mist{
     if (targetParams.count("recstart")){liveSeekDisabled = true;} //disable seeking forward for pushes with start time
 
     if (!keepGoing()){
-      ERROR_MSG("Aborting seek to %" PRIu64 " since the stream is no longer active", seekPos);
+      ERROR_MSG("Aborting seek to %" PRIu64 " since the output is shutting down", seekPos);
       return;
     }
     if (endTime() >= atoll(targetParams["recstart"].c_str())) {

@@ -1,8 +1,9 @@
 #include "process_exec.h"
 #include "process.hpp"
 #include <mist/procs.h>
-#include <mist/tinythread.h>
 #include <mist/util.h>
+#include <thread>
+#include <mutex>
 #include <ostream>
 #include <sys/stat.h>  //for stat
 #include <sys/types.h> //for stat
@@ -16,7 +17,7 @@ Util::Config conf;
 //Stat related stuff
 JSON::Value pStat;
 JSON::Value & pData = pStat["proc_status_update"]["status"];
-tthread::mutex statsMutex;
+std::mutex statsMutex;
 uint64_t statSinkMs = 0;
 uint64_t statSourceMs = 0;
 int64_t bootMsOffset = 0;
@@ -30,7 +31,7 @@ namespace Mist{
     };
     void getNext(size_t idx = INVALID_TRACK_ID){
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         if (pData["sink_tracks"].size() != userSelect.size()){
           pData["sink_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -64,7 +65,7 @@ namespace Mist{
       Util::streamVariables(streamName, opt["source"].asString());
       Util::setStreamName(opt["source"].asString() + "→" + streamName);
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         pStat["proc_status_update"]["sink"] = streamName;
         pStat["proc_status_update"]["source"] = opt["source"];
       }
@@ -128,7 +129,7 @@ namespace Mist{
     }
     void sendNext(){
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         if (pData["source_tracks"].size() != userSelect.size()){
           pData["source_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -215,7 +216,7 @@ namespace Mist{
 
     uint64_t lastProcUpdate = Util::bootSecs();
     {
-      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      std::lock_guard<std::mutex> guard(statsMutex);
       pStat["proc_status_update"]["id"] = getpid();
       pStat["proc_status_update"]["proc"] = "MKVExec";
       pData["ainfo"]["child_pid"] = execd_proc;
@@ -225,7 +226,7 @@ namespace Mist{
     while (conf.is_active && Util::Procs::isRunning(execd_proc)){
       Util::sleep(200);
       if (lastProcUpdate + 5 <= Util::bootSecs()){
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         pData["active_seconds"] = (Util::bootSecs() - startTime);
         pData["ainfo"]["sourceTime"] = statSourceMs;
         pData["ainfo"]["sinkTime"] = statSinkMs;
@@ -244,7 +245,7 @@ namespace Mist{
   }
 }// namespace Mist
 
-void sinkThread(void *){
+void sinkThread(){
   Mist::ProcessSink in(&co);
   co.getOption("output", true).append("-");
   co.activate();
@@ -255,7 +256,7 @@ void sinkThread(void *){
   conf.is_active = false;
 }
 
-void sourceThread(void *){
+void sourceThread(){
   Mist::ProcessSource::init(&conf);
   conf.getOption("streamname", true).append(Mist::opt["source"].c_str());
   conf.getOption("target", true).append("-?audio=all&video=all");
@@ -417,11 +418,11 @@ int main(int argc, char *argv[]){
   Util::Procs::socketList.insert(pipein[1]);
 
   // stream which connects to input
-  tthread::thread source(sourceThread, 0);
+  std::thread source(sourceThread);
   Util::sleep(500);
 
   // needs to pass through encoder to outputEBML
-  tthread::thread sink(sinkThread, 0);
+  std::thread sink(sinkThread);
 
   co.is_active = true;
 

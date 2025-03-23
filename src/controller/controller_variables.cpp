@@ -1,5 +1,4 @@
 #include "controller_variables.h"
-#include "controller_statistics.h"
 #include "controller_storage.h"
 #include <mist/downloader.h>
 #include <mist/bitfields.h>
@@ -7,20 +6,22 @@
 #include <mist/json.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/procs.h>
 #include <string>
+#include <mutex>
 
 namespace Controller{
   // Indicates whether the shared memory page is stale compared to the server config
   static bool mutateShm = true;
   // Size of the shared memory page
   static uint64_t pageSize = CUSTOM_VARIABLES_INITSIZE;
-  tthread::mutex variableMutex;
+  std::mutex variableMutex;
 
   /// \brief Loops, checking every second if any variables require updating
-  void variableCheckLoop(void *np){
+  void variableCheckLoop(){
     while (Controller::conf.is_active){
       {
-        tthread::lock_guard<tthread::mutex> guard(variableMutex);
+        std::lock_guard<std::mutex> guard(variableMutex);
         uint64_t now = Util::epoch();
         // Check if any custom variable target needs to be run
         IPC::sharedPage variablePage(SHM_CUSTOM_VARIABLES, 0, false, false);
@@ -194,7 +195,7 @@ namespace Controller{
       value = value.substr(0, 63);
       WARN_MSG("Maximum value size is 63 characters, truncating value to '%s'", value.c_str());
     }
-    tthread::lock_guard<tthread::mutex> guard(variableMutex);
+    std::lock_guard<std::mutex> guard(variableMutex);
     // Check if we have an existing variable with the same name to modify
     jsonForEach(Controller::Storage["variables"], it){
       if ((*it)[0u].asString() == name){
@@ -302,7 +303,7 @@ namespace Controller{
 
   /// \brief Removes the variable with the given name from shm and the server config
   void removeVariableByName(const std::string &name){
-    tthread::lock_guard<tthread::mutex> guard(variableMutex);
+    std::lock_guard<std::mutex> guard(variableMutex);
     // Modify config
     jsonForEach(Controller::Storage["variables"], it){
       if ((*it)[0u].asString() == name){

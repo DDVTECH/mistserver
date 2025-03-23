@@ -4,8 +4,6 @@
 #include "controller_connectors.h"
 #include "controller_storage.h"
 #include "controller_updater.h"
-#include <fstream>  //for files
-#include <iostream> //for stdio
 #include <mist/auth.h>
 #include <mist/config.h>
 #include <mist/defines.h>
@@ -18,13 +16,14 @@
 #include <sys/stat.h> //for chmod
 #include <time.h>     //for time
 #include <unistd.h>   //for unlink
+#include <mutex>
 
 #define UPDATE_INTERVAL 3600
 #ifndef SHARED_SECRET
 #define SHARED_SECRET "empty"
 #endif
 
-tthread::mutex updaterMutex;
+std::mutex updaterMutex;
 uint8_t updatePerc = 0;
 JSON::Value updates;
 HTTP::Downloader DL;
@@ -36,7 +35,7 @@ bool updaterProgressCallback(){
 
 namespace Controller{
 
-  void updateThread(void *np){
+  void updateThread(){
     uint64_t updateChecker = Util::epoch() - UPDATE_INTERVAL;
     while (Controller::conf.is_active){
       if (Util::epoch() - updateChecker > UPDATE_INTERVAL || updatePerc){
@@ -45,7 +44,7 @@ namespace Controller{
           FAIL_MSG("Error retrieving update information: %s", result["error"].asStringRef().c_str());
         }
         {// Lock the mutex, update the updates object
-          tthread::lock_guard<tthread::mutex> guard(updaterMutex);
+          std::lock_guard<std::mutex> guard(updaterMutex);
           updates = result;
         }
         if (!result["uptodate"] && updatePerc){
@@ -129,7 +128,7 @@ namespace Controller{
   }
 
   void insertUpdateInfo(JSON::Value &ret){
-    tthread::lock_guard<tthread::mutex> guard(updaterMutex);
+    std::lock_guard<std::mutex> guard(updaterMutex);
     ret = updates;
     if (updatePerc){ret["progress"] = (uint16_t)updatePerc;}
   }

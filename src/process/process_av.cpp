@@ -4,7 +4,6 @@
 #include <mist/h264.h>
 #include <mist/mp4_generic.h>
 #include <mist/nal.h>
-#include <mist/tinythread.h>
 #include <mist/util.h>
 #include <ostream>
 #include <sys/stat.h>  //for stat
@@ -14,6 +13,9 @@
 #ifdef WITH_THREADNAMES
 #include <pthread.h>
 #endif
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include "../input/input.h"
 #include "../output/output.h"
@@ -45,15 +47,15 @@ AVAudioFifo *audioBuffer = 0;                     ///< Buffer for encoded audio 
 AVCodecContext *context_out = 0, *context_in = 0; ///< Decoding/encoding contexts
 std::deque<uint64_t> frameTimes;                  ///< Frame timestamps
 bool frameReady = false;
-tthread::mutex avMutex;                       ///< Lock for reading/writing frameTimes/frameReady
-tthread::condition_variable avCV; ///< Condition variable for reading/writing frameTimes/frameReady
+std::mutex avMutex;                       ///< Lock for reading/writing frameTimes/frameReady
+std::condition_variable avCV; ///< Condition variable for reading/writing frameTimes/frameReady
 int av_logLevel = AV_LOG_WARNING;
 char * scaler = (char*)"None";
 
 //Stat related stuff
 JSON::Value pStat;
 JSON::Value & pData = pStat["proc_status_update"]["status"];
-tthread::mutex statsMutex;
+std::mutex statsMutex;
 uint64_t statSinkMs = 0;
 uint64_t statSourceMs = 0;
 int64_t bootMsOffset = 0;
@@ -89,7 +91,7 @@ namespace Mist{
       if (!streamName.size()){streamName = opt["source"].asString();}
       Util::streamVariables(streamName, opt["source"].asString());
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         pStat["proc_status_update"]["sink"] = streamName;
         pStat["proc_status_update"]["source"] = opt["source"];
       }
@@ -225,10 +227,10 @@ namespace Mist{
       while (config->is_active){
         // Get current frame time
         {
-          tthread::lock_guard<tthread::mutex> guard(avMutex);
-          // Wait for frame/samples to become available
           uint64_t sleepTime = Util::getMicros();
-          while (!frameReady && config->is_active){avCV.wait(avMutex);}
+          // Wait for frame/samples to become available
+          std::unique_lock<std::mutex> lk(avMutex);
+          avCV.wait(lk,[](){return frameReady || !config->is_active;});
           totalSinkSleep += Util::getMicros(sleepTime);
           if (!config->is_active){return;}
           thisTime = frameTimes.front();
@@ -244,8 +246,8 @@ namespace Mist{
           }
           // Notify input that we require another frame
           frameReady = false;
-          avCV.notify_all();
         }
+        avCV.notify_all();
 
         if (!userSelect.count(thisIdx)){
           userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
@@ -278,7 +280,7 @@ namespace Mist{
 
           statTimer = Util::bootSecs();
           {
-            tthread::lock_guard<tthread::mutex> guard(statsMutex);
+            std::lock_guard<std::mutex> guard(statsMutex);
             if (pData["sink_tracks"].size() != userSelect.size()){
               pData["sink_tracks"].null();
               for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -412,6 +414,8 @@ namespace Mist{
   ProcessSink * sinkClass = 0;
 
   class ProcessSource : public Output{
+  protected:
+    inline virtual bool keepGoing(){return config->is_active;}
   private:
     SwsContext *convertCtx; ///< Convert input to target-codec-compatible YUV420 format
     SwrContext *resampleContext; ///< Resample audio formats
@@ -1556,7 +1560,10 @@ namespace Mist{
       if (ret < 0){printError("Unable to send frame to the encoder", ret);}
 
       {
-        tthread::lock_guard<tthread::mutex> guard(avMutex);
+        uint64_t sleepTime = Util::getMicros();
+        std::unique_lock<std::mutex> lk(avMutex);
+        avCV.wait(lk,[](){return !frameReady || !config->is_active;});
+        totalSourceSleep += Util::getMicros(sleepTime);
         frameTimes.push_back(thisTime);
         ++outputFrameCount;
         // Retrieve encoded packet
@@ -1565,8 +1572,8 @@ namespace Mist{
           return;
         }
         frameReady = true;
-        avCV.notify_all();
       }
+      avCV.notify_all();
     }
 
     /// @brief Takes raw audio buffer and encode it to create an output packet
@@ -1602,8 +1609,10 @@ namespace Mist{
           return;
         }
         {
-          tthread::lock_guard<tthread::mutex> guard(avMutex);
-          while (frameReady && config->is_active){avCV.wait(avMutex);}
+          uint64_t sleepTime = Util::getMicros();
+          std::unique_lock<std::mutex> lk(avMutex);
+          avCV.wait(lk,[](){return !frameReady || !config->is_active;});
+          totalSourceSleep += Util::getMicros(sleepTime);
 
           // Retrieve encoded packet
           ret = avcodec_receive_packet(context_out, packet_out);
@@ -1619,8 +1628,8 @@ namespace Mist{
           outputFrameCount = (char*)packet_out->pts;
           
           frameReady = true;
-          avCV.notify_all();
         }
+        avCV.notify_all();
       }
     }
 
@@ -1631,28 +1640,27 @@ namespace Mist{
       ptr.truncate(0);
       int bytes = av_image_copy_to_buffer((uint8_t*)(char*)ptr, ptr.rsize(), frameConverted->data, frameConverted->linesize, (AVPixelFormat)frameConverted->format, frameConverted->width, frameConverted->height, 32);
       if (bytes > 0){
-        tthread::lock_guard<tthread::mutex> guard(avMutex);
-        // Adjust ptr size to how many bytes were actually written
-        ptr.append(0, bytes);
-        frameTimes.push_back(thisTime);
-        ++outputFrameCount;
-        frameReady = true;
+        {
+          uint64_t sleepTime = Util::getMicros();
+          std::unique_lock<std::mutex> lk(avMutex);
+          avCV.wait(lk,[](){return !frameReady || !config->is_active;});
+          totalSourceSleep += Util::getMicros(sleepTime);
+          // Adjust ptr size to how many bytes were actually written
+          ptr.append(0, bytes);
+          frameTimes.push_back(thisTime);
+          ++outputFrameCount;
+          frameReady = true;
+        }
         avCV.notify_all();
       }
     }
 
     void sendNext(){
       // Wait for the other side to process the last frame that was ready for buffering
-      uint64_t sleepTime = Util::getMicros();
-      {
-        tthread::lock_guard<tthread::mutex> guard(avMutex);
-        while (frameReady && config->is_active){avCV.wait(avMutex);}
-      }
-      totalSourceSleep += Util::getMicros(sleepTime);
       if (!config->is_active){return;}
 
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         if (pData["source_tracks"].size() != userSelect.size()){
           pData["source_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -1786,7 +1794,7 @@ namespace Mist{
   void ProcAV::Run(){
     uint64_t lastProcUpdate = Util::bootSecs();
     {
-      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      std::lock_guard<std::mutex> guard(statsMutex);
       pStat["proc_status_update"]["id"] = getpid();
       pStat["proc_status_update"]["proc"] = "AV";
     }
@@ -1796,7 +1804,7 @@ namespace Mist{
     while (conf.is_active && co.is_active){
       Util::sleep(200);
       if (lastProcUpdate + 5 <= Util::bootSecs()){
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         pData["active_seconds"] = (Util::bootSecs() - startTime);
         pData["ainfo"]["sourceTime"] = statSourceMs;
         pData["ainfo"]["sinkTime"] = statSinkMs;
@@ -1831,7 +1839,7 @@ namespace Mist{
   }
 }// namespace Mist
 
-void sinkThread(void *){
+void sinkThread(){
 #ifdef WITH_THREADNAMES
   pthread_setname_np(pthread_self(), "sinkThread");
 #endif
@@ -1845,7 +1853,7 @@ void sinkThread(void *){
   avCV.notify_all();
 }
 
-void sourceThread(void *){
+void sourceThread(){
 #ifdef WITH_THREADNAMES
   pthread_setname_np(pthread_self(), "sourceThread");
 #endif
@@ -2195,10 +2203,10 @@ int main(int argc, char *argv[]){
   conf.is_active = true;
 
   // stream which connects to input
-  tthread::thread source(sourceThread, 0);
+  std::thread source(sourceThread);
 
   // needs to pass through encoder to outputEBML
-  tthread::thread sink(sinkThread, 0);
+  std::thread sink(sinkThread);
 
   // run process
   Enc.Run();

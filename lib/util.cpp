@@ -11,6 +11,7 @@
 #include "urireader.h"
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iomanip>
+#include <signal.h>
 #include <iostream>
 #include <sstream>
 #include <stdio.h>

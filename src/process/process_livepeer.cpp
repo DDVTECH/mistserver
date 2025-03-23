@@ -8,17 +8,19 @@
 #include <mist/encode.h>
 #include "../input/input.h"
 #include <ostream>
+#include <thread>
+#include <mutex>
 #include <sys/stat.h>  //for stat
 #include <sys/types.h> //for stat
 #include <unistd.h>    //for stat
 
-tthread::mutex segMutex;
-tthread::mutex broadcasterMutex;
+std::mutex segMutex;
+std::mutex broadcasterMutex;
 
 //Stat related stuff
 JSON::Value pStat;
 JSON::Value & pData = pStat["proc_status_update"]["status"];
-tthread::mutex statsMutex;
+std::mutex statsMutex;
 uint64_t statSwitches = 0;
 uint64_t statFailN200 = 0;
 uint64_t statFailTimeout = 0;
@@ -128,7 +130,7 @@ namespace Mist{
     }
     void sendNext(){
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         if (pData["source_tracks"].size() != userSelect.size()){
           pData["source_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -169,7 +171,7 @@ namespace Mist{
       if (!streamName.size()){streamName = opt["source"].asString();}
       Util::streamVariables(streamName, opt["source"].asString());
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         pStat["proc_status_update"]["sink"] = streamName;
         pStat["proc_status_update"]["source"] = opt["source"];
       }
@@ -189,7 +191,7 @@ namespace Mist{
       int64_t timeOffset = 0;
       uint64_t trackId = 0;
       {
-        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        std::lock_guard<std::mutex> guard(statsMutex);
         if (pData["sink_tracks"].size() != userSelect.size()){
           pData["sink_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -199,7 +201,7 @@ namespace Mist{
       }
       while (!thisPacket && conf.is_active){
         {
-          tthread::lock_guard<tthread::mutex> guard(segMutex);
+          std::lock_guard<std::mutex> guard(segMutex);
           std::string oRend;
           uint64_t lastPacket = 0xFFFFFFFFFFFFFFFFull;
           for (segIt = segs.begin(); segIt != segs.end(); ++segIt){
@@ -277,7 +279,7 @@ namespace Mist{
 
 
 
-void sinkThread(void *){
+void sinkThread(){
   Mist::ProcessSink in(&co);
   co.activate();
   co.is_active = true;
@@ -288,7 +290,7 @@ void sinkThread(void *){
   co.is_active = false;
 }
 
-void sourceThread(void *){
+void sourceThread(){
   conf.addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":"
                                                   "\"stream\",\"help\":\"The name of the stream "
                                                   "that this connector will transmit.\"}"));
@@ -333,7 +335,7 @@ void insertPart(const Mist::preparedSegment & mySeg, const std::string & renditi
   uint64_t lastAlert = waitTime;
   while (conf.is_active){
     {
-      tthread::lock_guard<tthread::mutex> guard(segMutex);
+      std::lock_guard<std::mutex> guard(segMutex);
       if (Mist::segs[rendition].fullyRead){
         HIGH_MSG("Inserting %zi bytes of %s, originally for time %" PRIu64, len, rendition.c_str(), mySeg.time);
         Mist::segs[rendition].set(mySeg.time, ptr, len);
@@ -416,8 +418,7 @@ void segmentRejectedTrigger(Mist::preparedSegment & mySeg, const std::string & b
   insertTurn = (insertTurn + 1) % PRESEG_COUNT;
 }
 
-void uploadThread(void * num){
-  size_t myNum = (size_t)num;
+void uploadThread(size_t myNum){
   Mist::preparedSegment & mySeg = Mist::presegs[myNum];
   HTTP::Downloader upper;
   bool was422 = false;
@@ -429,7 +430,7 @@ void uploadThread(void * num){
     do{
       HTTP::URL target;
       {
-        tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
+        std::lock_guard<std::mutex> guard(broadcasterMutex);
         target = HTTP::URL(Mist::currBroadAddr+"/live/"+Mist::lpID+"/"+JSON::Value(mySeg.keyNo).asString()+".ts");
       }
       upper.dataTimeout = mySeg.segDuration/1000 + 2;
@@ -493,7 +494,7 @@ void uploadThread(void * num){
       }
       bool switchSuccess = false;
       {
-        tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
+        std::lock_guard<std::mutex> guard(broadcasterMutex);
         std::string prevBroadAddr = Mist::currBroadAddr;
         Mist::pickRandomBroadcaster();
         if (!Mist::currBroadAddr.size()){
@@ -917,25 +918,25 @@ int main(int argc, char *argv[]){
   //Here be threads.
 
   //Source thread, from Mist to LP.
-  tthread::thread source(sourceThread, 0);
+  std::thread source(sourceThread);
   while (!conf.is_active && Util::bootSecs() < lastProcUpdate + 5){Util::sleep(50);}
   if (!conf.is_active){WARN_MSG("Timeout waiting for source thread to boot!");}
   lastProcUpdate = Util::bootSecs();
 
   //Sink thread, from LP to Mist
-  tthread::thread sink(sinkThread, 0);
+  std::thread sink(sinkThread);
   while (!co.is_active && Util::bootSecs() < lastProcUpdate + 5){Util::sleep(50);}
   if (!co.is_active){WARN_MSG("Timeout waiting for sink thread to boot!");}
   lastProcUpdate = Util::bootSecs();
 
   // These threads upload prepared segments
-  tthread::thread uploader0(uploadThread, (void*)0);
-  tthread::thread uploader1(uploadThread, (void*)1);
+  std::thread uploader0(uploadThread, 0);
+  std::thread uploader1(uploadThread, 1);
 
   while (conf.is_active && co.is_active){
     Util::sleep(200);
     if (lastProcUpdate + 5 <= Util::bootSecs()){
-      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      std::lock_guard<std::mutex> guard(statsMutex);
       pData["active_seconds"] = (Util::bootSecs() - startTime);
       pData["ainfo"]["switches"] = statSwitches;
       pData["ainfo"]["fail_non200"] = statFailN200;
@@ -945,7 +946,7 @@ int main(int argc, char *argv[]){
       pData["ainfo"]["sourceTime"] = statSourceMs;
       pData["ainfo"]["sinkTime"] = statSinkMs;
       {
-        tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
+        std::lock_guard<std::mutex> guard(broadcasterMutex);
         pData["ainfo"]["bc"] = Mist::currBroadAddr;
       }
       Util::sendUDPApi(pStat);

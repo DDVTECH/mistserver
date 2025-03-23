@@ -7,10 +7,10 @@
 #include "ts_stream.h"
 #include <stdint.h>
 #include <sys/stat.h>
-#include "tinythread.h"
+#include <mutex>
 #include "opus.h"
 
-tthread::recursive_mutex tMutex;
+std::recursive_mutex tMutex;
 
 
 namespace TS{
@@ -164,7 +164,7 @@ namespace TS{
   }
 
   void Stream::partialClear(){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     pesStreams.clear();
     psCacheTid = 0;
     psCache = 0;
@@ -177,7 +177,7 @@ namespace TS{
   }
 
   void Stream::clear(){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     partialClear();
     pidToCodec.clear();
     adtsInfo.clear();
@@ -195,7 +195,7 @@ namespace TS{
   }
 
   void Stream::finish(){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     if (!pesStreams.size()){return;}
 
     for (std::map<size_t, std::deque<Packet> >::const_iterator i = pesStreams.begin();
@@ -211,7 +211,7 @@ namespace TS{
   }
 
   void Stream::add(Packet &newPack, uint64_t bytePos){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     uint32_t tid = newPack.getPID();
     bool unitStart = newPack.getUnitStart();
     static uint32_t wantPrev = 0;
@@ -235,13 +235,13 @@ namespace TS{
   bool Stream::isDataTrack(size_t tid) const{
     if (tid == 0){return false;}
     {
-      tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+      std::lock_guard<std::recursive_mutex> guard(tMutex);
       return pidToCodec.count(tid);
     }
   }
 
   void Stream::parse(size_t tid){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     if (!pesStreams.count(tid) || pesStreams[tid].size() == 0){return;}
     if (psCacheTid != tid || !psCache){
       psCache = &(pesStreams[tid]);
@@ -330,7 +330,7 @@ namespace TS{
   }
 
   bool Stream::hasPacketOnEachTrack() const{
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     if (!pidToCodec.size()){
       // INFO_MSG("no packet on each track 1, pidtocodec.size: %d, outpacket.size: %d",
       // pidToCodec.size(), outPackets.size());
@@ -355,7 +355,7 @@ namespace TS{
   }
 
   bool Stream::hasPacket(size_t tid) const{
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     if (psCacheTid != tid && pesStreams.find(tid) == pesStreams.end()){return false;}
     if (outPackets.count(tid) && outPackets.at(tid).size()){return true;}
     if (pidToCodec.count(tid) && seenUnitStart.count(tid) && seenUnitStart.at(tid) > 1){
@@ -365,7 +365,7 @@ namespace TS{
   }
 
   bool Stream::hasPacket() const{
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     if (!pesStreams.size()){return false;}
 
     if (outPackets.size()){
@@ -812,7 +812,7 @@ namespace TS{
   }
 
   void Stream::getPacket(size_t tid, DTSC::Packet &pack, size_t mappedAs){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     pack.null();
     if (!hasPacket(tid)){
       ERROR_MSG("Trying to obtain a packet on track %zu, but no full packet is available", tid);
@@ -925,7 +925,7 @@ namespace TS{
       case 32:
       case 33:
       case 34:{
-        tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+        std::lock_guard<std::recursive_mutex> guard(tMutex);
         hevcInfo[tid].addUnit(std::string(pesPayload, nextPtr - pesPayload)); // may i convert to (char *)?
         break;
       }
@@ -935,7 +935,7 @@ namespace TS{
   }
 
   uint32_t Stream::getEarliestPID(){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
 
     uint64_t packTime = 0xFFFFFFFFull;
     uint32_t packTrack = 0;
@@ -952,7 +952,7 @@ namespace TS{
   }
 
   void Stream::getEarliestPacket(DTSC::Packet &pack){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     pack.null();
 
     uint64_t packTime = 0xFFFFFFFFull;
@@ -984,7 +984,7 @@ namespace TS{
   }
 
   void Stream::initializeMetadata(DTSC::Meta &meta, size_t tid, size_t mappingId){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
 
     for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
       if (tid != INVALID_TRACK_ID && it->first != tid){continue;}
@@ -1187,7 +1187,7 @@ namespace TS{
   }
 
   std::set<size_t> Stream::getActiveTracks(){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     std::set<size_t> result;
     // Track 0 is always active
     result.insert(0);
@@ -1225,7 +1225,7 @@ namespace TS{
   }
 
   void Stream::eraseTrack(size_t tid){
-    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+    std::lock_guard<std::recursive_mutex> guard(tMutex);
     pesStreams.erase(tid);
     psCacheTid = 0;
     psCache = 0;

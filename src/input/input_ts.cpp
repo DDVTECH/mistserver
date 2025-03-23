@@ -3,9 +3,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
 #include <mist/defines.h>
 #include <mist/flv_tag.h>
 #include <mist/http_parser.h>
@@ -15,12 +12,12 @@
 #include <mist/ts_packet.h>
 #include <mist/util.h>
 #include <string>
-
+#include <thread>
+#include <mutex>
 #include <mist/procs.h>
-#include <mist/tinythread.h>
 #include <sys/stat.h>
 
-tthread::mutex threadClaimMutex;
+std::mutex threadClaimMutex;
 std::string globalStreamName;
 TS::Stream liveStream;
 Util::Config *cfgPointer = NULL;
@@ -33,13 +30,12 @@ std::set<size_t> claimableThreads;
 /// Global, so that all tracks stay in sync
 int64_t timeStampOffset = 0;
 
-void parseThread(void *mistIn){
+void parseThread(Mist::InputTS *input){
   uint64_t lastTimeStamp = 0;
-  Mist::InputTS *input = reinterpret_cast<Mist::InputTS *>(mistIn);
 
   size_t tid = 0;
   {
-    tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+    std::lock_guard<std::mutex> guard(threadClaimMutex);
     if (claimableThreads.size()){
       tid = *claimableThreads.begin();
       claimableThreads.erase(claimableThreads.begin());
@@ -53,7 +49,7 @@ void parseThread(void *mistIn){
   bool dataTrack = liveStream.isDataTrack(tid);
   size_t idx = INVALID_TRACK_ID;
   {
-    tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+    std::lock_guard<std::mutex> guard(threadClaimMutex);
     threadTimer[tid] = Util::bootSecs();
   }
   while (Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT && cfgPointer->is_active &&
@@ -73,7 +69,7 @@ void parseThread(void *mistIn){
     //Make sure the track is valid, loaded, etc
     if (!meta || idx == INVALID_TRACK_ID || !meta.trackValid(idx)){
       {//Only lock the mutex for as long as strictly necessary
-        tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+        std::lock_guard<std::mutex> guard(threadClaimMutex);
         std::map<std::string, std::string> overrides;
         overrides["singular"] = "";
         if (!Util::streamAlive(globalStreamName) && !Util::startInput(globalStreamName, "push://INTERNAL_ONLY:" + cfgPointer->getString("input"), true, true, overrides)){
@@ -118,7 +114,7 @@ void parseThread(void *mistIn){
         lastTimeStamp = adjustTime;
         if (!meta.getBootMsOffset()){meta.setBootMsOffset(Util::bootMS() - adjustTime);}
         {
-          tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+          std::lock_guard<std::mutex> guard(threadClaimMutex);
           //If the main thread's local metadata doesn't have this track yet, reload metadata
           if (!input->trackLoaded(idx)){
             input->reloadClientMeta();
@@ -136,7 +132,7 @@ void parseThread(void *mistIn){
 
   //On shutdown, make sure to clean up stream buffer
   if (idx != INVALID_TRACK_ID){
-    tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+    std::lock_guard<std::mutex> guard(threadClaimMutex);
     input->liveFinalize(idx);
   }
 
@@ -155,7 +151,7 @@ void parseThread(void *mistIn){
   }
   INFO_MSG("Shutting down thread for %zu because %s", tid, reason.c_str());
   {
-    tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+    std::lock_guard<std::mutex> guard(threadClaimMutex);
     threadTimer.erase(tid);
   }
   liveStream.eraseTrack(tid);
@@ -287,7 +283,7 @@ namespace Mist{
 
   InputTS::~InputTS(){
     if (!standAlone){
-      tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+      std::lock_guard<std::mutex> guard(threadClaimMutex);
       threadTimer.clear();
       claimableThreads.clear();
     }
@@ -691,7 +687,7 @@ namespace Mist{
 
         std::set<size_t> activeTracks = liveStream.getActiveTracks();
         if (!rawMode){
-          tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+          std::lock_guard<std::mutex> guard(threadClaimMutex);
           if (hasStarted && !threadTimer.size()){
             if (!isAlwaysOn()){
               config->is_active = false;
@@ -717,7 +713,7 @@ namespace Mist{
               claimableThreads.insert(*it);
 
               // Spawn thread here.
-              tthread::thread thisThread(parseThread, this);
+              std::thread thisThread(parseThread, this);
               thisThread.detach();
             }
           }
@@ -744,7 +740,7 @@ namespace Mist{
     int threadCount = 0;
     do{
       {
-        tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+        std::lock_guard<std::mutex> guard(threadClaimMutex);
         threadCount = threadTimer.size();
       }
       if (threadCount){Util::sleep(100);}

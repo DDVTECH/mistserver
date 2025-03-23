@@ -1,6 +1,8 @@
 /// \file procs.cpp
 /// Contains generic functions for managing processes.
 
+#include <thread>
+#include <mutex>
 #include "defines.h"
 #include "procs.h"
 #include "stream.h"
@@ -24,22 +26,28 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-std::set<pid_t> Util::Procs::plist;
-std::set<int> Util::Procs::socketList;
-bool Util::Procs::handler_set = false;
-bool Util::Procs::thread_handler = false;
-tthread::mutex Util::Procs::plistMutex;
-tthread::thread *Util::Procs::reaper_thread = 0;
+std::set<pid_t> plist;
+bool handler_set = false;
+bool thread_handler = false;
+std::mutex plistMutex;
+std::mutex reaperMutex;
+std::thread *reaper_thread = 0;
 
 /// How many seconds to wait when shutting down child processes. Defaults to 10
 int Util::Procs::kill_timeout = 10;
 
-/// Local-only function. Attempts to reap child and returns current running status.
+/// List of sockets that need to be closed when spawning a child process.
+std::set<int> Util::Procs::socketList;
+
+/// Ignores everything. Separate thread handles waiting for children.
+void childsig_handler(int signum){return;}
+
+/// Attempts to reap child and returns current running status.
 bool Util::Procs::childRunning(pid_t p){
   int status;
   pid_t ret = waitpid(p, &status, WNOHANG);
   if (ret == p){
-    tthread::lock_guard<tthread::mutex> guard(plistMutex);
+    std::lock_guard<std::mutex> guard(plistMutex);
     int exitcode = -1;
     if (WIFEXITED(status)){
       exitcode = WEXITSTATUS(status);
@@ -58,6 +66,14 @@ bool Util::Procs::childRunning(pid_t p){
   return !kill(p, 0);
 }
 
+/// This local-only function prepares a deque for getOutputOf and automatically inserts a NULL at the end of the char* const*
+char *const *dequeToArgv(std::deque<std::string> &argDeq){
+  char **ret = (char **)malloc((argDeq.size() + 1) * sizeof(char *));
+  for (int i = 0; i < argDeq.size(); i++){ret[i] = (char *)argDeq[i].c_str();}
+  ret[argDeq.size()] = NULL;
+  return ret;
+}
+
 /// sends sig 0 to process (pid). returns true if process is running
 bool Util::Procs::isRunning(pid_t pid){
   return !kill(pid, 0);
@@ -67,12 +83,12 @@ bool Util::Procs::isRunning(pid_t pid){
 /// Waits up to 1 second, then sends SIGINT signal to all managed processes.
 /// After that waits up to 5 seconds for children to exit, then sends SIGKILL to
 /// all remaining children. Waits one more second for cleanup to finish, then exits.
-void Util::Procs::exit_handler(){
+void exit_handler(){
   if (!handler_set){return;}
   int waiting = 0;
   std::set<pid_t> listcopy;
   {
-    tthread::lock_guard<tthread::mutex> guard(plistMutex);
+    std::lock_guard<std::mutex> guard(plistMutex);
     listcopy = plist;
     thread_handler = false;
   }
@@ -90,7 +106,7 @@ void Util::Procs::exit_handler(){
   // wait up to 0.5 second for applications to shut down
   while (!listcopy.empty() && waiting <= 25){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (!childRunning(*it)){
+      if (!Util::Procs::childRunning(*it)){
         listcopy.erase(it);
         break;
       }
@@ -109,7 +125,7 @@ void Util::Procs::exit_handler(){
   while (!listcopy.empty() && waiting <= 50*Util::Procs::kill_timeout){
     bool doWait = true;
     for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (!childRunning(*it)){
+      if (!Util::Procs::childRunning(*it)){
         listcopy.erase(it);
         doWait = false;
         break;
@@ -142,7 +158,7 @@ void Util::Procs::exit_handler(){
   // wait up to 1 second for applications to shut down
   while (!listcopy.empty() && waiting <= 50){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (!childRunning(*it)){
+      if (!Util::Procs::childRunning(*it)){
         listcopy.erase(it);
         break;
       }
@@ -158,7 +174,7 @@ void Util::Procs::exit_handler(){
 
 // Joins the reaper thread, if any, before a fork
 void Util::Procs::fork_prepare(){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  std::lock_guard<std::mutex> guard(reaperMutex);
   if (handler_set){
     thread_handler = false;
     if (reaper_thread){
@@ -171,50 +187,10 @@ void Util::Procs::fork_prepare(){
   }
 }
 
-/// Restarts reaper thread if it was joined
-void Util::Procs::fork_complete(){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
-  if (handler_set){
-
-    struct sigaction old_action;
-    sigaction(SIGCHLD, 0, &old_action);
-    if (old_action.sa_handler == childsig_handler){
-      thread_handler = true;
-      reaper_thread = new tthread::thread(grim_reaper, 0);
-    }
-  }
-}
-
-/// Sets up exit and childsig handlers.
-/// Spawns grim_reaper. exit handler despawns grim_reaper
-/// Called by every Start* function.
-void Util::Procs::setHandler(){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
-  if (!handler_set){
-
-    struct sigaction old_action;
-    sigaction(SIGCHLD, 0, &old_action);
-    if (old_action.sa_handler == SIG_DFL || old_action.sa_handler == SIG_IGN){
-      MEDIUM_MSG("Setting child signal handler, since signals were default or ignored before");
-      thread_handler = true;
-      reaper_thread = new tthread::thread(grim_reaper, 0);
-      struct sigaction new_action;
-      new_action.sa_handler = childsig_handler;
-      sigemptyset(&new_action.sa_mask);
-      new_action.sa_flags = 0;
-      sigaction(SIGCHLD, &new_action, NULL);
-      atexit(exit_handler);
-    }else{
-      VERYHIGH_MSG("Not setting child signal handler; already handled elsewhere");
-    }
-    handler_set = true;
-  }
-}
-
 /// Thread that loops until thread_handler is false.
 /// Reaps available children and then sleeps for a second.
 /// Not done in signal handler so we can use a mutex to prevent race conditions.
-void Util::Procs::grim_reaper(void *n){
+void grim_reaper(){
   // Block most signals, so we don't catch them in this thread
   sigset_t x;
   sigemptyset(&x);
@@ -234,9 +210,48 @@ void Util::Procs::grim_reaper(void *n){
   VERYHIGH_MSG("Grim reaper stop");
 }
 
+/// Restarts reaper thread if it was joined
+void Util::Procs::fork_complete(){
+  std::lock_guard<std::mutex> guard(reaperMutex);
+  if (handler_set){
+
+    struct sigaction old_action;
+    sigaction(SIGCHLD, 0, &old_action);
+    if (old_action.sa_handler == childsig_handler){
+      thread_handler = true;
+      reaper_thread = new std::thread(grim_reaper);
+    }
+  }
+}
+
+/// Sets up exit and childsig handlers.
+/// Spawns grim_reaper. exit handler despawns grim_reaper
+/// Called by every Start* function.
+void Util::Procs::setHandler(){
+  std::lock_guard<std::mutex> guard(reaperMutex);
+  if (!handler_set){
+
+    struct sigaction old_action;
+    sigaction(SIGCHLD, 0, &old_action);
+    if (old_action.sa_handler == SIG_DFL || old_action.sa_handler == SIG_IGN){
+      MEDIUM_MSG("Setting child signal handler, since signals were default or ignored before");
+      thread_handler = true;
+      reaper_thread = new std::thread(grim_reaper);
+      struct sigaction new_action;
+      new_action.sa_handler = childsig_handler;
+      sigemptyset(&new_action.sa_mask);
+      new_action.sa_flags = 0;
+      sigaction(SIGCHLD, &new_action, NULL);
+      atexit(exit_handler);
+    }else{
+      VERYHIGH_MSG("Not setting child signal handler; already handled elsewhere");
+    }
+    handler_set = true;
+  }
+}
+
 /// Waits on all child processes, cleaning up internal structures as needed, then exits
 void Util::Procs::reap(){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
   int status;
   pid_t ret = -1;
   while (ret != 0){
@@ -253,18 +268,16 @@ void Util::Procs::reap(){
     }else{// not possible
       break;
     }
-    if (plist.count(ret)){
-      HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
-      plist.erase(ret);
-    }else{
-      HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
+    {
+      std::lock_guard<std::mutex> guard(plistMutex);
+      if (plist.count(ret)){
+        HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
+        plist.erase(ret);
+      }else{
+        HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
+      }
     }
   }
-}
-
-/// Ignores everything. Separate thread handles waiting for children.
-void Util::Procs::childsig_handler(int signum){
-  return;
 }
 
 /// Runs the given command and returns the stdout output as a string.
@@ -354,14 +367,6 @@ std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait,
     }
   }
   return std::string(ret, ret.size());
-}
-
-/// This function prepares a deque for getOutputOf and automatically inserts a NULL at the end of the char* const*
-char *const *Util::Procs::dequeToArgv(std::deque<std::string> &argDeq){
-  char **ret = (char **)malloc((argDeq.size() + 1) * sizeof(char *));
-  for (int i = 0; i < argDeq.size(); i++){ret[i] = (char *)argDeq[i].c_str();}
-  ret[argDeq.size()] = NULL;
-  return ret;
 }
 
 std::string Util::Procs::getOutputOf(std::deque<std::string> &argDeq, uint64_t maxWait){
@@ -516,7 +521,7 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
     return 0;
   }else{// parent
     {
-      tthread::lock_guard<tthread::mutex> guard(plistMutex);
+      std::lock_guard<std::mutex> guard(plistMutex);
       plist.insert(pid);
     }
     HIGH_MSG("Piped process %s started, PID %d", argv[0], pid);
@@ -553,7 +558,7 @@ void Util::Procs::Murder(pid_t name){
 void Util::Procs::StopAll(){
   std::set<pid_t> listcopy;
   {
-    tthread::lock_guard<tthread::mutex> guard(plistMutex);
+    std::lock_guard<std::mutex> guard(plistMutex);
     listcopy = plist;
   }
   std::set<pid_t>::iterator it;
@@ -562,24 +567,23 @@ void Util::Procs::StopAll(){
 
 /// Returns the number of active child processes.
 int Util::Procs::Count(){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  std::lock_guard<std::mutex> guard(plistMutex);
   return plist.size();
 }
 
 /// Returns true if a process with this PID is currently active.
 bool Util::Procs::isActive(pid_t name){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
   return (kill(name, 0) == 0);
 }
 
 /// Forget about the given PID, keeping it running on shutdown.
 void Util::Procs::forget(pid_t pid){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  std::lock_guard<std::mutex> guard(plistMutex);
   plist.erase(pid);
 }
 
 /// Remember the given PID, killing it on shutdown.
 void Util::Procs::remember(pid_t pid){
-  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  std::lock_guard<std::mutex> guard(plistMutex);
   plist.insert(pid);
 }

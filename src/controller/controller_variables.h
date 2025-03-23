@@ -1,6 +1,5 @@
 #include <mist/config.h>
 #include <mist/json.h>
-#include <mist/tinythread.h>
 #include <string>
 
 namespace Controller{
@@ -10,7 +9,7 @@ namespace Controller{
   void removeVariable(const JSON::Value &request, JSON::Value &output);
 
   // internal use only
-  void variableCheckLoop(void *np);
+  void variableCheckLoop();
   void writeToShm();
   void removeVariableByName(const std::string &name);
   void runVariableTarget(const std::string &name, const std::string &target, const uint64_t &maxWait);

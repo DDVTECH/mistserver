@@ -17,7 +17,7 @@
 #include <mist/util.h>
 #include <mist/auth.h>
 #include <mist/procs.h>
-#include <mist/tinythread.h>
+#include <thread>
 
 Util::Config *cfgPointer = NULL;
 std::string baseStreamName;
@@ -31,15 +31,6 @@ void signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   if (oldSignal){
     oldSignal(signum, sigInfo, ignore);
   }
-}
-
-// We use threads here for multiple input pushes, because of the internals of the SRT Library
-static void callThreadCallbackSRT(void *socknum){
-  // use the accepted socket as the second parameter
-  Mist::InputTSSRT inp(cfgPointer, *(Socket::SRTConnection *)socknum);
-  inp.setSingular(false);
-  inp.run();
-  delete (Socket::SRTConnection *)socknum;
 }
 
 namespace Mist{
@@ -299,7 +290,12 @@ namespace Mist{
         *S = sSock.accept();
         if (S->connected()){// check if the new connection is valid
           // spawn a new thread for this connection
-          tthread::thread T(callThreadCallbackSRT, (void *)S);
+          std::thread T([S](){
+            Mist::InputTSSRT inp(cfgPointer, *S);
+            inp.setSingular(false);
+            inp.run();
+            delete S;
+          });
           // detach it, no need to keep track of it anymore
           T.detach();
           HIGH_MSG("Spawned new thread for socket %i", S->getSocket());

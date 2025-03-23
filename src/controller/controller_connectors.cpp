@@ -7,14 +7,12 @@
 #include <mist/procs.h>
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
-#include <mist/tinythread.h>
 #include <mist/triggers.h>
 #include <mist/util.h>
 #include <stdio.h> // cout, cerr
 #include <string>
 #include <sys/stat.h> //stat
 
-#include <iostream>
 #include <unistd.h>
 
 ///\brief Holds everything unique to the controller.

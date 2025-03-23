@@ -1,5 +1,7 @@
 #include "input_hls.h"
 #include <mist/defines.h>
+#include <thread>
+#include <mutex>
 
 #define SEM_TS_CLAIM "/MstTSIN%s"
 
@@ -154,7 +156,7 @@ namespace Mist{
   std::map<uint64_t, uint64_t> parsedSegments;
 
   /// Mutex for accesses to listEntries
-  tthread::mutex entryMutex;
+  std::mutex entryMutex;
 
   JSON::Value playlist_urls; ///< Relative URLs to the various playlists
 
@@ -180,43 +182,6 @@ namespace Mist{
   /// Helper function that removes trailing \r characters
   void cleanLine(std::string &s){
     if (s.length() > 0 && s.at(s.length() - 1) == '\r'){s.erase(s.size() - 1);}
-  }
-
-  /// Helper function that is used to run the playlist downloaders
-  /// Expects character array with playlist URL as argument, sets the first byte of the pointer to zero when loaded.
-  void playlistRunner(void *ptr){
-    if (!ptr){return;}// abort if we received a null pointer - something is seriously wrong
-    Util::setStreamName(self->getStreamName());
-    bool initOnly = false;
-    if (((char *)ptr)[0] == ';'){initOnly = true;}
-
-    Playlist *pls = new Playlist(initOnly ? ((char *)ptr) + 1 : (char *)ptr);
-    plsTotalCount++;
-    pls->id = plsTotalCount;
-    playlistMapping[pls->id] = pls;
-    // signal that we have now copied the URL and no longer need it
-    ((char *)ptr)[0] = 0;
-
-    if (!pls->uri.size()){
-      FAIL_MSG("Variant playlist URL is empty, aborting update thread.");
-      return;
-    }
-
-    pls->reload();
-    plsInitCount++;
-    if (initOnly){
-      INFO_MSG("Thread for %s exiting", pls->uri.c_str());
-      return;
-    }// Exit because init-only mode
-
-    while (self->config->is_active && streamIsLive){
-      if (pls->reloadNext > Util::bootSecs()){
-        Util::sleep(1000);
-      }else{
-        pls->reload();
-      }
-    }
-    INFO_MSG("Downloader thread for '%s' exiting", pls->uri.c_str());
   }
 
   Playlist::Playlist(const std::string &uriSource){
@@ -298,7 +263,7 @@ namespace Mist{
 
     {// Mutex scope
       // Block the main thread from reading listEntries and firstIndex
-      tthread::lock_guard<tthread::mutex> guard(entryMutex);
+      std::lock_guard<std::mutex> guard(entryMutex);
       DONTEVEN_MSG("Reloading playlist '%s'", uri.c_str());
       while (std::getline(input, line)){
         DONTEVEN_MSG("Parsing line '%s'", line.c_str());
@@ -677,7 +642,7 @@ namespace Mist{
       return false;
     }
     // Recover playlist entries
-    tthread::lock_guard<tthread::mutex> guard(entryMutex);
+    std::lock_guard<std::mutex> guard(entryMutex);
     HTTP::URL root = HTTP::localURIResolver().link(config->getString("input"));
     jsonForEachConst(M.inputLocalVars["playlistEntries"], i){
       uint64_t plNum = JSON::Value(i.key()).asInt();
@@ -767,7 +732,7 @@ namespace Mist{
     size_t dataLen;
     meta.reInit(isSingular() ? streamName : "");
 
-    tthread::lock_guard<tthread::mutex> guard(entryMutex);
+    std::lock_guard<std::mutex> guard(entryMutex);
 
     size_t totalSegments = 0, currentSegment = 0;
     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
@@ -1005,7 +970,7 @@ namespace Mist{
   void InputHLS::parseLivePoint(){
     uint64_t maxTime = Util::bootMS() + 500;
     // Block playlist runners from updating listEntries while the main thread is accessing it
-    tthread::lock_guard<tthread::mutex> guard(entryMutex);
+    std::lock_guard<std::mutex> guard(entryMutex);
     // Iterate over all playlists, parse new segments as they've appeared in listEntries and remove expired entries in listEntries
     for (std::map<uint64_t, Playlist*>::iterator pListIt = playlistMapping.begin();
          pListIt != playlistMapping.end(); pListIt++){
@@ -1142,7 +1107,7 @@ namespace Mist{
     VERYHIGH_MSG("Seeking to index %zu on playlist %" PRIu64, currentIndex, currentPlaylist);
 
     {// Lock mutex for listEntries
-      tthread::lock_guard<tthread::mutex> guard(entryMutex);
+      std::lock_guard<std::mutex> guard(entryMutex);
       if (!listEntries.count(currentPlaylist)){
         WARN_MSG("Playlist %" PRIu64 " not loaded, aborting seek", currentPlaylist);
         return;
@@ -1295,7 +1260,7 @@ namespace Mist{
     plsInitCount = 0;
     plsTotalCount = 0;
     {
-      tthread::lock_guard<tthread::mutex> guard(entryMutex);
+      std::lock_guard<std::mutex> guard(entryMutex);
       listEntries.clear();
     }
     std::string line;
@@ -1473,16 +1438,46 @@ namespace Mist{
     std::string urlBuffer;
     // Wildcard streams can have a ' ' in the name, which getUrl converts to a '+'
     if (uri.isLocalPath()){
-      urlBuffer = (fullInit ? "" : ";") + uri.getFilePath() + "\n" + relurl;
-    }
-    else{
-      urlBuffer = (fullInit ? "" : ";") + uri.getUrl() + "\n" + relurl;
+      urlBuffer = uri.getFilePath() + "\n" + relurl;
+    }else{
+      urlBuffer = uri.getUrl() + "\n" + relurl;
     }
     VERYHIGH_MSG("Adding playlist(s): %s", urlBuffer.c_str());
-    tthread::thread runList(playlistRunner, (void *)urlBuffer.data());
+    bool inited = false;
+    std::thread runList([urlBuffer, fullInit, &inited](){
+      if (!urlBuffer.size()){return;}// abort if we received a null pointer - something is seriously wrong
+      Util::setStreamName(self->getStreamName());
+
+      Playlist *pls = new Playlist(urlBuffer);
+      plsTotalCount++;
+      pls->id = plsTotalCount;
+      playlistMapping[pls->id] = pls;
+
+      if (!pls->uri.size()){
+        FAIL_MSG("Variant playlist URL is empty, aborting update thread.");
+        return;
+      }
+
+      pls->reload();
+      inited = true;
+      plsInitCount++;
+      if (!fullInit){
+        INFO_MSG("Thread for %s exiting", pls->uri.c_str());
+        return;
+      }// Exit because init-only mode
+
+      while (self->config->is_active && streamIsLive){
+        if (pls->reloadNext > Util::bootSecs()){
+          Util::sleep(1000);
+        }else{
+          pls->reload();
+        }
+      }
+      INFO_MSG("Downloader thread for '%s' exiting", pls->uri.c_str());
+    });
     runList.detach(); // Abandon the thread, it's now running independently
     uint32_t timeout = 0;
-    while (urlBuffer.data()[0] && ++timeout < 100){Util::sleep(100);}
+    while (!inited && ++timeout < 100){Util::sleep(100);}
     if (timeout >= 100){WARN_MSG("Thread start timed out for: %s", urlBuffer.c_str());}
     return true;
   }
@@ -1496,7 +1491,7 @@ namespace Mist{
     {
       // Switch to next file
       currentIndex++;
-      tthread::lock_guard<tthread::mutex> guard(entryMutex);
+      std::lock_guard<std::mutex> guard(entryMutex);
       std::deque<playListEntries> &curList = listEntries[currentPlaylist];
       HIGH_MSG("Current playlist contains %zu entries. Current index is %zu in playlist %" PRIu64, curList.size(), currentIndex, currentPlaylist);
       if (curList.size() <= currentIndex){
@@ -1534,7 +1529,7 @@ namespace Mist{
     int tmpId = -1;
     int segCount = 0;
 
-    tthread::lock_guard<tthread::mutex> guard(entryMutex);
+    std::lock_guard<std::mutex> guard(entryMutex);
     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
          pListIt != listEntries.end(); pListIt++){
       segCount += pListIt->second.size();

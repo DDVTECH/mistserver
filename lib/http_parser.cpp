@@ -801,8 +801,7 @@ void HTTP::Parser::Chunkify(const std::string &bodypart, Socket::Connection &con
 /// \param data The data to send.
 /// \param size The size of the data to send.
 /// \param conn The connection to use for sending.
-void HTTP::Parser::Chunkify(const char *data, unsigned int size, Socket::Connection &conn){
-  static char hexa[] = "0123456789abcdef";
+void HTTP::Parser::Chunkify(const char *data, unsigned int size, Socket::Connection & conn) {
   if (bufferChunks){
     if (size){
       body.append(data, size);
@@ -814,20 +813,8 @@ void HTTP::Parser::Chunkify(const char *data, unsigned int size, Socket::Connect
     return;
   }
   if (sendingChunks){
-    // prepend the chunk size and \r\n
-    if (!size){conn.SendNow("0\r\n\r\n", 5);}
-    size_t offset = 8;
-    unsigned int t_size = size;
-    char len[] = "\000\000\000\000\000\000\0000\r\n";
-    while (t_size && offset < 9){
-      len[--offset] = hexa[t_size & 0xf];
-      t_size >>= 4;
-    }
-    conn.SendNow(len + offset, 10 - offset);
-    // send the chunk itself
+    conn.setChunkedMode(true);
     conn.SendNow(data, size);
-    // append \r\n
-    conn.SendNow("\r\n", 2);
   }else{
     // just send the chunk itself
     conn.SendNow(data, size);

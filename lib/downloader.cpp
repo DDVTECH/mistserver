@@ -1,6 +1,8 @@
-#include "defines.h"
 #include "downloader.h"
+
+#include "defines.h"
 #include "encode.h"
+#include "ev.h"
 #include "timing.h"
 
 namespace HTTP{
@@ -87,39 +89,35 @@ namespace HTTP{
   Downloader::~Downloader(){S.close();}
 
   /// Prepares a request for the given URL, does not send anything
-  void Downloader::prepareRequest(const HTTP::URL &link, const std::string &method){
+  void Downloader::prepareRequest(const HTTP::URL & link, const std::string & method, Socket::Connection & conn) {
     if (!canRequest(link)){return;}
     bool needSSL = (link.protocol == "https" || link.protocol == "wss");
     H.Clean();
     // Reconnect if needed
     if (!proxied || needSSL){
-      if (!getSocket() || link.host != connectedHost || link.getPort() != connectedPort || needSSL != ssl){
-        getSocket().close();
-        getSocket().Received().clear();
+      if (!conn || link.host != connectedHost || link.getPort() != connectedPort || needSSL != ssl) {
+        conn.close();
+        conn.Received().clear();
         connectedHost = link.host;
         connectedPort = link.getPort();
 #ifdef SSL
-        if (needSSL){
-          getSocket().open(connectedHost, connectedPort, true, true);
-        }else{
-          getSocket().open(connectedHost, connectedPort, true);
-        }
+        conn.open(connectedHost, connectedPort, true, needSSL);
 #else
-        getSocket().open(connectedHost, connectedPort, true);
+        conn.open(connectedHost, connectedPort, true);
 #endif
       }
     }else{
-      if (!getSocket() || proxyUrl.host != connectedHost || proxyUrl.getPort() != connectedPort || needSSL != ssl){
-        getSocket().close();
-        getSocket().Received().clear();
+      if (!conn || proxyUrl.host != connectedHost || proxyUrl.getPort() != connectedPort || needSSL != ssl) {
+        conn.close();
+        conn.Received().clear();
         connectedHost = proxyUrl.host;
         connectedPort = proxyUrl.getPort();
-        getSocket().open(connectedHost, connectedPort, true);
+        conn.open(connectedHost, connectedPort, true);
       }
     }
     ssl = needSSL;
-    if (!getSocket()){
-      H.method = getSocket().getError();
+    if (!conn) {
+      H.method = conn.getError();
       return; // socket is closed
     }
     if (proxied && !ssl){
@@ -162,19 +160,6 @@ namespace HTTP{
     nbLink = link;
   }
 
-  /// Sends a request for the given URL, does no waiting.
-  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const void *body,
-                             const size_t bodyLen){
-    prepareRequest(link, method);
-    H.sendRequest(getSocket(), body, bodyLen, false);
-    H.Clean();
-  }
-
-  /// Sends a request for the given URL, does no waiting.
-  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const std::string &body){
-    doRequest(link, method, body.data(), body.size());
-  }
-
   /// Do a HEAD request to download the HTTP headers only, returns true on success
   bool Downloader::head(const HTTP::URL &link, uint8_t maxRecursiveDepth){
     if (!canRequest(link)){return false;}
@@ -184,7 +169,9 @@ namespace HTTP{
       char attemptNo[11];
       snprintf(attemptNo, 11, "%zu", loop);
       setHeader("X-Attempt", attemptNo);
-      doRequest(link, "HEAD");
+      prepareRequest(link, "HEAD", getSocket());
+      H.sendRequest(getSocket());
+      H.Clean();
       if (!getSocket()){
         FAIL_MSG("Could not retrieve %s: %s", link.getUrl().c_str(), getSocket().getError().c_str());
         return false;
@@ -280,7 +267,9 @@ namespace HTTP{
     nbMaxRecursiveDepth = 6;
     nbLoop = retryCount + 1; // max 5 attempts
     isComplete = false;
-    doRequest(nbLink);
+    prepareRequest(nbLink, "", getSocket());
+    H.sendRequest(getSocket());
+    H.Clean();
     nbReqTime = Util::bootSecs();
     nbLastOff = getSocket().dataDown();
     return true;
@@ -318,7 +307,9 @@ namespace HTTP{
     nbLoop = retryCount + 1; // max 5 attempts
     isComplete = false;
     extraHeaders.erase("Range");
-    doRequest(nbLink);
+    prepareRequest(nbLink, "", getSocket());
+    H.sendRequest(getSocket());
+    H.Clean();
     nbReqTime = Util::bootSecs();
     nbLastOff = getSocket().dataDown();
     return true;
@@ -355,7 +346,9 @@ namespace HTTP{
           getRangeNonBlocking(nbLink, cb.getDataCallbackPos(), 0, cb);
           continue;
         }else{
-          doRequest(nbLink);
+          prepareRequest(nbLink, "", getSocket());
+          H.sendRequest(getSocket());
+          H.Clean();
         }
 
         nbReqTime = Util::bootSecs();
@@ -405,7 +398,9 @@ namespace HTTP{
           if (getStatusCode() >= 300 && getStatusCode() < 400){
             nbLink = nbLink.link(getHeader("Location"));
           }
-          doRequest(nbLink);
+          prepareRequest(nbLink, "", getSocket());
+          H.sendRequest(getSocket());
+          H.Clean();
           return false;
         }
 
@@ -430,7 +425,9 @@ namespace HTTP{
       char attemptNo[11];
       snprintf(attemptNo, 11, "%zu", loop);
       setHeader("X-Attempt", attemptNo);
-      doRequest(link, "POST", 0, payloadLen);
+      prepareRequest(link, "POST", getSocket());
+      H.sendRequest(getSocket(), 0, payloadLen);
+      H.Clean();
       Socket::Connection & s = getSocket();
       if (payloadLen && payload){
         unsigned int payOff = 0;
@@ -525,6 +522,66 @@ namespace HTTP{
       uint64_t postresponse = Util::getMicros();
       WARN_MSG("Post to %s failed after %.2f ms (%.2f ms upload, %.2f ms wait, %.2f ms download)", link.getUrl().c_str(), (postresponse-prerequest)/1000.0, (postrequest-prerequest)/1000.0, (preresponse-postrequest)/1000.0, (postresponse-preresponse)/1000.0);
       Util::sleep(100); // wait a bit before retrying
+    }
+    return false;
+  }
+
+  bool Downloader::startPut(const HTTP::URL & link, Socket::Connection & conn, uint8_t maxRecursiveDepth) {
+    if (!canRequest(link)) { return false; }
+    size_t loop = 0;
+    while (++loop <= retryCount) { // loop while we are unsuccessful
+      MEDIUM_MSG("PUTting to %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
+      setHeader("X-Attempt", std::to_string(loop));
+      prepareRequest(link, "PUT", conn);
+      if (!conn) { continue; } // No connection? Retry up to retryCount times.
+      conn.setChunkedMode(false);
+      H.SetHeader("Expect", "100-continue");
+      H.SetHeader("Transfer-Encoding", "chunked");
+      H.sendRequest(conn);
+      H.Clean();
+      conn.setChunkedMode(true);
+      Event::Loop ev;
+      ev.addSocket(1, conn.getSocket());
+      uint64_t now = Util::bootMS();
+      uint64_t deadLine = now + 5000;
+      while (true) {
+        bool atLeastOnce = true;
+        while (conn.spool() || atLeastOnce) {
+          atLeastOnce = false;
+          while (conn.Received().get().size() && *(conn.Received().get().rbegin()) != '\n') {
+            if (conn.Received().size() <= 1) { break; }
+            // make a copy of the first part
+            std::string tmp = conn.Received().get();
+            // clear the first part, wiping it from the partlist
+            conn.Received().get().clear();
+            conn.Received().size();
+            // take the now first (was second) part, insert the stored part in front of it
+            conn.Received().get().insert(0, tmp);
+          }
+          if (conn.Received().get().size() && *(conn.Received().get().rbegin()) == '\n') {
+            std::string line = conn.Received().get();
+            line.erase(line.find_first_of("\r\n"));
+            size_t sp1 = line.find(' ');
+            size_t sp2 = line.find(' ', sp1 + 1);
+            if (sp1 != std::string::npos && sp2 != std::string::npos &&
+                line.substr(sp1 + 1, sp2 - sp1 - 1) == "100") {
+              INFO_MSG("Server approved PUT request for %s: %s", link.getUrl().c_str(), line.c_str() + sp2 + 1);
+              conn.Received().clear();
+              return true;
+            }
+            INFO_MSG("Server denied PUT request for %s: %s", link.getUrl().c_str(), line.c_str());
+            conn.close();
+            return false;
+          }
+        }
+        now = Util::bootMS();
+        if (now >= deadLine || !conn) {
+          WARN_MSG("No response to PUT request from server for %s", link.getUrl().c_str());
+          conn.close();
+          return false;
+        }
+        ev.await(std::min(deadLine - now, (uint64_t)1000));
+      }
     }
     return false;
   }

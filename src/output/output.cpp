@@ -203,6 +203,32 @@ namespace Mist{
     isInitialized = false;
     wantRequest = false;
     parseData = false;
+    if (myConn && myConn.isChunkedMode()) {
+      myConn.SendNow(0, 0);
+      HTTP::Parser response;
+      bool gotResponse = false;
+      Event::Loop ev;
+      auto attemptFinish = [&]() {
+        if (response.Read(myConn)) {
+          INFO_MSG("Server response to upload: %s %s", response.url.c_str(), response.method.c_str());
+          // If the response is a 2XX code, return 0, otherwise return the default response (2).
+          if (response.url.size() && response.url[0] == '2') {
+            // Success
+          } else {
+            // Failure
+          }
+          gotResponse = true;
+        }
+      };
+      myConn.setBlocking(false);
+      ev.addSocket(myConn.getSocket(), [&](void *) {
+        while (myConn.spool()) { attemptFinish(); }
+      }, 0);
+      uint64_t maxWait = Util::bootMS() + 5000;
+      attemptFinish();
+      while (!gotResponse && Util::bootMS() < maxWait) { ev.await(1000); }
+      if (!gotResponse) { WARN_MSG("No reply from remote server to PUT request"); }
+    }
     myConn.close();
   }
 
@@ -633,11 +659,13 @@ namespace Mist{
         curDateString = "";
         curDurationString = "";
         segmentsRemoved++;
-        std::string segPath = playlistLocation.link(line).getFilePath();
-        if(unlink(segPath.c_str())){
-          FAIL_MSG("Failed to remove segment at '%s'. Error: '%s'", segPath.c_str(), strerror(errno));
-        }else{
-          INFO_MSG("Removed segment at '%s'", segPath.c_str());
+        if (!targetParams.count("nounlink")) {
+          std::string segPath = playlistLocation.link(line).getFilePath();
+          if (unlink(segPath.c_str())) {
+            FAIL_MSG("Failed to remove segment at '%s'. Error: '%s'", segPath.c_str(), strerror(errno));
+          } else {
+            INFO_MSG("Removed segment at '%s'", segPath.c_str());
+          }
         }
         continue;
       }
@@ -649,11 +677,13 @@ namespace Mist{
           curDurationString = "";
           curDateString = "";
           segmentsRemoved++;
-          std::string segPath = playlistLocation.link(line).getFilePath();
-          if(unlink(segPath.c_str())){
-            FAIL_MSG("Failed to remove segment at '%s'. Error: '%s'", segPath.c_str(), strerror(errno));
-          }else{
-            INFO_MSG("Removed segment at '%s'", segPath.c_str());
+          if (!targetParams.count("nounlink")) {
+            std::string segPath = playlistLocation.link(line).getFilePath();
+            if (unlink(segPath.c_str())) {
+              FAIL_MSG("Failed to remove segment at '%s'. Error: '%s'", segPath.c_str(), strerror(errno));
+            } else {
+              INFO_MSG("Removed segment at '%s'", segPath.c_str());
+            }
           }
           continue;
         }
@@ -1658,18 +1688,13 @@ namespace Mist{
           config->getOption("target", true).append(playlistLocationString);
         }else{
           playlistLocationString = playlistLocation.getUrl();
-          // Disable sliding window playlists, as the current external writer 
-          // implementation requires us to keep a single connection to the playlist open
-          maxEntries = 0;
-          targetAge = 0;
-          // Check if there is an existing playlist at the target location
-          HTTP::URIReader outFile(playlistLocationString);
-          if (outFile){
-            // If so, init the buffer with remote data
-            if (targetParams.count("append")){
+          // Check if there is an existing playlist at the target location, if we're appending
+          if (targetParams.count("append")) {
+            HTTP::URIReader currPls(playlistLocationString);
+            if (currPls) {
               char *dataPtr;
               size_t dataLen;
-              outFile.readAll(dataPtr, dataLen);
+              currPls.readAll(dataPtr, dataLen);
               std::string existingBuffer(dataPtr, dataLen);
               std::istringstream inFile(existingBuffer);
               std::string line;
@@ -1685,11 +1710,11 @@ namespace Mist{
               playlistBuffer += "#EXT-X-DISCONTINUITY\n";
               INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
               INFO_MSG("Appending to existing remote playlist file '%s'", playlistLocationString.c_str());
-            }else{
+            } else {
               WARN_MSG("Overwriting existing remote playlist file '%s'", playlistLocationString.c_str());
               reInitPlaylist = true;
             }
-          }else{
+          } else {
             INFO_MSG("Creating new remote playlist file '%s'", playlistLocationString.c_str());
             reInitPlaylist = true;
           }
@@ -1728,7 +1753,7 @@ namespace Mist{
         }
         // Do not open the playlist just yet if this is a non-live source
         if (M.getLive()){
-          connectToFile(playlistLocationString, false, &plsConn);
+          Util::externalWriter(playlistLocationString, plsConn);
           // Write initial contents to the playlist file
           if (!plsConn){
             FAIL_MSG("Failed to open a connection to playlist file `%s` for segmenting", playlistLocationString.c_str());
@@ -1743,7 +1768,17 @@ namespace Mist{
         }
       }
       currentStartTime = currentTime();
-      std::string newTarget = origTarget;
+      std::string newTarget;
+      if (targetParams.count("segment")) {
+        HTTP::URL targetUrl = HTTP::URL(config->getString("target")).link(targetParams["segment"]);
+        if (targetUrl.isLocalPath()) {
+          newTarget = targetUrl.getFilePath();
+        } else {
+          newTarget = targetUrl.getUrl();
+        }
+      } else {
+        newTarget = origTarget;
+      }
       Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
       Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
       Util::streamVariables(newTarget, streamName);
@@ -1752,7 +1787,7 @@ namespace Mist{
         INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(),
                  capa["name"].asString().c_str());
       }else{
-        if (!connectToFile(newTarget, targetParams.count("append"))){
+        if (!Util::externalWriter(newTarget, myConn, targetParams.count("append"))) {
           onFail("Could not connect to the target for recording", true);
           recEndTrigger();
           return 3;
@@ -1953,7 +1988,7 @@ namespace Mist{
                   // Reinit the playlist with the new targetDuration
                   uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
                   reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                  connectToFile(playlistLocationString, false, &plsConn);
+                  Util::externalWriter(playlistLocationString, plsConn);
                 }
                 // Else we are in a sliding window playlist, so it will automatically get overwritten
               }
@@ -1969,7 +2004,7 @@ namespace Mist{
                   plsConn.SendNow(playlistBuffer);
                   playlistBuffer = "";
                 // Else re-open the file to force an overwrite
-                }else if(connectToFile(playlistLocationString, false, &plsConn)){
+                } else if (Util::externalWriter(playlistLocationString, plsConn)) {
                   plsConn.SendNow(playlistBuffer);
                 }
               }
@@ -1992,12 +2027,9 @@ namespace Mist{
             Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
             Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
             Util::streamVariables(newTarget, streamName);
-            if (newTarget.rfind('?') != std::string::npos){
-              newTarget.erase(newTarget.rfind('?'));
-            }
             currentTarget = newTarget;
             INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
-            if (!connectToFile(newTarget)){
+            if (!Util::externalWriter(newTarget, myConn)) {
               FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
               Util::logExitReason(ER_WRITE_FAILURE, "failed to open file, aborting: %s", newTarget.c_str());
               onFinish();
@@ -2028,7 +2060,7 @@ namespace Mist{
     // Write last segment
     if (targetParams.count("m3u8") && (firstPacketTime != 0xFFFFFFFFFFFFFFFFull) && (lastPacketTime - firstPacketTime > 0)){
       // If this is a non-live source, we can finally open up the connection to the playlist file
-      if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
+      if (!M.getLive()) { Util::externalWriter(playlistLocationString, plsConn); }
       if (plsConn){
 
         if (lastPacketTime - currentStartTime > 0){
@@ -2054,15 +2086,18 @@ namespace Mist{
         if (!maxEntries && !targetAge) {
           plsConn.SendNow(playlistBuffer);
         // Else re-open the file to force an overwrite
-        }else if(connectToFile(playlistLocationString, false, &plsConn)){
+        } else if (Util::externalWriter(playlistLocationString, plsConn)) {
           plsConn.SendNow(playlistBuffer);
         }
+        // Finish the playlist chunk if needed
+        if (plsConn.isChunkedMode()) { plsConn.SendNow(0, 0); }
         playlistBuffer.clear();
       }else{
         FAIL_MSG("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
         Util::logExitReason("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
       }
     }
+    if (myConn && myConn.isChunkedMode()) { myConn.SendNow(0, 0); }
 
     /*LTS-START*/
     if (Triggers::shouldTrigger("CONN_CLOSE", streamName)){
@@ -2080,6 +2115,32 @@ namespace Mist{
     stats(true);
     userSelect.clear();
     trackSelectionChanged();
+    if (myConn && myConn.isChunkedMode()) {
+      myConn.SendNow(0, 0);
+      HTTP::Parser response;
+      bool gotResponse = false;
+      Event::Loop ev;
+      auto attemptFinish = [&]() {
+        if (response.Read(myConn)) {
+          INFO_MSG("Server response to upload: %s %s", response.url.c_str(), response.method.c_str());
+          // If the response is a 2XX code, return 0, otherwise return the default response (2).
+          if (response.url.size() && response.url[0] == '2') {
+            // Success
+          } else {
+            // Failure
+          }
+          gotResponse = true;
+        }
+      };
+      myConn.setBlocking(false);
+      ev.addSocket(myConn.getSocket(), [&](void *) {
+        while (myConn.spool()) { attemptFinish(); }
+      }, 0);
+      uint64_t maxWait = Util::bootMS() + 5000;
+      attemptFinish();
+      while (!gotResponse && Util::bootMS() < maxWait) { ev.await(1000); }
+      if (!gotResponse) { WARN_MSG("No reply from remote server to PUT request"); }
+    }
     myConn.close();
     return 0;
   }
@@ -2642,41 +2703,6 @@ namespace Mist{
   void Output::sendHeader(){
     // just set the sentHeader bool to true, by default
     sentHeader = true;
-  }
-
-  /// \brief Makes the generic writer available to output classes
-  /// \param file target URL or filepath
-  /// \param append whether to open this connection in truncate or append mode
-  /// \param conn connection which will be used to send data. Will use Output's internal myConn if not initialised
-  bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
-    int outFile = -1;
-    if (!conn) {conn = &myConn;}
-    bool isFileTarget = HTTP::localURIResolver().link(file).isLocalPath();
-    if (!Util::externalWriter(file, outFile, append)){return false;}
-    if (*conn && isFileTarget) {
-      flock(conn->getSocket(), LOCK_UN | LOCK_NB);
-    }
-    // Lock the file in exclusive mode to ensure no other processes write to it
-    if(isFileTarget && flock(outFile, LOCK_EX | LOCK_NB)){
-      ERROR_MSG("Failed to lock file %s, error: %s", file.c_str(), strerror(errno));
-      return false;
-    }
-
-    //Ensure the Socket::Connection is valid before we overwrite the socket
-    if (!*conn){
-      static int tmpFd = open("/dev/null", O_RDWR);
-      conn->open(tmpFd);
-      //We always want to close sockets opened in this way on fork
-      Util::Procs::socketList.insert(tmpFd);
-    }
-
-    int r = dup2(outFile, conn->getSocket());
-    if (r == -1){
-      ERROR_MSG("Failed to create an alias for the socket %d -> %d using dup2: %s.", outFile, conn->getSocket(), strerror(errno));
-      return false;
-    }
-    close(outFile);
-    return true;
   }
 
   std::string Output::getExitTriggerPayload(){

@@ -19,13 +19,14 @@ int checkStr(const char * envVar, const std::string & str){
 }
 
 /// Helper function that compares an environment variable against an integer
-int checkInt(const char * envVar, const uint64_t i){
-  //Ignore test when no expected value set
-  if (!getenv(envVar)){return 0;}
-  //Environment value exists, do check
-  if (i != JSON::Value(getenv(envVar)).asInt()){
-    //Print error message on mismatch, detailing problem
-    std::cerr << "ERROR: Value of " << envVar << " should be '" << getenv(envVar) << "' but was '" << i << "'" << std::endl;
+int checkInt(const char *envVar, const uint64_t i) {
+  // Ignore test when no expected value set
+  if (!getenv(envVar)) { return 0; }
+  // Environment value exists, do check
+  if (i != JSON::Value(getenv(envVar)).asInt()) {
+    // Print error message on mismatch, detailing problem
+    std::cerr << "ERROR: Value of " << envVar << " should be '" << getenv(envVar) << "' but was '"
+              << i << "'" << std::endl;
     return 1;
   }
   return 0;
@@ -56,15 +57,18 @@ int main(int argc, char **argv){
     std::cout << "Path: " << u.path << std::endl;
     std::cout << "Extension: " << u.getExt() << std::endl;
     std::cout << "Query: " << u.args << std::endl;
+    std::cout << "  Parsed:" << std::endl;
+    std::map<std::string, std::string> mapped;
+    HTTP::parseVars(u.args, mapped);
+    for (auto i : mapped) { std::cout << "    " << i.first << ": " << i.second << std::endl; }
     std::cout << "Fragment: " << u.frag << std::endl;
     std::cout << "Username: " << u.user << std::endl;
     std::cout << "Password: " << u.pass << std::endl;
     std::cout << std::endl;
-
   }
 
   int ret = 0;
-  //These checks only run when the environment variable corresponding to them is set
+  // These checks only run when the environment variable corresponding to them is set
   ret += checkStr("T_PROTO", u.protocol);
   ret += checkStr("T_HOST", u.host);
   ret += checkInt("T_PORT", u.getPort());
@@ -74,6 +78,6 @@ int main(int argc, char **argv){
   ret += checkStr("T_USER", u.user);
   ret += checkStr("T_PASS", u.pass);
   ret += checkStr("T_EXT", u.getExt());
-  ret += checkStr("T_NORM", u.isLocalPath()?u.getFilePath():u.getUrl());
+  ret += checkStr("T_NORM", u.isLocalPath() ? u.getFilePath() : u.getUrl());
   return ret;
 }

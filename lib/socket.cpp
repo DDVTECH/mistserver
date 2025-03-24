@@ -27,6 +27,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <sstream>
+#include <sys/file.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -755,6 +756,7 @@ void Socket::Connection::setBoundAddr(){
 // Cleans up the socket by dropping the connection.
 // Does not call close because it calls shutdown, which would destroy any copies of this socket too.
 Socket::Connection::~Connection(){
+  unlock();
   drop();
 }
 
@@ -796,6 +798,8 @@ void Socket::Connection::open(int write, int read){
 }
 
 void Socket::Connection::clear(){
+  chunkedMode = false;
+  isLocked = false;
   sSend = -1;
   sRecv = -1;
   isTrueSocket = false;
@@ -935,6 +939,18 @@ void Socket::Connection::drop(){
     }
   }
 }// Socket::Connection::drop
+
+bool Socket::Connection::lock() {
+  if (isLocked) { return true; }
+  return isLocked = !flock(getSocket(), LOCK_EX | LOCK_NB);
+}
+
+void Socket::Connection::unlock() {
+  if (isLocked) {
+    flock(getSocket(), LOCK_UN | LOCK_NB);
+    isLocked = false;
+  }
+}
 
 /// Returns internal socket number.
 int Socket::Connection::getSocket(){
@@ -1283,23 +1299,52 @@ const Socket::Buffer &Socket::Connection::Received() const{
 void Socket::Connection::SendNow(const char *data, size_t len){
   bool bing = isBlocking();
   if (!bing){setBlocking(true);}
-  unsigned int i = iwrite(data, std::min((long unsigned int)len, SOCKETSIZE));
-  while (i < len && connected()){
-    i += iwrite(data + i, std::min((long unsigned int)(len - i), SOCKETSIZE));
+  if (chunkedMode) {
+    // No length? Send end-of-chunked-mode, and exit chunked mode
+    if (!len) {
+      size_t i = 0;
+      do { i += iwrite(("0\r\n\r\n") + i, 5 - i); } while (i < 5 && connected());
+      chunkedMode = false;
+      return;
+    }
+    // Non-zero length -> prepend the length in hex format
+    size_t offset = 8;
+    size_t t_size = len;
+    char lenChars[] = "00000000\r\n";
+    while (t_size && offset < 9) {
+      lenChars[--offset] = "0123456789abcdef"[t_size & 0xf];
+      t_size >>= 4;
+    }
+    // Send the string we generated with the hex length and newline
+    size_t i = 0;
+    do {
+      i += iwrite(lenChars + offset + i, 10 - offset - i);
+    } while (i < 10 - offset && connected());
+  }
+  // Send the actual data (both chunked and non-chunked mode)
+  {
+    size_t i = 0;
+    do {
+      i += iwrite(data + i, std::min(len - i, (size_t)SOCKETSIZE));
+    } while (i < len && connected());
+  }
+  // Send the final newline if in chunked mode
+  if (chunkedMode) {
+    size_t i = 0;
+    do { i += iwrite(("\r\n") + i, 2 - i); } while (i < 2 && connected());
   }
   if (!bing){setBlocking(false);}
 }
 
 /// Will not buffer anything but always send right away. Blocks.
 /// Any data that could not be send will block until it can be send or the connection is severed.
-void Socket::Connection::SendNow(const char *data){
-  int len = strlen(data);
-  SendNow(data, len);
+void Socket::Connection::SendNow(const char *data) {
+  SendNow(data, strlen(data));
 }
 
 /// Will not buffer anything but always send right away. Blocks.
 /// Any data that could not be send will block until it can be send or the connection is severed.
-void Socket::Connection::SendNow(const std::string &data){
+void Socket::Connection::SendNow(const std::string & data) {
   SendNow(data.data(), data.size());
 }
 

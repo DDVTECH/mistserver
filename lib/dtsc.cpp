@@ -3146,9 +3146,8 @@ namespace DTSC{
   /// Writes the current Meta object in DTSH format to the given uri
   void Meta::toFile(const std::string &uri) const{
     // Create writing socket
-    int outFd = -1;
-    if (!Util::externalWriter(uri, outFd, false)){return;}
-    Socket::Connection outFile(outFd, -1);
+    Socket::Connection outFile;
+    if (!Util::externalWriter(uri, outFile, false)) { return; }
     if (outFile){
       send(outFile, false, getValidTracks(), false);
       outFile.close();

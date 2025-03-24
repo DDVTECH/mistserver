@@ -862,22 +862,49 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
   streamVariables(target, streamname);
 
   // Attempt to load up configuration and find this stream
-  std::string output_bin = "";
+  std::string output_bin;
   {
     Util::DTSCShmReader rCapa(SHM_CAPA);
+    DTSC::Scan intl_writers = rCapa.getMember("internal_writers");
     DTSC::Scan outputs = rCapa.getMember("connectors");
     if (!outputs){
       FAIL_MSG("Capabilities not available, aborting! Is MistController running?");
       return 0;
     }
-    std::string checkTarget = target.substr(0, target.rfind('?'));
+    std::string preMatch;
+    size_t foundColon = target.find(':');
+    if (foundColon != std::string::npos &&
+        (target.size() < foundColon + 1 || target[foundColon + 1] != '/' || target[foundColon + 2] != '/')) {
+      preMatch = target.substr(0, foundColon);
+      Util::stringToLower(preMatch);
+    }
     unsigned int outputs_size = outputs.getSize();
+    if (preMatch.size()) {
+      MEDIUM_MSG("Checking prefix %s", preMatch.c_str());
+      for (unsigned int i = 0; i < outputs_size && !output_bin.size(); ++i) {
+        std::string name = outputs.getIndiceName(i);
+        Util::stringToLower(name);
+        if (name == preMatch) {
+          MEDIUM_MSG("Prefix %s found", preMatch.c_str());
+          target.erase(0, preMatch.size() + 1);
+          output_bin = Util::getMyPath() + "MistOut" + outputs.getIndice(i).getMember("name").asString();
+          break;
+        }
+      }
+    }
     for (unsigned int i = 0; i < outputs_size && !output_bin.size(); ++i){
+      if (output_bin.size()) { break; }
       DTSC::Scan output = outputs.getIndice(i);
       if (output.getMember("push_urls")){
         unsigned int push_count = output.getMember("push_urls").getSize();
         for (unsigned int j = 0; j < push_count; ++j){
+          if (output_bin.size()) { break; }
+          std::string checkTarget = target.substr(0, target.rfind('?'));
           std::string tar_match = output.getMember("push_urls").getIndice(j).asString();
+          if (*tar_match.rbegin() == '?') {
+            tar_match.erase(tar_match.size() - 1);
+            checkTarget = target.substr(0, target.find('?'));
+          }
           std::string front = tar_match.substr(0, tar_match.find('*'));
           std::string back = tar_match.substr(tar_match.find('*') + 1);
           MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(),
@@ -911,6 +938,15 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
                       offset += 4 + s;
                     }
                   }
+                }
+              }
+            }
+            if (!output_bin.size()) {
+              size_t writers = intl_writers.getSize();
+              for (size_t k = 0; k < writers; ++k) {
+                if (tUri.protocol == intl_writers.getIndice(k).asString()) {
+                  output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
+                  break;
                 }
               }
             }

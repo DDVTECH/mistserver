@@ -75,7 +75,7 @@ bool Util::Procs::childRunning(pid_t p){
 }
 
 /// This local-only function prepares a deque for getOutputOf and automatically inserts a NULL at the end of the char* const*
-char *const *dequeToArgv(std::deque<std::string> &argDeq){
+char *const *dequeToArgv(const std::deque<std::string> & argDeq) {
   char **ret = (char **)malloc((argDeq.size() + 1) * sizeof(char *));
   for (int i = 0; i < argDeq.size(); i++){ret[i] = (char *)argDeq[i].c_str();}
   ret[argDeq.size()] = NULL;
@@ -378,12 +378,18 @@ std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait,
   return std::string(ret, ret.size());
 }
 
-std::string Util::Procs::getOutputOf(std::deque<std::string> & argDeq, uint64_t maxWait) {
+std::string Util::Procs::getLimitedOutputOf(const std::deque<std::string> & argDeq,
+                                            uint64_t maxWait, uint32_t maxValBytes) {
+  char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
+  return getLimitedOutputOf(argv, maxWait, maxValBytes);
+}
+
+std::string Util::Procs::getOutputOf(const std::deque<std::string> & argDeq, uint64_t maxWait) {
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
   return getOutputOf(argv, maxWait);
 }
 
-pid_t Util::Procs::StartPiped(std::deque<std::string> & argDeq, int *fdIn, int *fdOut, int *fdErr) {
+pid_t Util::Procs::StartPiped(const std::deque<std::string> & argDeq, int *fdIn, int *fdOut, int *fdErr) {
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
   return Util::Procs::StartPiped(argv, fdIn, fdOut, fdErr);
 }

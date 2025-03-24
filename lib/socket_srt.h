@@ -1,9 +1,11 @@
 #pragma once
 #include "socket.h"
 #include "url.h"
+
 #include <map>
-#include <string>
 #include <srt/srt.h>
+#include <string>
+#include <vector>
 
 typedef std::map<std::string, int> SockOptVals;
 typedef std::map<std::string, std::string> paramList;

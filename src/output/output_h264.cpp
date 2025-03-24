@@ -22,12 +22,12 @@ namespace Mist{
         INFO_MSG("Outputting %s to stdout in H264 format", streamName.c_str());
         return;
       }
-      if (connectToFile(config->getString("target"))){
+      if (Util::externalWriter(config->getString("target"), myConn)) {
         parseData = true;
         wantRequest = false;
         INFO_MSG("Recording %s to %s in H264 format", streamName.c_str(),
                  config->getString("target").c_str());
-      }else{
+      } else {
         conn.close();
       }
     }

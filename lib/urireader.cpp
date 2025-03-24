@@ -11,31 +11,7 @@
 
 namespace HTTP{
 
-#ifdef SSL
-  inline bool s3CalculateSignature(std::string& signature, const std::string method, const std::string date, const std::string& requestPath, const std::string& accessKey, const std::string& secret) {
-    std::string toSign = method + "\n\n\n" + date + "\n" + requestPath;
-    unsigned char signatureBytes[MBEDTLS_MD_MAX_SIZE];
-    const int sha1Size = 20;
-    mbedtls_md_context_t md_ctx = {0};
-    // TODO: When we use MBEDTLS_MD_SHA512 ? Consult documentation/code
-    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
-    if (!md_info){ FAIL_MSG("error s3 MBEDTLS_MD_SHA1 unavailable"); return false; }
-    int status = mbedtls_md_setup(&md_ctx, md_info, 1);
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_setup error %d", status); return false; }
-    status = mbedtls_md_hmac_starts(&md_ctx, (const unsigned char *)secret.c_str(), secret.size());
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_starts error %d", status); return false; }
-    status = mbedtls_md_hmac_update(&md_ctx, (const unsigned char *)toSign.c_str(), toSign.size());
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_update error %d", status); return false; }
-    status = mbedtls_md_hmac_finish(&md_ctx, signatureBytes);
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_finish error %d", status); return false; }
-    std::string base64encoded = Encodings::Base64::encode(std::string((const char*)signatureBytes, sha1Size));
-    signature = "AWS " + accessKey + ":" + base64encoded;
-    return true;
-  }
-#endif // ifdef SSL
-
-
-  inline HTTP::URL injectHeaders(const HTTP::URL& url, const std::string & method, HTTP::Downloader & downer) {
+  HTTP::URL injectHeaders(const HTTP::URL & url, const std::string & method, HTTP::Downloader & downer) {
 #ifdef SSL
     // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
     // Transform to: 
@@ -52,12 +28,44 @@ namespace HTTP{
       newUrl.user = "";
       newUrl.pass = "";
       std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
-      if(url.args.size()) requestPath += "?" + url.args;
-      std::string authLine;
+      if (url.args.size()) requestPath += "?" + url.args;
       // Calculate Authorization data
-      if(method.size() && s3CalculateSignature(authLine, method, date, requestPath, accessKey, secret)) {
+      if (method.size()) {
+
+        std::string toSign = method + "\n\n\n" + date + "\n" + requestPath;
+        unsigned char signatureBytes[MBEDTLS_MD_MAX_SIZE];
+        const int sha1Size = 20;
+        mbedtls_md_context_t md_ctx = {0};
+        // TODO: When we use MBEDTLS_MD_SHA512 ? Consult documentation/code
+        const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+        if (!md_info) {
+          FAIL_MSG("error s3 MBEDTLS_MD_SHA1 unavailable");
+          return newUrl;
+        }
+        int status = mbedtls_md_setup(&md_ctx, md_info, 1);
+        if (status) {
+          FAIL_MSG("error s3 mbedtls_md_setup error %d", status);
+          return newUrl;
+        }
+        status = mbedtls_md_hmac_starts(&md_ctx, (const unsigned char *)secret.c_str(), secret.size());
+        if (status) {
+          FAIL_MSG("error s3 mbedtls_md_hmac_starts error %d", status);
+          return newUrl;
+        }
+        status = mbedtls_md_hmac_update(&md_ctx, (const unsigned char *)toSign.c_str(), toSign.size());
+        if (status) {
+          FAIL_MSG("error s3 mbedtls_md_hmac_update error %d", status);
+          return newUrl;
+        }
+        status = mbedtls_md_hmac_finish(&md_ctx, signatureBytes);
+        if (status) {
+          FAIL_MSG("error s3 mbedtls_md_hmac_finish error %d", status);
+          return newUrl;
+        }
+        std::string base64encoded =
+          Encodings::Base64::encode(std::string((const char *)signatureBytes, sha1Size));
         downer.setHeader("Date", date);
-        downer.setHeader("Authorization", authLine);
+        downer.setHeader("Authorization", "AWS " + accessKey + ":" + base64encoded);
       }
       return newUrl;
     }

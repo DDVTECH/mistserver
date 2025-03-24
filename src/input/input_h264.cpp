@@ -19,31 +19,12 @@ namespace Mist{
 
   bool InputH264::openStreamSource(){
     if (config->getString("input") != "-"){
-      std::string input = config->getString("input");
-      input = input.substr(10);
-
-      char *args[128];
-      uint8_t argCnt = 0;
-      char *startCh = 0;
-      for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
-        if (!*i){
-          if (startCh){args[argCnt++] = startCh;}
-          break;
-        }
-        if (*i == ' '){
-          if (startCh){
-            args[argCnt++] = startCh;
-            startCh = 0;
-            *i = 0;
-          }
-        }else{
-          if (!startCh){startCh = i;}
-        }
-      }
-      args[argCnt] = 0;
+      std::deque<std::string> args;
+      Util::shellSplit(config->getString("input").substr(10), args);
 
       int fin = -1, fout = -1;
       inputProcess = Util::Procs::StartPiped(args, &fin, &fout, 0);
+      INFO_MSG("Reading from process %d: %s", inputProcess, config->getString("input").substr(10).c_str());
       myConn.open(-1, fout);
     }else{
       myConn.open(fileno(stdout), fileno(stdin));

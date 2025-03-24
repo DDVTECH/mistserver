@@ -433,7 +433,7 @@ int main_loop(int argc, char **argv){
       shm_total = (shmd.f_blocks * shmd.f_frsize) / 1024;
     }
 
-    if (mem_free + mem_bufcache < 1024 * 1024){
+    if (mem_total && mem_free + mem_bufcache < 1024 * 1024) {
       WARN_MSG("You have very little free RAM available (%" PRIu64
                " MiB). While Mist will run just fine with this amount, do note that random crashes "
                "may occur should you ever run out of free RAM. Please be pro-active and keep an "

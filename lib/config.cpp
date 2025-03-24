@@ -237,7 +237,7 @@ Util::Config::Config(std::string cmd){
 ///   the options have been processed. "help":"Blahblahblah" //The helptext for this option.
 ///}
 ///\endcode
-void Util::Config::addOption(std::string optname, JSON::Value option){
+void Util::Config::addOption(const std::string & optname, const JSON::Value & option) {
   JSON::Value & O = vals[optname];
   O = option;
   if (!O.isMember("value") && O.isMember("default")) {
@@ -249,6 +249,10 @@ void Util::Config::addOption(std::string optname, JSON::Value option){
   jsonForEach(vals, it){
     if (it->isMember("long")){long_count++;}
   }
+}
+
+void Util::Config::addOption(const std::string & optname, const char *jsonStr) {
+  addOption(optname, JSON::fromString(jsonStr));
 }
 
 /// Prints a usage message to the given output.

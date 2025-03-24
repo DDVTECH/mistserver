@@ -337,30 +337,11 @@ namespace Controller{
     }else{
       // Rewrite target command
       std::string tmpCmd = target;
-      char exec_cmd[10240];
-      strncpy(exec_cmd, tmpCmd.c_str(), 10240);
-      HIGH_MSG("Executing command: %s", exec_cmd);
-      uint8_t argCnt = 0;
-      char *startCh = 0;
-      char *args[1280];
-      for (char *i = exec_cmd; i - exec_cmd < 10240; ++i){
-        if (!*i){
-          if (startCh){args[argCnt++] = startCh;}
-          break;
-        }
-        if (*i == ' '){
-          if (startCh){
-            args[argCnt++] = startCh;
-            startCh = 0;
-            *i = 0;
-          }
-        }else{
-          if (!startCh){startCh = i;}
-        }
-      }
-      args[argCnt] = 0;
+      std::deque<std::string> args;
+      Util::shellSplit(tmpCmd, args);
       // Run and get stdout
       setenv("MIST_CUSTOM_VARIABLE", name.c_str(), 1);
+      HIGH_MSG("Executing command: %s", tmpCmd.c_str());
       std::string ret = Util::Procs::getLimitedOutputOf(args, waitTime * 1000, 128);
       unsetenv("MIST_CUSTOM_VARIABLE");
       // Save output to custom variable

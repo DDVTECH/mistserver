@@ -347,29 +347,12 @@ namespace Mist{
     if (inCfg.substr(0, 8) == "ts-exec:"){
       standAlone = false;
       if (skipPipes){return true;}
-      std::string input = inCfg.substr(8);
-      char *args[128];
-      uint8_t argCnt = 0;
-      char *startCh = 0;
-      for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
-        if (!*i){
-          if (startCh){args[argCnt++] = startCh;}
-          break;
-        }
-        if (*i == ' '){
-          if (startCh){
-            args[argCnt++] = startCh;
-            startCh = 0;
-            *i = 0;
-          }
-        }else{
-          if (!startCh){startCh = i;}
-        }
-      }
-      args[argCnt] = 0;
+      std::deque<std::string> args;
+      Util::shellSplit(inCfg.substr(8), args);
 
       int fin = -1, fout = -1;
       inputProcess = Util::Procs::StartPiped(args, &fin, &fout, 0);
+      INFO_MSG("Reading from process %d: %s", inputProcess, inCfg.substr(8).c_str());
       reader.open(fout);
       return reader;
     }

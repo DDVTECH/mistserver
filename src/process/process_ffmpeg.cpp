@@ -744,8 +744,7 @@ namespace Mist{
     return true;
   }
 
-  OutENC::OutENC(){
-    ffcmd[10239] = 0;
+  OutENC::OutENC() {
     isAudio = false;
     isVideo = false;
     crf = -1;
@@ -761,10 +760,9 @@ namespace Mist{
   bool OutENC::buildAudioCommand(){
     std::string samplerate;
     if (sample_rate){samplerate = "-ar " + JSON::Value(sample_rate).asString();}
-    snprintf(ffcmd, 10240,
-             "ffmpeg -fflags nobuffer -hide_banner -loglevel warning -i - -acodec %s %s -strict -2 -ac 2 %s %s -f "
-             "matroska -live 1 -cluster_time_limit 100 - ",
-             codec.c_str(), samplerate.c_str(), getBitrateSetting().c_str(), flags.c_str());
+    ffcmd = "ffmpeg -fflags nobuffer -hide_banner -loglevel warning -i - -acodec " + codec + " " +
+      samplerate + " -strict -2 -ac 2 " + getBitrateSetting() + " " + flags +
+      " -f matroska -live 1 -cluster_time_limit 100 -";
 
     return true;
   }
@@ -895,9 +893,8 @@ namespace Mist{
     }
 
     // Construct final command
-    snprintf(ffcmd, 10240, "%s%s%s%s%s -c:v %s -an -f matroska - ",
-             s_base.c_str(), s_input.c_str(), s_filter.c_str(), s_scale.c_str(), s_overlay.c_str(), options.c_str());
-    INFO_MSG("Constructed FFMPEG video command: %s", ffcmd);
+    ffcmd = s_base + s_input + s_filter + s_scale + s_overlay + "-c:v " + options + " -an -f matroska -";
+    INFO_MSG("Constructed FFMPEG video command: %s", ffcmd.c_str());
     return true;
   }
 
@@ -1083,30 +1080,6 @@ namespace Mist{
     return false;
   }
 
-  /// prepare ffmpeg command by splitting the arguments before running
-  void OutENC::prepareCommand(){
-    // ffmpeg command
-    MEDIUM_MSG("ffmpeg command: %s", ffcmd);
-    uint8_t argCnt = 0;
-    char *startCh = 0;
-    for (char *i = ffcmd; i - ffcmd < 10240; ++i){
-      if (!*i){
-        if (startCh){args[argCnt++] = startCh;}
-        break;
-      }
-      if (*i == ' '){
-        if (startCh){
-          args[argCnt++] = startCh;
-          startCh = 0;
-          *i = 0;
-        }
-      }else{
-        if (!startCh){startCh = i;}
-      }
-    }
-    args[argCnt] = 0;
-  }
-
   void OutENC::setResolution(uint32_t x, uint32_t y){
     res_x = x;
     res_y = y;
@@ -1132,7 +1105,8 @@ namespace Mist{
       }
     }
 
-    prepareCommand();
+    std::deque<std::string> args;
+    Util::shellSplit(ffcmd, args);
 
     {
       std::unique_lock<std::mutex> lk(ffMutex);

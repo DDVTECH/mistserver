@@ -7,6 +7,7 @@
 #include "config.h"
 #include "defines.h"
 #include "dtsc.h"
+#include "ev.h"
 #include "procs.h"
 #include "timing.h"
 #include "urireader.h"
@@ -199,7 +200,7 @@ namespace Util{
   }
   
   /// \brief splits a string on commas and returns a list of substrings
-  void splitString(std::string &src, char delim, std::deque<std::string> &result){
+  void splitString(const std::string & src, char delim, std::deque<std::string> & result) {
     result.clear();
     std::deque<uint64_t> positions;
     uint64_t pos = src.find(delim, 0);
@@ -220,71 +221,113 @@ namespace Util{
     if (prevPos < src.size()){result.push_back(src.substr(prevPos + 1));}
   }
 
+  /// Splits a string exactly how a shell would do it.
+  void shellSplit(const std::string & val, std::deque<std::string> & result) {
+    size_t startPos = 0;
+    char quoting = 0;
+    bool argFull = false;
+    std::string arg;
+    while (startPos != std::string::npos) {
+      // Find the next interesting character
+      size_t nxtChar = val.find_first_of(" '\"\\", startPos);
+      // If there is no character, append to the argument what we have left and push the argument onto the deque
+      if (nxtChar == std::string::npos) {
+        if (startPos < val.size()) { arg += val.substr(startPos); }
+        if (arg.size() || argFull) { result.push_back(arg); }
+        return;
+      }
+      // If we find a space...
+      if (val[nxtChar] == ' ') {
+        if (!quoting) {
+          // ... and we are not quoting, push the argument onto the deque
+          arg += val.substr(startPos, nxtChar - startPos);
+          if (arg.size() || argFull) { result.push_back(arg); }
+          arg.clear();
+          argFull = false;
+          startPos = nxtChar + 1;
+        } else {
+          // Else, add everything up to and including the space and keep going from there
+          arg += val.substr(startPos, nxtChar - startPos + 1);
+          startPos = nxtChar + 1;
+        }
+        continue;
+      }
+      // Backslash? Add what we have so far and the next char verbatim, and keep going from there
+      if (val[nxtChar] == '\\') {
+        arg += val.substr(startPos, nxtChar - startPos);
+        if (val.size() > nxtChar + 1) {
+          switch (val[nxtChar + 1]) {
+            case 'n': arg += '\n'; break;
+            case 'r': arg += '\r'; break;
+            case 't': arg += '\t'; break;
+            case 'a': arg += '\a'; break;
+            default: arg += val[nxtChar + 1];
+          }
+        }
+        startPos = nxtChar + 2;
+        continue;
+      }
+      // Quote?
+      if (val[nxtChar] == '\'' || val[nxtChar] == '"') {
+        // Not already quoting? Add what we have so far and start quoting
+        if (!quoting) {
+          arg += val.substr(startPos, nxtChar - startPos);
+          quoting = val[nxtChar];
+          argFull = true; // Force this argument to be used, even when empty
+          startPos = nxtChar + 1;
+        } else if (quoting != val[nxtChar]) {
+          // Quoting but different quote type - add the string verbatim
+          arg += val.substr(startPos, nxtChar - startPos + 1);
+          startPos = nxtChar + 1;
+        } else {
+          // Ending quote, add the string verbatim minus current char
+          arg += val.substr(startPos, nxtChar - startPos);
+          startPos = nxtChar + 1;
+          quoting = 0;
+        }
+        continue;
+      }
+    }
+  }
+
   /// \brief Connects the given file descriptor to a file or uploader binary
   /// \param uri target URL or filepath
   /// \param outFile file descriptor which will be used to send data
   /// \param append whether to open this connection in truncate or append mode
-  bool externalWriter(const std::string & uri, int &outFile, bool append){
-    HTTP::URL target = HTTP::localURIResolver().link(uri);
-    // If it is a remote target, we might need to spawn an external binary
-    if (!target.isLocalPath()){
-      bool matchedProtocol = false;
-      // Read configured external writers
-      IPC::sharedPage extwriPage(EXTWRITERS, 0, false, false);
-      if (extwriPage.mapped){
-        Util::RelAccX extWri(extwriPage.mapped, false);
-        if (extWri.isReady()){
-          for (uint64_t i = 0; i < extWri.getEndPos(); i++){
-            // Retrieve binary config
-            std::string name = extWri.getPointer("name", i);
-            std::string cmdline = extWri.getPointer("cmdline", i);
-            char *ptr = extWri.getPointer("protocols", i);
-            JSON::Value protocolArray;
-            if (ptr) {
-              size_t offset = 0;
-              while (offset < 256 - 4 && *(uint32_t *)(ptr + offset)) {
-                uint32_t s = *(uint32_t *)(ptr + offset);
-                if (offset + 4 + s > 256) { break; }
-                if (target.protocol == std::string(ptr + offset + 4, s)) {
-                  HIGH_MSG("Using %s in order connect to URL with protocol %s", name.c_str(),
-                           target.protocol.c_str());
-                  matchedProtocol = true;
-                  // Split configured parameters for this writer on whitespace
-                  // TODO: we might want to trim whitespaces and remove empty parameters
-                  std::deque<std::string> parameterList;
-                  Util::splitString(cmdline, ' ', parameterList);
-                  // Build the startup command, which needs space for the program name, each parameter, the target url and a null at the end
-                  char **cmd = (char **)malloc(sizeof(char *) * (parameterList.size() + 2));
-                  size_t curArg = 0;
-                  // Write each parameter
-                  for (size_t j = 0; j < parameterList.size(); j++) {
-                    cmd[curArg++] = (char *)parameterList[j].c_str();
-                  }
-                  // Write the target URL as the last positional argument then close with a null at the end
-                  cmd[curArg++] = (char *)uri.c_str();
-                  cmd[curArg++] = 0;
-
-                  pid_t child = startConverted(cmd, outFile);
-                  if (child == -1) {
-                    ERROR_MSG("'%s' process did not start, aborting", cmd[0]);
-                    return false;
-                  }
-                  Util::Procs::forget(child);
-                  free(cmd);
-                  break;
-                }
-                offset += 4 + s;
-              }
-            }
-            if (matchedProtocol) { break; }
+  bool externalWriter(const std::string & uri, Socket::Connection & conn, bool append) {
+    // Send final chunk if in chunked mode
+    if (conn && conn.isChunkedMode()) {
+      conn.SendNow(0, 0);
+      HTTP::Parser response;
+      bool gotResponse = false;
+      Event::Loop ev;
+      auto attemptFinish = [&]() {
+        if (response.Read(conn)) {
+          INFO_MSG("Server response to upload (before %s): %s %s", uri.c_str(),
+                   response.url.c_str(), response.method.c_str());
+          // If the response is a 2XX code, return 0, otherwise return the default response (2).
+          if (response.url.size() && response.url[0] == '2') {
+            // Success
+          } else {
+            // Failure
           }
+          gotResponse = true;
         }
-      }
-      if (!matchedProtocol){
-        ERROR_MSG("Could not connect to '%s', since we do not have a configured external writer to handle '%s' protocols", uri.c_str(), target.protocol.c_str());
-        return false;
-      }
-    }else{
+      };
+      conn.setBlocking(false);
+      ev.addSocket(conn.getSocket(), [&](void *) {
+        while (conn.spool()) { attemptFinish(); }
+      }, 0);
+      uint64_t maxWait = Util::bootMS() + 5000;
+      attemptFinish();
+      while (!gotResponse && Util::bootMS() < maxWait) { ev.await(1000); }
+      if (!gotResponse) { WARN_MSG("No reply from remote server to PUT request"); }
+      conn.close();
+    }
+    HTTP::URL target = HTTP::localURIResolver().link(uri);
+
+    // Local paths just write to file
+    if (target.isLocalPath()) {
       int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
       int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
       std::string path = target.getFilePath();
@@ -292,13 +335,67 @@ namespace Util{
         ERROR_MSG("Cannot not create file %s: could not create parent folder", path.c_str());
         return false;
       }
-      outFile = open(path.c_str(), mode, flags);
+      int outFile = open(path.c_str(), mode, flags);
       if (outFile < 0){
         ERROR_MSG("Failed to open file %s, error: %s", path.c_str(), strerror(errno));
         return false;
       }
+      conn.open(outFile);
+      if (!conn.lock()) {
+        conn.close();
+        return false;
+      }
+      return true;
     }
-    return true;
+
+    // Non-local, may need to spawn a binary. Check.
+
+    // Read configured external writers
+    IPC::sharedPage extwriPage(EXTWRITERS, 0, false, false);
+    if (extwriPage.mapped) {
+      Util::RelAccX extWri(extwriPage.mapped, false);
+      if (extWri.isReady()) {
+        for (uint64_t i = 0; i < extWri.getEndPos(); i++) {
+          // Retrieve binary config
+          std::string name = extWri.getPointer("name", i);
+          std::string cmdline = extWri.getPointer("cmdline", i);
+          char *ptr = extWri.getPointer("protocols", i);
+          if (!ptr) { continue; }
+          JSON::Value protocolArray;
+          size_t offset = 0;
+          while (offset < 256 - 4 && *(uint32_t *)(ptr + offset)) {
+            uint32_t s = *(uint32_t *)(ptr + offset);
+            if (offset + 4 + s > 256) { break; }
+            if (target.protocol == std::string(ptr + offset + 4, s)) {
+              HIGH_MSG("Using %s in order connect to URL with protocol %s", name.c_str(),
+                       target.protocol.c_str());
+              std::deque<std::string> parameterList;
+              Util::shellSplit(cmdline, parameterList);
+              parameterList.push_back(uri);
+              pid_t child = startConverted(parameterList, conn);
+              if (child == -1) {
+                ERROR_MSG("'%s' process did not start, aborting", cmdline.c_str());
+                return false;
+              }
+              Util::Procs::forget(child);
+              return true;
+            }
+            offset += 4 + s;
+          }
+        }
+      }
+    }
+    if (target.protocol == "http" || target.protocol == "https") {
+      HIGH_MSG("Using native HTTP PUT handler with protocol %s", target.protocol.c_str());
+      HTTP::Downloader dl;
+      target = HTTP::injectHeaders(target, "PUT", dl);
+      if (!dl.startPut(target, conn)) { return false; }
+      return true;
+    }
+    ERROR_MSG("Could not connect to '%s', since we do not have a configured external writer to "
+              "handle '%s' protocols",
+              uri.c_str(), target.protocol.c_str());
+    return false;
   }
   //Returns the time to wait in milliseconds for exponential back-off waiting.
   //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
@@ -510,26 +607,17 @@ namespace Util{
     }
   }
 
-  /// \brief Spawns a log converter, which spawns an external writer and pretty prints it stdout and stderr
-  pid_t startConverted(const char *const *argv, int &outFile){
-    int idx = 0;
-    while (argv[idx]) { ++idx; }
-
+  /// Spawns a log converter, which spawns another process and pretty prints its stdout and stderr
+  pid_t startConverted(const std::deque<std::string> & args, Socket::Connection & conn) {
+    std::deque<std::string> newArgs = args;
     int fdIn = -1, fdOut = STDOUT_FILENO, fdErr = STDERR_FILENO;
-    char *const *childArgs = (char *const *)malloc(sizeof(char *) * (idx + 2));
-    memcpy((void *)(childArgs + 1), argv, sizeof(char *) * idx);
-    std::string childCmd = Util::getMyPath() + "MistUtilLog";
-    ((char **)childArgs)[0] = (char *)childCmd.c_str(); // they call me a two star programmer
-    ((char **)childArgs)[idx + 1] = 0;
-
-    pid_t pid = Util::Procs::StartPiped(childArgs, &fdIn, &fdOut, &fdErr);
-
+    newArgs.push_front(Util::getMyPath() + "MistUtilLog");
+    pid_t pid = Util::Procs::StartPiped(newArgs, &fdIn, &fdOut, &fdErr);
     if (!pid) {
       FAIL_MSG("Failed to spawn child process for log handling!");
       return -1;
     }
-
-    outFile = fdIn;
+    conn.open(fdIn);
     Util::Procs::remember(pid);
     return pid;
   }

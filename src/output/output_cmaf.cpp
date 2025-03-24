@@ -22,7 +22,7 @@ uint64_t dataDown = 0;
 namespace Mist{
   void CMAFPushTrack::connect(std::string debugParam){
     D.setHeader("Transfer-Encoding", "chunked");
-    D.prepareRequest(url, "POST");
+    D.prepareRequest(url, "POST", D.getSocket());
 
     HTTP::Parser &http = D.getHTTP();
     http.sendingChunks = true;

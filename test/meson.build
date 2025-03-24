@@ -27,6 +27,8 @@ test('Child moves stdin to stdout ', proctest, suite: 'Procs', args: ['3', '', '
 test('Sleep then retrieve stdout', proctest, suite: 'Procs', args: ['4', '', '', ''])
 test('Retrieve stdout after fail', proctest, suite: 'Procs', args: ['5', '', '', ''])
 
+shellsplittest = executable('shellsplittest', 'shellsplit.cpp', header_tgts, dependencies: libmist_dep)
+test('Shell argument splitter', shellsplittest, args: ['hi "a banana" "" sauce    pudding "miauw"\'"\' "a"\'\'"z"'], env: {'OUTC':'7', 'OUT1':'hi', 'OUT2':'a banana', 'OUT3':'', 'OUT4':'sauce', 'OUT5':'pudding', 'OUT6':'miauw"', 'OUT7':'az'})
 
 urltest = executable('urltest', 'url.cpp', header_tgts, dependencies: libmist_dep)
 urltest_vm = {'T_PATH':'', 'T_QUERY':'', 'T_FRAG':'', 'T_USER':'', 'T_PASS':'', 'T_NORM':'', 'T_EXT':''}

@@ -46,7 +46,6 @@ namespace Mist{
     uint64_t targetTime();
     void setBlocking(bool blocking);
     bool selectDefaultTracks();
-    bool connectToFile(std::string file, bool append = false, Socket::Connection *conn = 0);
     static bool listenMode(){return true;}
     uint32_t currTrackCount() const;
     virtual bool isReadyForPlay();

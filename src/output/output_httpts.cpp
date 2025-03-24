@@ -14,36 +14,29 @@ namespace Mist{
   OutHTTPTS::OutHTTPTS(Socket::Connection &conn) : TSOutput(conn){
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     HTTP::URL target(config->getString("target"));
+    // Detect youtube-style URL
+    if (target.path == "http_upload_hls" && target.args.size() >= 5 &&
+        target.args.find("file=") == target.args.size() - 5) {
+      targetParams["segment"] = target.path + "?" + target.args + "$segmentCounter.ts";
+      targetParams["m3u8"] = target.path + "?" + target.args + "index.m3u8";
+      targetParams["split"] = "1";
+      targetParams["maxEntries"] = "3";
+      targetParams["nounlink"] = "";
+      INFO_MSG("Youtube-style HLS push -> setting appropriate segmenting options");
+    }
     if (target.protocol == "srt"){
       std::string newTarget = "ts-exec:srt-live-transmit file://con " + target.getUrl();
       INFO_MSG("Rewriting SRT target '%s' to '%s'", config->getString("target").c_str(), newTarget.c_str());
       config->getOption("target", true).append(newTarget);
     }
     if (config->getString("target").substr(0, 8) == "ts-exec:"){
-      std::string input = config->getString("target").substr(8);
-      char *args[128];
-      uint8_t argCnt = 0;
-      char *startCh = 0;
-      for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
-        if (!*i){
-          if (startCh){args[argCnt++] = startCh;}
-          break;
-        }
-        if (*i == ' '){
-          if (startCh){
-            args[argCnt++] = startCh;
-            startCh = 0;
-            *i = 0;
-          }
-        }else{
-          if (!startCh){startCh = i;}
-        }
-      }
-      args[argCnt] = 0;
+      std::deque<std::string> args;
+      Util::shellSplit(config->getString("target").substr(8), args);
 
       int fin = -1;
-      Util::Procs::StartPiped(args, &fin, 0, 0);
+      pid_t outProc = Util::Procs::StartPiped(args, &fin, 0, 0);
       myConn.open(fin, -1);
+      INFO_MSG("Sending to process %d: %s", outProc, config->getString("target").substr(8).c_str());
 
       wantRequest = false;
       parseData = true;
@@ -82,6 +75,7 @@ namespace Mist{
     capa["methods"][0u]["priority"] = 1;
     config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.ts");
+    capa["push_urls"].append("https://*/http_upload_hls?"); // Youtube-specific HLS push URL
     capa["push_urls"].append("ts-exec:*");
 
 #ifndef WITH_SRT

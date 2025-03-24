@@ -20,11 +20,13 @@ namespace Util{
     static void fork_complete();
     static void setHandler();
     static std::string getOutputOf(const char *const *argv, uint64_t maxWait = 10000);
-    static std::string getOutputOf(std::deque<std::string> &argDeq, uint64_t maxWait = 10000);
+    static std::string getOutputOf(const std::deque<std::string> & argDeq, uint64_t maxWait = 10000);
     static std::string getLimitedOutputOf(char *const *argv, uint64_t maxWait, uint32_t maxValBytes);
+    static std::string getLimitedOutputOf(const std::deque<std::string> & argDeq, uint64_t maxWait,
+                                          uint32_t maxValBytes);
     static pid_t StartPiped(const char *const *argv, int *fdIn, int *fdOut, int *fdErr);
     static pid_t StartPiped(const char *const *argv);
-    static pid_t StartPiped(std::deque<std::string> & argDeq, int *fdIn, int *fdOut, int *fdErr);
+    static pid_t StartPiped(const std::deque<std::string> & argDeq, int *fdIn, int *fdOut, int *fdErr);
     static void Stop(pid_t name);
     static void Murder(pid_t name);
     static void StopAll();

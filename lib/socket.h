@@ -129,9 +129,9 @@ namespace Socket{
     int iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
     bool iread(Buffer &buffer, int flags = 0); ///< Incremental write call that is compatible with Socket::Buffer.
     void setBoundAddr();
-
-  protected:
     std::string lastErr; ///< Stores last error, if any.
+    bool isLocked;
+    bool chunkedMode;
 #ifdef SSL
     /// optional extension that uses mbedtls for SSL
     bool sslConnected;
@@ -168,8 +168,12 @@ namespace Socket{
 #endif
     void close();                                        ///< Close connection.
     void drop();                                         ///< Close connection without shutdown.
+    bool lock();
+    void unlock();
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
+    void setChunkedMode(bool isChunked) { chunkedMode = isChunked; }
+    bool isChunkedMode() const { return chunkedMode; }
     std::string getHost() const; ///< Gets hostname for connection, if available.
     std::string getBinHost() const;
     void setHost(std::string host); ///< Sets hostname for connection manually.

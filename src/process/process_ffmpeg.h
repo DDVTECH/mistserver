@@ -22,8 +22,7 @@ namespace Mist{
 
   private:
     JSON::Value opt;
-    char ffcmd[10240];
-    char *args[1280];
+    std::string ffcmd;
     uint32_t res_x;
     uint32_t res_y;
     std::string codec;

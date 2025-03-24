@@ -5,7 +5,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
-#include <vector>
+
+namespace Socket {
+  class Connection;
+}
 
 namespace Util{
   bool isDirectory(const std::string &path);
@@ -15,8 +18,9 @@ namespace Util{
   void stringToLower(std::string &val);
   size_t replace(std::string &str, const std::string &from, const std::string &to);
   void stringTrim(std::string &val);
-  void splitString(std::string &val, char delim, std::deque<std::string> &result);
-  bool externalWriter(const std::string & file, int &outFile, bool append = false);
+  void splitString(const std::string & val, char delim, std::deque<std::string> & result);
+  void shellSplit(const std::string & val, std::deque<std::string> & result);
+  bool externalWriter(const std::string & file, Socket::Connection & conn, bool append = false);
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 
@@ -79,7 +83,7 @@ namespace Util{
   void logParser(int in, int out, bool colored,
                  void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool) = 0);
   void redirectLogsIfNeeded();
-  pid_t startConverted(const char *const *argv, int &outFile);
+  pid_t startConverted(const std::deque<std::string> & args, Socket::Connection & conn);
   void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid);
 
   /// Holds type, size and offset for RelAccX class internal data fields.

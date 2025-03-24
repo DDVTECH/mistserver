@@ -48,7 +48,8 @@ namespace Util{
     // functions
     Config();
     Config(std::string cmd);
-    void addOption(std::string optname, JSON::Value option);
+    void addOption(const std::string & optname, const JSON::Value & option);
+    void addOption(const std::string & optname, const char *jsonStr);
     void printHelp(std::ostream &output);
     bool parseArgs(int &argc, char **&argv);
     bool hasOption(const std::string &optname);

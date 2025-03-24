@@ -10,10 +10,7 @@ namespace HTTP{
     ~Downloader();
     std::string &data();
     const std::string &const_data() const;
-    void prepareRequest(const HTTP::URL &link, const std::string &method = "");
-    void doRequest(const HTTP::URL &link, const std::string &method = "", const void *body = 0,
-                   const size_t bodyLen = 0);
-    void doRequest(const HTTP::URL &link, const std::string &method, const std::string &body);
+    void prepareRequest(const HTTP::URL & link, const std::string & method, Socket::Connection & conn);
     bool get(const std::string &link, Util::DataCallback &cb = Util::defaultDataCallback);
     bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6, Util::DataCallback &cb = Util::defaultDataCallback);
     bool head(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
@@ -25,6 +22,8 @@ namespace HTTP{
               uint8_t maxRecursiveDepth = 6);
     bool post(const HTTP::URL &link, const std::string &payload, bool sync = true,
               uint8_t maxRecursiveDepth = 6);
+
+    bool startPut(const HTTP::URL & link, Socket::Connection & conn, uint8_t maxRecursiveDepth = 6);
 
     bool getNonBlocking(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
     bool continueNonBlocking(Util::DataCallback &cb);

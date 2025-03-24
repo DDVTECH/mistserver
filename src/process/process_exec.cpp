@@ -193,31 +193,11 @@ namespace Mist{
     std::string tmpCmd = opt["exec"].asStringRef();
     Util::streamVariables(tmpCmd, streamName, opt["source"].asStringRef());
 
+    std::deque<std::string> args;
+    Util::shellSplit(tmpCmd, args);
+
     // exec command
-    char exec_cmd[10240];
-    strncpy(exec_cmd, tmpCmd.c_str(), 10240);
-    INFO_MSG("Executing command: %s", exec_cmd);
-    uint8_t argCnt = 0;
-    char *startCh = 0;
-    char *args[1280];
-    for (char *i = exec_cmd; i - exec_cmd < 10240; ++i){
-      if (!*i){
-        if (startCh){args[argCnt++] = startCh;}
-        break;
-      }
-      if (*i == ' '){
-        if (startCh){
-          args[argCnt++] = startCh;
-          startCh = 0;
-          *i = 0;
-        }
-      }else{
-        if (!startCh){startCh = i;}
-      }
-    }
-    args[argCnt] = 0;
-
-
+    INFO_MSG("Executing command: %s", tmpCmd.c_str());
     {
       std::unique_lock<std::mutex> lk(xMutex);
       xCV.wait(lk, []() { return conf.is_active && co.is_active; });

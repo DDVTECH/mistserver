@@ -129,35 +129,19 @@ namespace Mist{
   bool InputEBML::preRun(){
     if (config->getString("input").substr(0, 9) == "mkv-exec:"){
       standAlone = false;
-      std::string input = config->getString("input").substr(9);
-      char *args[128];
-      uint8_t argCnt = 0;
-      char *startCh = 0;
-      for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
-        if (!*i){
-          if (startCh){args[argCnt++] = startCh;}
-          break;
-        }
-        if (*i == ' '){
-          if (startCh){
-            args[argCnt++] = startCh;
-            startCh = 0;
-            *i = 0;
-          }
-        }else{
-          if (!startCh){startCh = i;}
-        }
-      }
-      args[argCnt] = 0;
+      std::deque<std::string> args;
+      Util::shellSplit(config->getString("input").substr(9), args);
 
       int fin = -1, fout = -1;
-      Util::Procs::StartPiped(args, &fin, &fout, 0);
+      pid_t inProc = Util::Procs::StartPiped(args, &fin, &fout, 0);
       if (fout == -1){
-        Util::logExitReason(ER_PROCESS_SPECIFIC, "Unable to start mkv-exec process `%s`", args);
+        Util::logExitReason(ER_PROCESS_SPECIFIC, "Unable to start mkv-exec process %s",
+                            config->getString("input").substr(9).c_str());
         return false;
       }
       dup2(fout, 0);
       inFile.open(0);
+      INFO_MSG("Reading from process %d: %s", inProc, config->getString("input").substr(9).c_str());
       return true;
     }
     if (config->getString("input") == "-"){

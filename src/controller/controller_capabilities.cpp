@@ -247,8 +247,10 @@ namespace Controller{
     trgs["LIVEPEER_SEGMENT_REJECTED"]["response_action"] = "None.";
   }
 
-  /// Aquire list of available protocols, storing in global 'capabilities' JSON::Value.
+  /// Acquire list of available protocols, storing in global 'capabilities' JSON::Value.
   void checkAvailProtocols(){
+    capabilities["internal_writers"].append("http");
+    capabilities["internal_writers"].append("https");
     std::deque<std::string> execs;
     Util::getMyExec(execs);
     std::string arg_one;
@@ -277,6 +279,17 @@ namespace Controller{
           WARN_MSG("Output %s version mismatch (%s != " PACKAGE_VERSION ")", entryName.c_str(),
                    capabilities["connectors"][entryName]["version"].asStringRef().c_str());
           capabilities["connectors"].removeMember(entryName);
+        } else {
+          JSON::Value & outRef = capabilities["connectors"][entryName];
+          if (outRef.isMember("push_urls") && outRef.isMember("name")) {
+            if (!outRef["push_urls"].isArray()) {
+              std::string m = outRef["push_urls"].asString();
+              outRef["push_urls"].append(m);
+            }
+            std::string n = outRef["name"].asString();
+            Util::stringToLower(n);
+            outRef["push_urls"].append(n + ":*");
+          }
         }
       }
       if ((*it).substr(0, 8) == "MistProc"){
@@ -472,6 +485,7 @@ namespace Controller{
       capa["speed"] = total_speed;
       capa["threads"] = total_threads;
     }
+    capa.removeMember("mem");
     std::ifstream meminfo("/proc/meminfo");
     if (meminfo){
       char line[300];
@@ -505,6 +519,7 @@ namespace Controller{
                                 100) /
                                capa["mem"]["total"].asInt();
     }
+    capa.removeMember("load");
     std::ifstream loadavg("/proc/loadavg");
     if (loadavg){
       char line[300];
@@ -517,6 +532,7 @@ namespace Controller{
         capa["load"]["fifteen"] = uint64_t(fifteenmin * 100);
       }
     }
+    capa.removeMember("cpu_use");
     std::ifstream cpustat("/proc/stat");
     if (cpustat){
       char line[300];

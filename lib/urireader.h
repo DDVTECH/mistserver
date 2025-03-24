@@ -3,6 +3,8 @@
 #include "util.h"
 namespace HTTP{
 
+  URL injectHeaders(const HTTP::URL & url, const std::string & method, HTTP::Downloader & downer);
+
   enum URIType{Closed = 0, File, Stream, HTTP};
 
   /// Opens a generic URI for reading. Supports streams/pipes, HTTP(S) and file access.

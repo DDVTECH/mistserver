@@ -1087,9 +1087,8 @@ namespace Mist{
       if (amfData.getContentP(2)->getContentP("flashVer")){
         UA = amfData.getContentP(2)->getContentP("flashVer")->StrValue();
       }
-      app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
-      reqUrl = app_name; // LTS
-      app_name = app_name.substr(app_name.find('/', 7) + 1);
+      reqUrl = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
+      app_name = HTTP::URL(reqUrl).path;
 
       // If this user agent matches, we can safely guess it's librtmp, and this is not dangerous
       if (UA == "FMLE/3.0 (compatible; FMSc/1.0)"){

@@ -600,10 +600,6 @@ int main(int argc, char *argv[]){
     capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
     capa["optional"]["exit_unmask"]["default"] = false;
 
-    capa["optional"]["inconsequential"]["name"] = "Inconsequential process";
-    capa["optional"]["inconsequential"]["help"] = "If set, this process need not be running for a stream to be considered fully active.";
-    capa["optional"]["inconsequential"]["default"] = false;
-
     capa["optional"]["sink"]["name"] = "Target stream";
     capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults "
                                        "to source stream. May contain variables.";

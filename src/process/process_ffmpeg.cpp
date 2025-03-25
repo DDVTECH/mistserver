@@ -282,10 +282,6 @@ int main(int argc, char *argv[]){
     capa["optional"]["exit_unmask"]["default"] = false;
     capa["optional"]["exit_unmask"]["sort"] = "dda";
 
-    capa["optional"]["inconsequential"]["name"] = "Inconsequential process";
-    capa["optional"]["inconsequential"]["help"] = "If set, this process need not be running for a stream to be considered fully active.";
-    capa["optional"]["inconsequential"]["default"] = false;
-
     capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
     capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
     capa["required"]["x-LSP-kind"]["type"] = "select";          // type of input field to use
@@ -401,7 +397,7 @@ int main(int argc, char *argv[]){
 
     capa["optional"]["min_rate"]["name"] = "Minimum bitrate";
     capa["optional"]["min_rate"]["help"] = "Minimum bitrate of the encoding";
-    capa["optional"]["min_rate"]["type"] = "str";
+    capa["optional"]["min_rate"]["type"] = "uint";
     capa["optional"]["min_rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
     capa["optional"]["min_rate"]["sort"] = "cbb";
     capa["optional"]["min_rate"]["unit"][0u][0u] = "1";
@@ -413,7 +409,7 @@ int main(int argc, char *argv[]){
     
     capa["optional"]["max_rate"]["name"] = "Maximum bitrate";
     capa["optional"]["max_rate"]["help"] = "Maximum bitrate of the encoding";
-    capa["optional"]["max_rate"]["type"] = "str";
+    capa["optional"]["max_rate"]["type"] = "uint";
     capa["optional"]["max_rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
     capa["optional"]["max_rate"]["sort"] = "cbc";
     capa["optional"]["max_rate"]["unit"][0u][0u] = "1";
@@ -1039,15 +1035,15 @@ namespace Mist{
     std::string min_rate;
     std::string max_rate;
 
-    if (opt.isMember("rate") && opt["rate"].isString()){
+    if (opt.isMember("rate") && opt["rate"]){
       b_rate = opt["rate"].asString();
     }
 
-    if (opt.isMember("min_rate") && opt["min_rate"].isString()){
+    if (opt.isMember("min_rate") && opt["min_rate"]){
       min_rate = opt["min_rate"].asString();
     }
 
-    if (opt.isMember("max_rate") && opt["max_rate"].isString()){
+    if (opt.isMember("max_rate") && opt["max_rate"]){
       max_rate = opt["max_rate"].asString();
     }
 

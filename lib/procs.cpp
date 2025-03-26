@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <dirent.h>
 
 std::set<pid_t> Util::Procs::plist;
 std::set<int> Util::Procs::socketList;
@@ -378,6 +379,31 @@ pid_t Util::Procs::StartPiped(std::deque<std::string> &argDeq, int *fdin, int *f
   return ret;
 }
 
+// Create a new deque with a rewritten first element to reflect the correct path
+void mistifyDeque(std::deque<std::string> &argDeq) {
+  argDeq[0] = Util::getMyPath() + argDeq[0];
+}
+
+// Start one of our Mist* processes, resolving our path automatically and such.
+pid_t Util::Procs::StartPipedMist(std::deque<std::string> &argDeq, int *fdin, int *fdout, int *fderr){
+  mistifyDeque(argDeq);
+  return Util::Procs::StartPiped(argDeq, fdin, fdout, fderr);
+}
+
+// Exec to one of our Mist* processes, resolving our path automatically and such.
+int Util::Procs::ExecMist(std::deque<std::string> &argDeq){
+  mistifyDeque(argDeq);
+  char *const *argv = dequeToArgv(argDeq);
+  return execvp(argv[0], argv);
+}
+
+// Check whether a given Mist* binary is available for us to run
+bool Util::Procs::HasMistBinary(std::string binName){
+  std::string tmparg = Util::getMyPath() + binName;
+  struct stat buf;
+  return ::stat(tmparg.c_str(), &buf) == 0;
+}
+
 /// Starts a new process with given fds if the name is not already active.
 /// \return 0 if process was not started, process PID otherwise.
 /// \arg argv Command for this process.
@@ -582,4 +608,70 @@ void Util::Procs::forget(pid_t pid){
 void Util::Procs::remember(pid_t pid){
   tthread::lock_guard<tthread::mutex> guard(plistMutex);
   plist.insert(pid);
+}
+
+/// Gets directory the current executable is stored in.
+std::string Util::getMyPath(){
+  char mypath[500];
+#ifdef __CYGWIN__
+  GetModuleFileName(0, mypath, 500);
+#else
+#ifdef __APPLE__
+  memset(mypath, 0, 500);
+  unsigned int refSize = 500;
+  _NSGetExecutablePath(mypath, &refSize);
+#else
+  int ret = readlink("/proc/self/exe", mypath, 500);
+  if (ret != -1){
+    mypath[ret] = 0;
+  }else{
+    mypath[0] = 0;
+  }
+#endif
+#endif
+  std::string tPath = mypath;
+  size_t slash = tPath.rfind('/');
+  if (slash == std::string::npos){
+    slash = tPath.rfind('\\');
+    if (slash == std::string::npos){return "";}
+  }
+  tPath.resize(slash + 1);
+  return tPath;
+}
+
+/// Gets all executables in getMyPath that start with "Mist".
+void Util::getMyExec(std::deque<std::string> &execs){
+  std::string path = Util::getMyPath();
+#ifdef __CYGWIN__
+  path += "\\Mist*";
+  WIN32_FIND_DATA FindFileData;
+  HANDLE hdl = FindFirstFile(path.c_str(), &FindFileData);
+  while (hdl != INVALID_HANDLE_VALUE){
+    if (!(FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)){
+      execs.push_back(FindFileData.cFileName);
+    }
+    if (!FindNextFile(hdl, &FindFileData)){
+      FindClose(hdl);
+      hdl = INVALID_HANDLE_VALUE;
+    }
+  }
+#else
+  DIR *d = opendir(path.c_str());
+  if (!d){return;}
+  struct dirent *dp;
+  do{
+    errno = 0;
+    if ((dp = readdir(d))){
+      if (dp->d_type != DT_DIR && strncmp(dp->d_name, "Mist", 4) == 0){
+        if (dp->d_type != DT_REG) {
+          struct stat st = {};
+          stat(dp->d_name, &st);
+          if (!S_ISREG(st.st_mode))
+            continue;
+        }
+        execs.push_back(dp->d_name);}
+    }
+  }while (dp != NULL);
+  closedir(d);
+#endif
 }

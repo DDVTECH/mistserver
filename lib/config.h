@@ -72,12 +72,6 @@ namespace Util{
   /// The port the current serveSocket function is listening on
   extern uint32_t listenPort;
 
-  /// Gets directory the current executable is stored in.
-  std::string getMyPath();
-
-  /// Gets all executables in getMyPath that start with "Mist".
-  void getMyExec(std::deque<std::string> &execs);
-
   /// Will set the active user to the named username.
   void setUser(std::string user);
 

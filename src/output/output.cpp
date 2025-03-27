@@ -1814,6 +1814,9 @@ namespace Mist{
             // Max speed playback: no waiting at all if we have non-ghost packets
             maxWait = 0;
           }
+        } else if (wantRequest) {
+          // Fall back to 2s sleeps if we're waiting for new requests
+          maxWait = 2000;
         }
       }
 

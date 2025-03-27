@@ -1,23 +1,30 @@
 #include "process_ffmpeg.h"
+
 #include "process.hpp"
-#include <algorithm> //for std::find
+
 #include <mist/defines.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/util.h>
-#include <thread>
+
+#include <algorithm> //for std::find
+#include <condition_variable>
 #include <mutex>
 #include <ostream>
-#include <sys/stat.h>  //for stat
+#include <sys/stat.h> //for stat
 #include <sys/types.h> //for stat
-#include <unistd.h>    //for stat
+#include <thread>
+#include <unistd.h> //for stat
 
 int ofin = -1, ofout = 1, oferr = 2;
 int ifin = -1, ifout = -1, iferr = 2;
-int pipein[2], pipeout[2];
+int ffinput = -1, ffoutput = -1;
 
 Util::Config co;
 Util::Config conf;
+
+std::condition_variable ffCV;
+std::mutex ffMutex;
 
 // Complete config file loaded in JSON
 JSON::Value opt;
@@ -170,20 +177,33 @@ namespace Mist{
 
 
 void sinkThread(){
+  Util::nameThread("sinkThread");
   Mist::ProcessSink in(&co);
   co.getOption("output", true).append("-");
-  co.activate();
+
+  {
+    std::unique_lock<std::mutex> lk(ffMutex);
+    co.activate();
+  }
+  ffCV.notify_all();
+  {
+    std::unique_lock<std::mutex> lk(ffMutex);
+    ffCV.wait(lk, []() { return ffoutput != -1 || !co.is_active; });
+  }
 
   MEDIUM_MSG("Running sink thread...");
-
-  in.setInFile(pipeout[0]);
-  co.is_active = true;
+  in.setInFile(ffoutput);
   in.run();
 
-  conf.is_active = false;
+  {
+    std::unique_lock<std::mutex> lk(ffMutex);
+    conf.is_active = false;
+  }
+  ffCV.notify_all();
 }
 
 void sourceThread(){
+  Util::nameThread("sourceThread");
   Mist::ProcessSource::init(&conf);
   conf.getOption("streamname", true).append(opt["source"].c_str());
 
@@ -196,15 +216,27 @@ void sourceThread(){
     return;
   }
 
-  conf.is_active = true;
+  {
+    std::unique_lock<std::mutex> lk(ffMutex);
+    conf.is_active = true;
+  }
+  ffCV.notify_all();
+  {
+    std::unique_lock<std::mutex> lk(ffMutex);
+    ffCV.wait(lk, []() { return ffinput != -1 || !conf.is_active; });
+  }
 
-  Socket::Connection c(pipein[1], 0);
+  Socket::Connection c(ffinput, -1);
   Mist::ProcessSource out(c);
 
   MEDIUM_MSG("Running source thread...");
   out.run();
 
-  co.is_active = false;
+  {
+    std::unique_lock<std::mutex> lk(ffMutex);
+    co.is_active = false;
+  }
+  ffCV.notify_all();
 }
 
 int main(int argc, char *argv[]){
@@ -669,37 +701,25 @@ int main(int argc, char *argv[]){
     Enc.setResolution(M.getWidth(sourceIdx), M.getHeight(sourceIdx));
   }
 
-  // create pipe pair before thread
-  if (pipe(pipein) || pipe(pipeout)){
-    FAIL_MSG("Could not create pipes for process!");
-    return 1;
-  }
-  Util::Procs::socketList.insert(pipeout[0]);
-  Util::Procs::socketList.insert(pipeout[1]);
-  Util::Procs::socketList.insert(pipein[0]);
-  Util::Procs::socketList.insert(pipein[1]);
-
   // stream which connects to input
   std::thread source(sourceThread);
 
   // needs to pass through encoder to outputEBML
   std::thread sink(sinkThread);
 
-  co.is_active = true;
-
   // run ffmpeg
   Enc.Run();
+  MEDIUM_MSG("closed encoding");
 
-  MEDIUM_MSG("closing encoding");
+  {
+    std::unique_lock<std::mutex> lk(ffMutex);
+    co.is_active = false;
+    conf.is_active = false;
+  }
+  ffCV.notify_all();
 
-  co.is_active = false;
-  conf.is_active = false;
-
-  // close pipes
-  close(pipein[0]);
-  close(pipeout[0]);
-  close(pipein[1]);
-  close(pipeout[1]);
+  if (ffinput != -1) { close(ffinput); }
+  if (ffoutput != -1) { close(ffoutput); }
 
   sink.join();
   HIGH_MSG("sink thread joined")
@@ -1093,8 +1113,8 @@ namespace Mist{
   }
 
   void OutENC::Run(){
-    int ffer = 2;
-    pid_t ffout = -1;
+    int fferr = 2;
+    pid_t ffpid = -1;
 
     if (isVideo){
       if (!buildVideoCommand()){
@@ -1113,18 +1133,25 @@ namespace Mist{
     }
 
     prepareCommand();
-    ffout = Util::Procs::StartPiped(args, &pipein[0], &pipeout[1], &ffer);
+
+    {
+      std::unique_lock<std::mutex> lk(ffMutex);
+      ffCV.wait(lk, []() { return conf.is_active && co.is_active; });
+      ffpid = Util::Procs::StartPiped(args, &ffinput, &ffoutput, &fferr);
+      if (!ffpid) { return; }
+    }
+    ffCV.notify_all();
 
     uint64_t lastProcUpdate = Util::bootSecs();
     {
       std::lock_guard<std::mutex> guard(statsMutex);
       pStat["proc_status_update"]["id"] = getpid();
       pStat["proc_status_update"]["proc"] = "FFMPEG";
-      pData["ainfo"]["child_pid"] = ffout;
+      pData["ainfo"]["child_pid"] = ffpid;
       //pData["ainfo"]["cmd"] = opt["exec"];
     }
     uint64_t startTime = Util::bootSecs();
-    while (conf.is_active && Util::Procs::isRunning(ffout)){
+    while (conf.is_active && Util::Procs::isRunning(ffpid)) {
       Util::sleep(200);
       if (lastProcUpdate + 5 <= Util::bootSecs()){
         std::lock_guard<std::mutex> guard(statsMutex);
@@ -1136,7 +1163,7 @@ namespace Mist{
       }
     }
 
-    while (Util::Procs::isRunning(ffout)){
+    while (Util::Procs::isRunning(ffpid)) {
       INFO_MSG("Stopping process...");
       Util::Procs::StopAll();
       Util::sleep(200);

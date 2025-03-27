@@ -1,11 +1,5 @@
-#include <fcntl.h>
-#include <semaphore.h>
-#include <sys/stat.h>
-
 #include "input.h"
-#include <fstream>
-#include <iomanip>
-#include <iterator>
+
 #include <mist/auth.h>
 #include <mist/defines.h>
 #include <mist/encode.h>
@@ -13,9 +7,16 @@
 #include <mist/stream.h>
 #include <mist/triggers.h>
 #include <mist/urireader.h>
-#include <sstream>
-#include <sys/wait.h>
 
+#include <fcntl.h>
+#include <fstream>
+#include <iomanip>
+#include <iterator>
+#include <semaphore.h>
+#include <signal.h>
+#include <sstream>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
 void child_ignorer(int signum, siginfo_t *sigInfo, void *ignore){
 }

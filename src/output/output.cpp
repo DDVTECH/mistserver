@@ -2153,9 +2153,10 @@ namespace Mist{
     // restore state to before the seek/load
     // most of these can simply be copied back...
     buffer = tmp_buffer;
-    userSelect = tmp_userSelect;
+    userSelect.clear();
     // but the currentPage map must also load keys as needed
     for (std::map<size_t, uint32_t>::iterator it = tmp_currentPage.begin(); it != tmp_currentPage.end(); ++it){
+      userSelect[it->first].reload(streamName, it->first);
       loadPageForKey(it->first, it->second);
       if (!curPage.count(it->first) || !curPage[it->first].mapped){
         //Sometimes the page load fails, drop it it such cases, only print an error if still trying to play

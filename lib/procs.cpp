@@ -30,6 +30,10 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#if defined(__APPLE__) || defined(__MACH__)
+extern char **environ;
+#endif
+
 std::set<pid_t> plist;
 bool handler_set = false;
 bool thread_handler = false;

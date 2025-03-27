@@ -24,6 +24,7 @@
 #include "controller_variables.h"
 #include "controller_updater.h"
 /*LTS-END*/
+#include <signal.h>
 
 /// Returns the challenge string for authentication, given the socket connection.
 std::string getChallenge(Socket::Connection &conn){

@@ -1,20 +1,18 @@
 /// \file controller.cpp
 /// Contains all code for the controller executable.
 
-#include <thread>
-#include <mutex>
 #include "controller_api.h"
-#include "controller_external_writers.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
+#include "controller_external_writers.h"
 #include "controller_push.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
+#include "controller_updater.h"
+#include "controller_uplink.h"
 #include "controller_variables.h"
-#include <ctime>
-#include <fstream> //for ram space check
-#include <iostream>
+
 #include <mist/auth.h>
 #include <mist/config.h>
 #include <mist/defines.h>
@@ -24,14 +22,19 @@
 #include <mist/socket.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
+#include <mist/triggers.h>
 #include <mist/util.h>
+
+#include <ctime>
+#include <fstream> //for ram space check
+#include <iostream>
+#include <mutex>
+#include <signal.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h> //for shm space check
 #include <sys/wait.h>
-#include "controller_updater.h"
-#include "controller_uplink.h"
-#include <mist/triggers.h>
+#include <thread>
 
 #ifndef COMPILED_USERNAME
 #define COMPILED_USERNAME ""

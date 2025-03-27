@@ -1,10 +1,13 @@
 #include "output_tsrist.h"
+
 #include <mist/defines.h>
-#include <mist/http_parser.h>
-#include <mist/url.h>
 #include <mist/encode.h>
+#include <mist/http_parser.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/url.h>
+
+#include <signal.h>
 
 uint64_t pktSent = 0;
 uint64_t pktRetransmitted = 0;

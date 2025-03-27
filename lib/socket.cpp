@@ -1108,7 +1108,8 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
 
   lastErr = "";
   for (rp = result; rp; rp = rp->ai_next){
-    sSend = socket(rp->ai_family, SOCK_STREAM | SOCK_NONBLOCK, rp->ai_protocol);
+    sSend = socket(rp->ai_family, SOCK_STREAM, rp->ai_protocol);
+    setFDBlocking(sSend, true);
     if (sSend < 0){continue;}
     //Ensure we can handle interrupted system call case
     int ret = 0;

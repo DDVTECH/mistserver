@@ -3,6 +3,7 @@ directory = srt
 url = https://github.com/Haivision/srt.git
 revision = v1.5.4
 patch_directory = libsrt
+diff_files = libsrt_macos.diff
 
 [provide]
 dependency_names = srt

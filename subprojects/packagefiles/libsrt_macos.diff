@@ -1,0 +1,21 @@
+diff --git a/srtcore/channel.cpp b/srtcore/channel.cpp
+index 091adf1..09721a6 100644
+--- a/srtcore/channel.cpp
++++ b/srtcore/channel.cpp
+@@ -770,7 +770,15 @@ int srt::CChannel::sendto(const sockaddr_any& addr, CPacket& packet, const socka
+     }
+     mh.msg_flags      = 0;
+ 
+-    const int res = (int)::sendmsg(m_iSocket, &mh, 0);
++    int res = (int)::sendmsg(m_iSocket, &mh, 0);
++#ifdef __APPLE__
++    if (res == -1 && (errno == EISCONN || errno == EINVAL))
++    {
++        mh.msg_name = nullptr;
++        mh.msg_namelen = 0;
++        res = ::sendmsg(m_iSocket, &mh, 0);
++    }
++#endif
+ #else
+     DWORD size     = (DWORD)(CPacket::HDR_SIZE + packet.getLength());
+     int   addrsize = addr.size();

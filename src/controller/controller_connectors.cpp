@@ -1,6 +1,7 @@
 #include "controller_connectors.h"
+
 #include "controller_storage.h"
-#include <cstring> // strcpy
+
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/json.h>
@@ -9,10 +10,12 @@
 #include <mist/timing.h>
 #include <mist/triggers.h>
 #include <mist/util.h>
+
+#include <cstring> // strcpy
+#include <signal.h>
 #include <stdio.h> // cout, cerr
 #include <string>
 #include <sys/stat.h> //stat
-
 #include <unistd.h>
 
 ///\brief Holds everything unique to the controller.

@@ -2,8 +2,10 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/socket.h>
-#include <mist/util.h>
 #include <mist/stream.h>
+#include <mist/util.h>
+
+#include <signal.h>
 
 void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   HIGH_MSG("USR1 received - triggering rolling restart");

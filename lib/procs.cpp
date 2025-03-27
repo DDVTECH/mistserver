@@ -195,6 +195,7 @@ void Util::Procs::fork_prepare(){
 /// Reaps available children and then sleeps for a second.
 /// Not done in signal handler so we can use a mutex to prevent race conditions.
 void grim_reaper(){
+  Util::nameThread("grim_reaper");
   // Block most signals, so we don't catch them in this thread
   sigset_t x;
   sigemptyset(&x);

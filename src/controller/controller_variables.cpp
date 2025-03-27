@@ -19,6 +19,7 @@ namespace Controller{
 
   /// \brief Loops, checking every second if any variables require updating
   void variableCheckLoop(){
+    Util::nameThread("variable_checker");
     while (Controller::conf.is_active){
       {
         std::lock_guard<std::mutex> guard(variableMutex);

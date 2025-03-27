@@ -1,24 +1,23 @@
 #include "process_av.h"
-#include "process.hpp"
-#include <mist/procs.h>
-#include <mist/h264.h>
-#include <mist/mp4_generic.h>
-#include <mist/nal.h>
-#include <mist/util.h>
-#include <ostream>
-#include <sys/stat.h>  //for stat
-#include <sys/types.h> //for stat
-#include <unistd.h>    //for stat
-#include <cstdarg>    //for libav log handling
-#ifdef WITH_THREADNAMES
-#include <pthread.h>
-#endif
-#include <thread>
-#include <mutex>
-#include <condition_variable>
 
 #include "../input/input.h"
 #include "../output/output.h"
+#include "process.hpp"
+
+#include <mist/h264.h>
+#include <mist/mp4_generic.h>
+#include <mist/nal.h>
+#include <mist/procs.h>
+#include <mist/util.h>
+
+#include <condition_variable>
+#include <cstdarg> //for libav log handling
+#include <mutex>
+#include <ostream>
+#include <sys/stat.h> //for stat
+#include <sys/types.h> //for stat
+#include <thread>
+#include <unistd.h> //for stat
 
 // libav headers
 extern "C" {
@@ -1840,9 +1839,7 @@ namespace Mist{
 }// namespace Mist
 
 void sinkThread(){
-#ifdef WITH_THREADNAMES
-  pthread_setname_np(pthread_self(), "sinkThread");
-#endif
+  Util::nameThread("sinkThread");
   Mist::ProcessSink in(&co);
   Mist::sinkClass = &in;
   co.getOption("output", true).append("-");
@@ -1854,9 +1851,7 @@ void sinkThread(){
 }
 
 void sourceThread(){
-#ifdef WITH_THREADNAMES
-  pthread_setname_np(pthread_self(), "sourceThread");
-#endif
+  Util::nameThread("sourceThread");
   Mist::ProcessSource::init(&conf);
   conf.getOption("streamname", true).append(Mist::opt["source"].c_str());
   JSON::Value opt;

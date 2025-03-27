@@ -369,6 +369,7 @@ namespace Controller{
 
   /// Loops, checking every second if any pushes need restarting.
   void pushCheckLoop(){
+    Util::nameThread("pushCheckLoop");
     IPC::sharedPage pushPage("/MstPush", 8 * 1024 * 1024, true, false);
     while (Controller::conf.is_active){
       // this scope prevents the configMutex from being locked constantly

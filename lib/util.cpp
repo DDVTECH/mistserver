@@ -25,6 +25,9 @@
 #include <stdlib.h>
 #include <sys/resource.h>
 #include <fstream>
+#ifdef WITH_THREADNAMES
+#include <pthread.h>
+#endif
 
 #define RAXHDR_FIELDOFFSET p[1]
 #define RAX_REQDFIELDS_LEN 36
@@ -1328,6 +1331,12 @@ namespace Util{
       return rowBytes*height;
     }
     return 0;
+  }
+
+  void nameThread(const std::string & name) {
+#ifdef WITH_THREADNAMES
+    pthread_setname_np(pthread_self(), name.c_str());
+#endif
   }
 
 }// namespace Util

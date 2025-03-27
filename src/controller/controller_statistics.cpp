@@ -372,6 +372,7 @@ void Controller::sessions_shutdown(const std::string &streamname, const std::str
 /// statistics from all connected clients, as well as wipes
 /// old statistics that have disconnected over 10 minutes ago.
 void Controller::SharedMemStats(Util::Config * config){
+  Util::nameThread("SharedMemStats");
   HIGH_MSG("Starting stats thread");
   statComm.reload(true);
   statCommActive = true;

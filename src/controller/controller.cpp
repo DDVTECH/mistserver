@@ -80,6 +80,7 @@ static int configrw;
 /// Updates config from disk when changed
 /// Writes config to disk after some time of no changes
 void statusMonitor(){
+  Util::nameThread("statusMonitor");
   Controller::loadActiveConnectors();
   while (Controller::conf.is_active){
 

@@ -31,6 +31,8 @@ namespace Util{
 
   size_t pixfmtToSize(const std::string & pixfmt, size_t width, size_t height);
 
+  void nameThread(const std::string & name);
+
   class DataCallback{
   public:
     virtual void dataCallback(const char *ptr, size_t size){

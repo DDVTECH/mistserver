@@ -36,6 +36,7 @@ bool updaterProgressCallback(){
 namespace Controller{
 
   void updateThread(){
+    Util::nameThread("updateThread");
     uint64_t updateChecker = Util::epoch() - UPDATE_INTERVAL;
     while (Controller::conf.is_active){
       if (Util::epoch() - updateChecker > UPDATE_INTERVAL || updatePerc){

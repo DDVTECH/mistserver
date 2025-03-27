@@ -245,6 +245,7 @@ namespace Controller{
   }
 
   void handleMsg(void *err){
+    Util::nameThread("handleMsg");
     Util::logParser((long long)err, fileno(stdout), Controller::isColorized, &Log);
   }
 

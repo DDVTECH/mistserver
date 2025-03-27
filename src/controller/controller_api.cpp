@@ -481,6 +481,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
 }
 
 void Controller::handleUDPAPI(){
+  Util::nameThread("UDP_API");
   Socket::UDPConnection uSock(true);
   uint16_t boundPort;
   {

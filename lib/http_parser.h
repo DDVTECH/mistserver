@@ -16,6 +16,10 @@ namespace HTTP{
   /// Reads variables from data, decodes and stores them to storage.
   void parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator = "&", bool queryStr = true);
 
+  /// Variable generator from std::map<std::string, std::string> structure.
+  /// Reads from vars and returns a properly encoded argument list string.
+  std::string argStr(const std::map<std::string, std::string> & vars, bool withQuestionMark = true);
+
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
   class Parser{
   public:

@@ -238,11 +238,13 @@ Util::Config::Config(std::string cmd){
 ///}
 ///\endcode
 void Util::Config::addOption(std::string optname, JSON::Value option){
-  vals[optname] = option;
-  if (!vals[optname].isMember("value") && vals[optname].isMember("default")){
-    vals[optname]["value"].append(vals[optname]["default"]);
-    vals[optname].removeMember("default");
+  JSON::Value & O = vals[optname];
+  O = option;
+  if (!O.isMember("value") && O.isMember("default")) {
+    O["value"].append(O["default"]);
+    O.removeMember("default");
   }
+  if (O.isMember("value") && O["value"].isArray() && O["value"].size()) { O["has_default"] = true; }
   long_count = 0;
   jsonForEach(vals, it){
     if (it->isMember("long")){long_count++;}
@@ -447,6 +449,34 @@ int64_t Util::Config::getInteger(std::string optname){
 /// Calls getOption internally.
 bool Util::Config::getBool(std::string optname){
   return getOption(optname).asBool();
+}
+
+/// Reads out the current configuration and puts any options passed into the argument string.
+/// Note: Only the last-set option is included for each option (no multi-select support)
+/// Any argument that is unset or set to its default is not included.
+void Util::Config::fillEffectiveArgs(std::deque<std::string> & args, bool longForm) {
+  jsonForEachConst (vals, opt) {
+    // Positional arguments, ignore
+    if (opt->isMember("arg_num")) { continue; }
+    if (!opt->isMember("value")) { continue; }
+    const JSON::Value & v = (*opt)["value"];
+    if (!v.isArray() || !v.size()) { continue; }
+    if (opt->isMember("arg")) {
+      // Arguments with a value
+      if (opt->isMember("has_default") && (v.size() < 2 || v[v.size() - 1] == v[0u])) { continue; }
+    } else {
+      // Arguments that are toggles
+      if (!v[v.size() - 1]) { continue; }
+    }
+    if (opt->isMember("long") && (longForm || !opt->isMember("short"))) {
+      args.push_back("--" + (*opt)["long"].asStringRef());
+    } else if (opt->isMember("short")) {
+      args.push_back("-" + (*opt)["short"].asStringRef());
+    } else {
+      continue;
+    }
+    if (opt->isMember("arg")) { args.push_back(v[v.size() - 1].asString()); }
+  }
 }
 
 struct callbackData{

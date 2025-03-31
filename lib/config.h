@@ -54,6 +54,7 @@ namespace Util{
     std::string getString(std::string optname);
     int64_t getInteger(std::string optname);
     bool getBool(std::string optname);
+    void fillEffectiveArgs(std::deque<std::string> & args, bool longForm = true);
     void activate();
     void installDefaultChildSignalHandler();
     int threadServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));

@@ -466,18 +466,7 @@ const std::string &HTTP::Parser::GetVar(const std::string &i) const{
 }
 
 std::string HTTP::Parser::allVars() const{
-  std::string ret;
-  if (!vars.size()){return ret;}
-  for (std::map<std::string, std::string>::const_iterator it = vars.begin(); it != vars.end(); ++it){
-    if (!it->second.size()){continue;}
-    if (ret.size() > 1){
-      ret += "&";
-    }else{
-      ret += "?";
-    }
-    ret += it->first + "=" + Encodings::URL::encode(it->second);
-  }
-  return ret;
+  return argStr(vars);
 }
 
 /// Sets header i to string value v.
@@ -785,6 +774,20 @@ void HTTP::parseVars(const std::string &data, std::map<std::string, std::string>
     // erase &
     pos = nextpos + separator.size();
   }
+}
+
+std::string HTTP::argStr(const std::map<std::string, std::string> & vars, bool withQuestionMark) {
+  std::string ret;
+  for (auto & it : vars) {
+    if (!it.first.size()) { continue; }
+    if (ret.size() > 1) {
+      ret += "&";
+    } else if (withQuestionMark) {
+      ret += "?";
+    }
+    ret += Encodings::URL::encode(it.first) + "=" + Encodings::URL::encode(it.second);
+  }
+  return ret;
 }
 
 /// Sends a string in chunked format if protocol is HTTP/1.1, sends as-is otherwise.

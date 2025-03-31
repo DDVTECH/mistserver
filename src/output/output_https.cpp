@@ -68,7 +68,65 @@ namespace Mist{
   }
 
   OutHTTPS::OutHTTPS(Socket::Connection &C) : Output(C){
+
+    if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2) {
+      FAIL_MSG("The cert/key required options were not passed!");
+      C.close();
+      return;
+    }
+
+    // Declare and set up all required mbedtls structures
     int ret;
+    mbedtls_ssl_config_init(&sslConf);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_pk_init(&pkey);
+    mbedtls_x509_crt_init(&srvcert);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    // seed the rng
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
+                                     (const unsigned char *)APPNAME, strlen(APPNAME))) != 0) {
+      FAIL_MSG("Could not seed the random number generator!");
+    }
+
+    // Read certificate chain(s) from cmdline option(s)
+    JSON::Value certs = config->getOption("cert", true);
+    jsonForEach (certs, it) {
+      if (it->asStringRef().size()) { // Ignore empty entries (default is empty)
+        ret = mbedtls_x509_crt_parse_file(&srvcert, it->asStringRef().c_str());
+        if (ret != 0) {
+          WARN_MSG("Could not load any certificates from file: %s", it->asStringRef().c_str());
+        }
+      }
+    }
+
+    // Read key from cmdline option
+#if MBEDTLS_VERSION_MAJOR > 2
+    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), NULL,
+                                   mbedtls_ctr_drbg_random, &ctr_drbg);
+#else
+    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0);
+#endif
+    if (ret != 0) {
+      FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
+      C.close();
+      return;
+    }
+
+    if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
+      FAIL_MSG("SSL config defaults failed");
+      C.close();
+      return;
+    }
+    mbedtls_ssl_conf_rng(&sslConf, mbedtls_ctr_drbg_random, &ctr_drbg);
+    mbedtls_ssl_conf_ca_chain(&sslConf, srvcert.next, NULL);
+    if ((ret = mbedtls_ssl_conf_own_cert(&sslConf, &srvcert, &pkey)) != 0) {
+      FAIL_MSG("SSL config own certificate failed");
+      C.close();
+      return;
+    }
+
     mbedtls_net_init(&client_fd);
     client_fd.fd = C.getSocket();
     mbedtls_ssl_init(&ssl);
@@ -205,69 +263,4 @@ namespace Mist{
     myConn.close();
   }
 
-  /// Listens for HTTPS requests, accepting them and connecting them to a HTTP socket
-  void OutHTTPS::listener(Util::Config & conf,
-                          std::function<void(Socket::Connection &, Socket::Server &)> callback) {
-    if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2){
-      FAIL_MSG("The cert/key required options were not passed!");
-      return;
-    }
-
-    // Declare and set up all required mbedtls structures
-    int ret;
-    mbedtls_ssl_config_init(&sslConf);
-    mbedtls_entropy_init(&entropy);
-    mbedtls_pk_init(&pkey);
-    mbedtls_x509_crt_init(&srvcert);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
-    // seed the rng
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                     (const unsigned char *)APPNAME, strlen(APPNAME))) != 0){
-      FAIL_MSG("Could not seed the random number generator!");
-    }
-
-    // Read certificate chain(s) from cmdline option(s)
-    JSON::Value certs = config->getOption("cert", true);
-    jsonForEach(certs, it){
-      if (it->asStringRef().size()){// Ignore empty entries (default is empty)
-        ret = mbedtls_x509_crt_parse_file(&srvcert, it->asStringRef().c_str());
-        if (ret != 0){
-          WARN_MSG("Could not load any certificates from file: %s", it->asStringRef().c_str());
-        }
-      }
-    }
-
-    // Read key from cmdline option
-#if MBEDTLS_VERSION_MAJOR > 2
-    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), NULL, mbedtls_ctr_drbg_random, &ctr_drbg);
-#else
-    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0);
-#endif
-    if (ret != 0){
-      FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
-      return;
-    }
-
-    if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
-                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
-      FAIL_MSG("SSL config defaults failed");
-      return;
-    }
-    mbedtls_ssl_conf_rng(&sslConf, mbedtls_ctr_drbg_random, &ctr_drbg);
-    mbedtls_ssl_conf_ca_chain(&sslConf, srvcert.next, NULL);
-    if ((ret = mbedtls_ssl_conf_own_cert(&sslConf, &srvcert, &pkey)) != 0){
-      FAIL_MSG("SSL config own certificate failed");
-      return;
-    }
-
-    Output::listener(conf, callback);
-
-    // Free all the mbedtls structures
-    mbedtls_x509_crt_free(&srvcert);
-    mbedtls_pk_free(&pkey);
-    mbedtls_ssl_config_free(&sslConf);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-  }
 }// namespace Mist

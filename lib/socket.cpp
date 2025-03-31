@@ -62,6 +62,35 @@ static const char *gai_strmagic(int errcode){
   }
 }
 
+Socket::Address::Address() {}
+
+Socket::Address::Address(const std::string & rhs) {
+  addr = rhs;
+}
+
+Socket::Address::Address(const Util::ResizeablePointer & rhs) {
+  addr.assign(rhs, rhs.size());
+}
+
+Socket::Address::Address(const char *rhs) {
+  addr = rhs;
+}
+
+std::string Socket::Address::toString() const {
+  std::string ip;
+  uint32_t port;
+  getAddrName(addr.c_str(), ip, port);
+  return ip + ':' + std::to_string(port);
+}
+
+bool Socket::Address::operator<(const Address & rhs) const {
+  return toString() < rhs.toString();
+}
+
+bool Socket::Address::operator==(const Address & rhs) const {
+  return toString() == rhs.toString();
+}
+
 std::string Socket::sockaddrToString(const sockaddr* A){
   std::string ret;
   uint32_t port;

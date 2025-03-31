@@ -50,6 +50,18 @@ namespace Buffer{
 
 /// Holds Socket tools.
 namespace Socket{
+  class Address {
+    public:
+      std::string addr;
+      Address();
+      Address(const std::string & rhs);
+      Address(const char *rhs);
+      Address(const Util::ResizeablePointer & rhs);
+      std::string toString() const;
+      operator sockaddr *() const { return (sockaddr *)addr.data(); }
+      bool operator<(const Address & rhs) const;
+      bool operator==(const Address & rhs) const;
+  };
 
   std::string sockaddrToString(const sockaddr* A);
   void hostBytesToStr(const char *bytes, size_t len, std::string &target);

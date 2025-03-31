@@ -219,6 +219,9 @@ static inline void show_stackframe(){}
 #define SHM_TRACK_DATA "/MstData%s@%zu_%" PRIu32 //%s stream name, %zu track ID, %PRIu32 page #
 // End new meta
 
+#define SHM_PROXY_LIST_NAME "/MstUDPProxy%s" //%s address info
+#define PROXY_LIST_RECORDSIZE 100
+
 #define INPUT_USER_INTERVAL 250
 
 #define SHM_STREAM_STATE "/MstSTATE%s" //%s stream name

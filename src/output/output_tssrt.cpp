@@ -1,14 +1,101 @@
-#include <mist/socket_srt.h>
 #include "output_tssrt.h"
+
+#include <mist/auth.h>
+#include <mist/bitfields.h>
 #include <mist/defines.h>
-#include <mist/http_parser.h>
-#include <mist/url.h>
 #include <mist/encode.h>
+#include <mist/http_parser.h>
+#include <mist/socket_srt.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
-#include <mist/auth.h>
+#include <mist/url.h>
 
-bool allowStreamNameOverride = true;
+#if defined(_WIN32) || defined(__CYGWIN__)
+#define PROXYING_SRT
+#endif
+
+#ifdef PROXYING_SRT
+class proxyConnectionDetails {
+  public:
+    Socket::Address local;
+    pid_t pid;
+};
+
+/// Retrieves the proxy list of connections to children, this is Windows-specific functionality.
+void retrieveProxyList(Socket::UDPConnection & udpSrv,
+                       std::map<Socket::Address, proxyConnectionDetails> & proxyConnections) {
+  IPC::sharedPage proxyListPage;
+  char pageName[NAME_BUFFER_SIZE];
+  std::string boundStr = Socket::Address(udpSrv.getLocalAddr()).toString();
+  Util::replace(boundStr, ":", "_");
+  snprintf(pageName, NAME_BUFFER_SIZE, SHM_PROXY_LIST_NAME, boundStr.c_str());
+
+  proxyListPage.init(pageName, 0, false, false);
+  Util::RelAccX proxyList(proxyListPage.mapped, false);
+  if (proxyList.isReady()) {
+    Util::RelAccXFieldData localField = proxyList.getFieldData("local");
+    Util::RelAccXFieldData remoteField = proxyList.getFieldData("remote");
+    Util::RelAccXFieldData pidField = proxyList.getFieldData("pid");
+
+    uint64_t max = proxyList.getEndPos();
+    for (size_t i = proxyList.getDeleted(); i < max; ++i) {
+      Socket::Address remoteAddr = proxyList.getPointer(remoteField, i);
+      proxyConnections[remoteAddr].local = proxyList.getPointer(localField, i);
+      proxyConnections[remoteAddr].pid = atoi(proxyList.getPointer(pidField, i));
+    }
+  }
+  proxyListPage.master = true;
+}
+
+/// Stores the proxy list of connections to children into /dev/shm/, this is Windows functionality.
+void stashProxyList(Socket::UDPConnection & udpSrv,
+                    std::map<Socket::Address, proxyConnectionDetails> & proxyConnections) {
+  IPC::sharedPage proxyListPage;
+  char pageName[NAME_BUFFER_SIZE];
+  std::string boundStr = Socket::Address(udpSrv.getLocalAddr()).toString();
+  Util::replace(boundStr, ":", "_");
+  snprintf(pageName, NAME_BUFFER_SIZE, SHM_PROXY_LIST_NAME, boundStr.c_str());
+  proxyListPage.init(pageName, proxyConnections.size() * PROXY_LIST_RECORDSIZE, true);
+
+  Util::RelAccX proxyList(proxyListPage.mapped, false);
+  proxyList.addField("local", RAX_STRING, sizeof(sockaddr_in6));
+  proxyList.addField("remote", RAX_STRING, sizeof(sockaddr_in6));
+  proxyList.addField("pid", RAX_64UINT);
+  proxyList.setReady();
+
+  Util::RelAccXFieldData localField = proxyList.getFieldData("local");
+  Util::RelAccXFieldData remoteField = proxyList.getFieldData("remote");
+  Util::RelAccXFieldData pidField = proxyList.getFieldData("pid");
+
+  size_t idx = 0;
+  for (auto p : proxyConnections) {
+    proxyList.setString(localField, p.first.addr, idx);
+    proxyList.setString(remoteField, p.second.local.addr, idx);
+    proxyList.setInt(pidField, p.second.pid, idx);
+    ++idx;
+  }
+  proxyList.addRecords(idx);
+  proxyListPage.master = false;
+}
+
+/// Generates an address in the range 127.[4-254].[4-254].[4-254]:[1028-65278]. Valid addresses
+/// are in the range 127.[1-254].[1-254].[1-254]:[1024-65535] and as as the port is made up of two
+/// bytes, setting the higher byte to '00000100' sets the port to at least 1024. As a shorthand,
+/// we simply generate all bytes to be at least (decimal) 4 to obtain a valid address.
+int generateChildAddressInRange(Socket::Address & newLocalAddrStr) {
+  char bytes[5], addr[20];
+  for (size_t i = 0; i < 5; ++i) {
+    do { Util::getRandomBytes(&bytes[i], 1); } while (bytes[i] < 4 || bytes[i] > 254);
+  }
+  int n_overflow = snprintf(addr, 20, "127.%" PRIu8 ".%" PRIu8 ".%" PRIu8, bytes[0], bytes[1], bytes[2]);
+  if (n_overflow > 20 || n_overflow < 0) {
+    FAIL_MSG("Failed to get a local address for the child process");
+    return 1;
+  }
+  newLocalAddrStr = Socket::getAddrs(addr, Bit::btohs(bytes + 3)).front();
+  return 0;
+}
+#endif
 
 namespace Mist{
   OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection * _srtSock) : TSOutput(conn){
@@ -22,6 +109,71 @@ namespace Mist{
     bootMSOffsetCalculated = false;
     assembler.setLive();
     udpInit = 0;
+
+    // Behaviour if this process is the child
+    if (config->getString("remote").size()) {
+      // Read out arguments passed by the parent
+      bool rendezvous = 0;
+      std::string remoteIP;
+      uint32_t remotePort = 0;
+
+      std::string remote = config->getString("remote");
+      size_t slash = remote.find('/');
+      if (slash != std::string::npos) {
+        remoteIP = remote.substr(0, slash);
+        remote = remote.substr(slash + 1);
+
+        slash = remote.find('/');
+        if (slash != std::string::npos) {
+          remotePort = atoi(remote.substr(0, slash).c_str());
+          rendezvous = atoi(remote.substr(slash + 1).c_str());
+        } else {
+          remotePort = atoi(remote.c_str());
+        }
+      }
+
+      target = HTTP::URL(config->getString("target"));
+
+      std::deque<std::string> remoteAddr = Socket::getAddrs(remoteIP, remotePort);
+      std::deque<std::string> localAddr = Socket::getAddrs(target.host, target.getPort());
+
+      // Create UDP socket
+      Socket::UDPConnection *udpSrv;
+      if (char *internalAddrEnv = getenv("MIST_INTL_UDP")) {
+        std::string internalAddr = internalAddrEnv;
+        std::string internalIP = internalAddr.substr(0, internalAddr.rfind(':'));
+        std::string internalPort = internalAddr.substr(internalAddr.rfind(':') + 1);
+        udpSrv = new Socket::UDPConnection();
+        udpSrv->bind(atoi(internalPort.c_str()), internalIP);
+      } else {
+        udpSrv = new Socket::UDPConnection(remoteAddr.begin()->data(), remoteAddr.begin()->size(),
+                                           localAddr.begin()->data(), localAddr.begin()->size());
+        udpSrv->connect();
+      }
+
+      // Create SRT socket
+      Socket::SRT::libraryInit();
+      HTTP::parseVars(target.args, targetParams);
+      HTTP::parseVars(config->getString("sockopts"), targetParams);
+      srtConn = new Socket::SRTConnection(*udpSrv, rendezvous ? "rendezvous" : "output", targetParams);
+      if (!*srtConn) {
+        delete srtConn;
+        onFail("Could not create socket for SRT connection!", true);
+        return;
+      }
+
+      // Rendezvous behaviour
+      if (rendezvous) {
+        std::string host;
+        uint32_t port;
+        udpSrv->GetDestination(host, port);
+        srtConn->connect(host, port, "output", targetParams);
+        INFO_MSG("UDP to SRT socket conversion: %s", srtConn->getStateStr());
+      }
+      // Set target to empty before pushing output conf
+      config->getOption("target", true).append("");
+    }
+
     // Push output configuration
     if (config->getString("target").size()){
       Socket::SRT::libraryInit();
@@ -62,7 +214,7 @@ namespace Mist{
       // Pull output configuration, In this case we have an srt connection in the second constructor parameter.
       // Handle override / append of streamname options
       std::string sName = srtConn->getStreamName();
-      if (allowStreamNameOverride){
+      if (!config->getBool("nostreamid")) {
         if (sName != ""){
           streamName = sName;
           Util::sanitizeName(streamName);
@@ -88,7 +240,7 @@ namespace Mist{
           }
           --retries;
         }
-        //If not, assume they are receiving.
+        // If not, assume they are receiving.
         if (!accTypes){
           accTypes = 1;
           INFO_MSG("Connection put into egress mode");
@@ -334,9 +486,13 @@ namespace Mist{
     //addStrOpt(pp, "adapter", "", "");
     //addIntOpt(pp, "timeout", "", "");
     //addIntOpt(pp, "port", "", "");
-    
-    addBoolOpt(pp["srtopts"]["options"], "tsbpd", "Timestamp-based Packet Delivery mode", "In this mode the packet's time is assigned at the sending time (or allowed to be predefined), transmitted in the packet's header, and then restored on the receiver side so that the time intervals between consecutive packets are preserved when delivering to the application.", true);
 
+    addBoolOpt(pp["srtopts"]["options"], "tsbpd", "Timestamp-based Packet Delivery mode",
+               "In this mode the packet's time is assigned at the sending time (or allowed to be "
+               "predefined), transmitted in the packet's header, and then restored on the receiver "
+               "side so that the time intervals between consecutive packets are preserved when "
+               "delivering to the application.",
+               true);
     addBoolOpt(pp["srtopts"]["options"], "linger", "Linger closed sockets", "Whether to keep closed sockets around for 180 seconds of linger time or not.", true);
     addIntOpt(pp["srtopts"]["options"], "maxbw", "Maximum send bandwidth", "Maximum send bandwidth, -1 for infinite, 0 for relative to input bandwidth.", -1,"bytes/s");
     pp["srtopts"]["options"]["maxbw"]["unit"][0u][0u] = "0.125";
@@ -347,8 +503,6 @@ namespace Mist{
     pp["srtopts"]["options"]["maxbw"]["unit"][2u][1u] = "Mbit/s";
     pp["srtopts"]["options"]["maxbw"]["unit"][3u][0u] = "125000000";
     pp["srtopts"]["options"]["maxbw"]["unit"][3u][1u] = "Gbit/s";
-
-
 
     pp["srtopts"]["options"]["pbkeylen"]["name"] = "Encryption key length";
     pp["srtopts"]["options"]["pbkeylen"]["help"] = "The encryption key length. Default: auto.";
@@ -364,8 +518,6 @@ namespace Mist{
     pp["srtopts"]["options"]["pbkeylen"]["select"][4u][1u] = "AES-256";
     pp["srtopts"]["options"]["pbkeylen"]["default"] = "0"; 
     pp["srtopts"]["options"]["pbkeylen"]["type"] = "select";
-
-
 
     addIntOpt(pp["srtopts"]["options"], "mss", "Maximum Segment Size", "Maximum size for packets including all headers, in bytes. The default of 1500 is generally the maximum value you can use in most networks.", 1500,"bytes");
     addIntOpt(pp["srtopts"]["options"], "fc", "Flight Flag Size", "Maximum packets that may be 'in flight' without being acknowledged.", 25600,"packets");
@@ -452,6 +604,18 @@ namespace Mist{
     opt["help"] = "If set, requires a SRT passphrase to connect";
     config->addOption("passphrase", opt);
 
+    capa["optional"]["nostreamid"]["name"] = "Disable streamid";
+    capa["optional"]["nostreamid"]["help"] = "Disable reading of the streamid field";
+    capa["optional"]["nostreamid"]["type"] = "boolean";
+    capa["optional"]["nostreamid"]["option"] = "--nostreamid";
+    capa["optional"]["nostreamid"]["short"] = "I";
+
+    opt.null();
+    opt["long"] = "nostreamid";
+    opt["short"] = "I";
+    opt["help"] = "Disable reading of the streamid field";
+    config->addOption("nostreamid", opt);
+
     capa["optional"]["sockopts"]["name"] = "SRT socket options";
     capa["optional"]["sockopts"]["help"] = "Any additional SRT socket options to apply";
     capa["optional"]["sockopts"]["type"] = "string";
@@ -467,7 +631,13 @@ namespace Mist{
     opt["help"] = "Any additional SRT socket options to apply";
     config->addOption("sockopts", opt);
 
-
+    opt.null();
+    opt["long"] = "remote";
+    opt["short"] = "A";
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["help"] = "Remote address in the format remoteIP/remotePort/rendezvous";
+    config->addOption("remote", opt);
   }
 
   // Buffers TS packets and sends after 7 are buffered.
@@ -604,28 +774,8 @@ namespace Mist{
     return (!tgt.size() || (tgt.size() >= 6 && tgt.substr(0, 6) == "srt://" && Socket::interpretSRTMode(HTTP::URL(tgt)) == "listener"));
   }
 
-  void initSRTConnection(Socket::UDPConnection & s, std::map<std::string, std::string> & arguments, bool listener = true){
-    Socket::SRT::libraryInit();
-    Socket::SRTConnection * tmpSock = new Socket::SRTConnection(s, listener?"output":"rendezvous", arguments);
-    if (!*tmpSock){
-      delete tmpSock;
-      return;
-    }
-    if (!listener){
-      std::string host;
-      uint32_t port;
-      s.GetDestination(host, port);
-      tmpSock->connect(host, port, "output", arguments);
-      INFO_MSG("UDP to SRT socket conversion: %s", tmpSock->getStateStr());
-    }
-
-    int tmpsock = socket(AF_INET, SOCK_DGRAM, 0);
-    Socket::Connection S(tmpsock);
-    mistOut tmp(S, tmpSock);
-    tmp.run();
-  }
-
-  void OutTSSRT::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
+  void OutTSSRT::listener(Util::Config & conf,
+                          std::function<void(Socket::Connection &, Socket::Server &)> callback) {
     // Check SRT options/arguments first
     std::string target = conf.getString("target");
     std::map<std::string, std::string> arguments;
@@ -633,7 +783,7 @@ namespace Mist{
       //Force acceptable option to 1 (outgoing only), since this is a push output and we can't accept incoming connections
       conf.getOption("acceptable", true).append((uint64_t)1);
       //Disable overriding streamname with streamid parameter on other side
-      allowStreamNameOverride = false;
+      conf.getOption("nostreamid", true).append((uint64_t)1);
       HTTP::URL tgt(target);
       HTTP::parseVars(tgt.args, arguments);
       conf.getOption("interface", true).append(tgt.host);
@@ -648,10 +798,9 @@ namespace Mist{
     uint16_t localPort;
     // Either re-use socket 0 or bind a new socket
     Socket::UDPConnection udpSrv;
-    if (Socket::checkTrueSocket(0)){
+    if (udpSrv.getSock() != 0 && Socket::checkTrueSocket(0)) {
       udpSrv.assimilate(0);
-      localPort = udpSrv.getBoundPort();
-    }else{
+    } else {
       localPort = udpSrv.bind(conf.getInteger("port"), conf.getString("interface"));
     }
     // Ensure socket zero is now us
@@ -671,8 +820,15 @@ namespace Mist{
 
     Util::Procs::socketList.insert(udpSrv.getSock());
     int maxFD = udpSrv.getSock();
-    while (conf.is_active && udpSrv){
 
+    HTTP::URL targetStr = "srt://" + HTTP::argStr(arguments);
+
+#ifdef PROXYING_SRT
+    std::map<Socket::Address, proxyConnectionDetails> proxyConnections;
+    retrieveProxyList(udpSrv, proxyConnections);
+#endif
+
+    while (conf.is_active && udpSrv) {
       fd_set rfds;
       FD_ZERO(&rfds);
       FD_SET(maxFD, &rfds);
@@ -683,28 +839,76 @@ namespace Mist{
       int r = select(maxFD + 1, &rfds, NULL, NULL, &T);
       if (r){
         while(udpSrv.Receive()){
-          // Ignore if it's not an SRT handshake packet
-          if (udpSrv.data.size() >= 4 && udpSrv.data[0] == 0x80 && !udpSrv.data[1] && !udpSrv.data[2] && !udpSrv.data[3]){
-            bool rendezvous = false;
-            if (udpSrv.data.size() >= 40){
-              rendezvous = (!udpSrv.data[36] && !udpSrv.data[37] && !udpSrv.data[38] && !udpSrv.data[39]);
+
+#ifdef PROXYING_SRT
+          const Util::ResizeablePointer & remoteRef = udpSrv.getRemoteAddr();
+          auto it = proxyConnections.find(remoteRef);
+          if (it == proxyConnections.end() || !Util::Procs::isRunning(it->second.pid)) {
+#endif
+            // Ignore if it's not an SRT handshake packet
+            if (udpSrv.data.size() >= 4 && udpSrv.data[0] == 0x80 && !udpSrv.data[1] &&
+                !udpSrv.data[2] && !udpSrv.data[3]) {
+              bool rendezvous = false;
+              if (udpSrv.data.size() >= 40) {
+                rendezvous = (!udpSrv.data[36] && !udpSrv.data[37] && !udpSrv.data[38] && !udpSrv.data[39]);
+              }
+              std::string remoteIP, localIP;
+              uint32_t remotePort, localPort;
+              udpSrv.GetDestination(remoteIP, remotePort);
+              udpSrv.GetLocalDestination(localIP, localPort);
+
+              // Start setting up the startpiped call arguments
+              std::deque<std::string> newArgs;
+              newArgs.push_back(Util::getMyPathWithBin());
+
+              // Set remote peer address/port/type
+              newArgs.push_back("--remote");
+              std::ostringstream oss;
+              oss << remoteIP << '/' << remotePort << '/' << rendezvous;
+              newArgs.push_back(oss.str());
+
+              targetStr.host = localIP;
+              targetStr.setPort(localPort);
+              newArgs.push_back(targetStr.getUrl());
+
+              conf.fillEffectiveArgs(newArgs);
+
+#ifdef PROXYING_SRT
+              Socket::Address localAddr;
+              if (generateChildAddressInRange(localAddr)) continue; // function returns 1 on fail
+              setenv("MIST_INTL_UDP", localAddr.toString().c_str(), 1);
+#endif
+              // Create child process with default fdOut/fdErr and fdIn as /dev/null/
+              int fdOut = STDOUT_FILENO, fdErr = STDERR_FILENO;
+              INFO_MSG("SRT handshake from %s:%" PRIu32 "! Spawning child process to handle it...",
+                       remoteIP.c_str(), remotePort);
+              pid_t pid = Util::Procs::StartPiped(newArgs, 0, &fdOut, &fdErr);
+              Util::Procs::forget(pid);
+
+#ifdef PROXYING_SRT
+              it = proxyConnections.emplace(localAddr, proxyConnectionDetails()).first;
+              it->second.local = remoteRef, it->second.pid = pid;
+
+              it = proxyConnections.emplace(remoteRef, proxyConnectionDetails()).first;
+              it->second.local = localAddr, it->second.pid = pid;
+#endif
             }
-            std::string remoteIP, localIP;
-            uint32_t remotePort, localPort;
-            udpSrv.GetDestination(remoteIP, remotePort);
-            udpSrv.GetLocalDestination(localIP, localPort);
-            INFO_MSG("SRT handshake from %s:%" PRIu32 "! Spawning child process to handle it...", remoteIP.c_str(), remotePort);
-            if (!fork()){
-              Socket::UDPConnection s(udpSrv);
-              udpSrv.close();
-              if (!s.connect()){return;}
-              return initSRTConnection(s, arguments, !rendezvous);
-            }
+
+#ifdef PROXYING_SRT
           }
+          // send to the remote address (child) that we stored in proxyconnections
+          if (it != proxyConnections.end()) {
+            udpSrv.setDestination(it->second.local, it->second.local.addr.size());
+            udpSrv.SendNow(udpSrv.data, udpSrv.data.size());
+          }
+#endif
         }
       }
     }
-  }
 
+#ifdef PROXYING_SRT
+    if (conf.is_restarting) { stashProxyList(udpSrv, proxyConnections); }
+#endif
+  }
 }// namespace Mist
 

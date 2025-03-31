@@ -9,7 +9,8 @@ namespace Mist{
     ~OutTSSRT();
 
     static bool listenMode();
-    static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
+    static void listener(Util::Config & conf,
+                         std::function<void(Socket::Connection &, Socket::Server &)> callback);
 
     static void init(Util::Config *cfg);
     void sendTS(const char *tsData, size_t len = 188);
@@ -30,7 +31,6 @@ namespace Mist{
     uint64_t lastWorked;
     bool pushOut;
     Util::ResizeablePointer packetBuffer;
-    Socket::UDPConnection pushSock;
     TS::Stream tsIn;
     TS::Assembler assembler;
     bool bootMSOffsetCalculated;

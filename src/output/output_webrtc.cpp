@@ -137,8 +137,10 @@ namespace Mist{
 
 
   WebRTCSocket::WebRTCSocket(){
+#ifdef WITH_DATACHANNELS
     sctpInited = false;
     sctpConnected = false;
+#endif
     useCandidate = false;
     udpSock = 0;
     if (volkswagenMode){
@@ -1000,6 +1002,7 @@ namespace Mist{
 
   void OutWebRTC::onCommandSend(const std::string & data){
     if (wsCmdForce){
+#ifdef WITH_DATACHANNELS
       sctp_sndinfo sndinfo;
       sndinfo.snd_flags = SCTP_EOR;
       sndinfo.snd_ppid = htonl(51);
@@ -1015,6 +1018,7 @@ namespace Mist{
           wSock.udpSock->close();
         }
       }
+#endif
     }else{
       if (webSock){HTTPOutput::onCommandSend(data);}
     }

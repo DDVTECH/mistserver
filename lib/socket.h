@@ -280,7 +280,7 @@ namespace Socket{
     bool connect();
     void setBlocking(bool blocking);
     void setIgnoreSendErrors(bool ign);
-    void allocateDestination();
+    void allocateDestination(bool setPktInfo = true);
     void setAddresses(void * dest, size_t destLen, void * loc, size_t locLen);
     void SetDestination(std::string hostname, uint32_t port);
     bool setDestination(sockaddr * addr, size_t size);

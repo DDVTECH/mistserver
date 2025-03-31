@@ -2,19 +2,35 @@
 /// A handy Socket wrapper library.
 /// Written by Jaron Vietor in 2010 for DDVTech
 
+#if defined(_WIN32)
+#include <windows.h>
+#include <winsock2.h>
+#define CMSGHDR wsacmsghdr
+#define G_IPV6_PKTINFO IPV6_PKTINFO
+#elif defined(__CYGWIN__)
+#define CMSGHDR cmsghdr
+#define G_IPV6_PKTINFO IPV6_PKTINFO
+#else
+#define CMSGHDR cmsghdr
+#define G_IPV6_PKTINFO IPV6_RECVPKTINFO
+#endif
+
 #include "defines.h"
 #include "socket.h"
 #include "timing.h"
+
+#include <arpa/inet.h>
 #include <cstdlib>
+#include <fstream>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sstream>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <fstream>
-#include <sys/select.h>
+#include <sys/un.h>
 
 #define BUFFER_BLOCKSIZE 4096 // set buffer blocksize to 4KiB
 
@@ -23,6 +39,8 @@
 #else
 #define SOCKETSIZE 51200ul
 #endif
+
+bool WS_STARTED = false;
 
 /// Local-scope only helper function that prints address families
 static const char *addrFam(int f){
@@ -393,13 +411,13 @@ bool Socket::getAddrName(const void * sockaddr, std::string &host, uint32_t &por
     host = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
     if (host.substr(0, 7) == "::ffff:"){host = host.substr(7);}
     port = ntohs(tmpaddr.sin6_port);
-    HIGH_MSG("Local IPv6 addr [%s:%" PRIu32 "]", host.c_str(), port);
+    HIGH_MSG("IPv6 addr [%s:%" PRIu32 "]", host.c_str(), port);
     return true;
   }
   if (tmpaddr.sin6_family == AF_INET){
     host = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
     port = ntohs(((sockaddr_in *)&tmpaddr)->sin_port);
-    HIGH_MSG("Local IPv4 addr [%s:%" PRIu32 "]", host.c_str(), port);
+    HIGH_MSG("IPv4 addr [%s:%" PRIu32 "]", host.c_str(), port);
     return true;
   }
   return false;
@@ -1845,7 +1863,7 @@ static int dTLS_send(void *s, const unsigned char *buf, size_t len){
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock){
   init(nonblock);
-}// Socket::UDPConnection UDP Contructor
+} // Socket::UDPConnection UDP Constructor
 
 /// Create a new UDP socket, with local sender and/or remote destination pre-set.
 /// This ensure the address family matches, but does not bind or connect.
@@ -1859,7 +1877,7 @@ Socket::UDPConnection::UDPConnection(const void * dest, size_t destLen, const vo
   init(false, fam);
 
   // Allocate buffers and fill them with the addresses
-  allocateDestination();
+  allocateDestination(false);
   if (dest && destLen){
     destAddr.assign(dest, destLen);
     fam = ((sockaddr*)dest)->sa_family;
@@ -1871,6 +1889,18 @@ Socket::UDPConnection::UDPConnection(const void * dest, size_t destLen, const vo
 }
 
 void Socket::UDPConnection::init(bool _nonblock, int _family){
+#if defined(_WIN32) // || defined(__CYGWIN__)
+  if (!WS_STARTED) WSADATA wsd;
+  err = WSAStartup(0x0202, &wsd);
+  if (err)
+    FAIL_MSG("Could not create Windows UDP socket: %s", strerror(errno));
+  else if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {
+    WSACleanup();
+    FAIL_MSG("Version mismatch for WinSock DLL: %s", strerror(errno));
+  }
+  WS_STARTED = true;
+#endif
+
   lastPace = 0;
   boundPort = 0;
   family = _family;
@@ -2202,7 +2232,7 @@ void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
 }
 
 /// Allocates enough space for the largest type of address we support, so that receive calls can write to it.
-void Socket::UDPConnection::allocateDestination(){
+void Socket::UDPConnection::allocateDestination(bool setPktInfo) {
   if (destAddr.size() < sizeof(sockaddr_in6)){
     destAddr.truncate(0);
     destAddr.allocate(sizeof(sockaddr_in6));
@@ -2218,12 +2248,13 @@ void Socket::UDPConnection::allocateDestination(){
     recvAddr.append(0, sizeof(sockaddr_in6));
   }
 #ifdef HASPKTINFO
+  if (!setPktInfo) return;
   const int opt = 1;
   if (setsockopt(sock, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt))){
     if (family != AF_INET6){WARN_MSG("Could not set IPv4 packet info receiving enabled!");}
   }
   if (family == AF_INET6){
-    if (setsockopt(sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &opt, sizeof(opt))){
+    if (setsockopt(sock, IPPROTO_IPV6, G_IPV6_PKTINFO, &opt, sizeof(opt))) {
       WARN_MSG("Could not set IPv6 packet info receiving enabled!");
     }
   }
@@ -2403,27 +2434,49 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
     return;
   }
 #ifdef HASPKTINFO
-  if (hasReceiveData && recvAddr.size()){
-    msghdr mHdr;
+  if (hasReceiveData && recvAddr.size()) {
     char msg_control[0x100];
+
+#if defined(_WIN32) // || defined(__CYGWIN__)
+    WSABUF wsa_iovec, wsa_control;
+    wsa_iovec.len = len;
+    wsa_iovec.buf = (void *)sdata;
+    wsa_control.buf = msg_control;
+    wsa_control.len = sizeof(msg_control);
+    WSAMSG wsa_msg;
+    wsa_msg.name = dAddr;
+    wsa_msg.namelen = dAddrLen;
+    wsa_msg.lpBuffers = &wsa_iovec;
+    wsa_msg.dwBufferCount = 1;
+    wsa_msg.dwFlags = 0;
+
+#else // non-windows systems
     iovec iovec;
     iovec.iov_base = (void*)sdata;
     iovec.iov_len = len;
+    msghdr mHdr;
+    mHdr.msg_control = msg_control;
+    mHdr.msg_controllen = sizeof(msg_control);
     mHdr.msg_name = dAddr;
     mHdr.msg_namelen = dAddrLen;
     mHdr.msg_iov = &iovec;
     mHdr.msg_iovlen = 1;
-    mHdr.msg_control = msg_control;
-    mHdr.msg_controllen = sizeof(msg_control);
     mHdr.msg_flags = 0;
+#endif
+
     int cmsg_space = 0;
-    cmsghdr * cmsg = CMSG_FIRSTHDR(&mHdr);
+    CMSGHDR *cmsg = CMSG_FIRSTHDR(&mHdr);
     if (family == AF_INET){
       cmsg->cmsg_level = IPPROTO_IP;
       cmsg->cmsg_type = IP_PKTINFO;
 
       struct in_pktinfo in_pktinfo;
+#if defined(_WIN32) || defined(__CYGWIN__)
+      memcpy(&(in_pktinfo.ipi_addr), &(((sockaddr_in *)(char *)recvAddr)->sin_family),
+             sizeof(in_pktinfo.ipi_addr));
+#else
       memcpy(&(in_pktinfo.ipi_spec_dst), &(((sockaddr_in*)(char*)recvAddr)->sin_family), sizeof(in_pktinfo.ipi_spec_dst));
+#endif
       in_pktinfo.ipi_ifindex = recvInterface;
       cmsg->cmsg_len = CMSG_LEN(sizeof(in_pktinfo));
       *(struct in_pktinfo*)CMSG_DATA(cmsg) = in_pktinfo;
@@ -2439,23 +2492,36 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
       *(struct in6_pktinfo*)CMSG_DATA(cmsg) = in6_pktinfo;
       cmsg_space += CMSG_SPACE(sizeof(in6_pktinfo));
     }
-    mHdr.msg_controllen = cmsg_space;
 
-    int r = sendmsg(sock, &mHdr, 0);
-    if (r > 0){
-      up += r;
-    }else{
+#if defined(_WIN32) // || defined(__CYGWIN__)
+    wsa_control.len = c_msg_space;
+    int nBytes = 0;
+    int res = WSASendMsg(sock, &wsa_msg, 0, &nBytes, NULL, NULL);
+    if (res != SOCKET_ERROR) {
+      up += nBytes;
+    } else {
+      if (errno != ENETUNREACH && !ignoreSendErrors) {
+        FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+      }
+    }
+#else // non-windows systems
+    mHdr.msg_controllen = cmsg_space;
+    int nBytes = sendmsg(sock, &mHdr, 0);
+    if (nBytes > 0) {
+      up += nBytes;
+    } else {
       if (errno != ENETUNREACH && !ignoreSendErrors){
         FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
       }
     }
-    return;
-  }else{
 #endif
-    int r = sendto(sock, sdata, len, 0, dAddr, dAddrLen);
-    if (r > 0){
-      up += r;
-    }else{
+    return;
+  } else {
+#endif
+    int nBytes = sendto(sock, sdata, len, 0, dAddr, dAddrLen);
+    if (nBytes > 0) {
+      up += nBytes;
+    } else {
       if (errno != ENETUNREACH && !ignoreSendErrors){
         FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
       }
@@ -2800,6 +2866,13 @@ bool Socket::UDPConnection::connect(){
   int recvFam = ((struct sockaddr *)(char*)recvAddr)->sa_family;
   int destFam = ((struct sockaddr *)(char*)destAddr)->sa_family;
 
+  if (family == AF_INET6) {
+    const int optval = 0;
+    if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval)) < 0) {
+      WARN_MSG("Could not set IPv6 UDP socket to be dual-stack! %s", strerror(errno));
+    }
+  }
+
   if (::bind(sock, (const struct sockaddr*)(char*)recvAddr, recvAddr.size())){
     FAIL_MSG("Failed to bind socket %d (%s) %s:%" PRIu32 ": %s", sock, addrFam(recvFam), recvIp.c_str(), recvPort, strerror(errno));
     return false;
@@ -2878,21 +2951,29 @@ bool Socket::UDPConnection::Receive(){
   if (destAddr.size() && destsize){destAddr.assign(&addr, destsize);}
 #ifdef HASPKTINFO
   if (recvAddr.size()){
-    for ( struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mHdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&mHdr, cmsg)){
+    for (struct CMSGHDR *cmsg = CMSG_FIRSTHDR(&mHdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&mHdr, cmsg)) {
       if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_PKTINFO){
         struct in_pktinfo* pi = (in_pktinfo*)CMSG_DATA(cmsg);
         if (family == AF_INET6){
           struct sockaddr_in6 * recvCast = (sockaddr_in6*)(char*)recvAddr;
           recvCast->sin6_port = htons(boundPort);
           recvCast->sin6_family = AF_INET6;
+#if defined(_WIN32) || defined(__CYGWIN__)
+          memcpy(((char *)&(recvCast->sin6_addr)) + 12, &(pi->ipi_addr), sizeof(pi->ipi_addr));
+#else
           memcpy(((char*)&(recvCast->sin6_addr)) + 12, &(pi->ipi_spec_dst), sizeof(pi->ipi_spec_dst));
+#endif
           memset((void*)&(recvCast->sin6_addr), 0, 10);
           memset((char*)&(recvCast->sin6_addr) + 10, 255, 2);
         }else{
           struct sockaddr_in * recvCast = (sockaddr_in*)(char*)recvAddr;
           recvCast->sin_port = htons(boundPort);
           recvCast->sin_family = AF_INET;
-          memcpy(&(recvCast->sin_addr), &(pi->ipi_spec_dst), sizeof(pi->ipi_spec_dst));
+#if defined(_WIN32) || defined(__CYGWIN__)
+          memcpy(((char *)&(recvCast->sin_addr)), &(pi->ipi_addr), sizeof(pi->ipi_addr));
+#else
+          memcpy(((char *)&(recvCast->sin_addr)), &(pi->ipi_spec_dst), sizeof(pi->ipi_spec_dst));
+#endif
         }
         recvInterface = pi->ipi_ifindex;
         hasReceiveData = true;

@@ -6,6 +6,10 @@ if host_machine.system() == 'darwin'
 endif
 
 
+if host_machine.system() == 'cygwin'
+  add_project_arguments(['-DWIN32_LEAN_AND_MEAN'], language: 'cpp')
+endif
+
 # Ensures the "mist" directory is in the include path
 incroot = include_directories('.')
 
@@ -107,6 +111,12 @@ mist_deps = []
 ccpp = meson.get_compiler('cpp')
 if ccpp.has_header_symbol('netinet/in.h', 'IPV6_RECVPKTINFO', args:['-D__APPLE_USE_RFC_3542']) and ccpp.has_header_symbol('netinet/in.h', 'IP_PKTINFO', args:['-D__APPLE_USE_RFC_3542'])
   option_defines += '-DHASPKTINFO'
+endif
+
+if host_machine.system() == 'cygwin'
+  if ccpp.has_header_symbol('netinet/in.h', 'IPV6_PKTINFO', args:['-DWIN32_LEAN_AND_MEAN']) and ccpp.has_header_symbol('netinet/in.h', 'IP_PKTINFO', args:['-DWIN32_LEAN_AND_MEAN'])
+    option_defines += '-DHASPKTINFO'
+  endif
 endif
 
 if usessl

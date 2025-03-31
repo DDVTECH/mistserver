@@ -273,7 +273,9 @@ bool Controller::stream_tag(const std::string &stream, const std::string &tag){
   }
   std::lock_guard<std::recursive_mutex> guard(statsMutex);
   if (!streamStats.count(stream)){
-    FAIL_MSG("Cannot tag stream '%s' with '%s': stream is not currently active -> adding to tag queue", stream.c_str(), tag.c_str());
+    INFO_MSG(
+      "Cannot tag stream '%s' with '%s': stream is not currently active -> adding to tag queue",
+      stream.c_str(), tag.c_str());
 
     tagQueue[stream].add(tag);
     return false;

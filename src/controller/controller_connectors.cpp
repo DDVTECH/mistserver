@@ -25,7 +25,7 @@ namespace Controller{
 
   /// Updates the shared memory page with active connectors
   void saveActiveConnectors(bool forceOverride){
-    IPC::sharedPage f("MstCnns", 4096, forceOverride, false);
+    IPC::sharedPage f("/MstCnns", 4096, forceOverride, false);
     if (!f.mapped){
       if (!forceOverride){
         saveActiveConnectors(true);
@@ -56,7 +56,7 @@ namespace Controller{
 
   /// Reads active connectors from the shared memory pages
   void loadActiveConnectors(){
-    IPC::sharedPage f("MstCnns", 4096, false, false);
+    IPC::sharedPage f("/MstCnns", 4096, false, false);
     const Util::RelAccX A(f.mapped, false);
     if (A.isReady()){
       INFO_MSG("Reloading existing connectors to complete rolling restart");
@@ -74,7 +74,7 @@ namespace Controller{
   /// Deletes the shared memory page with connector information
   /// in preparation of shutdown.
   void prepareActiveConnectorsForShutdown(){
-    IPC::sharedPage f("MstCnns", 4096, false, false);
+    IPC::sharedPage f("/MstCnns", 4096, false, false);
     if (f){f.master = true;}
   }
 

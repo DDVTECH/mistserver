@@ -226,7 +226,7 @@ namespace Controller{
     size_t recoverCount = 0;
     {
       std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
-      IPC::sharedPage pushReadPage("MstPush", 8 * 1024 * 1024, false, false);
+      IPC::sharedPage pushReadPage("/MstPush", 8 * 1024 * 1024, false, false);
       char * pwo = pushReadPage.mapped;
       if (pwo){
         pushReadPage.master = true;
@@ -369,7 +369,7 @@ namespace Controller{
 
   /// Loops, checking every second if any pushes need restarting.
   void pushCheckLoop(){
-    IPC::sharedPage pushPage("MstPush", 8 * 1024 * 1024, true, false);
+    IPC::sharedPage pushPage("/MstPush", 8 * 1024 * 1024, true, false);
     while (Controller::conf.is_active){
       // this scope prevents the configMutex from being locked constantly
       {

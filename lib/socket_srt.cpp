@@ -29,6 +29,13 @@ namespace Socket{
         int res = srt_startup();
         if (res == -1){ERROR_MSG("Unable to initialize SRT Library!");}
         isInited = (res != -1);
+
+        /// \todo Add debug levels for the srt library.
+        // srt_setloghandler(0, [](void* opaque, int level, const char* file, int line, const char*
+        // area, const char* message){ INFO_MSG("%s", message);
+        // });
+        // srt_setloglevel(LOG_DEBUG_TRACE);
+        // // use Util::printDebugLevel;
       }
       INFO_MSG("Initialized libsrt version %s", SRT_VERSION_STRING);
       return isInited;
@@ -330,6 +337,8 @@ namespace Socket{
       return false;
     }
     HIGH_MSG("Opened SRT socket %d", sock);
+    setBlocking(true);
+
     if (preConfigureSocket() == SRT_ERROR) {
       ERROR_MSG("Error configuring SRT socket");
       return false;
@@ -382,9 +391,16 @@ namespace Socket{
     HIGH_MSG("Opening SRT connection %s in %s mode on %s:%d", modeName.c_str(), direction.c_str(),
              _host.c_str(), _port);
 
+#ifdef __CYGWIN__
+    std::deque<std::string> addrs = Socket::getAddrs(_host, _port, AF_INET);
+    std::deque<std::string> addrs6 = Socket::getAddrs(_host, _port, AF_INET6);
+    addrs.insert(addrs.end(), addrs6.begin(), addrs6.end());
+#else
+    std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
+#endif
+
     if (modeName == "caller"){
       setBlocking(true);
-      std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
       for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
         size_t maxSize = it->size();
         if (maxSize > sizeof(remoteaddr)){maxSize = sizeof(remoteaddr);}
@@ -407,8 +423,7 @@ namespace Socket{
       ERROR_MSG("Can't connect SRT socket to any address for %s", _host.c_str());
       return;
     }
-    if (modeName == "listener"){
-      std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
+    if (modeName == "listener") {
       for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
         size_t maxSize = it->size();
         if (maxSize > sizeof(remoteaddr)){maxSize = sizeof(remoteaddr);}
@@ -507,8 +522,7 @@ namespace Socket{
     timeout = 0;
   }
 
-  void SRTConnection::setBlocking(bool _blocking){
-    if (_blocking == blocking){return;}
+  void SRTConnection::setBlocking(bool _blocking) {
     // If we have an error setting the new blocking state, the state is unchanged so we return early.
     if (srt_setsockopt(sock, 0, SRTO_SNDSYN, &_blocking, sizeof _blocking) == -1){return;}
     if (srt_setsockopt(sock, 0, SRTO_RCVSYN, &_blocking, sizeof _blocking) == -1){return;}
@@ -558,7 +572,6 @@ namespace Socket{
     if (!tsbpdMode){
       if (srt_setsockopt(sock, 0, SRTO_TSBPDMODE, &no, sizeof no) == -1){return -1;}
     }
-    if (srt_setsockopt(sock, 0, SRTO_RCVSYN, &no, sizeof no) == -1){return -1;}
 
     linger lin;
     lin.l_linger = params.count("linger") ? atoi(params.at("linger").c_str()) : 0;

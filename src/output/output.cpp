@@ -2707,9 +2707,8 @@ namespace Mist{
       pushing = false;
       return false;
     }
-    if (strmSource.substr(0, 7) != "push://"){
-      FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s != push://*)",
-               streamName.c_str(), strmSource.c_str());
+    if ((strmSource.size() >= 7 && strmSource.substr(0, 7) != "push://") || strmSource.find("INTERNAL_") != std::string::npos){
+      FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s)", streamName.c_str(), strmSource.c_str());
       pushing = false;
       return false;
     }

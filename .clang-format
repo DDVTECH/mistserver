@@ -137,13 +137,6 @@ IndentExternBlock: Indent
 IndentGotoLabels: false
 IndentPPDirectives: None
 InsertNewlineAtEOF: true
-IntegerLiteralSeparator:
-  Binary: 8
-  BinaryMinDigits: 9
-  Decimal: 3
-  DecimalMinDigits: 6
-  Hex: 2
-  HexMinDigits: 5
 LambdaBodyIndentation: OuterScope
 LineEnding: LF
 MainIncludeChar: Quote

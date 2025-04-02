@@ -482,9 +482,9 @@ namespace Mist{
     pp["srtopts"]["options"]["transtype"]["select"][2u][1u] = "File";
     pp["srtopts"]["options"]["transtype"]["type"] = "select";
 
-    pp["noreconnect"]["name"] = "Do not reconnect";
-    pp["noreconnect"]["help"] = "If checked, disables reconnecting so that a single failure stops the push";
-    pp["noreconnect"]["type"] = "bool";
+    pp["misc_genopts"]["options"]["noreconnect"]["name"] = "Do not reconnect";
+    pp["misc_genopts"]["options"]["noreconnect"]["help"] = "If checked, disables reconnecting so that a single failure stops the push";
+    pp["misc_genopts"]["options"]["noreconnect"]["type"] = "bool";
 
     //addStrOpt(pp, "adapter", "", "");
     //addIntOpt(pp, "timeout", "", "");

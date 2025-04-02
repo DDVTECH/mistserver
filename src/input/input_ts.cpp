@@ -587,6 +587,10 @@ namespace Mist{
               liveReadBuffer.shift(1);
             }
             if (liveReadBuffer.size() >= 188 && liveReadBuffer[0] == 0x47){
+              if (!gettingData){
+                INFO_MSG("Now receiving data...");
+                gettingData = true;
+              }
               if (rawMode){
                 keepAlive();
                 if (liveReadBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){

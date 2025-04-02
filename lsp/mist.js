@@ -6712,7 +6712,7 @@ var UI = {
 
                 var params = saveas.params;
                 for (var i in params) {
-                  if (params[i] === null) {
+                  if ((params[i] === null) || (params[i] === false)) {
                     //remove any params that are set to null
                     delete params[i];
                   }

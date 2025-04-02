@@ -1,7 +1,7 @@
 #include "input_balancer.h"
 #include <mist/defines.h>
 #include <mist/encode.h>
-#include <mist/http_parser.h>
+#include <mist/downloader.h>
 #include <mist/stream.h>
 #include <mist/url.h>
 
@@ -94,8 +94,9 @@ namespace Mist{
       return 1;
     }
 
+    HTTP::Downloader dl;
     HTTP::URL url(blncr.substr(8));
-    if (url.protocol != "http"){
+    if (!dl.canRequest(url)){
       FAIL_MSG("Load balancer protocol %s is not supported", url.protocol.c_str());
       return 1;
     }
@@ -109,43 +110,20 @@ namespace Mist{
       if (args.count("fallback")){source = args.at("fallback");}
     }
 
-    Socket::Connection balConn(url.host, url.getPort(), true);
-    if (!balConn){
-      WARN_MSG("Failed to reach %s on port %" PRIu16, url.host.c_str(), url.getPort());
-    }else{
-      HTTP::Parser http;
-      http.url = "/" + url.path;
-      http.SetVar("source", streamName);
-      if (source.size()){http.SetVar("fallback", source);}
-      http.method = "GET";
-      http.SetHeader("Host", url.host);
-      http.SetHeader("X-MistServer", PACKAGE_VERSION);
-      balConn.SendNow(http.BuildRequest());
-      http.Clean();
+    {
+      std::map<std::string, std::string> args;
+      args["source"] = streamName;
+      if (source.size()){args["fallback"] = source;}
+      url.args = HTTP::argStr(args, false);
+    }
 
-      unsigned int startTime = Util::epoch();
-      while ((Util::epoch() - startTime < 10) && (balConn || balConn.Received().size())){
-        if (balConn.spool() || balConn.Received().size()){
-          if (http.Read(balConn.Received().get())){
-            HTTP::URL newUrl(http.body);
-            if (Socket::isLocalhost(newUrl.host)){
-              WARN_MSG("Load balancer returned a local address - ignoring");
-              startTime = 0;
-              break; // break out of while loop, ignore return value - it's local.
-            }
-            source = http.body;
-            startTime = 0; // note success
-            break;         // break out of while loop
-          }
-        }else{
-          //Prevent 100% CPU usage if the response is slow
-          Util::sleep(25);
-        }
+    if (dl.get(url)){
+      HTTP::URL newUrl(dl.data());
+      if (Socket::isLocalhost(newUrl.host)){
+        WARN_MSG("Load balancer returned a local address - ignoring");
+      }else{
+        source = dl.data();
       }
-      if (startTime){
-        FAIL_MSG("Timeout while trying to contact load balancer at %s!", blncr.c_str() + 8);
-      }
-      balConn.close();
     }
 
     if (!source.size()){

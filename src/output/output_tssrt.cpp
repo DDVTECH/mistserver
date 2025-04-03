@@ -867,7 +867,11 @@ namespace Mist{
               oss << remoteIP << '/' << remotePort << '/' << rendezvous;
               newArgs.push_back(oss.str());
 
-              targetStr.host = localIP;
+              if (localIP.find(':') != std::string::npos){
+                targetStr.host = "["+localIP+"]";
+              }else{
+                targetStr.host = localIP;
+              }
               targetStr.setPort(localPort);
               newArgs.push_back(targetStr.getUrl());
 

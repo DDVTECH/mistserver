@@ -1535,7 +1535,6 @@ namespace Mist{
     HTTP::URL playlistLocation;
     std::string playlistLocationString;
     std::string playlistBuffer;
-    std::string currentTarget;
     uint64_t currentStartTime = 0;
     uint64_t maxEntries = 0;
     uint64_t targetAge = 0;
@@ -2543,6 +2542,7 @@ namespace Mist{
           prevLosCount = pktLosNow;
         }
         pData["active_seconds"] = statComm.getTime();
+        pData["current_target"] = currentTarget;
         Util::sendUDPApi(pStat);
         lastPushUpdate = now;
       }

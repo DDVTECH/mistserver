@@ -113,6 +113,7 @@ namespace Mist{
     size_t maxWait; /// Maximum wait in milliseconds (scheduled next packet timing)
     
   protected:              // these are to be messed with by child classes
+    std::string currentTarget;
     virtual bool inlineRestartCapable() const{
       return false;
     }///< True if the output is capable of restarting mid-stream. This is used for swapping recording files

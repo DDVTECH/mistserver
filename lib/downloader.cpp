@@ -412,8 +412,8 @@ namespace HTTP{
         isComplete = true; // Success
         return true;
       }
+      return false;
     }
-    return false; // we should never get here
   }
 
   bool Downloader::post(const HTTP::URL &link, const std::string &payload, bool sync, uint8_t maxRecursiveDepth){

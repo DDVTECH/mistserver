@@ -10510,8 +10510,13 @@ var UI = {
             Target: function(push){
               var $cont = $("<div>"); //temporary, to hold multiple children
               var t = push.target;
-              if ((type != "Automatic") && (push.target != push.resolved_target)) {
-                t = push.resolved_target;
+              if (type != "Automatic") {
+                if (push.stats && push.stats.current_target) {
+                  t = push.stats.current_target;
+                }
+                else {
+                  t = push.resolved_target;
+                }
               }
               //split url params
               t = t.split("?");

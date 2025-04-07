@@ -165,8 +165,8 @@ namespace Mist{
     uint64_t firstPacketTime;
     uint64_t lastPacketTime;
     uint64_t lastPacketBootMs;
-    uint64_t interPacketTimes[10];
-    uint64_t lowestInterpacket;
+    uint64_t interPacketTimes[10]; ///< Needed to calculate avgBetweenPackets
+    uint64_t avgBetweenPackets; ///< Used to determine an appropriate wait time when unknown waiting is required.
     uint64_t packetCounter;
     uint64_t thisBootMs;
 

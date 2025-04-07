@@ -102,7 +102,7 @@ namespace Mist{
     thisBootMs = Util::bootMS();
     lastPacketBootMs = thisBootMs;
     for (size_t i = 0; i < 10; ++i){interPacketTimes[i] = 50;}
-    lowestInterpacket = 50;
+    avgBetweenPackets = 50;
     pushing = false;
     recursingSync = false;
     firstTime = thisBootMs;
@@ -1794,8 +1794,12 @@ namespace Mist{
 
       if (suggestedWait){
         maxWait = suggestedWait;
+        // If the suggested wait is 2000ms, we don't know when one could arrive.
+        // Use the average time between packets as a heuristic
+        if (maxWait == 2000 && parseData) { maxWait = avgBetweenPackets; }
       }else{
-        maxWait = lowestInterpacket * 0.9;
+        maxWait = avgBetweenPackets * 0.9;
+        if (maxWait > 2000) { maxWait = 2000; }
         // slow down processing, if real time speed is wanted
         if (parseData){
           uint64_t nTime = buffer.nonGhost();
@@ -1871,12 +1875,9 @@ namespace Mist{
             firstPacketTime = lastPacketTime;
           }
           interPacketTimes[packetCounter%10] = thisBootMs - lastPacketBootMs;
-          lowestInterpacket = 2000;
-          for (size_t i = 0; i < 10; ++i){
-            if (lowestInterpacket > interPacketTimes[i]){
-              lowestInterpacket = interPacketTimes[i];
-            }
-          }
+          avgBetweenPackets = 0;
+          for (size_t i = 0; i < 10; ++i) { avgBetweenPackets += interPacketTimes[i]; }
+          avgBetweenPackets /= 10;
           lastPacketBootMs = thisBootMs;
 
           if (reachedPlannedStop()){

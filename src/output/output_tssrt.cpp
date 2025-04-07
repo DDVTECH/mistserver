@@ -155,9 +155,12 @@ namespace Mist{
       Socket::SRT::libraryInit();
       HTTP::parseVars(target.args, targetParams);
       HTTP::parseVars(config->getString("sockopts"), targetParams);
+      evLp.addSocket(1, udpSrv->getSock());
       srtConn = new Socket::SRTConnection(*udpSrv, rendezvous ? "rendezvous" : "output", targetParams);
       if (!*srtConn) {
         delete srtConn;
+        srtConn = 0;
+        evLp.remove(udpSrv->getSock());
         onFail("Could not create socket for SRT connection!", true);
         return;
       }

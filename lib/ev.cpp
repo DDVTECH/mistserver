@@ -71,12 +71,18 @@ namespace Event{
     }
     uint64_t startTime = Util::bootMS();
     struct timeval timeout;
+    bool hasSockets = false;
     fd_set rList;
     FD_ZERO(&rList);
     for(size_t i = 0; i < 32; i += 2){
       if (sockets[i]){
         FD_SET(sockets[i+1], &rList);
+        hasSockets = true;
       }
+    }
+    if (!hasSockets) {
+      Util::sleep(maxMs);
+      return 0;
     }
     uint64_t currPace = Util::getMicros();
     for (auto it : sendQueues){

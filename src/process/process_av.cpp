@@ -444,6 +444,7 @@ namespace Mist{
     bool isRecording(){return false;}
 
     ProcessSource(Socket::Connection &c) : Output(c){
+      closeMyConn();
       targetParams["keeptimes"] = true;
       realTime = 0;
       convertCtx = NULL;

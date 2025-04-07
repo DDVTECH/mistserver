@@ -292,9 +292,9 @@ void Util::Procs::reap(){
 /// Runs the given command and returns the stdout output as a string.
 /// \param maxWait amount of milliseconds to wait for new output to come in over stdout before aborting
 std::string Util::Procs::getOutputOf(const char *const *argv, uint64_t maxWait) {
-  int fin = 0, fout = -1, ferr = 0;
+  int fout = -1;
   uint64_t deadline = Util::bootMS() + maxWait;
-  pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
+  pid_t myProc = StartPiped(argv, 0, &fout, 0);
   Socket::Connection O(-1, fout);
   O.setBlocking(false);
   Util::ResizeablePointer ret;

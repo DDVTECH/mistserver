@@ -683,7 +683,7 @@ namespace Mist{
     /// \brief Tries various encoders for video transcoding
     void allocateVideoEncoder(){
       // Prepare target codec encoder
-      if (!context_out){
+      if (!context_out && (codecOut == "H264" || codecOut == "AV1" || codecOut == "JPEG")) {
         INFO_MSG("Initting %s encoder", codecOut.c_str());
         if(codecOut == "H264"){
           // if (!allowHW || !tryEncoder("h264_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){

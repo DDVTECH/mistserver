@@ -682,18 +682,32 @@ var UI = {
         if (a) a.setAttribute("data-sorting","");
       }
 
-      var compare = new Intl.Collator('en',{numeric:true, sensitivity:'accent'}).compare;
-      for (var i = 0; i < options.container.children.length-1; i++) {
-        var row = options.container.children[i];
-        var next = options.container.children[i+1];
-        //console.warn("sorting: comparing",getVal.call(row,sortby),getVal.call(next,sortby))
-        if (sortdir * compare(getVal.call(row,sortby),getVal.call(next,sortby)) > 0) {
-          //the next row should be before the current one
-          //put it before and then check if it needs to go up further
-          options.container.insertBefore(next,row); 
-          if (i > 0) {
-            i = i-2;
+      try {
+        var compare = new Intl.Collator('en',{numeric:true, sensitivity:'accent'}).compare;
+        for (var i = 0; i < options.container.children.length-1; i++) {
+          var row = options.container.children[i];
+          var next = options.container.children[i+1];
+          //console.warn("sorting: comparing",getVal.call(row,sortby),getVal.call(next,sortby))
+          if (sortdir * compare(getVal.call(row,sortby),getVal.call(next,sortby)) > 0) {
+            //the next row should be before the current one
+            //put it before and then check if it needs to go up further
+            options.container.insertBefore(next,row); 
+            if (i > 0) {
+              i = i-2;
+            }
           }
+        }
+      }
+      catch (e) {
+        //something went wrong, sorting failed. It's possible we tried sorting for a column that doesn't exist
+        var msg = ["Failed to sort items in ",item_container," by '"+sortby+"'"];
+        if (sortby != options.sortby) { //if the column we tried to sort on is not the default as passed from initialization, fall back to that
+          msg.push(", falling back to '"+options.sortby+"'");
+          console.warn.apply(this,msg);
+          this.sort(options.sortby);
+        }
+        else {
+          console.warn.apply(this,msg);
         }
       }
 
@@ -10723,7 +10737,7 @@ var UI = {
                   return $table._children[this.getAttribute("data-pushid")]._children[sortby].raw;
                 },{
                   controls: $header[0],
-                  sortby: "Stream",
+                  sortby: "Stream" in layout ? "Stream" : "Target",
                   sortsave: "sort_autopushes",
                   container: $table[0].children[1] //tbody
                 });

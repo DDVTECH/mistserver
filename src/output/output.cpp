@@ -2402,14 +2402,17 @@ namespace Mist{
       if (M.getLive()){
         userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
       }
-      
+
+      // If now-ms is higher than current, we know we can safely return this packet at least
+      if (M.getNowms(nxt.tid) > nxt.time) { break; }
+
       //In non-sync mode, shuffle the just-tried packet to the end of queue and retry
       if (!buffer.getSyncMode()){
         buffer.moveFirstToEnd();
         continue;
       }
 
-      // Set current packet to unavailable so that we wait for a signal
+      // Set current packet to unavailable so that we fall back to the heuristic for next packet timing
       if (!nxt.unavailable){
         nxt.unavailable = true;
         buffer.replaceFirst(nxt);
@@ -2472,7 +2475,9 @@ namespace Mist{
     nxt.offset += thisPacket.getDataLen();
     if (!nextTime){
       // If time is not known yet, insert a ghostPacket with a known safe time
-      nxt.time = M.getNowms(nxt.tid);
+      // If the lastms has gone past our current position, this is not safe,
+      // so we insert the current time again to force a re-check
+      if (nxt.time == M.getLastms(nxt.tid)) { nxt.time = M.getNowms(nxt.tid); }
       nxt.ghostPacket = true;
       nxt.unavailable = true;
     }else{

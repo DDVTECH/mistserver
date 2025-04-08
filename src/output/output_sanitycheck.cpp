@@ -107,7 +107,8 @@ namespace Mist{
       std::cout << "  " << packets.front() << std::endl;
       packets.pop_front();
     }
-    std::cout << "Nearby keyframes for this track (" << thisIdx << ", " << M.getType(thisIdx) << "):" << std::endl;
+    std::cout << "Nearby keyframes for this track (" << thisIdx << ", " << M.getCodec(thisIdx)
+              << " " << M.getType(thisIdx) << "):" << std::endl;
     size_t keyIndex = M.getKeyIndexForTime(thisIdx, thisTime);
     DTSC::Keys keys = M.getKeys(thisIdx);
     size_t from = keyIndex - 5;
@@ -134,7 +135,7 @@ namespace Mist{
     }
     std::cout << "\033[A";
     for (std::map<size_t, uint64_t>::iterator it = trkTime.begin(); it != trkTime.end(); ++it){
-      uint64_t t = M.getLastms(it->first);
+      uint64_t t = M.getNowms(it->first);
       std::cout << it->first << ":" << printTime(it->second) << "/" << printTime(t) << ", ";
     }
     std::cout << std::endl;

@@ -3398,7 +3398,8 @@ namespace DTSC{
     uint32_t endKey = keys.getEndValid();
 
     for (size_t i = firstKey; i < endKey; i++){
-      if (keys.getTime(i) + keys.getDuration(i) > timestamp){return i;}
+      uint64_t t = keys.getTime(i);
+      if (t == timestamp || t + keys.getDuration(i) > timestamp) { return i; }
     }
     return endKey;
   }

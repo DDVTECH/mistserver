@@ -696,8 +696,8 @@ namespace Mist{
       return;
     }
     if (!M.trackLoaded(trackId)){meta.reloadReplacedPagesIfNeeded();}
-    // Note: specifically uses `keys` rather than `getKeys` because pages must not be limited-based
-    DTSC::Keys keys(M.keys(trackId));
+    // Note: specifically does not apply the limiter because pages must not be limited-based
+    DTSC::Keys keys = M.getKeys(trackId, false);
     if (!keys.getValidCount()){
       WARN_MSG("Load for track %zu key %zu aborted - track is empty", trackId, keyNum);
       return;
@@ -2364,8 +2364,8 @@ namespace Mist{
       uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
       uint32_t nextKeyPage = INVALID_KEY_NUM;
       // Make sure we only try to read the page for the next key if it actually should be available
-      // Note: specifically uses `keys` instead of `getKeys` because these are page-related operations
-      DTSC::Keys keys(M.keys(nxt.tid));
+      // Note: specifically does not apply limiter because these are page-related operations
+      DTSC::Keys keys(M.getKeys(nxt.tid, false));
       if (keys.getEndValid() >= thisKey+1){nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);}
       if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
         // If so, the next key is our next packet
@@ -2377,8 +2377,8 @@ namespace Mist{
           //Re-try the read in ~50ms, hoping this is a race condition we missed somewhere.
           Util::sleep(50);
           meta.reloadReplacedPagesIfNeeded();
-          // Note: specifically uses `keys` instead of `getKeys` because these are page-related operations
-          DTSC::Keys keys(M.keys(nxt.tid));
+          // Note: specifically does not apply limiter because these are page-related operations
+          DTSC::Keys keys(M.getKeys(nxt.tid, false));
           nextTime = keys.getTime(thisKey + 1);
           //Still wrong? Abort, abort!
           if (nextTime < nxt.time){

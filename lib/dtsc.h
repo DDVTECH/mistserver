@@ -173,59 +173,6 @@ namespace DTSC{
     Util::RelAccXFieldData offsetField;
   };
 
-  class Keys{
-  public:
-    Keys(Util::RelAccX &_keys);
-    Keys(const Util::RelAccX &_keys);
-    size_t getFirstValid() const;
-    size_t getEndValid() const;
-    size_t getValidCount() const;
-    size_t getFirstPart(size_t idx) const;
-    size_t getBpos(size_t idx) const;
-    uint64_t getDuration(size_t idx) const;
-    size_t getNumber(size_t idx) const;
-    size_t getParts(size_t idx) const;
-    uint64_t getTime(size_t idx) const;
-    void setSize(size_t idx, size_t _size);
-    size_t getSize(size_t idx) const;
-
-    uint64_t getTotalPartCount();
-    uint32_t getIndexForTime(uint64_t timestamp);
-
-    void applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p);
-    void applyLimiter(uint64_t _min, uint64_t _max);
-
-  private:
-    bool isConst;
-    bool isLimited;
-    bool isFrames;
-    size_t limMin;
-    size_t limMax;
-    //Overrides for max key
-    size_t limMaxParts;
-    uint64_t limMaxDuration;
-    size_t limMaxSize;
-    //Overrides for min key
-    size_t limMinParts;
-    size_t limMinFirstPart;
-    uint64_t limMinDuration;
-    uint64_t limMinTime;
-    size_t limMinSize;
-
-    Util::RelAccX empty;
-
-    Util::RelAccX &keys;
-    const Util::RelAccX &cKeys;
-
-    Util::RelAccXFieldData firstPartField;
-    Util::RelAccXFieldData bposField;
-    Util::RelAccXFieldData durationField;
-    Util::RelAccXFieldData numberField;
-    Util::RelAccXFieldData partsField;
-    Util::RelAccXFieldData timeField;
-    Util::RelAccXFieldData sizeField;
-  };
-
   class Fragments{
   public:
     Fragments(const Util::RelAccX &_fragments);
@@ -286,10 +233,68 @@ namespace DTSC{
     Util::RelAccXFieldData fragmentFirstKeyField;
     Util::RelAccXFieldData fragmentSizeField;
 
+    Util::RelAccXFieldData pageAvailField;
+    Util::RelAccXFieldData pageFirstKeyField;
+
     Util::RelAccXFieldData framesTimeField;
+    Util::RelAccXFieldData framesSizeField;
     Util::RelAccXFieldData framesDataField;
   };
 
+  class Keys {
+    public:
+      Keys(Util::RelAccX & _keys);
+      Keys(const Util::RelAccX & _keys);
+      Keys(Track & _trk);
+      Keys(const Track & _trk);
+      size_t getFirstValid() const;
+      size_t getEndValid() const;
+      size_t getValidCount() const;
+      size_t getFirstPart(size_t idx) const;
+      size_t getBpos(size_t idx) const;
+      uint64_t getDuration(size_t idx) const;
+      size_t getNumber(size_t idx) const;
+      size_t getParts(size_t idx) const;
+      uint64_t getTime(size_t idx) const;
+      void setSize(size_t idx, size_t _size);
+      size_t getSize(size_t idx) const;
+
+      uint64_t getTotalPartCount();
+      uint32_t getIndexForTime(uint64_t timestamp);
+
+      void applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p);
+      void applyLimiter(uint64_t _min, uint64_t _max);
+
+    private:
+      bool isConst;
+      bool isLimited;
+      bool isFrames;
+      size_t limMin;
+      size_t limMax;
+      // Overrides for max key
+      size_t limMaxParts;
+      uint64_t limMaxDuration;
+      size_t limMaxSize;
+      // Overrides for min key
+      size_t limMinParts;
+      size_t limMinFirstPart;
+      uint64_t limMinDuration;
+      uint64_t limMinTime;
+      size_t limMinSize;
+
+      Util::RelAccX empty;
+
+      Util::RelAccX & keys;
+      const Util::RelAccX & cKeys;
+
+      Util::RelAccXFieldData firstPartField;
+      Util::RelAccXFieldData bposField;
+      Util::RelAccXFieldData durationField;
+      Util::RelAccXFieldData numberField;
+      Util::RelAccXFieldData partsField;
+      Util::RelAccXFieldData timeField;
+      Util::RelAccXFieldData sizeField;
+  };
 
   class jitterTimer{
   public:
@@ -505,7 +510,7 @@ namespace DTSC{
     Util::RelAccX &pages(size_t idx);
     const Util::RelAccX &pages(size_t idx) const;
 
-    const Keys getKeys(size_t trackIdx) const;
+    const Keys getKeys(size_t trackIdx, bool applyLimiter = true) const;
 
     void storeFrame(size_t trackIdx, uint64_t time, const char * data, size_t dataSize);
 

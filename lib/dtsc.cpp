@@ -1383,6 +1383,9 @@ namespace DTSC{
         t.fragmentKeysField = t.fragments.getFieldData("keys");
         t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
         t.fragmentSizeField = t.fragments.getFieldData("size");
+
+        t.pageAvailField = t.pages.getFieldData("avail");
+        t.pageFirstKeyField = t.pages.getFieldData("firstkey");
       }
     }
   }
@@ -1492,6 +1495,9 @@ namespace DTSC{
           t.fragmentKeysField = t.fragments.getFieldData("keys");
           t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
           t.fragmentSizeField = t.fragments.getFieldData("size");
+
+          t.pageAvailField = t.pages.getFieldData("avail");
+          t.pageFirstKeyField = t.pages.getFieldData("firstkey");
         }
 
       }
@@ -2076,6 +2082,8 @@ namespace DTSC{
     t.pages.addField("lastkeytime", RAX_64UINT);
     t.pages.setRCount(pageCount);
     t.pages.setReady();
+    t.pageAvailField = t.pages.getFieldData("avail");
+    t.pageFirstKeyField = t.pages.getFieldData("firstkey");
   }
 
   /// Sets the given track's init data.
@@ -2459,10 +2467,10 @@ namespace DTSC{
     Track &t = tracks[trackIdx];
     if (t.pages.isReady()){
       for (uint64_t i = t.pages.getDeleted(); i < t.pages.getEndPos(); i++){
-        if (t.pages.getInt("avail", i) == 0){continue;}
+        if (t.pages.getInt(t.pageAvailField, i) == 0) { continue; }
         char thisPageName[NAME_BUFFER_SIZE];
         snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
-                 (uint32_t)t.pages.getInt("firstkey", i));
+                 (uint32_t)t.pages.getInt(t.pageFirstKeyField, i));
         IPC::sharedPage p(thisPageName, 20971520);
         p.master = true;
       }
@@ -2836,19 +2844,18 @@ namespace DTSC{
   Util::RelAccX &Meta::keys(size_t idx){return tracks.at(idx).keys;}
   const Util::RelAccX &Meta::keys(size_t idx) const{return tracks.at(idx).keys;}
 
-  const Keys Meta::getKeys(size_t trackIdx) const{
+  const Keys Meta::getKeys(size_t trackIdx, bool applyLimiter) const {
     const Track & t = tracks.at(trackIdx);
-    if (t.frames.isReady()){
-      DTSC::Keys k(t.frames);
-      if (isLimited){k.applyLimiter(limitMin, limitMax);}
-      return k;
-    }else{
-      DTSC::Keys k(t.keys);
-      if (isLimited){k.applyLimiter(limitMin, limitMax, DTSC::Parts(t.parts));}
-      return k;
+    DTSC::Keys k(t);
+    if (applyLimiter && isLimited) {
+      if (t.frames.isReady()) {
+        k.applyLimiter(limitMin, limitMax);
+      } else {
+        k.applyLimiter(limitMin, limitMax, DTSC::Parts(t.parts));
+      }
     }
+    return k;
   }
-
 
   void Meta::storeFrame(size_t trackIdx, uint64_t time, const char * data, size_t dataSize){
     Track & t = tracks.at(trackIdx);
@@ -3452,9 +3459,12 @@ namespace DTSC{
 
   /// Given the current page, check if the next page is available. Returns true if it is.
   bool Meta::nextPageAvailable(uint32_t idx, size_t currentPage) const{
-    const Util::RelAccX &pages = tracks.at(idx).pages;
+    const Track & t = tracks.at(idx);
+    const Util::RelAccX & pages = t.pages;
     for (size_t i = pages.getStartPos(); i + 1 < pages.getEndPos(); ++i){
-      if (pages.getInt("firstkey", i) == currentPage){return pages.getInt("avail", i + 1);}
+      if (pages.getInt(t.pageFirstKeyField, i) == currentPage) {
+        return pages.getInt(t.pageAvailField, i + 1);
+      }
     }
     return false;
   }
@@ -3462,14 +3472,13 @@ namespace DTSC{
   /// Given a timestamp, returns the page number that timestamp can be found on.
   /// If the timestamp is not available, returns the closest page number that is.
   size_t Meta::getPageNumberForTime(uint32_t idx, uint64_t time) const{
-    const Util::RelAccX &pages = tracks.at(idx).pages;
-    Util::RelAccXFieldData avail = pages.getFieldData("avail");
-    Util::RelAccXFieldData firsttime = pages.getFieldData("firsttime");
+    const Track & t = tracks.at(idx);
+    const Util::RelAccX & pages = t.pages;
     uint32_t res = pages.getStartPos();
     uint64_t endPos = pages.getEndPos();
     for (uint64_t i = res; i < endPos; ++i){
-      if (pages.getInt(avail, i) == 0){continue;}
-      if (pages.getInt(firsttime, i) > time){break;}
+      if (pages.getInt(t.pageAvailField, i) == 0) { continue; }
+      if (pages.getInt(t.pageFirstKeyField, i) > time) { break; }
       res = i;
     }
     DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %" PRIu64, time, idx, pages.getInt("firstkey", res));
@@ -3479,14 +3488,15 @@ namespace DTSC{
   /// Given a key, returns the page number it can be found on.
   /// If the key is not available, returns the closest page that is.
   size_t Meta::getPageNumberForKey(uint32_t idx, uint64_t keyNum) const{
-    const Util::RelAccX &pages = tracks.at(idx).pages;
+    const Track & t = tracks.at(idx);
+    const Util::RelAccX & pages = t.pages;
     size_t res = pages.getStartPos();
     for (size_t i = pages.getStartPos(); i < pages.getEndPos(); ++i){
-      if (pages.getInt("avail", i) == 0){continue;}
-      if (pages.getInt("firstkey", i) > keyNum){break;}
+      if (pages.getInt(t.pageAvailField, i) == 0) { continue; }
+      if (pages.getInt(t.pageFirstKeyField, i) > keyNum) { break; }
       res = i;
     }
-    return pages.getInt("firstkey", res);
+    return pages.getInt(t.pageFirstKeyField, res);
   }
 
   /// Returns the key number containing a given time.
@@ -3717,6 +3727,45 @@ namespace DTSC{
       isFrames = true;
       timeField = cKeys.getFieldData("time");
       sizeField = cKeys.getFieldData("data");
+    }
+    isLimited = false;
+  }
+
+  Keys::Keys(Track & _trk)
+    : isConst(false), keys(_trk.frames.isReady() ? _trk.frames : _trk.keys),
+      cKeys(_trk.frames.isReady() ? _trk.frames : _trk.keys) {
+    if (_trk.frames.isReady()) {
+      isFrames = true;
+      timeField = _trk.framesTimeField;
+      sizeField = _trk.framesDataField;
+    } else {
+      isFrames = false;
+      firstPartField = _trk.keyFirstPartField;
+      bposField = _trk.keyBposField;
+      durationField = _trk.keyDurationField;
+      numberField = _trk.keyNumberField;
+      partsField = _trk.keyPartsField;
+      timeField = _trk.keyTimeField;
+      sizeField = _trk.keySizeField;
+    }
+    isLimited = false;
+  }
+
+  Keys::Keys(const Track & _trk)
+    : isConst(true), keys(empty), cKeys(_trk.frames.isReady() ? _trk.frames : _trk.keys) {
+    if (_trk.frames.isReady()) {
+      isFrames = true;
+      timeField = _trk.framesTimeField;
+      sizeField = _trk.framesDataField;
+    } else {
+      isFrames = false;
+      firstPartField = _trk.keyFirstPartField;
+      bposField = _trk.keyBposField;
+      durationField = _trk.keyDurationField;
+      numberField = _trk.keyNumberField;
+      partsField = _trk.keyPartsField;
+      timeField = _trk.keyTimeField;
+      sizeField = _trk.keySizeField;
     }
     isLimited = false;
   }

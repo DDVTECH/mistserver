@@ -450,7 +450,7 @@ namespace Mist{
 
     char *isChild = getenv("HOLY_CHILD");
     if (isChild) { unsetenv("HOLY_CHILD"); }
-    if (!isChild && !checkArguments()) {
+    if (!checkArguments()) {
       Util::logExitReason(ER_UNKNOWN, "Setup failed - exiting");
       return exitAndLogReason();
     }

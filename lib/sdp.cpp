@@ -427,24 +427,19 @@ namespace SDP{
       return true;
     }
 
-    // Since default is set to IPV6, force to AF_UNSPEC
-    data.setSocketFamily(AF_UNSPEC);
-    rtcp.setSocketFamily(AF_UNSPEC);
-    // Test UDP ports
     int sendbuff = 4 * 1024 * 1024;
-    data.SetDestination(hostInfo, portRTP);
     setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
-    rtcp.SetDestination(hostInfo, portRTCP);
     setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+
     // Bind sockets
     portA = data.bind(portRTP, hostInfo);
     if (portA != portRTP){
-      FAIL_MSG("Server requested RTP port %u, which we couldn't bind", portRTP);
+      FAIL_MSG("Server sending RTP to %s:%u, which we couldn't bind", hostInfo.c_str(), portRTP);
       return false;
     }
     portB = rtcp.bind(portRTCP, hostInfo);
     if (portB != portRTCP){
-      FAIL_MSG("Server requested RTCP port %u, which we couldn't bind", portRTCP);
+      FAIL_MSG("Server sending RTCP to %s:%u, which we couldn't bind", hostInfo.c_str(), portRTCP);
       return false;
     }
 

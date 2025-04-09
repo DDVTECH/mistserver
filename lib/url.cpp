@@ -345,7 +345,11 @@ HTTP::URL HTTP::URL::link(const std::string &l) const{
       tmp.args.clear();
       tmp.path = l.substr(1);
       // Abuse the fact that we don't check for arguments in getUrl()
-      return URL(tmp.getUrl());
+      if (tmp.isLocalPath()) {
+        return URL(tmp.getFilePath());
+      } else {
+        return URL(tmp.getUrl());
+      }
     }
   }
   // Relative link

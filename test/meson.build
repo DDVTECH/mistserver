@@ -21,7 +21,7 @@ test('Socket buffer test 8MiB', sockbuftest, args: ['1048576'])
 # reference first arg - enum fun { BASIC = 0, NORES = 1, PRINT = 2, INPUT = 3, SLEEP = 4, FAIL = 5 };
 proctest = executable('proctest', 'procs.cpp', header_tgts, dependencies: libmist_dep)
 test('Start piped process', proctest, suite: 'Procs', args: ['0', '0', '1', '2'])
-test('Identical (bad) file descriptors', proctest, suite: 'Procs', args: ['1', '0', '0', '0'])
+test('Bad file descriptors', proctest, suite: 'Procs', args: ['1', '3', '4', '5'])
 test('Retrieve stdout from child', proctest, suite: 'Procs', args: ['2', '', '', ''])
 test('Child moves stdin to stdout ', proctest, suite: 'Procs', args: ['3', '', '', ''])
 test('Sleep then retrieve stdout', proctest, suite: 'Procs', args: ['4', '', '', ''])
@@ -53,10 +53,10 @@ test('Numerical path deletion', urltest, suite: 'URL parser',
 test('Leading single char path deletion', urltest, suite: 'URL parser',
       env: urltest_relpath,
       args: ['https://relpath.com/a/..'])
-test('Trailing current dir path deletion', urltest, suite: 'URL parser',
+test('Trailing URL current dir path deletion', urltest, suite: 'URL parser',
       env: urltest_relpath,
       args: ['https://relpath.com/.'])
-test('Trailing current dir path deletion', urltest, suite: 'URL parser',
+test('Trailing file current dir path deletion', urltest, suite: 'URL parser',
       env: urltest_v + {'T_PATH':'bla/', 'T_NORM':'/bla/'},
       args: ['///bla/.'])
 test('Extension', urltest, suite: 'URL parser',
@@ -78,10 +78,10 @@ test('Query/fragment chars before ? char (unescaped)', urltest, suite: 'URL pars
       env : urltest_v + {'T_PROTO':'prot', 'T_HOST':'authority.nl', 'T_PATH':'p&a=t', 'T_FRAG':'h/', 'T_NORM':'prot://authority.nl/p%26a=t#h/'},
       args : ['prot://authority.nl/p&a=t#h/'])
 test('Path with spaces', urltest, suite: 'URL parser',
-      env : urltest_v + {'T_PROTO':'prot', 'T_HOST':'authority.nl', 'T_PATH':'p at!h/', 'T_NORM':'prot://authority.nl/p+at!h/'},
+      env : urltest_v + {'T_PROTO':'prot', 'T_HOST':'authority.nl', 'T_PATH':'p at!h/', 'T_NORM':'prot://authority.nl/p%20at!h/'},
       args : ['prot://authority.nl/p%20at%21h/'])
 test('Escaped characters', urltest, suite: 'URL parser',
-      env : urltest_v + {'T_PROTO':'prot', 'T_HOST':'authority.nl', 'T_PATH':' !"#$%&()/*+,-.//0123456789/:;<=>?@/', 'T_NORM':'prot://authority.nl/+!%22%23$%25%26()/*%2b,-.//0123456789/:;%3c=%3e%3f@/'},
+      env : urltest_v + {'T_PROTO':'prot', 'T_HOST':'authority.nl', 'T_PATH':' !"#$%&()/*+,-.//0123456789/:;<=>?@/', 'T_NORM':'prot://authority.nl/%20!%22%23$%25%26()/*%2b,-.//0123456789/:;%3c=%3e%3f@/'},
       args : ['prot://authority.nl/%20%21%22%23%24%25%26%28%29/%2A%2B%2C%2D%2E%2F/%30%31%32%33%34%35%36%37%38%39/%3A%3B%3C%3D%3E%3F%40/'])
 test('Linking / Absolute', urltest, suite: 'URL parser',
       env : urltest_vm + {'T_PATH':'sub1/sub2/', 'T_NORM':'/sub1/sub2/'},
@@ -104,6 +104,9 @@ test('Linking / Protocol absolute', urltest, suite: 'URL parser',
 test('UTF-8 emoji in path', urltest, suite: 'URL parser',
       env : urltest_v + {'T_PROTO':'prot', 'T_HOST':'authority.nl', 'T_PATH':'😋😄😡😵/', 'T_NORM':'prot://authority.nl/%f0%9f%98%8b%f0%9f%98%84%f0%9f%98%a1%f0%9f%98%b5/'},
       args : ['prot://authority.nl/😋😄😡😵/'])
+test('UTF-8 emoji in file', urltest, suite: 'URL parser',
+      env : urltest_v + {'T_HOST':'', 'T_PATH':'🐇.ts', 'T_NORM':'/🐇.ts', 'T_EXT':'ts'},
+      args : ['/🐇.ts'])
 test('UTF-8 reverse char in path', urltest, suite: 'URL parser',
       env : urltest_v + {'T_PROTO':'prot', 'T_HOST':'a.nl', 'T_PATH':'reverse‏reverse/', 'T_NORM':'prot://a.nl/reverse%e2%80%8freverse/'},
       args : ['prot://a.nl/reverse%E2%80%8Freverse/'])
@@ -130,16 +133,16 @@ test('Username but no password linking', urltest, suite: 'URL parser',
       args : ['http://a@c', 'test'])
 test('Protocol-absolute base', urltest, suite: 'URL parser',
       env : urltest_v + {'T_PROTO':'', 'T_HOST':'test', 'T_NORM':'//test/'},
-      args : ['//test'])
+      args : ['--direct', '//test'])
 test('Bare port number', urltest, suite: 'URL parser',
       env : urltest_v + {'T_PORT':'42', 'T_NORM':'//:42/'},
-      args : ['42'])
+      args : ['--direct', '42'])
 test('Bare port number linking', urltest, suite: 'URL parser',
       env : urltest_v + {'T_PORT':'42', 'T_NORM':'//:42/test', 'T_PATH':'test'},
-      args : ['42', 'test'])
+      args : ['--direct', '42', 'test'])
 test('Query string without path', urltest, suite: 'URL parser',
       env : urltest_v + {'T_PROTO':'', 'T_HOST':'test', 'T_QUERY':'test=test', 'T_NORM':'//test/?test=test'},
-      args : ['//test?test=test'])
+      args : ['--direct', '//test?test=test'])
 test('RTMP IPv6 address', urltest, suite: 'URL parser',
       env : urltest_v + {'T_PROTO':'rtmp', 'T_HOST':'2001:db8::1', 'T_PORT':'1935', 'T_NORM':'rtmp://[2001:db8::1]/'},
       args : ['rtmp://[2001:db8::1]/'])

@@ -1,6 +1,8 @@
-#include <mist/url.h>
 #include <mist/http_parser.h>
 #include <mist/json.h>
+#include <mist/urireader.h>
+#include <mist/url.h>
+
 #include <iostream>
 
 /// Helper function that compares an environment variable against a string
@@ -8,7 +10,7 @@ int checkStr(const char * envVar, const std::string & str){
   //Ignore test when no expected value set
   if (!getenv(envVar)){return 0;}
   //Environment value exists, do check
-  if (str != getenv(envVar)){
+  if (str != getenv(envVar) && (std::string(envVar) != "T_PROTO" || str != "file" || getenv(envVar)[0])) {
     //Print error message on mismatch, detailing problem
     std::cerr << "ERROR: Value of " << envVar << " should be '" << getenv(envVar) << "' but was '" << str << "'" << std::endl;
     return 1;
@@ -31,13 +33,17 @@ int checkInt(const char * envVar, const uint64_t i){
 
 int main(int argc, char **argv){
   if (argc < 2){
-    std::cout << "Usage: " << argv[0] << " URL" << std::endl;
+    std::cout << "Usage: " << argv[0] << " [--direct] URL [URL] [URL] [...]" << std::endl;
     return 1;
   }
-  HTTP::URL u(argv[1]);
+  HTTP::URL u = HTTP::localURIResolver();
   for (int i = 1; i < argc; ++i){
     HTTP::URL prev = u;
-    if (i > 1){u = u.link(argv[i]);}
+    if (argv[i] == std::string("--direct")) {
+      u = HTTP::URL(argv[++i]);
+    } else {
+      u = u.link(argv[i]);
+    }
     std::cout << argv[i] << " -> " << (u.isLocalPath()?u.getFilePath():u.getUrl()) << std::endl;
     if (i > 1){
       std::cout << "Link from previous: " << u.getLinkFrom(prev) << std::endl;

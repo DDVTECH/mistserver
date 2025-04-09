@@ -28,7 +28,8 @@ void runTest(const char *const *argv, int fd[3], bool expected) {
   } else {
     INFO_MSG("fderr is null")
   };
-  assert(expected == (bool)Util::Procs::StartPiped(argv, fdin, fdout, fderr));
+  pid_t pid = Util::Procs::StartPiped(argv, fdin, fdout, fderr);
+  assert(expected == (bool)pid);
 }
 
 void runTestWithOutput(const char *const *argv, std::string expected) {

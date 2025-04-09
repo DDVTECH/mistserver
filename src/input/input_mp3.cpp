@@ -1,16 +1,15 @@
-#include <cerrno>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
-#include <iostream>
+#include "input_mp3.h"
+
 #include <mist/defines.h>
 #include <mist/flv_tag.h>
 #include <mist/mpeg.h>
 #include <mist/stream.h>
-#include <string>
 
-#include "input_mp3.h"
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
 
 namespace Mist{
   InputMP3::InputMP3(Util::Config *cfg) : Input(cfg){
@@ -131,6 +130,10 @@ namespace Mist{
     // mpeg layer is on the bits 0x06 of packHeader[1] --> 1 is layer 3, 2 is layer 2, 3 is layer 1
     // leads to 4 - value == layer, -1 to get the right index for the array
     int mpegLayer = 3 - ((packHeader[1] >> 1) & 0x03);
+    if (mpegLayer == 3) {
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "File is not valid MP3");
+      return;
+    }
     int sampleCount = sampleCounts[mpegVersion][mpegLayer];
     // samplerate is encoded in bits 0x0C of packHeader[2];
     int sampleRate = sampleRates[mpegVersion][((packHeader[2] >> 2) & 0x03)] * 1000;
@@ -155,7 +158,7 @@ namespace Mist{
     thisIdx = 0;
 
     // Update the internal timestamp
-    timestamp += (sampleCount / (sampleRate / 1000));
+    timestamp += (sampleCount / (sampleRate / 1000.0));
   }
 
   void InputMP3::seek(uint64_t seekTime, size_t idx){

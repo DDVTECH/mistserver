@@ -44,8 +44,9 @@ int AMF::Object::hasContent(){
 
 /// Adds an AMF::Object to this object. Works for all types, but only makes sense for container
 /// types.
-void AMF::Object::addContent(AMF::Object c){
+AMF::Object *AMF::Object::addContent(const AMF::Object & c) {
   contents.push_back(c);
+  return &*contents.rbegin();
 }
 
 /// Returns a pointer to the object held at indice i.
@@ -593,8 +594,9 @@ int AMF::Object3::hasContent(){
 
 /// Adds an AMF::Object to this object. Works for all types, but only makes sense for container
 /// types.
-void AMF::Object3::addContent(AMF::Object3 c){
+AMF::Object3 *AMF::Object3::addContent(const AMF::Object3 & c) {
   contents.push_back(c);
+  return &*contents.rbegin();
 }
 
 /// Returns a pointer to the object held at indice i.

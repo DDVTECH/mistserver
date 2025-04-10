@@ -498,88 +498,79 @@ bool FLV::Tag::DTSCMetaInit(const DTSC::Meta &M, std::set<size_t> &selTracks){
   AMF::Object amfdata("root", AMF::AMF0_DDV_CONTAINER);
   amfdata.addContent(AMF::Object("", "@setDataFrame"));
   amfdata.addContent(AMF::Object("", "onMetaData"));
-  amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
-  AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);
-  int i = 0;
+  AMF::Object *mArr = amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
+  // AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);
   uint64_t mediaLen = 0;
   for (std::set<size_t>::iterator it = selTracks.begin(); it != selTracks.end(); it++){
     if (M.getDuration(*it) > mediaLen){mediaLen = M.getDuration(*it);}
     if (M.getType(*it) == "video"){
-      trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
-      trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
-      AMF::Object * sampDesc = trinfo.getContentP(i)->getContentP(0);
+      // AMF::Object * trObj = trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
+      // AMF::Object * sampDesc = trObj->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
       if (M.getVod()){
-        trinfo.getContentP(i)->addContent(AMF::Object( "length", ((double)M.getDuration(*it) / 1000) * ((double)M.getFpks(*it) / 1000.0), AMF::AMF0_NUMBER));
+        // trObj->addContent(AMF::Object( "length", ((double)M.getDuration(*it) / 1000) * ((double)M.getFpks(*it) / 1000.0), AMF::AMF0_NUMBER));
       }
-      trinfo.getContentP(i)->addContent(AMF::Object("timescale", ((double)M.getFpks(*it) / 1000), AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
+      // trObj->addContent(AMF::Object("timescale", ((double)M.getFpks(*it) / 1000), AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
       std::string codec = M.getCodec(*it);
       if (codec == "H264"){
-        amfdata.getContentP(2)->addContent(AMF::Object("videocodecid", 7, AMF::AMF0_NUMBER));
-        sampDesc->addContent(AMF::Object("sampletype", "avc1"));
+        mArr->addContent(AMF::Object("videocodecid", 7, AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("sampletype", "avc1"));
       }
       if (codec == "ScreenVideo2"){
-        amfdata.getContentP(2)->addContent(AMF::Object("videocodecid", 6, AMF::AMF0_NUMBER));
-        sampDesc->addContent(AMF::Object("sampletype", "sv2"));
+        mArr->addContent(AMF::Object("videocodecid", 6, AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("sampletype", "sv2"));
       }
       if (codec == "VP6Alpha"){
-        amfdata.getContentP(2)->addContent(AMF::Object("videocodecid", 5, AMF::AMF0_NUMBER));
-        sampDesc->addContent(AMF::Object("sampletype", "vp6a"));
+        mArr->addContent(AMF::Object("videocodecid", 5, AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("sampletype", "vp6a"));
       }
       if (codec == "VP6"){
-        amfdata.getContentP(2)->addContent(AMF::Object("videocodecid", 4, AMF::AMF0_NUMBER));
-        sampDesc->addContent(AMF::Object("sampletype", "vp6"));
+        mArr->addContent(AMF::Object("videocodecid", 4, AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("sampletype", "vp6"));
       }
       if (codec == "ScreenVideo1"){
-        amfdata.getContentP(2)->addContent(AMF::Object("videocodecid", 3, AMF::AMF0_NUMBER));
-        sampDesc->addContent(AMF::Object("sampletype", "sv1"));
+        mArr->addContent(AMF::Object("videocodecid", 3, AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("sampletype", "sv1"));
       }
       if (codec == "H263"){
-        amfdata.getContentP(2)->addContent(AMF::Object("videocodecid", 2, AMF::AMF0_NUMBER));
-        sampDesc->addContent(AMF::Object("sampletype", "h263"));
+        mArr->addContent(AMF::Object("videocodecid", 2, AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("sampletype", "h263"));
       }
       if (codec == "JPEG"){
-        amfdata.getContentP(2)->addContent(AMF::Object("videocodecid", 1, AMF::AMF0_NUMBER));
-        sampDesc->addContent(AMF::Object("sampletype", "jpeg"));
+        mArr->addContent(AMF::Object("videocodecid", 1, AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("sampletype", "jpeg"));
       }
-      amfdata.getContentP(2)->addContent(AMF::Object("width", M.getWidth(*it), AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(AMF::Object("height", M.getHeight(*it), AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(
-          AMF::Object("videoframerate", (double)M.getFpks(*it) / 1000.0, AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(
-          AMF::Object("videodatarate", (double)M.getBps(*it) / 128.0, AMF::AMF0_NUMBER));
-      ++i;
+      mArr->addContent(AMF::Object("width", M.getWidth(*it), AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("height", M.getHeight(*it), AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("videoframerate", (double)M.getFpks(*it) / 1000.0, AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("videodatarate", (double)M.getBps(*it) / 128.0, AMF::AMF0_NUMBER));
     }
     if (M.getType(*it) == "audio"){
-      trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
-      trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
-      AMF::Object * sampDesc = trinfo.getContentP(i)->getContentP(0);
+      // AMF::Object * trObj = trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
+      // AMF::Object * sampDesc = trObj->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
       if (M.getVod()){
-        trinfo.getContentP(i)->addContent(
-            AMF::Object("length", (double)(M.getDuration(*it) * M.getRate(*it)), AMF::AMF0_NUMBER));
+        // sampDesc->addContent(AMF::Object("length", (double)(M.getDuration(*it) * M.getRate(*it)), AMF::AMF0_NUMBER));
       }
-      trinfo.getContentP(i)->addContent(AMF::Object("timescale", M.getRate(*it), AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
-      amfdata.getContentP(2)->addContent(AMF::Object("audiodelay", 0.0, AMF::AMF0_NUMBER));
+      // trObj->addContent(AMF::Object("timescale", M.getRate(*it), AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
+      mArr->addContent(AMF::Object("audiodelay", 0.0, AMF::AMF0_NUMBER));
       std::string codec = M.getCodec(*it);
       if (codec == "AAC"){
-        amfdata.getContentP(2)->addContent(AMF::Object("audiocodecid", "mp4a"));
-        sampDesc->addContent(AMF::Object("sampletype", "mp4a"));
+        mArr->addContent(AMF::Object("audiocodecid", "mp4a"));
+        // sampDesc->addContent(AMF::Object("sampletype", "mp4a"));
       }
       if (codec == "MP3"){
-        amfdata.getContentP(2)->addContent(AMF::Object("audiocodecid", "mp3"));
-        sampDesc->addContent(AMF::Object("sampletype", "mp3"));
+        mArr->addContent(AMF::Object("audiocodecid", "mp3"));
+        // sampDesc->addContent(AMF::Object("sampletype", "mp3"));
       }
-      amfdata.getContentP(2)->addContent(AMF::Object("audiochannels", M.getChannels(*it), AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(AMF::Object("audiosamplerate", M.getRate(*it), AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(AMF::Object("audiosamplesize", M.getSize(*it), AMF::AMF0_NUMBER));
-      amfdata.getContentP(2)->addContent(
-          AMF::Object("audiodatarate", (double)M.getBps(*it) / 128.0, AMF::AMF0_NUMBER));
-      ++i;
+      mArr->addContent(AMF::Object("audiochannels", M.getChannels(*it), AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("audiosamplerate", M.getRate(*it), AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("audiosamplesize", M.getSize(*it), AMF::AMF0_NUMBER));
+      mArr->addContent(AMF::Object("audiodatarate", (double)M.getBps(*it) / 128.0, AMF::AMF0_NUMBER));
     }
   }
   if (M.getVod()){
-    amfdata.getContentP(2)->addContent(AMF::Object("duration", mediaLen / 1000.0, AMF::AMF0_NUMBER));
+    mArr->addContent(AMF::Object("duration", mediaLen / 1000.0, AMF::AMF0_NUMBER));
   }
   //amfdata.getContentP(2)->addContent(trinfo);
 

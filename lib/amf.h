@@ -62,7 +62,7 @@ namespace AMF{
     std::string StrValue();
     const char *Str();
     int hasContent();
-    void addContent(AMF::Object c);
+    Object *addContent(const AMF::Object & c);
     Object *getContentP(unsigned int i);
     Object getContent(unsigned int i);
     Object *getContentP(std::string s);
@@ -104,7 +104,7 @@ namespace AMF{
     std::string StrValue();
     const char *Str();
     int hasContent();
-    void addContent(AMF::Object3 c);
+    Object3 *addContent(const AMF::Object3 & c);
     Object3 *getContentP(int i);
     Object3 getContent(int i);
     Object3 *getContentP(std::string s);

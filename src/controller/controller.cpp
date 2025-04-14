@@ -439,6 +439,7 @@ int main_loop(int argc, char **argv){
                "may occur should you ever run out of free RAM. Please be pro-active and keep an "
                "eye on the RAM usage!", (mem_free + mem_bufcache)/1024);
     }
+#ifndef __APPLE__
     if (shm_free < 1024 * 1024 && mem_total > 1024 * 1024 * 1.12){
       WARN_MSG("You have very little shared memory available (%" PRIu64
                " MiB). Mist heavily relies on shared memory: please ensure your shared memory is "
@@ -472,6 +473,7 @@ int main_loop(int argc, char **argv){
                  (uint64_t)(mem_total * 0.95 / 1024));
       }
     }
+#endif
   }
 #endif
 

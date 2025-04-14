@@ -1817,8 +1817,8 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       }
     }
   }
+#if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__APPLE__)
   uint64_t shm_total = 0, shm_free = 0;
-#if !defined(__CYGWIN__) && !defined(_WIN32)
   {
     struct statvfs shmd;
     IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
@@ -1844,12 +1844,15 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     response << "# HELP mist_mem_used Total memory in use in KiB.\n";
     response << "# TYPE mist_mem_used gauge\n";
     response << "mist_mem_used " << (mem_total - mem_free - mem_bufcache) << "\n\n";
+
+#if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__APPLE__)
     response << "# HELP mist_shm_total Total shared memory available in KiB.\n";
     response << "# TYPE mist_shm_total gauge\n";
     response << "mist_shm_total " << shm_total << "\n\n";
     response << "# HELP mist_shm_used Total shared memory in use in KiB.\n";
     response << "# TYPE mist_shm_used gauge\n";
     response << "mist_shm_used " << (shm_total - shm_free) << "\n\n";
+#endif
 
     response << "# HELP mist_viewseconds_total Number of seconds any media was received by a viewer.\n";
     response << "# TYPE mist_viewseconds_total counter\n";
@@ -1948,8 +1951,10 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     resp["cpu"] = cpu_use;
     resp["mem_total"] = mem_total;
     resp["mem_used"] = (mem_total - mem_free - mem_bufcache);
+#if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__APPLE__)
     resp["shm_total"] = shm_total;
     resp["shm_used"] = (shm_total - shm_free);
+#endif
     resp["logs"] = Controller::logCounter;
     resp["curr"].append(totViewers);
     resp["curr"].append(totInputs);

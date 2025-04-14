@@ -323,6 +323,9 @@ namespace Controller{
   /// edit it in the request. The LTS edition has additional requests that allow per-stream changing
   /// of the configuration.
   void CheckStreams(JSON::Value &in, JSON::Value &out){
+    // If the request is not an object, do nothing
+    if (!in.isObject()) { return; }
+
     // check for new streams and updates
     AddStreams(in, out);
 

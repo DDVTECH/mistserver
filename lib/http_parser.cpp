@@ -99,7 +99,6 @@ void HTTP::Parser::auth(const std::string &user, const std::string &pass,
     }else{
       urlPart = url;
     }
-    algo = "MD5";
     std::string A2 = Secure::md5(method + ":" + urlPart);
     std::string response;
     static uint32_t nc = 0;
@@ -117,7 +116,8 @@ void HTTP::Parser::auth(const std::string &user, const std::string &pass,
     // username | realm | nonce | digest-uri | response | [ algorithm ] | [cnonce] | [opaque] |
     // [message-qop] | [nonce-count]
     rep << "Digest username=\"" << user << "\", realm=\"" << realm << "\", nonce=\"" << nonce
-        << "\", uri=\"" << urlPart << "\", response=\"" << response << "\", algorithm=" + algo;
+        << "\", uri=\"" << urlPart << "\", response=\"" << response << "\"";
+    if (algo.size()) { rep << ", algorithm=" + algo; }
     if (qop.size()){rep << ", cnonce=\"" << cnonce << "\"";}
     if (opaque.size()){rep << ", opaque=\"" << opaque << "\"";}
     if (qop.size()){rep << ", qop=auth, nc=" << ncStr;}

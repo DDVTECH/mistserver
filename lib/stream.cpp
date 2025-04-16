@@ -714,7 +714,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
 
   if (overrides.count("singular")) {
     Util::Procs::setHandler();
-    Util::Procs::remember(pid);
+  }else{
+    Util::Procs::forget(pid);
   }
 
   if (spawn_pid) { *spawn_pid = pid; }

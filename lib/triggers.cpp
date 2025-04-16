@@ -16,16 +16,19 @@
 /// ignored. In the future this may change.
 ///
 
-#include "bitfields.h"  //for strToBool
-#include "defines.h"    //for FAIL_MSG and INFO_MSG
-#include "downloader.h" //for sending http request
-#include "procs.h"      //for StartPiped
-#include "shared_memory.h"
-#include "timing.h"
 #include "triggers.h"
-#include "util.h"
+
+#include "bitfields.h" //for strToBool
+#include "defines.h" //for FAIL_MSG and INFO_MSG
+#include "downloader.h" //for sending http request
+#include "ev.h"
 #include "json.h"
+#include "procs.h" //for StartPiped
+#include "shared_memory.h"
 #include "stream.h"
+#include "timing.h"
+#include "util.h"
+
 #include <string.h> //for strncmp
 
 namespace Triggers{
@@ -111,16 +114,21 @@ namespace Triggers{
       close(fdIn);
 
       if (sync){// if sync!=0 wait for response
-        uint32_t counter = 0;
-        while (Util::Procs::isActive(myProc) && counter < 150){
-          Util::sleep(100);
-          ++counter;
-          if (counter >= 100){
-            if (counter == 100){FAIL_MSG("Trigger taking too long - killing process");}
-            if (counter >= 140){
-              Util::Procs::Stop(myProc);
-            }else{
+        uint64_t startTime = Util::bootMS();
+        Event::Loop ev;
+        bool warned = false;
+        while (Util::Procs::isActive(myProc) && startTime + 15000 > Util::bootMS()) {
+          ev.await(100);
+          uint64_t now = Util::bootMS();
+          if (now >= startTime + 10000) {
+            if (!warned) {
+              FAIL_MSG("Trigger taking too long - killing process");
+              warned = true;
+            }
+            if (now >= startTime + 14000) {
               Util::Procs::Murder(myProc);
+            } else {
+              Util::Procs::Stop(myProc);
             }
           }
         }
@@ -134,7 +142,7 @@ namespace Triggers{
         fclose(outFile);
         free(fileBuf);
         close(fdOut);
-        if (counter >= 150 && !ret.size()){
+        if (warned && !ret.size()) {
           WARN_MSG("Using default trigger response: %s", defaultResponse.c_str());
           submitTriggerStat(trigger, tStartMs, false);
           return defaultResponse;

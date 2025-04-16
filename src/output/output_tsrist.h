@@ -21,6 +21,7 @@ namespace Mist{
 
   protected:
     virtual void connStats(uint64_t now, Comms::Connections &statComm);
+    inline virtual bool keepGoing() { return config->is_active; }
     //virtual std::string getConnectedHost(){
     //  return srtConn.remotehost;
     //}

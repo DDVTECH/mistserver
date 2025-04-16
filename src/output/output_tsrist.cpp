@@ -74,6 +74,7 @@ namespace Mist{
   }
 
   OutTSRIST::OutTSRIST(Socket::Connection &conn) : TSOutput(conn){
+    closeMyConn();
     connTime = Util::bootSecs();
     lastTimeStamp = 0;
     timeStampOffset = 0;
@@ -326,7 +327,10 @@ namespace Mist{
       data_blk.ref = 0;
       data_blk.seq = 0;
       data_blk.ts_ntp = 0;
-      rist_sender_data_write(sender_ctx, &data_blk);
+      if (rist_sender_data_write(sender_ctx, &data_blk) == -1) {
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "RIST send errror");
+        config->is_active = false;
+      }
       upBytes += packetBuffer.size();
       packetBuffer.assign(0,0);
     }

@@ -110,25 +110,15 @@ p.prototype.build = function (MistVideo,callback) {
           //this should indicate the end of Mist's buffer
           var buffer_end = 0;
           if (this.buffered.length) {
-            buffer_end = this.buffered.end(this.buffered.length-1)
+            buffer_end = this.buffered.end(this.buffered.length-1);
           }
           var time_since_buffer = (new Date().getTime() - MistVideo.player.api.lastProgress.getTime())*1e-3;
-          return buffer_end + time_since_buffer + -1*MistVideo.player.api.liveOffset + 45;
+          return buffer_end + time_since_buffer;
         };
-        overrides.set.currentTime = function(value){
-          var offset = value - MistVideo.player.api.duration;
-          //MistVideo.player.api.liveOffset = offset;
-          
-          MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
-          
-          MistVideo.video.currentTime = value;
-          //.player.api.setSource(MistUtil.http.url.addParam(MistVideo.source.url,{startunix:offset}));
-        }
         MistUtil.event.addListener(ele,"progress",function(){
           MistVideo.player.api.lastProgress = new Date();
         });
         MistVideo.player.api.lastProgress = new Date();
-        MistVideo.player.api.liveOffset = 0;
       }
       
     }

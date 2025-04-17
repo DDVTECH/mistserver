@@ -20,6 +20,8 @@ namespace Mist{
     void incomingRTP(const uint64_t track, const RTP::Packet &p);
 
   private:
+    uint64_t outCSeq; ///< Sequence number for outgoing requests
+    std::string sessName; ///< Session string for the RTSP session
     uint64_t pausepoint; ///< Position to pause at, when reached
     SDP::State sdpState;
     HTTP::Parser HTTP_R, HTTP_S;

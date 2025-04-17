@@ -42,6 +42,7 @@ namespace Mist{
   }
 
   OutRTSP::OutRTSP(Socket::Connection &myConn) : Output(myConn){
+    outCSeq = 0;
     pausepoint = 0;
     setPacketOffset = false;
     packetOffset = 0;
@@ -123,36 +124,26 @@ namespace Mist{
     SDP::Track & sdpTrk = sdpState.tracks[thisIdx];
     sdpTrk.pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(&M, thisIdx));
 
-    sdpTrk.pack.sendData([this, &sdpTrk](const char * data, size_t len){
+    // Callback function used in sendData and sendRTCP_SR
+    auto sendFunc = [this, &sdpTrk](const char * data, size_t len){
       if (sdpTrk.channel == -1){
         // UDP connection
         sdpTrk.data.SendNow(data, len);
         myConn.addUp(len);
       }else{
-        // 1 byte '$', 1 byte channel, 2 bytes length
-        char buf[] = "$$$$";
+        // TCP Connection
+        char buf[] = "$$$$"; // 1 byte '$', 1 byte channel, 2 bytes length
         buf[1] = sdpTrk.channel;
         ((short *)buf)[1] = htons(len);
         myConn.SendNow(buf, 4);
         myConn.SendNow(data, len);
       }
-    }, dataPointer, dataLen, meta.getCodec(thisIdx));
+    };
+
+    sdpTrk.pack.sendData(sendFunc, dataPointer, dataLen, meta.getCodec(thisIdx));
 
     if (Util::bootSecs() != sdpTrk.rtcpSent){
-      sdpTrk.pack.sendRTCP_SR([this, &sdpTrk](const char * data, size_t len){
-        if (sdpTrk.channel == -1){
-          // UDP connection
-          sdpTrk.rtcp.SendNow(data, len);
-          myConn.addUp(len);
-        }else{
-          // 1 byte '$', 1 byte channel, 2 bytes length
-          char buf[] = "$$$$";
-          buf[1] = sdpTrk.channel;
-          ((short *)buf)[1] = htons(len);
-          myConn.SendNow(buf, 4);
-          myConn.SendNow(data, len);
-        }
-      });
+      sdpTrk.pack.sendRTCP_SR(sendFunc);
       sdpTrk.rtcpSent = Util::bootSecs();
     }
 
@@ -164,6 +155,8 @@ namespace Mist{
       HTTP_S.Clean();
       HTTP_S.SetHeader("Content-Type", "application/sdp");
       HTTP_S.SetHeader("Content-Base", reqUrl);
+      HTTP_S.SetHeader("CSeq", ++outCSeq);
+      if (sessName.size()){ HTTP_S.SetHeader("Session", sessName); }
       HTTP_S.method = "ANNOUNCE";
       HTTP_S.url = reqUrl;
       HTTP_S.protocol = "RTSP/1.0";
@@ -215,10 +208,10 @@ namespace Mist{
         streamName = HTTP_R.url.substr(found + 1, HTTP_R.url.substr(found + 1).find('/'));
         Util::sanitizeName(streamName);
       }
-      if (streamName.size()){
-        HTTP_S.SetHeader("Session", Secure::md5(HTTP_S.GetHeader("User-Agent") + getConnectedHost()) +
-                                        "_" + streamName);
+      if (streamName.size() && !sessName.size()){
+        sessName = Secure::md5(HTTP_S.GetHeader("User-Agent") + getConnectedHost()) + "_" + streamName;
       }
+      if (sessName.size()){ HTTP_S.SetHeader("Session", sessName); }
 
       // allow setting of max lead time through buffer variable.
       // max lead time is set in MS, but the variable is in integer seconds for simplicity.

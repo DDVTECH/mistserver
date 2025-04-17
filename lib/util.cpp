@@ -520,7 +520,7 @@ namespace Util{
     memcpy((void *)(childArgs + 1), argv, sizeof(char *) * idx);
     std::string childCmd = Util::getMyPath() + "MistUtilLog";
     ((char **)childArgs)[0] = (char *)childCmd.c_str(); // they call me a two star programmer
-    ((char **)childArgs)[idx + 1] = (char *)childCmd.c_str();
+    ((char **)childArgs)[idx + 1] = 0;
 
     pid_t pid = Util::Procs::StartPiped(childArgs, &fdIn, &fdOut, &fdErr);
 

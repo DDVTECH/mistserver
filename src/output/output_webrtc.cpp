@@ -584,6 +584,13 @@ namespace Mist{
     capa["optional"]["pubhost"]["option"] = "--pubhost";
     capa["optional"]["pubhost"]["short"] = "H";
 
+    capa["optional"]["override_port"]["name"] = "Override external port";
+    capa["optional"]["override_port"]["help"] = "What port to pass on in the SDP (e.g. in case the port is mapped through a firewall to a different port externally). Defaults to actually bound port.";
+    capa["optional"]["override_port"]["default"] = 0;
+    capa["optional"]["override_port"]["type"] = "uint";
+    capa["optional"]["override_port"]["option"] = "--override_port";
+    capa["optional"]["override_port"]["short"] = "Q";
+
     capa["optional"]["mergesessions"]["name"] = "merge sessions";
     capa["optional"]["mergesessions"]["help"] =
         "if enabled, merges together all views from a single user into a single combined session. "
@@ -1407,6 +1414,8 @@ namespace Mist{
 
 
     sdpAnswer.port = udpPort;//udpPort;
+    if (config->getInteger("override_port")){sdpAnswer.port = config->getInteger("override_port");}
+
     std::set<std::string> dupeCheck;
 
     std::string bindAddr = config->getString("interface");

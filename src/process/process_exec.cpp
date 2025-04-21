@@ -8,8 +8,13 @@
 #include <sys/stat.h>  //for stat
 #include <sys/types.h> //for stat
 #include <unistd.h>    //for stat
+#include <condition_variable>
+#include <mutex>
 
-int pipein[2], pipeout[2];
+int pipein = -1, pipeout = -1;
+
+std::condition_variable xCV;
+std::mutex xMutex;
 
 Util::Config co;
 Util::Config conf;
@@ -212,7 +217,14 @@ namespace Mist{
     }
     args[argCnt] = 0;
 
-    execd_proc = Util::Procs::StartPiped(args, &pipein[0], &pipeout[1], &ffer);
+
+    {
+      std::unique_lock<std::mutex> lk(xMutex);
+      xCV.wait(lk, []() { return conf.is_active && co.is_active; });
+      execd_proc = Util::Procs::StartPiped(args, &pipein, &pipeout, &ffer);
+      if (!execd_proc) { return; }
+    }
+    xCV.notify_all();
 
     uint64_t lastProcUpdate = Util::bootSecs();
     {
@@ -248,12 +260,26 @@ namespace Mist{
 void sinkThread(){
   Mist::ProcessSink in(&co);
   co.getOption("output", true).append("-");
-  co.activate();
+
+  {
+    std::unique_lock<std::mutex> lk(xMutex);
+    co.activate();
+  }
+  xCV.notify_all();
+  {
+    std::unique_lock<std::mutex> lk(xMutex);
+    xCV.wait(lk, []() { return pipeout != -1 || !co.is_active; });
+  }
+
   MEDIUM_MSG("Running sink thread...");
-  in.setInFile(pipeout[0]);
-  co.is_active = true;
+  in.setInFile(pipeout);
   in.run();
-  conf.is_active = false;
+
+  {
+    std::unique_lock<std::mutex> lk(xMutex);
+    conf.is_active = false;
+  }
+  xCV.notify_all();
 }
 
 void sourceThread(){
@@ -263,12 +289,27 @@ void sourceThread(){
   if (Mist::opt.isMember("track_select")){
     conf.getOption("target", true).append("-?" + Mist::opt["track_select"].asString());
   }
-  conf.is_active = true;
-  Socket::Connection c(pipein[1], 0);
+  {
+    std::unique_lock<std::mutex> lk(xMutex);
+    conf.is_active = true;
+  }
+  xCV.notify_all();
+  {
+    std::unique_lock<std::mutex> lk(xMutex);
+    xCV.wait(lk, []() { return pipein != -1 || !conf.is_active; });
+  }
+
+  Socket::Connection c(pipein, 0);
   Mist::ProcessSource out(c);
+
   MEDIUM_MSG("Running source thread...");
   out.run();
-  co.is_active = false;
+
+  {
+    std::unique_lock<std::mutex> lk(xMutex);
+    co.is_active = false;
+  }
+  xCV.notify_all();
 }
 
 int main(int argc, char *argv[]){
@@ -407,19 +448,8 @@ int main(int argc, char *argv[]){
     return 1;
   }
 
-  // create pipe pair before thread
-  if (pipe(pipein) || pipe(pipeout)){
-    FAIL_MSG("Could not create pipes for process!");
-    return 1;
-  }
-  Util::Procs::socketList.insert(pipeout[0]);
-  Util::Procs::socketList.insert(pipeout[1]);
-  Util::Procs::socketList.insert(pipein[0]);
-  Util::Procs::socketList.insert(pipein[1]);
-
   // stream which connects to input
   std::thread source(sourceThread);
-  Util::sleep(500);
 
   // needs to pass through encoder to outputEBML
   std::thread sink(sinkThread);
@@ -429,14 +459,13 @@ int main(int argc, char *argv[]){
   // run process
   Enc.Run();
 
-  co.is_active = false;
-  conf.is_active = false;
+  {
+    std::unique_lock<std::mutex> lk(xMutex);
+    co.is_active = false;
+    conf.is_active = false;
+  }
+  xCV.notify_all();
 
-  // close pipes
-  close(pipein[0]);
-  close(pipeout[0]);
-  close(pipein[1]);
-  close(pipeout[1]);
 
   source.join();
   HIGH_MSG("source thread joined");

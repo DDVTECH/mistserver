@@ -1169,6 +1169,17 @@ bool Controller::hasViewers(std::string streamName){
   return false;
 }
 
+/// Local-only helper function for fillTotals and fillClients
+static bool hasEntry(const std::set<std::string> & dataSet, const std::string & entry, char splitter){
+  if (!dataSet.size()){return true;}
+  if (dataSet.count(entry)){return true;}
+  size_t pos = entry.find(splitter);
+  if (pos != std::string::npos){
+    if (dataSet.count(entry.substr(0, pos))){return true;}
+  }
+  return false;
+}
+
 /// This takes a "clients" request, and fills in the response data.
 ///
 /// \api
@@ -1286,8 +1297,8 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
       if (now && reqTime - it->second.getEnd() < 5){time = it->second.getEnd();}
       // data present and wanted? insert it!
       if ((it->second.getEnd() >= time && it->second.getStart() <= time) &&
-          (!streams.size() || streams.count(it->second.getStreamName(time))) &&
-          (!protos.size() || protos.count(it->second.getConnectors(time)))){
+          hasEntry(streams, it->second.getStreamName(time), '+') &&
+          hasEntry(protos, it->second.getConnectors(time), ':')){
         const statLog & dta = it->second.curData.getDataFor(time);
         if (notEmpty(dta)){
           JSON::Value d;
@@ -1688,8 +1699,8 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
       // data present and wanted? insert it!
       if ((it->second.getEnd() >= (unsigned long long)reqStart ||
            it->second.getStart() <= (unsigned long long)reqEnd) &&
-          (!streams.size() || streams.count(it->second.getStreamName())) &&
-          (!protos.size() || protos.count(it->second.getConnectors()))){
+           hasEntry(streams, it->second.getStreamName(), '+') &&
+           hasEntry(protos, it->second.getConnectors(), ':')){
         for (unsigned long long i = reqStart; i <= reqEnd; ++i){
           if (it->second.hasDataFor(i)){
             totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i), it->second.getSessType(), it->second.getPktCount(), it->second.getPktLost(), it->second.getPktRetransmit());

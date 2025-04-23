@@ -6137,6 +6137,7 @@ var UI = {
         });
         $dashboard.append($findMist);
         $dashboard.append(UI.modules.stream.actions("Status",other)); //the actions can be used even if the http host is unknown
+        $dashboard.append(UI.modules.stream.clients(other));
 
         break;
       }
@@ -10332,6 +10333,118 @@ var UI = {
             return out;
           }
         });
+      },
+      clients: function(streamname){
+        var layout = {
+          Host: function(d){
+            return d.host;
+          },
+          Protocol: function(d){
+            return d.protocol.replace("INPUT:","");
+          },
+          Connected: function(d){
+            return UI.format.duration(d.conntime);
+          },
+          "Data downloaded": function(d){
+            return UI.format.bytes(d.down);
+          },
+          "Current bitrate": function(d){
+            return UI.format.bits(d.downbps*8,true);
+          },
+          "Media time": function(d){
+            return d.position ? UI.format.duration(d.position) : "";
+          },
+          "Packets received": function(d){
+            return d.pktcount ? UI.format.number(d.pktcount,{round:false}) : ""
+          },
+          "Packets lost": function(d){
+            return d.pktcount ? UI.format.number(d.pktlost,{round:false}) : ""
+          },
+          "Packets retransmitted": function(d){
+            return d.pktcount ? UI.format.number(d.pktretransmit,{round:false}) : ""
+          }
+
+        };
+        var $inputs = UI.dynamic({
+          create: function(){
+            var $thead = $("<thead>");
+            var $tbody = $("<tbody>");
+            var $table = $("<table>").append($thead).append($tbody);
+            $table._rows = {};
+            for (var i in layout) {
+              var row = $("<tr>");
+              
+              var cell = $("<td>").text(i+":");
+              row.append(cell);
+
+              $table._rows[i]= row;
+              $tbody.append(row);
+            }
+            $thead.append($tbody.children().first());
+            return $table;
+          },
+          add: {
+            create: function(){
+              var out = {
+                cells: {},
+                customAdd: function(table){
+                  for (var i in this.cells) {
+                    table._rows[i].append(this.cells[i]);
+                  }
+                },
+                remove: function(table){
+                  for (var i in this.cells) {
+                    this.cells[i].remove();
+                    delete this.cells[i];
+                  }
+                }
+              };
+              for (var i in layout) {
+                out.cells[i] = $("<td>");
+              }
+              return out;
+            },
+            update: function(d){
+              for (var i in this.cells) {
+                var value = layout[i].call(null,d);
+                if (this.cells[i].raw != value) {
+                  this.cells[i].html(value);
+                  this.cells[i].raw = value;
+                }
+              }
+            }
+          },
+          update: function(values){
+            if (values.length) {
+              if (!$inputs.parent().length) {
+                $inputs._parent.append($inputs);
+              }
+            }
+            else if ($inputs.parent()) {
+              $inputs._parent = $inputs.parent();
+              $inputs.remove();
+            }
+          }
+        });
+
+        UI.sockets.http.clients.subscribe(function(d){
+          for (var i = d.data.length -1; i >= 0; i--) {
+            if (d.data[i].stream != streamname) {
+              d.data.splice(i,1);
+            }
+          }
+          $inputs.update(d.data);
+          //console.warn(d);
+        },{streams:[streamname],protocols:["INPUT"]});
+        
+        
+        return $("<section>").addClass("clients").append(
+          $("<div>").addClass("inputs").append(
+            $("<h3>").text("Current input")
+          ).append(
+            $inputs
+          )
+        )
       }
     },
     pushes: function(options){
@@ -11316,7 +11429,51 @@ var UI = {
           }
           else {
             this.listeners.push(callback);
+            this.get();
           }
+        }
+      },
+      clients: {
+        requests: [],
+        listeners: [],
+        interval: false,
+        subscribe: function(callback,request){
+          if (!this.interval || !(this.interval in UI.interval.list)) {
+            this.listeners = [];
+            this.requests = [];
+          }
+
+          if (!("time" in request)) { request.time = -3; }
+          this.requests.push(request);
+          this.listeners.push(callback);
+          var me = this;
+
+          if (this.listeners.length == 1) {
+            //we only have to do this once because {clients: this.requests} is a pointer and the callback loops over this.listeners
+            UI.sockets.http.api.subscribe(function(d){
+              for (var i in d.clients) {
+                var res = d.clients[i];
+                //make it prettier
+                var out = { data: [], time: res.time };
+                for (var j in res.data) {
+                  var entry = {};
+                  for (var k in res.fields) {
+                    var key = res.fields[k];
+                    entry[key] = res.data[j][k];
+                  }
+                  out.data.push(entry);
+                }
+
+                me.listeners[i].call(null,out);
+              }
+            },{clients:this.requests});
+            this.interval = UI.sockets.http.api.interval;
+          }
+          else {
+            //execute the api call right now
+            UI.sockets.http.api.get();
+          }
+          //TODO reset on tab refresh
         }
       },
       player: function(callback,errorCallback){

@@ -1374,6 +1374,7 @@ main[data-tab="Preview"] .dashboard > section {
   min-width: 0;
 }
 main[data-tab="Status"] .dashboard > section.actions,
+main[data-tab="Status"] .dashboard > section.clients,
 main[data-tab="Status"] .dashboard > section.meta,
 main[data-tab="Status"] .dashboard > section.pushes,
 main[data-tab="Status"] .dashboard > section.triggers,
@@ -2016,6 +2017,15 @@ main[data-tab="Streams"] table.streams tbody tr:has([data-index="state"] [data-s
 main[data-tab="Streams"] table.streams:not(:has(tbody [data-index="tags"] .tags:not(:empty))) [data-index="tags"] {
   display: none;
 }
+section.clients .inputs table {
+  width: auto;
+  font-size: 0.9em;
+}
+section.clients .inputs:not(:has(table)):after { content: "None." }
+section.clients .inputs table tr:not(:has(td:not(:first-child):not(:empty))) {
+  display: none;
+}
+section.clients .inputs:has(table thead tr td:nth-child(3)) h3:after { content: "s"; }
 
 [data-index="tags"] .tags {
   display: flex;

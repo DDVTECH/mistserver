@@ -774,6 +774,7 @@ namespace Mist{
 
   bool OutTSSRT::listenMode(){
     std::string tgt = config->getString("target");
+    if (config->getString("remote").size()){return false;}
     return (!tgt.size() || (tgt.size() >= 6 && tgt.substr(0, 6) == "srt://" && Socket::interpretSRTMode(HTTP::URL(tgt)) == "listener"));
   }
 

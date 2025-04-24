@@ -1386,6 +1386,7 @@ namespace DTSC{
 
         t.pageAvailField = t.pages.getFieldData("avail");
         t.pageFirstKeyField = t.pages.getFieldData("firstkey");
+        t.pageFirstTimeField = t.pages.getFieldData("firsttime");
       }
     }
   }
@@ -1498,6 +1499,7 @@ namespace DTSC{
 
           t.pageAvailField = t.pages.getFieldData("avail");
           t.pageFirstKeyField = t.pages.getFieldData("firstkey");
+          t.pageFirstTimeField = t.pages.getFieldData("firsttime");
         }
 
       }
@@ -2084,6 +2086,7 @@ namespace DTSC{
     t.pages.setReady();
     t.pageAvailField = t.pages.getFieldData("avail");
     t.pageFirstKeyField = t.pages.getFieldData("firstkey");
+    t.pageFirstTimeField = t.pages.getFieldData("firsttime");
   }
 
   /// Sets the given track's init data.
@@ -3479,11 +3482,11 @@ namespace DTSC{
     uint64_t endPos = pages.getEndPos();
     for (uint64_t i = res; i < endPos; ++i){
       if (pages.getInt(t.pageAvailField, i) == 0) { continue; }
-      if (pages.getInt(t.pageFirstKeyField, i) > time) { break; }
+      if (pages.getInt(t.pageFirstTimeField, i) > time) { break; }
       res = i;
     }
     DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %" PRIu64, time, idx, pages.getInt("firstkey", res));
-    return pages.getInt("firstkey", res);
+    return pages.getInt(t.pageFirstKeyField, res);
   }
 
   /// Given a key, returns the page number it can be found on.

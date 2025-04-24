@@ -235,6 +235,7 @@ namespace DTSC{
 
     Util::RelAccXFieldData pageAvailField;
     Util::RelAccXFieldData pageFirstKeyField;
+    Util::RelAccXFieldData pageFirstTimeField;
 
     Util::RelAccXFieldData framesTimeField;
     Util::RelAccXFieldData framesSizeField;

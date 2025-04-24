@@ -1721,6 +1721,7 @@ var UI = {
               }
             }
           });
+          $field.trigger("change","initial");
         }
         else {
           $fc.append(

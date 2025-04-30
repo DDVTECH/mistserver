@@ -30,6 +30,7 @@
 #include <mist/procs.h>
 
 namespace Mist{
+  std::string sourceOverride;
   JSON::Value Output::capa = JSON::Value();
   Util::Config *Output::config = NULL;
 
@@ -353,7 +354,7 @@ namespace Mist{
         return;
       }
     }else{
-      if (!Util::startInput(streamName, "", true, isPushing())){
+      if (!Util::startInput(streamName, sourceOverride, true, isPushing())){
         // If stream is configured, use fallback stream setting, if set.
         JSON::Value strCnf = Util::getStreamConfig(streamName);
         if (strCnf && strCnf["fallback_stream"].asStringRef().size()){
@@ -393,7 +394,7 @@ namespace Mist{
         std::string origStream = streamName;
         streamName = newStrm;
         Util::setStreamName(streamName);
-        if (!Util::startInput(streamName, "", true, isPushing())){
+        if (!Util::startInput(streamName, sourceOverride, true, isPushing())){
           onFail("Stream open failed (fallback stream for '" + origStream + "')", true);
           return;
         }
@@ -2738,6 +2739,42 @@ namespace Mist{
     if (Util::Config::binaryType == Util::OUTPUT && config->hasOption("target") && Triggers::shouldTrigger("OUTPUT_END", streamName)){
       Triggers::doTrigger("OUTPUT_END", getExitTriggerPayload(), streamName);
     }
+  }
+
+
+  bool Output::checkStreamKey(){
+    if (!Util::checkStreamKey(streamName)){ return false; }
+
+    Util::sanitizeName(streamName);
+    Util::setStreamName(streamName);
+
+    // If a new input is started, default to this source URL
+    sourceOverride = "push://STREAM_KEY_ONLY:STREAM_KEY_ONLY";
+
+    pushing = true;
+    std::string strmSource;
+
+    // Initialize the stream source if needed, connect to it
+    waitForStreamPushReady();
+    // pull the source setting from metadata
+    if (meta){strmSource = meta.getSource();}
+
+    if (!strmSource.size()){
+      FAIL_MSG("Push rejected - stream %s not configured or unavailable", streamName.c_str());
+      pushing = false;
+      sourceOverride.clear();
+      streamName.clear();
+      return false;
+    }
+    if ((strmSource.size() >= 7 && strmSource.substr(0, 7) != "push://") || strmSource.find("INTERNAL_") != std::string::npos){
+      FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s)", streamName.c_str(), strmSource.c_str());
+      pushing = false;
+      sourceOverride.clear();
+      streamName.clear();
+      return false;
+    }
+
+    return true;
   }
 
   /// Checks if the set streamName allows pushes from this connector/IP/password combination.

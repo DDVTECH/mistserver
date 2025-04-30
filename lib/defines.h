@@ -229,6 +229,7 @@ static inline void show_stackframe(){}
 #define SHM_STREAM_IPID "/MstIPID%s"   //%s stream name
 #define SHM_STREAM_PPID "/MstPPID%s"   //%s stream name
 #define SHM_GLOBAL_CONF "/MstGlobalConfig"
+#define SHM_STREAMKEYS "/MstStrmKeys"
 #define STRMSTAT_OFF 0
 #define STRMSTAT_INIT 1
 #define STRMSTAT_BOOT 2

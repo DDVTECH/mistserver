@@ -967,6 +967,64 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     free(rpath);
   }
 
+  if (Request.isMember("streamkeys")){
+    JSON::Value & keys = Controller::Storage["streamkeys"];
+    if (Request["streamkeys"].isObject()){
+      keys.null();
+      jsonForEachConst(Request["streamkeys"], it){
+        if (it->isString()){ keys[it.key()] = it->asStringRef(); }
+      }
+    }
+  }
+
+  if (Request.isMember("streamkey_del")){
+    const JSON::Value & del = Request["streamkey_del"];
+    JSON::Value & rep = Response["streamkey_del"]["deleted"];
+    JSON::Value & keys = Controller::Storage["streamkeys"];
+    if (del.isObject()){
+      jsonForEachConst(del, it){
+        if (keys.isMember(it.key())){
+          keys.removeMember(it.key());
+          rep.append(it.key());
+        }
+      }
+    }else if (del.isArray()){
+      jsonForEachConst(del, it){
+        if (it->isString() && keys.isMember(it->asStringRef())){
+          keys.removeMember(it->asStringRef());
+          rep.append(it->asStringRef());
+        }
+      }
+    }else if (del.isString()){
+      if (keys.isMember(del.asStringRef())){
+        keys.removeMember(del.asStringRef());
+        rep.append(del.asStringRef());
+      }
+    }else{
+      Response["streamkey_del"]["error"] = "streamkey_del must be a string, object or array";
+    }
+  }
+
+  if (Request.isMember("streamkey_add")){
+    const JSON::Value & add = Request["streamkey_add"];
+    if (add.isObject()){
+      JSON::Value & keys = Controller::Storage["streamkeys"];
+      JSON::Value & rep = Response["streamkey_add"]["added"];
+      jsonForEachConst(add, it){
+        if (it->isString()){
+          keys[it.key()] = it->asStringRef();
+          rep.append(it.key());
+        }
+      }
+    }else{
+      Response["streamkey_add"]["error"] = "streamkey_add must be an object";
+    }
+  }
+
+  if (Request.isMember("streamkeys")){
+    Response["streamkeys"] = Controller::Storage["streamkeys"];
+  }
+
   // Examples of valid playlist requests:
   //"playlist":{"streamname": ["append", "path/to/file.ts"]}
   //"playlist":{"streamname": ["remove", "path/to/file.ts"]}

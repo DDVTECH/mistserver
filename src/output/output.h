@@ -162,6 +162,7 @@ namespace Mist{
     void recEndTrigger();
     void outputEndTrigger();
     bool allowPush(const std::string &passwd);
+    bool checkStreamKey();
     void waitForStreamPushReady();
 
     uint64_t firstPacketTime;

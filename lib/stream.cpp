@@ -537,6 +537,28 @@ std::set<std::string> Util::streamTags(const std::string &streamname){
   return ret;
 }
 
+bool Util::checkStreamKey(std::string & streamName){
+  IPC::sharedPage shmKeys(SHM_STREAMKEYS, 0, false, false);
+  // Abort silently if page cannot be loaded
+  if (!shmKeys){return false;}
+
+  Util::RelAccX rlxKeys(shmKeys.mapped);
+  // Abort silently if page cannot be loaded
+  if (!rlxKeys.isReady()){return false;}
+  Util::RelAccXFieldData keyField = rlxKeys.getFieldData("key");
+  Util::RelAccXFieldData streamField = rlxKeys.getFieldData("stream");
+
+  uint64_t startPos = rlxKeys.getDeleted();
+  uint64_t endPos = rlxKeys.getEndPos();
+  for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
+    if (streamName == rlxKeys.getPointer(keyField, cPos)){
+      streamName = rlxKeys.getPointer(streamField, cPos);
+      return true;
+    }
+  }
+  return false;
+}
+
 /// Assures the input for the given stream name is active.
 /// Does stream name sanitation first, followed by a stream name length check (<= 100 chars).
 /// Then, checks if an input is already active by running streamAlive(). If yes, return true.

@@ -1256,78 +1256,79 @@ namespace Mist{
         if (streamName.find('/')){
           streamName = streamName.substr(0, streamName.find('/'));
         }
-        Util::setStreamName(streamName);
 
-        /*LTS-START*/
-        if (Triggers::shouldTrigger("RTMP_PUSH_REWRITE")){
-          std::string payload = reqUrl + "\n" + getConnectedHost();
-          std::string newUrl = reqUrl;
-          Triggers::doTrigger("RTMP_PUSH_REWRITE", payload, "", false, newUrl);
-          if (!newUrl.size()){
-            FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL",
-                     getConnectedHost().c_str(), reqUrl.c_str());
+        if (!checkStreamKey()){
+          if (!streamName.size()){
             onFinish();
             return;
           }
-          reqUrl = newUrl;
-          size_t lSlash = newUrl.rfind('/');
-          if (lSlash != std::string::npos){
-            streamName = newUrl.substr(lSlash + 1);
-          }else{
-            streamName = newUrl;
-          }
-          // handle variables
-          if (streamName.find('?') != std::string::npos){
-            std::string tmpVars = streamName.substr(streamName.find('?') + 1);
-            streamName = streamName.substr(0, streamName.find('?'));
-            HTTP::parseVars(tmpVars, targetParams);
-          }
-          Util::setStreamName(streamName);
-        }
-        /*LTS-END*/
-
-        size_t colonPos = streamName.find(':');
-        if (colonPos != std::string::npos && colonPos < 6){
-          std::string oldName = streamName;
-          if (std::string(".") + oldName.substr(0, colonPos) == oldName.substr(oldName.size() - colonPos - 1)){
-            streamName = oldName.substr(colonPos + 1);
-          }else{
-            streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
-          }
-          Util::setStreamName(streamName);
-        }
-
-        Util::sanitizeName(streamName);
-
-        if (Triggers::shouldTrigger("PUSH_REWRITE")){
-          std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
-          std::string newStream = streamName;
-          Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-          if (!newStream.size()){
-            FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                     getConnectedHost().c_str(), reqUrl.c_str());
-            Util::logExitReason(ER_TRIGGER,
-                "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                getConnectedHost().c_str(), reqUrl.c_str());
-            onFinish();
-            return;
-          }else{
-            streamName = newStream;
+          if (Triggers::shouldTrigger("RTMP_PUSH_REWRITE")){
+            std::string payload = reqUrl + "\n" + getConnectedHost();
+            std::string newUrl = reqUrl;
+            Triggers::doTrigger("RTMP_PUSH_REWRITE", payload, "", false, newUrl);
+            if (!newUrl.size()){
+              FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL",
+                       getConnectedHost().c_str(), reqUrl.c_str());
+              onFinish();
+              return;
+            }
+            reqUrl = newUrl;
+            size_t lSlash = newUrl.rfind('/');
+            if (lSlash != std::string::npos){
+              streamName = newUrl.substr(lSlash + 1);
+            }else{
+              streamName = newUrl;
+            }
             // handle variables
             if (streamName.find('?') != std::string::npos){
               std::string tmpVars = streamName.substr(streamName.find('?') + 1);
               streamName = streamName.substr(0, streamName.find('?'));
               HTTP::parseVars(tmpVars, targetParams);
             }
-            Util::sanitizeName(streamName);
-            Util::setStreamName(streamName);
+          }
+
+          size_t colonPos = streamName.find(':');
+          if (colonPos != std::string::npos && colonPos < 6){
+            std::string oldName = streamName;
+            if (std::string(".") + oldName.substr(0, colonPos) == oldName.substr(oldName.size() - colonPos - 1)){
+              streamName = oldName.substr(colonPos + 1);
+            }else{
+              streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
+            }
+          }
+
+          Util::sanitizeName(streamName);
+
+          if (Triggers::shouldTrigger("PUSH_REWRITE")){
+            std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+            std::string newStream = streamName;
+            Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+            if (!newStream.size()){
+              FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                       getConnectedHost().c_str(), reqUrl.c_str());
+              Util::logExitReason(ER_TRIGGER,
+                  "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                  getConnectedHost().c_str(), reqUrl.c_str());
+              onFinish();
+              return;
+            }else{
+              streamName = newStream;
+              // handle variables
+              if (streamName.find('?') != std::string::npos){
+                std::string tmpVars = streamName.substr(streamName.find('?') + 1);
+                streamName = streamName.substr(0, streamName.find('?'));
+                HTTP::parseVars(tmpVars, targetParams);
+              }
+            }
+          }
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+          if (!allowPush(app_name)){
+            onFinish();
+            return;
           }
         }
 
-        if (!allowPush(app_name)){
-          onFinish();
-          return;
-        }
       }
       // send a status reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

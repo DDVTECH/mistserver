@@ -410,8 +410,6 @@ namespace Mist{
         default: break;
       }
     });
-    Util::sanitizeName(streamName);
-    Util::setStreamName(streamName);
     HTTP::URL qUrl;
     qUrl.protocol = "dtsc";
     qUrl.host = myConn.getBoundAddress();
@@ -420,27 +418,35 @@ namespace Mist{
     qUrl.pass = passString;
     qUrl.args = HTTP::argStr(args);
     reqUrl = qUrl.getUrl();
-    if (Triggers::shouldTrigger("PUSH_REWRITE")){
-      std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
-      std::string newStream = streamName;
-      Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-      if (!newStream.size()){
-        FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                  getConnectedHost().c_str(), reqUrl.c_str());
-        Util::logExitReason(ER_TRIGGER,
-            "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-            getConnectedHost().c_str(), reqUrl.c_str());
-        onFail("Push not allowed - rejected by trigger");
+    if (!checkStreamKey()){
+      if (!streamName.size()){
+        onFail("Stream key related: stream open failed");
         return;
-      }else{
-        streamName = newStream;
-        Util::sanitizeName(streamName);
-        Util::setStreamName(streamName);
       }
-    }
-    if (!allowPush(passString)){
-      onFail("Push not allowed - stream and/or password incorrect", true);
-      return;
+      Util::sanitizeName(streamName);
+      Util::setStreamName(streamName);
+      if (Triggers::shouldTrigger("PUSH_REWRITE")){
+        std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+        std::string newStream = streamName;
+        Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+        if (!newStream.size()){
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                   getConnectedHost().c_str(), reqUrl.c_str());
+          Util::logExitReason(ER_TRIGGER,
+              "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+              getConnectedHost().c_str(), reqUrl.c_str());
+          onFail("Push not allowed - rejected by trigger");
+          return;
+        }else{
+          streamName = newStream;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+        }
+      }
+      if (!allowPush(passString)){
+        onFail("Push not allowed - stream and/or password incorrect", true);
+        return;
+      }
     }
     if (dScan.getMember("sync").asBool()){isSyncReceiver = true;}
     sendOk("You're cleared for pushing! DTSC_HEAD please?");

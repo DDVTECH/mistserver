@@ -11,25 +11,31 @@ namespace Mist{
     streamName = config->getString("streamname");
     wantRequest = true;
     parseData = false;
-    if (Triggers::shouldTrigger("PUSH_REWRITE")){
-      std::string payload = "jsonline://" + myConn.getBoundAddress() + ":" + config->getOption("port").asString() + "\n" + getConnectedHost() + "\n" + streamName;
-      std::string newStream = streamName;
-      Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-      if (!newStream.size()){
-        FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                 getConnectedHost().c_str(), reqUrl.c_str());
+    if (!checkStreamKey()){
+      if (!streamName.size()){
+        onFinish();
+        return;
+      }
+      if (Triggers::shouldTrigger("PUSH_REWRITE")){
+        std::string payload = "jsonline://" + myConn.getBoundAddress() + ":" + config->getOption("port").asString() + "\n" + getConnectedHost() + "\n" + streamName;
+        std::string newStream = streamName;
+        Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+        if (!newStream.size()){
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                   getConnectedHost().c_str(), reqUrl.c_str());
+          config->is_active = false;
+          return;
+        }else{
+          streamName = newStream;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+        }
+      }
+      if (!allowPush("")){
+        FAIL_MSG("Pushing not allowed");
         config->is_active = false;
         return;
-      }else{
-        streamName = newStream;
-        Util::sanitizeName(streamName);
-        Util::setStreamName(streamName);
       }
-    }
-    if (!allowPush("")){
-      FAIL_MSG("Pushing not allowed");
-      config->is_active = false;
-      return;
     }
     initialize();
     trkIdx = meta.addTrack();

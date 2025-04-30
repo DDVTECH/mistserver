@@ -682,7 +682,37 @@ namespace Controller{
       }
     }
 
-    /*LTS-START*/
+    // Write streamkeys to shared memory
+    {
+      static IPC::sharedPage streamkeyPage(SHM_STREAMKEYS, 1*1024*1024, false, false);
+      if (streamkeyPage){
+        Util::RelAccX tmpA(streamkeyPage.mapped, false);
+        if (tmpA.isReady()){tmpA.setReload();}
+        streamkeyPage.master = true;
+        streamkeyPage.close();
+      }
+      streamkeyPage.init(SHM_STREAMKEYS, 1*1024*1024, true, false);
+      Util::RelAccX tPage(streamkeyPage.mapped, false);
+      tPage.addField("key", RAX_256STRING);
+      tPage.addField("stream", RAX_128STRING);
+      Util::RelAccXFieldData keyField = tPage.getFieldData("key");
+      Util::RelAccXFieldData streamField = tPage.getFieldData("stream");
+      uint32_t i = 0;
+      uint32_t max = (streamkeyPage.len - tPage.getOffset()) / tPage.getRSize();
+      jsonForEach(Controller::Storage["streamkeys"], keyIt){
+        if (i >= max){
+          ERROR_MSG("Not all streamkeys fit on the memory page!");
+          break;
+        }
+        tPage.setString(keyField, keyIt.key(), i);
+        tPage.setString(streamField, keyIt->asStringRef(), i);
+        ++i;
+      }
+      tPage.setRCount(std::min(i, max));
+      tPage.setEndPos(std::min(i, max));
+      tPage.setReady();
+    }
+
     static std::map<std::string, IPC::sharedPage> pageForType; // should contain one page for every trigger type
     static JSON::Value writtenTrigs;
     char tmpBuf[NAME_BUFFER_SIZE];

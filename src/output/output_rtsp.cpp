@@ -380,30 +380,36 @@ namespace Mist{
         continue;
       }
       if (HTTP_R.method == "ANNOUNCE"){
-        if (Triggers::shouldTrigger("PUSH_REWRITE")){
-          HTTP::URL qUrl("rtsp://"+HTTP_R.GetHeader("Host")+"/"+HTTP_R.url);
-          if (!qUrl.host.size()){qUrl.host = myConn.getBoundAddress();}
-          if (!qUrl.port.size()){qUrl.port = config->getOption("port").asString();}
-          std::string payload = qUrl.getUrl() + "\n" + getConnectedHost() + "\n" + streamName;
-          std::string newStream = streamName;
-          Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-          if (!newStream.size()){
-            FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                     getConnectedHost().c_str(), qUrl.getUrl().c_str());
-            Util::logExitReason(ER_TRIGGER,
-                "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                getConnectedHost().c_str(), qUrl.getUrl().c_str());
+        if (!checkStreamKey()){
+          if (!streamName.size()){
             onFinish();
             return;
-          }else{
-            streamName = newStream;
-            Util::sanitizeName(streamName);
-            Util::setStreamName(streamName);
           }
-        }
-        if (!allowPush(HTTP_R.GetVar("pass"))){
-          onFinish();
-          return;
+          if (Triggers::shouldTrigger("PUSH_REWRITE")){
+            HTTP::URL qUrl("rtsp://"+HTTP_R.GetHeader("Host")+"/"+HTTP_R.url);
+            if (!qUrl.host.size()){qUrl.host = myConn.getBoundAddress();}
+            if (!qUrl.port.size()){qUrl.port = config->getOption("port").asString();}
+            std::string payload = qUrl.getUrl() + "\n" + getConnectedHost() + "\n" + streamName;
+            std::string newStream = streamName;
+            Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+            if (!newStream.size()){
+              FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                       getConnectedHost().c_str(), qUrl.getUrl().c_str());
+              Util::logExitReason(ER_TRIGGER,
+                  "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                  getConnectedHost().c_str(), qUrl.getUrl().c_str());
+              onFinish();
+              return;
+            }else{
+              streamName = newStream;
+              Util::sanitizeName(streamName);
+              Util::setStreamName(streamName);
+            }
+          }
+          if (!allowPush(HTTP_R.GetVar("pass"))){
+            onFinish();
+            return;
+          }
         }
         INFO_MSG("Pushing to stream %s", streamName.c_str());
         sdpState.parseSDP(HTTP_R.body);

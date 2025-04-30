@@ -220,8 +220,6 @@ namespace Mist{
       if (!config->getBool("nostreamid")) {
         if (sName != ""){
           streamName = sName;
-          Util::sanitizeName(streamName);
-          Util::setStreamName(streamName);
         }
       }
       myConn.setHost(srtConn->remotehost);
@@ -250,6 +248,8 @@ namespace Mist{
         }
       }
       if (accTypes == 1){// Only allow outgoing
+        Util::sanitizeName(streamName);
+        Util::setStreamName(streamName);
         srtConn->setBlocking(true);
         srtConn->direction = "output";
         parseData = true;
@@ -257,36 +257,45 @@ namespace Mist{
       }else if (accTypes == 2){//Only allow incoming
         srtConn->setBlocking(false);
         srtConn->direction = "input";
-        if (Triggers::shouldTrigger("PUSH_REWRITE")){
-          HTTP::URL reqUrl;
-          reqUrl.protocol = "srt";
-          reqUrl.port = config->getString("port");
-          reqUrl.host = config->getString("interface");
-          reqUrl.args = "streamid="+Encodings::URL::encode(sName);
-          std::string payload = reqUrl.getUrl() + "\n" + getConnectedHost() + "\n" + streamName;
-          std::string newStream = streamName;
-          Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-          if (!newStream.size()){
-            FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                     getConnectedHost().c_str(), reqUrl.getUrl().c_str());
-            Util::logExitReason(ER_TRIGGER,
-                "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                getConnectedHost().c_str(), reqUrl.getUrl().c_str());
+        if (!checkStreamKey()){
+          if (!streamName.size()){
             onFinish();
             return;
-          }else{
-            streamName = newStream;
-            Util::sanitizeName(streamName);
           }
-        }
-        if (!streamName.size()){
-          Util::logExitReason(ER_FORMAT_SPECIFIC, "Push from %s rejected - there is no stream name set", getConnectedHost().c_str());
-          onFinish();
-          return;
-        }
-        if (!allowPush("")){
-          onFinish();
-          return;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+          if (Triggers::shouldTrigger("PUSH_REWRITE")){
+            HTTP::URL reqUrl;
+            reqUrl.protocol = "srt";
+            reqUrl.port = config->getString("port");
+            reqUrl.host = config->getString("interface");
+            reqUrl.args = "streamid="+Encodings::URL::encode(sName);
+            std::string payload = reqUrl.getUrl() + "\n" + getConnectedHost() + "\n" + streamName;
+            std::string newStream = streamName;
+            Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+            if (!newStream.size()){
+              FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                       getConnectedHost().c_str(), reqUrl.getUrl().c_str());
+              Util::logExitReason(ER_TRIGGER,
+                  "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                  getConnectedHost().c_str(), reqUrl.getUrl().c_str());
+              onFinish();
+              return;
+            }else{
+              streamName = newStream;
+              Util::sanitizeName(streamName);
+              Util::setStreamName(streamName);
+            }
+          }
+          if (!streamName.size()){
+            Util::logExitReason(ER_FORMAT_SPECIFIC, "Push from %s rejected - there is no stream name set", getConnectedHost().c_str());
+            onFinish();
+            return;
+          }
+          if (!allowPush("")){
+            onFinish();
+            return;
+          }
         }
         if (config->getString("datatrack") == "json"){
           tsIn.setRawDataParser(TS::JSON);

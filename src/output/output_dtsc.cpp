@@ -13,14 +13,15 @@
 namespace Mist{
   OutDTSC::OutDTSC(Socket::Connection &conn) : Output(conn){
     JSON::Value prep;
-    setSyncMode(false);
+    if (!config->getBool("syncmode")){ setSyncMode(false); }
+    isSyncReceiver = false;
+    lastActive = Util::epoch();
     if (config->getString("target").size()){
       streamName = config->getString("streamname");
       pushUrl = HTTP::URL(config->getString("target"));
-      if (pushUrl.protocol != "dtsc"){
-        onFail("Target must start with dtsc://", true);
-        return;
-      }
+      if (pushUrl.protocol != "dtsc"){return;}
+
+      setSyncMode(JSON::Value(targetParams["sync"]).asBool());
 
       if (!pushUrl.path.size()){pushUrl.path = streamName;}
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, target stream: %s", streamName.c_str(),
@@ -43,12 +44,12 @@ namespace Mist{
       if (args.count("pw")){prep["password"] = args["pw"];}
       if (args.count("password")){prep["password"] = args["password"];}
       if (pushUrl.pass.size()){prep["password"] = pushUrl.pass;}
+      if (getSyncMode()){prep["sync"] = true;}
       sendCmd(prep);
       wantRequest = true;
       parseData = true;
       return;
     }
-
 
     setBlocking(true);
     prep["cmd"] = "hi";
@@ -58,10 +59,17 @@ namespace Mist{
     prep["salt"] = salt;
     /// \todo Make this securererer.
     sendCmd(prep);
-    lastActive = Util::epoch();
   }
 
   OutDTSC::~OutDTSC(){}
+
+  
+  bool OutDTSC::isFileTarget(){
+    if (!isRecording()){return false;}
+    pushUrl = HTTP::URL(config->getString("target"));
+    if (pushUrl.protocol == "dtsc"){return false;}
+    return true;
+  }
 
   void OutDTSC::stats(bool force){
     unsigned long long int now = Util::epoch();
@@ -108,6 +116,12 @@ namespace Mist{
     capa["methods"][0u]["hrn"] = "DTSC";
     capa["methods"][0u]["priority"] = 10;
 
+    capa["optional"]["syncmode"]["name"] = "Default sync mode";
+    capa["optional"]["syncmode"]["help"] = "0 for async (default), 1 for sync";
+    capa["optional"]["syncmode"]["option"] = "--syncmode";
+    capa["optional"]["syncmode"]["short"] = "x";
+    capa["optional"]["syncmode"]["type"] = "uint";
+    capa["optional"]["syncmode"]["default"] = 0;
 
     JSON::Value opt;
     opt["arg"] = "string";
@@ -119,6 +133,14 @@ namespace Mist{
                                                   "\"stream\",\"help\":\"The name of the stream to "
                                                   "push out, when pushing out.\"}"));
 
+    opt.null();
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["short"] = "U";
+    opt["long"] = "pushurl";
+    opt["help"] = "Target DTSC URL to pretend pushing out towards, when not actually connected to another host";
+    cfg->addOption("pushurl", opt);
+
     cfg->addConnectorOptions(4200, capa);
     config = cfg;
   }
@@ -129,7 +151,6 @@ namespace Mist{
     DTSC::Packet p(thisPacket, thisIdx+1);
     myConn.SendNow(p.getData(), p.getDataLen());
     lastActive = Util::epoch();
-
     // If selectable tracks changed, set sentHeader to false to force it to send init data
     static uint64_t lastMeta = 0;
     if (Util::epoch() > lastMeta + 5){
@@ -143,6 +164,27 @@ namespace Mist{
   }
 
   void OutDTSC::sendHeader(){
+    if (!sentHeader && config->getString("pushurl").size()){
+      pushUrl = HTTP::URL(config->getString("pushurl"));
+      if (pushUrl.protocol != "dtsc"){
+        WARN_MSG("Invalid push URL format, must start with dtsc:// - %s", config->getString("pushURI").c_str());
+      }else{
+        if (!pushUrl.path.size()){pushUrl.path = streamName;}
+        INFO_MSG("About to push stream %s out. target stream: %s", streamName.c_str(), pushUrl.path.c_str());
+        JSON::Value prep;
+        prep["cmd"] = "push";
+        prep["version"] = APPIDENT;
+        prep["stream"] = pushUrl.path;
+        std::map<std::string, std::string> args;
+        HTTP::parseVars(pushUrl.args, args);
+        if (args.count("pass")){prep["password"] = args["pass"];}
+        if (args.count("pw")){prep["password"] = args["pw"];}
+        if (args.count("password")){prep["password"] = args["password"];}
+        if (pushUrl.pass.size()){prep["password"] = pushUrl.pass;}
+        if (getSyncMode()){prep["sync"] = true;}
+        sendCmd(prep);
+      }
+    }
     sentHeader = true;
     std::set<size_t> selectedTracks;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -302,7 +344,18 @@ namespace Mist{
         char *data;
         size_t dataLen;
         inPack.getString("data", data, dataLen);
-        bufferLivePacket(inPack.getTime(), inPack.getInt("offset"), tid, data, dataLen, inPack.getInt("bpos"), inPack.getFlag("keyframe"));
+        uint64_t packTime = inPack.getTime();
+        bufferLivePacket(packTime, inPack.getInt("offset"), tid, data, dataLen, inPack.getInt("bpos"), inPack.getFlag("keyframe"));
+        
+        // If we're receiving packets in sync, we now know until 1ms ago all tracks are up-to-date
+        if (isSyncReceiver && packTime){
+          std::map<size_t, Comms::Users>::iterator uIt;
+          for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt){
+            if (uIt->first == tid){continue;}
+            if (M.getNowms(uIt->first) < packTime - 1){meta.setNowms(uIt->first, packTime - 1);}
+          }
+        }
+        
       }else{
         // Invalid
         onFail("Invalid packet header received. Aborting.", true);
@@ -313,6 +366,15 @@ namespace Mist{
 
   void OutDTSC::handlePlay(DTSC::Scan &dScan){
     streamName = dScan.getMember("stream").asString();
+    // Put all arguments except for cmd and stream in the targetParams
+    dScan.forEachMember([this](const DTSC::Scan & m, const std::string & name){
+      if (name == "cmd" || name == "stream"){return;}
+      switch (m.getType()){
+        case DTSC_INT: targetParams[name] = m.asInt(); break;
+        case DTSC_STR: targetParams[name] = m.asString(); break;
+        default: break;
+      }
+    });
     Util::sanitizeName(streamName);
     Util::setStreamName(streamName);
     HTTP::URL qUrl;
@@ -320,15 +382,34 @@ namespace Mist{
     qUrl.host = myConn.getBoundAddress();
     qUrl.port = config->getOption("port").asString();
     qUrl.path = streamName;
+    qUrl.args = HTTP::argStr(targetParams, false);
     reqUrl = qUrl.getUrl();
+    if (targetParams.count("sync")){
+      setSyncMode(JSON::Value(targetParams["sync"]).asBool());
+      if (getSyncMode()){
+        JSON::Value prep;
+        prep["cmd"] = "sync";
+        prep["sync"] = 1;
+        sendCmd(prep);
+      }
+    }
     parseData = true;
-    INFO_MSG("Handled play for stream %s", streamName.c_str());
+    INFO_MSG("Handled play for %s", reqUrl.c_str());
     setBlocking(false);
   }
 
   void OutDTSC::handlePush(DTSC::Scan &dScan){
     streamName = dScan.getMember("stream").asString();
     std::string passString = dScan.getMember("password").asString();
+    std::map<std::string, std::string> args;
+    dScan.forEachMember([&args](const DTSC::Scan & m, const std::string & name){
+      if (name == "cmd" || name == "stream" || name == "password"){return;}
+      switch (m.getType()){
+        case DTSC_INT: args[name] = std::to_string(m.asInt()); break;
+        case DTSC_STR: args[name] = m.asString(); break;
+        default: break;
+      }
+    });
     Util::sanitizeName(streamName);
     Util::setStreamName(streamName);
     HTTP::URL qUrl;
@@ -337,6 +418,7 @@ namespace Mist{
     qUrl.port = config->getOption("port").asString();
     qUrl.path = streamName;
     qUrl.pass = passString;
+    qUrl.args = HTTP::argStr(args);
     reqUrl = qUrl.getUrl();
     if (Triggers::shouldTrigger("PUSH_REWRITE")){
       std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
@@ -344,7 +426,7 @@ namespace Mist{
       Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
       if (!newStream.size()){
         FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                 getConnectedHost().c_str(), reqUrl.c_str());
+                  getConnectedHost().c_str(), reqUrl.c_str());
         Util::logExitReason(ER_TRIGGER,
             "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
             getConnectedHost().c_str(), reqUrl.c_str());
@@ -360,6 +442,7 @@ namespace Mist{
       onFail("Push not allowed - stream and/or password incorrect", true);
       return;
     }
+    if (dScan.getMember("sync").asBool()){isSyncReceiver = true;}
     sendOk("You're cleared for pushing! DTSC_HEAD please?");
   }
 

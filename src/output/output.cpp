@@ -1809,7 +1809,7 @@ namespace Mist{
         maxWait = suggestedWait;
         // If the suggested wait is 2000ms, we don't know when one could arrive.
         // Use the average time between packets as a heuristic
-        if (maxWait == 2000 && parseData) { maxWait = avgBetweenPackets; }
+        if (maxWait == 2000 && parseData) { maxWait = avgBetweenPackets * 0.9; }
       }else{
         maxWait = avgBetweenPackets * 0.9;
         if (maxWait > 2000) { maxWait = 2000; }
@@ -2326,6 +2326,9 @@ namespace Mist{
           if (M.getLive()){
             userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
           }
+
+          //In non-sync mode, retry (replaceFirst already shuffled the packet order for us)
+          if (!buffer.getSyncMode()){ continue; }
 
           return 2000;
         }

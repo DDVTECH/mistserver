@@ -16,6 +16,7 @@ namespace Mist{
     void stats(bool force = false);
     void sendCmd(const JSON::Value &data);
     void sendOk(const std::string &msg);
+    bool isFileTarget();
   private:
     unsigned int lastActive; ///< Time of last sending of data.
     std::string getStatsName();
@@ -23,6 +24,7 @@ namespace Mist{
     HTTP::URL pushUrl;
     void handlePush(DTSC::Scan &dScan);
     void handlePlay(DTSC::Scan &dScan);
+    bool isSyncReceiver;
   };
 }// namespace Mist
 

@@ -41,7 +41,7 @@ namespace Mist{
     bool readHeader();
     bool needHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
-    void getNextFromStream(size_t idx = INVALID_TRACK_ID);
+    void getNextFromStream(size_t idx = INVALID_TRACK_ID, bool returnAfterMetaReceived = false);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
 
     FILE *F;
@@ -58,6 +58,8 @@ namespace Mist{
     char buffer[8];
 
     void seekNext(uint64_t ms, size_t trackIdx, bool forceSeek = false);
+
+    bool isSyncReceiver;
   };
 }// namespace Mist
 

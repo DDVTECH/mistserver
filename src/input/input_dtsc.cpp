@@ -5,6 +5,7 @@
 #include <iostream>
 #include <mist/defines.h>
 #include <mist/stream.h>
+#include <mist/http_parser.h>
 #include <string>
 
 #include <mist/bitfields.h>
@@ -70,6 +71,7 @@ namespace Mist{
     F = NULL;
     lockCache = false;
     lockNeeded = false;
+    isSyncReceiver = false;
   }
 
   bool InputDTSC::needsLock(){
@@ -81,110 +83,24 @@ namespace Mist{
     return lockNeeded;
   }
 
-  void parseDTSCURI(const std::string &src, std::string &host, uint16_t &port,
-                    std::string &password, std::string &streamName){
-    host = "";
-    port = 4200;
-    password = "";
-    streamName = "";
-    std::deque<std::string> matches;
-    if (Util::stringScan(src, "%s:%s@%s/%s", matches)){
-      host = matches[0];
-      port = atoi(matches[1].c_str());
-      password = matches[2];
-      streamName = matches[3];
-      return;
-    }
-    // Using default streamname
-    if (Util::stringScan(src, "%s:%s@%s", matches)){
-      host = matches[0];
-      port = atoi(matches[1].c_str());
-      password = matches[2];
-      return;
-    }
-    // Without password
-    if (Util::stringScan(src, "%s:%s/%s", matches)){
-      host = matches[0];
-      port = atoi(matches[1].c_str());
-      streamName = matches[2];
-      return;
-    }
-    // Using default port
-    if (Util::stringScan(src, "%s@%s/%s", matches)){
-      host = matches[0];
-      password = matches[1];
-      streamName = matches[2];
-      return;
-    }
-    // Default port, no password
-    if (Util::stringScan(src, "%s/%s", matches)){
-      host = matches[0];
-      streamName = matches[1];
-      return;
-    }
-    // No password, default streamname
-    if (Util::stringScan(src, "%s:%s", matches)){
-      host = matches[0];
-      port = atoi(matches[1].c_str());
-      return;
-    }
-    // Default port and streamname
-    if (Util::stringScan(src, "%s@%s", matches)){
-      host = matches[0];
-      password = matches[1];
-      return;
-    }
-    // Default port and streamname, no password
-    if (Util::stringScan(src, "%s", matches)){
-      host = matches[0];
-      return;
-    }
-  }
-
   void InputDTSC::parseStreamHeader(){
-    while (srcConn.connected() && config->is_active){
-      srcConn.spool();
-      if (!srcConn.Received().available(8)){
-        Util::sleep(100);
-        keepAlive();
-        continue;
-      }
+    // Open metadata
+    meta.reInit(streamName, false);
+    if (!meta){
+      FAIL_MSG("Could not open stream metadata to merge in remote tracks; aborting!");
+      Util::logExitReason(ER_INTERNAL_ERROR, "Could not open stream metadata to merge in remote tracks");
+      config->is_active = false;
+      return;
+    }
 
-      if (srcConn.Received().copy(4) != "DTCM" && srcConn.Received().copy(4) != "DTSC"){
-        INFO_MSG("Received a wrong type of packet - '%s'", srcConn.Received().copy(4).c_str());
-        break;
-      }
-      // Command message
-      std::string toRec = srcConn.Received().copy(8);
-      uint32_t rSize = Bit::btohl(toRec.c_str() + 4);
-      if (!srcConn.Received().available(8 + rSize)){
-        keepAlive();
-        Util::sleep(100);
-        continue; // abort - not enough data yet
-      }
-      // Ignore initial DTCM message, as this is a "hi" message from the server
-      if (srcConn.Received().copy(4) == "DTCM"){
-        srcConn.Received().remove(8 + rSize);
-        continue;
-      }
-      std::string dataPacket = srcConn.Received().remove(8 + rSize);
-      DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
-      DTSC::Meta nM("", metaPack.getScan());
-      meta.reInit(streamName, false);
-      if (!meta){
-        FAIL_MSG("Could not open stream metadata to merge in remote tracks; aborting!");
-        Util::logExitReason(ER_INTERNAL_ERROR, "Could not open stream metadata to merge in remote tracks");
-        config->is_active = false;
-        break;
-      }
-      meta.merge(nM, true, false);
-      meta.setBootMsOffset(nM.getBootMsOffset());
-      std::set<size_t> validTracks = M.getMySourceTracks(getpid());
-      userSelect.clear();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-        userSelect[*it].reload(streamName, *it, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
-      }
-      break;
+    // Read metadata from stream
+    getNextFromStream(INVALID_TRACK_ID, true);
+
+    // Open userSelect for all received tracks
+    std::set<size_t> validTracks = M.getMySourceTracks(getpid());
+    userSelect.clear();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      userSelect[*it].reload(streamName, *it, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
     }
   }
 
@@ -195,21 +111,31 @@ namespace Mist{
       srcConn.Received().splitter.clear();
       return true;
     }
-    if (source.find("dtsc://") == 0){source.erase(0, 7);}
-    std::string host;
-    uint16_t port;
+    HTTP::URL url(source);
+
+    std::string host = url.host;
+    uint16_t port = url.getPort();
     std::string password;
-    std::string streamName;
-    parseDTSCURI(source, host, port, password, streamName);
-    std::string givenStream = config->getString("streamname");
-    if (streamName == ""){streamName = givenStream;}
-    srcConn.open(host, port, true);
+    if (url.pass.size()){
+      password = url.pass;
+    }else if (url.user.size()){
+      password = url.user;
+    }
+    std::map<std::string, std::string> args;
+    HTTP::parseVars(url.args, args);
+
+    std::string streamName = url.path;
+    Util::sanitizeName(streamName);
+    if (!streamName.size()){streamName = config->getString("streamname");}
+
+    srcConn.open(host, port, true, url.protocol == "dtscs");
     srcConn.Received().splitter.clear();
-    if (!srcConn.connected()){return false;}
+    if (!srcConn){return false;}
     JSON::Value prep;
     prep["cmd"] = "play";
     prep["version"] = APPIDENT;
     prep["stream"] = streamName;
+    if (args.count("sync")){prep["sync"] = JSON::fromString(args["sync"]);}
     srcConn.SendNow("DTCM");
     char sSize[4] ={0, 0, 0, 0};
     Bit::htobl(sSize, prep.packedSize());
@@ -350,83 +276,118 @@ namespace Mist{
     fseek(F, thisPos.bytePos, SEEK_SET);
   }
 
-  void InputDTSC::getNextFromStream(size_t idx){
-    thisPacket.reInit(srcConn);
-    while (config->is_active){
+  void InputDTSC::getNextFromStream(size_t idx, bool returnAfterMetaReceived){
+    bool clearMeta = returnAfterMetaReceived;
+    while (config->is_active && srcConn){
+      thisPacket.reInit(srcConn);
+
+      // Handle command packets
       if (thisPacket.getVersion() == DTSC::DTCM){
-        // userClient.keepAlive();
         std::string cmd;
         thisPacket.getString("cmd", cmd);
+        // "reset" indicates the metadata will be replaced
         if (cmd == "reset"){
-          // Read next packet
-          thisPacket.reInit(srcConn);
-          if (thisPacket.getVersion() != DTSC::DTSC_HEAD){
-            meta.clear();
-            continue;
-          }
-          DTSC::Meta nM("", thisPacket.getScan());
-          meta.merge(nM, true, false);
-          thisPacket.reInit(srcConn); // read the next packet before continuing
-          continue;                   // parse the next packet before returning
+          // set clearMeta to true so that if we get no new header, we wipe the metadata entirely
+          // Also ensures that the next header will wipe old tracks instead of only being an addition
+          clearMeta = true;
+          continue;
         }
+        // "error" indicates a fatal error
         if (cmd == "error"){
+          // abort the input process and set the message as the exit reason
           thisPacket.getString("msg", cmd);
           Util::logExitReason(ER_FORMAT_SPECIFIC, "%s", cmd.c_str());
           thisPacket.null();
           return;
         }
+        // "ping" is a request for a "pong"
         if (cmd == "ping"){
-          thisPacket.reInit(srcConn);
           JSON::Value prep;
           prep["cmd"] = "ok";
           prep["msg"] = "Pong!";
-          srcConn.SendNow("DTCM");
-          char sSize[4] ={0, 0, 0, 0};
-          Bit::htobl(sSize, prep.packedSize());
-          srcConn.SendNow(sSize, 4);
+          char sSize[8] ={'D', 'T', 'C', 'M', 0, 0, 0, 0};
+          Bit::htobl(sSize+4, prep.packedSize());
+          srcConn.SendNow(sSize, 8);
           prep.sendTo(srcConn);
           continue;
         }
+        // "sync" indicates a switch between async/sync modes
+        if (cmd == "sync"){
+          isSyncReceiver = thisPacket.getInt("sync");
+          INFO_MSG("Switching over to receiving in %s mode", isSyncReceiver?"sync":"async");
+          continue;
+        }
+        // "hi" is the server hello message
+        if (cmd == "hi"){
+          // let's log the version at INFO level
+          thisPacket.getString("version", cmd);
+          if (cmd.size()){
+            INFO_MSG("Connected to remote server version %s", cmd.c_str());
+          }
+          continue;
+        }
+        // Ignore all other commands
         INFO_MSG("Unhandled command: %s", cmd.c_str());
-        thisPacket.reInit(srcConn);
         continue;
       }
+      
+      // Handle metadata update/replacement packets
       if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
         DTSC::Meta nM("", thisPacket.getScan());
-        meta.merge(nM, false, false);
-        thisPacket.reInit(srcConn); // read the next packet before continuing
-        continue;                   // parse the next packet before returning
+        meta.merge(nM, clearMeta, false);
+        if (clearMeta){ meta.setBootMsOffset(nM.getBootMsOffset()); }
+        clearMeta = false;
+        if (returnAfterMetaReceived){return;}
+        continue;
       }
-      thisTime = thisPacket.getTime();
-      thisIdx = M.trackIDToIndex(thisPacket.getTrackId());
-      if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)){
-        uint32_t shrtest_key = 0xFFFFFFFFul;
-        uint32_t longest_key = 0;
-        DTSC::Keys Mkeys(M.keys(thisIdx));
-        uint32_t firstKey = Mkeys.getFirstValid();
-        uint32_t endKey = Mkeys.getEndValid();
-        uint32_t checkKey = (endKey-firstKey <= 3)?firstKey:endKey-3;
-        for (uint32_t k = firstKey; k+1 < endKey; k++){
-          uint64_t kDur = Mkeys.getDuration(k);
-          if (!kDur){continue;}
-          if (kDur > longest_key && k >= checkKey){longest_key = kDur;}
-          if (kDur < shrtest_key){shrtest_key = kDur;}
+
+      // Track data packet
+      if (thisPacket.getVersion() == DTSC::DTSC_V1 || thisPacket.getVersion() == DTSC::DTSC_V2){
+        thisTime = thisPacket.getTime();
+        thisIdx = M.trackIDToIndex(thisPacket.getTrackId());
+        if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)){
+          uint32_t shrtest_key = 0xFFFFFFFFul;
+          uint32_t longest_key = 0;
+          DTSC::Keys Mkeys(M.keys(thisIdx));
+          uint32_t firstKey = Mkeys.getFirstValid();
+          uint32_t endKey = Mkeys.getEndValid();
+          uint32_t checkKey = (endKey-firstKey <= 3)?firstKey:endKey-3;
+          for (uint32_t k = firstKey; k+1 < endKey; k++){
+            uint64_t kDur = Mkeys.getDuration(k);
+            if (!kDur){continue;}
+            if (kDur > longest_key && k >= checkKey){longest_key = kDur;}
+            if (kDur < shrtest_key){shrtest_key = kDur;}
+          }
+          if (longest_key > shrtest_key*2){
+            JSON::Value prep;
+            prep["cmd"] = "check_key_duration";
+            prep["id"] = (uint64_t)thisPacket.getTrackId();
+            prep["duration"] = longest_key;
+            srcConn.SendNow("DTCM");
+            char sSize[4] ={0, 0, 0, 0};
+            Bit::htobl(sSize, prep.packedSize());
+            srcConn.SendNow(sSize, 4);
+            prep.sendTo(srcConn);
+            INFO_MSG("Key duration %" PRIu32 " is quite long - confirming with upstream source", longest_key);
+          }
         }
-        if (longest_key > shrtest_key*2){
-          JSON::Value prep;
-          prep["cmd"] = "check_key_duration";
-          prep["id"] = (uint64_t)thisPacket.getTrackId();
-          prep["duration"] = longest_key;
-          srcConn.SendNow("DTCM");
-          char sSize[4] ={0, 0, 0, 0};
-          Bit::htobl(sSize, prep.packedSize());
-          srcConn.SendNow(sSize, 4);
-          prep.sendTo(srcConn);
-          INFO_MSG("Key duration %" PRIu32 " is quite long - confirming with upstream source", longest_key);
+
+        // If we're receiving packets in sync, we now know until 1ms ago all tracks are up-to-date
+        if (isSyncReceiver && thisTime){
+          std::map<size_t, Comms::Users>::iterator uIt;
+          for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt){
+            if (uIt->first == thisIdx){continue;}
+            if (M.getNowms(uIt->first) < thisTime - 1){meta.setNowms(uIt->first, thisTime - 1);}
+          }
         }
+
+        // If we're not trying to get metadata, break. Otherwise keep going to try and get metadata.
+        if (!returnAfterMetaReceived){break;}
       }
-      return; // we have a packet
+
+      WARN_MSG("Unhandled DTSC packet type encountered, ignoring...");
     }
+    if (clearMeta){ meta.clear(); }
   }
 
   void InputDTSC::seek(uint64_t seekTime, size_t idx){

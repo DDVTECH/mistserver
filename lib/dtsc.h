@@ -13,6 +13,7 @@
 #include <stdint.h> //for uint64_t
 #include <stdio.h>  //for FILE
 #include <string>
+#include <functional>
 
 #define DTSC_INT 0x01
 #define DTSC_STR 0x02
@@ -68,11 +69,12 @@ namespace DTSC{
     Scan getMember(const std::string &indice) const;
     Scan getMember(const char *indice) const;
     Scan getMember(const char *indice, size_t ind_len) const;
-      void nullMember(const std::string & indice);
-      void nullMember(const char * indice, size_t ind_len);
+    void nullMember(const std::string & indice);
+    void nullMember(const char * indice, size_t ind_len);
     Scan getIndice(size_t num) const;
     std::string getIndiceName(size_t num) const;
     size_t getSize() const;
+    void forEachMember(std::function<void(const DTSC::Scan&, const std::string&)> cb) const;
 
     char getType() const;
     bool asBool() const;

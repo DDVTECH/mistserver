@@ -8,7 +8,8 @@ $(function(){
       status: $('#connection'),
       user_and_host: $('#user_and_host'),
       msg: $('#message')
-    }
+    },
+    context_menu: []
   };
   UI.buildMenu();
   UI.stored.getOpts();
@@ -41,8 +42,8 @@ $(function(){
     switch (e.key) {
       case "Escape": {
         //if context menu, hide
-        if (UI.elements.context_menu) {
-          UI.elements.context_menu.hide();
+        for (let menu of UI.elements.context_menu) {
+          menu.hide();
         }
         break;
       }
@@ -51,8 +52,10 @@ $(function(){
 
   UI.elements.main.click(function(e){
     //if context menu, hide
-    if (UI.elements.context_menu && !e.isDefaultPrevented()) {
-      UI.elements.context_menu.hide();
+    if (!e.isDefaultPrevented()) {
+      for (let menu of UI.elements.context_menu) {
+        menu.hide();
+      }
     }
   });
   //add right click functionality for touch devices
@@ -279,12 +282,12 @@ var UI = {
     },
     element: $('<div>').attr('id','tooltip')
   },
-  context_menu: function(){
-    var $ele = $("<section>").attr("id","context_menu").click(function(e){ e.stopPropagation(); });
+context_menu: function(){
+    var $ele = $("<section>").attr("class","context_menu").click(function(e){ e.stopPropagation(); });
     $ele[0].style.display = "none";
     this.ele = $ele;
 
-    UI.elements.context_menu = this;
+    UI.elements.context_menu.push(this);
     
     this.pos = function(pos){
       var $parent = $ele.offsetParent();
@@ -293,11 +296,42 @@ var UI = {
       var mh = $parent.height() - $ele.outerHeight();
       var mw = $parent.width() - $ele.outerWidth();
 
-
       $ele.css('left',Math.min(pos.pageX - parpos.x,mw));
       $ele.css('top',Math.min(pos.pageY - parpos.y,mh));
     };
     this.show = function(html,pos){
+      /*  
+       Expects something like:
+       menu.show([
+        [ $("<div>").addClass("header").text("My header") ],
+        [
+          [ "Entry 1", onClick, "icon", "This is the first menu entry of this section" ],
+          {
+            text: "Entry 2",
+            icon: "copy",
+            title: "This is the second menu entry of this section",
+            "function": function(e){
+              this._setText("Loading..");
+              let me = this;
+              doSomething.then(function(){
+                me._setText("Complete!");
+                setTimeout(function(){ context_menu.hide(); },300);
+              }).catch(function(){
+                me._setText("Failed!");
+                setTimeout(function(){ context_menu.hide(); },1e3);
+              });
+  
+              return false; //do not hide the context menu after this function has returned
+            },
+
+          }
+        ]
+       ],PointerEvent);
+      
+       *  */
+
+
+
       if ((typeof html == "string") || (html instanceof jQuery)) {
         $ele.html(html);
       }
@@ -327,32 +361,68 @@ var UI = {
               continue;
             }
             else {
-              if ((entry.length >= 2) && (typeof entry[1] == "function")) {
-                //onclick action
-                $entry.click(entry[1]);
-                $entry.on("keydown",function(e){
-                  switch (e.key) {
-                    case "Enter": {
-                      $(this).click();
-                      break;
+              function createEntry(opts) {
+                if (Array.isArray(opts)) {
+                  var obj = {};
+                  obj.text = opts[0];
+                  if ((opts.length >= 2) && (typeof opts[1] == "function")) {
+                    obj["function"] = opts[1];
+                  }
+                  if (opts.length >=3) {
+                    obj.icon = opts[2];
+                    if (opts.length >= 4) {
+                      obj.title = opts[3];
                     }
                   }
-                });
-                $entry.attr("tabindex","0");
-              }
+                  opts = obj;
+                }
+                
+                if ("function" in opts) {
+                  //onclick action
+                  $entry.click(function(e){
+                    var returnValue = opts["function"].apply(this,arguments);
+                    if (returnValue !== false) {
+                      $ele.hide();
+                    }
+                  });
+                  $entry.on("keydown",function(e){
+                    switch (e.key) {
+                      case "Enter": {
+                        $(this).click();
+                        break;
+                      }
+                    }
+                  });
+                  $entry.attr("tabindex","0");
+                }
 
-              if (entry.length >=3) {
-                $entry.append(
-                  $("<div>").addClass("icon").attr("data-icon",entry[2])
-                );
+                if ("icon" in opts) {
+                  $entry.append(
+                    $("<div>").addClass("icon").attr("data-icon",opts.icon)
+                  );
+                }
 
-                if (entry.length >= 4) {
-                  //title
-                  $entry.attr("title",entry[3]);
+                if ("title" in opts) {
+                  $entry.attr("title",opts.title);
+                }
+
+                if (typeof opts.text == "string") {
+                  $entry[0]._text = document.createTextNode(opts.text);
+                  $entry.append($entry[0]._text);
+                  //add helper function to easily update just the text of this menu entry
+                  $entry[0]._setText = function(str) {
+                    this._text.nodeValue = str;
+                  }
+                }
+                else {
+                  $entry.append(opts.text);
+                  $entry[0]._setText = function(str) {
+                    $(this).html(str);
+                  }
                 }
               }
+              createEntry(entry);
 
-              $entry.append(entry[0]);
             }
 
             $ele.append($entry);
@@ -367,7 +437,7 @@ var UI = {
       $ele[0].style.display = "";
       if (pos) { this.pos(pos); }
 
-      $ele[0].style.display = "";
+      $ele.find("[tabindex]").first().focus();
     };
     this.hide = function(){
       $ele[0].style.display = "none";
@@ -805,19 +875,47 @@ var UI = {
     }
     return human;
   },
-  popup: {
-    element: null,
-    show: function(content) {
-      this.element = $('<div>').attr('id','popup').append(
-        $('<button>').text('Close').addClass('close').click(function(){
-          UI.popup.element.fadeOut('fast',function(){
-            UI.popup.element.remove();
-            UI.popup.element = null;
-          });
-        })
-      ).append(content);
-      $('body').append(this.element);
+  popup: function(html){
+    var popup = {
+      element: $('<dialog>').addClass('popup'),
+      show: function(content) {
+        this.element.html(
+          $('<button>').text('Close').addClass('close').click(function(){
+            popup.close();
+          })
+        ).append(content);
+        if (!this.element[0].open) {
+          $('body').append(this.element);
+          popup.element[0].showModal();
+        }
+        popup.element.find('.field').first().focus();
+      },
+      close: function(){
+        this.element[0].close();
+      }
+    };
+    //close modal when clicking on the modal backdrop
+    popup.element[0].addEventListener("mousedown",function(e){
+      if (e.target == this) {
+        //no children were clicked, but it might be on the padding
+        let rect = this.getBoundingClientRect();
+        let isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+    rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+        if (!isInDialog) {
+          popup.close();
+        }
+      }
+    });
+    popup.element[0].addEventListener("close",function(){
+      setTimeout(function(){
+        popup.element.remove();
+        popup.element = null;
+      },1e3);
+    });
+    if (html) {
+      popup.show(html);
     }
+    return popup;
   },
   menu: [
     {
@@ -825,7 +923,8 @@ var UI = {
       General: {
         hiddenmenu: {
           "Edit variable": {},
-          "Edit external writer": {}
+          "Edit external writer": {},
+          "Stream keys": {}
         }
       },
       Protocols: {},
@@ -1006,118 +1105,459 @@ var UI = {
       callback(output);
     },{browse:stream.source});
   },
-  updateLiveStreamHint: function(streamname,source,$cont) {
+  findStreamKeys: function(streamname) {
+    if ("streamkeys" in mist.data) {
+      let streamkeys = [];
+      if (typeof mist.data.streamkeys == "object"){
+        for (let key in mist.data.streamkeys) {
+          if (mist.data.streamkeys[key] == streamname) { streamkeys.push(key); }
+        }
+      }
+      return streamkeys;
+    }
+    throw "Please request streamkeys first.";
+  },
+  findInputBySource: function(source) {
+    if (source == '') { return; }
+    if ("capabilities" in mist.data) {
+      for (let i in mist.data.capabilities.inputs) {
+        let input = mist.data.capabilities.inputs[i];
+        if (typeof input.source_match == 'undefined') { continue; }
+        if (mist.inputMatch(input.source_match,source)) {
+          return input;
+        }
+      }
+      return null; //no matching input for this source
+    }
+    else {
+      throw "Please request capabilities first.";
+    }
+  },
+  updateLiveStreamHint: function(streamname,source,$cont,input,streamkeys) {
+    let rawmode;
+    if ($cont == "raw") {
+      rawmode = {};
+      $cont = false; 
+    }
+    if (!$cont) { $cont = $("<span>"); }
+    $cont.html("");
+    if (!streamname || !source) { 
+      return rawmode || $cont;
+    }
+    if (!input) {
+      input = UI.findInputBySource(source);
+      if (input === null) {
+        return rawmode || $cont;
+      }
+    }
+    if (!streamkeys) {
+      streamkeys = UI.findStreamKeys(streamname);
+    }
 
-    //var streamname = $main.find('[name=name]').val();
-    if (!streamname) { return; }
+    let show;
+    switch (input.name) {
+      case 'Buffer':
+      case 'Buffer.exe':
+        show = ["RTMP","TSSRT","RTSP","WebRTC"];
+        break;
+      case 'TS':
+      case 'TS.exe':
+        if ((source.charAt(0) != "/") && (source.slice(0,7) != "ts-exec")) {
+          show = ["TS"];
+        }
+        break;
+      case 'TSSRT':
+      case 'TSSRT.exe': {
+        show = ["TSSRT"];
+        break;
+      }
+    }
+    if (!show) {
+      return rawmode || $cont;
+    }
+
     var host = parseURL(mist.user.host);
     //var source = $main.find('[name=source]').val();
     var passw = source.match(/@.*/);
     if (passw) { passw = passw[0].substring(1); }
     var ip = source.replace(/(?:.+?):\/\//,'');
-      ip = ip.split('/');
-      ip = ip[0];
-      ip = ip.split(':');
-      ip = ip[0];
-      var custport = source.match(/:\d+/);
-      if (custport) { custport = custport[0]; }
+    ip = ip.split('/');
+    ip = ip[0];
+    ip = ip.split(':');
+    ip = ip[0];
+    var custport = source.match(/:\d+/)?.[0];
 
+    var matchhost = source.match(/^push:\/\/([^:@\/]*)/)?.[1];
+    if (matchhost != "invalid,host") {
+      streamkeys = [streamname].concat(streamkeys.map((v)=>encodeURIComponent(v)));
+    }
 
-      var port = {};
-      var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe','TSSRT','TSSRT.exe'];
-      for (var i in trythese) {
-        if (trythese[i] in mist.data.capabilities.connectors) {
-          port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
-        }
+    let trythese = ['RTMP','RTSP','TSSRT','WebRTC','HTTPS','HTTP'];
+    for (let i = trythese.length - 1; i >= 0; i--) {
+      trythese.push(trythese[i]+".exe");
+    }
+    //add .exe to each for windowz
+
+    let mistdefport = {}; //retrieve MistServer's default ports from capabilities
+    for (let i = trythese.length - 1; i >= 0; i--) {
+      let p = trythese[i];
+      if (p in mist.data.capabilities.connectors) {
+        mistdefport[p.replace(".exe","")] = mist.data.capabilities.connectors[p].optional.port['default'];
       }
-    var defport = {
+      else {
+        //not in capabilities, stop trying
+        trythese.splice(i,1);
+      }
+    }
+    let defport = { //these are the default ports used when using the protocol - not necesarily the same as MistServer's
       RTMP: 1935,
-      'RTMP.exe': 1935,
       RTSP: 554,
-      'RTSP.exe': 554,
+      HTTP: 80,
+      HTTPS: 443,
       TSSRT: -1,
-      'TSSRT.exe': -1,
       TS: -1,
-      'TS.exe': -1
     };
-    for (var protocol in port) {
-      for (var i in mist.data.config.protocols) {
+    let ports = {};
+    for (let protocol of trythese) {
+      let protocolname = protocol.replace(".exe","");
+      ports[protocolname] = [];
+      for (let i in mist.data.config.protocols) {
         var p = mist.data.config.protocols[i];
         if (p.connector == protocol) {
-          if ('port' in p) {
-            port[protocol] = p.port;
+          let port = false;
+          if (protocolname in mistdefport) port = ":"+mistdefport[protocolname];
+          if ("port" in p) port = ":"+p.port;
+          if (port == (":"+defport[protocolname])) port = "";
+
+          switch (protocolname) {
+            case "TSSRT": {
+              if (p.acceptable == 1) port = false; //this SRT config only allows outgoing connections
+              if (port !== false) {
+                port = {
+                  port: port,
+                  passphrase: p.passphrase
+                }
+              }
+              break;
+            }
+            case "HTTP":
+            case "HTTPS": {
+              if (("pubaddr" in p) && (p.pubaddr.length)) {
+                ports[protocolname].push(p.pubaddr);
+                //the ports array will contain strings: the ports, and arrays, the public urls
+              }
+              break;
+            }
           }
-          break;
+
+          if (port !== false) ports[protocolname].push(port);
         }
       }
-      if (port[protocol] == defport[protocol]) { port[protocol] = ''; }
-      else { port[protocol] = ':'+port[protocol]; }
     }
-    port.TS = "";
-    port["TS.exe"] = "";
+    //TODO webrtc input
 
-    $cont.find('.field').closest('label').hide();
-    for (var i in port) {
-      var str;
-      var useport = (custport ? custport : port[i]);
-      switch(i) {
-        case 'RTMP':
-        case 'RTMP.exe':
-          str = 'rtmp://'+host.host+useport+'/'+(passw ? passw : 'live')+'/';
-          var l = $cont.find('.field.RTMPurl').setval(str).closest('label');
-          if (l.length) l[0].style.display = "";
-          l = $cont.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label');
-          if (l.length) l[0].style.display = "";
-          str += (streamname == '' ? 'STREAMNAME' : streamname);
+    
+    if (!rawmode) {
+      context_menu = new UI.context_menu();
+    }
+
+    function createSection(kind) {
+      let label = kind;
+      function createSpan(text,help) {
+        return !!rawmode || $("<span>").addClass("value").addClass("clickable").attr("title",help).text(text).on("contextmenu",function(e){
+          e.preventDefault();
+          context_menu.show([
+            [
+              $("<div>").addClass("header").append(
+                $("<div>").text(text)
+              ).append(
+                help ? $("<div>").addClass("description").text(help) : ""
+              )
+            ],[[
+              "Copy to clipboard",function(){
+                UI.copy(text).then(()=>{
+                  this._setText("Copied!")
+                  setTimeout(function(){ context_menu.hide(); },300);
+                }).catch((e)=>{
+                  this._setText("Copy: "+e);
+                  setTimeout(function(){ context_menu.hide(); },300);
+
+                  var popup =  UI.popup(UI.buildUI([
+                    $("<h1>").text("Copy to clipboard"),{
+                      type: "help",
+                      help: "Automatic copying failed ("+e+"). Instead you can manually copy from the field below."
+                    },{
+                      type: "str",
+                      label: "Text",
+                      value: text,
+                      rows: Math.ceil(text.length/50+2)
+                    }
+                  ]));
+                  popup.element.find("textarea").select();
+                });
+              },"copy","Copy "+text+" to the clipboard"
+            ]]
+          ],e);
+        }).click(function(e){
+          this.dispatchEvent(new MouseEvent("contextmenu",e));
+          e.stopPropagation();
+        });
+      }
+
+      let $values = $("<span>").addClass("values");
+      let values = [];
+      switch (kind) {
+        case "RTMP": {
+          function buildRTMPurl(nopass,port) {
+            return "rtmp://"+host.host+port+"/"+(passw && !nopass ? passw : "live")+"/";
+          }
+          if (rawmode) {
+            values = {
+              full_url: [],
+              pairs: {}
+            };
+            for (let port of ports["RTMP"]) {
+              for (const key of streamkeys) {
+                values.full_url.push(buildRTMPurl(key != streamname,port) + key);
+              }
+              for (const key of streamkeys) {
+                const url = buildRTMPurl(key != streamname,port);
+                if (!(url in values.pairs)) { values.pairs[url] = []; }
+                values.pairs[url].push(key);
+              }
+            }
+            break;
+          }
+
+          for (let port of ports["RTMP"]) {
+            let $sub = $("<div>").addClass("sub");
+            for (const key of streamkeys) {
+              $sub.append(
+                $("<label>").append(
+                  $("<span>").addClass("label")
+                ).append(
+                  createSpan(buildRTMPurl(key != streamname,port) + key,"Use this RTMP url if your client doens't ask for a stream key")
+                )
+              );
+            }
+            $sub.children().first().children().first().text("Full url:");
+            $values.append($sub);
+
+            $sub = $("<div>").addClass("sub");
+            let theurl;
+            let n = 0;
+            for (const key of streamkeys) {
+              let newurl = buildRTMPurl(key != streamname,port);
+              if (theurl != newurl) {
+                if ($sub.children().length) $values.append($sub);
+                $sub = $("<div>").addClass("sub");
+                $sub.append(
+                  $("<label>").append(
+                    $("<span>").addClass("label").text(n ? "Or url:" : "Url:")
+                  ).append(
+                    createSpan(newurl,"Use this RTMP url if your client also asks for a stream key")
+                  )
+                ).append(
+                  $("<label>").append(
+                    $("<span>").addClass("label").text("with key:")
+                  ).append(
+                    createSpan(key)
+                  )
+                );
+                theurl = newurl;
+                n++;
+              }
+              else {
+                $sub.append(
+                  $("<label>").append(
+                    $("<span>").addClass("label")
+                  ).append(
+                    createSpan(key)
+                  )
+                );
+              }
+            }
+            $values.append($sub);
+          }
+
           break;
-        case 'TSSRT':
-        case 'TSSRT.exe':
+        }
+        case "TSSRT": {
+          label = "SRT";
           if (source.slice(0,6) == "srt://") { 
+            let out;
             if (custport) {
               var source_parsed = parseURL(source.replace());
               if (source_parsed.host == "") {
                 //url is invalid, parser gets funky
                 source_parsed = parseURL(source.replace(/^srt:\/\//,"http://localhost"));
-                  source_parsed.host = source_parsed.host.replace(/^localhost/,"")
-                }
+                source_parsed.host = source_parsed.host.replace(/^localhost/,"");
+              }
               if ((source_parsed.host != "") && (!source_parsed.search || !source_parsed.searchParams || source_parsed.searchParams.get("mode") != "listener")) {
-                str = "Caller mode: you should push to the other side.";
+                out = "Caller mode: pulling stream from provided source.";
               }
               else if (source_parsed.search && source_parsed.searchParams && (source_parsed.searchParams.get("mode") == "caller")) {
-                str = "Caller mode: you should probably add an address.";
+                out = "Caller mode: you should probably add an address.";
               }
               else {
-                str = 'srt://'+host.host+custport;
+                out = rawmode ? 'srt://'+host.host+custport : createSpan('srt://'+host.host+custport)
               }
               //if adres -> caller of ?mode=caller, geen push url
               //als ?mode=listener, wel push url
             }
             else {
-              str = "You must specify a port.";
+              out = "You must specify a port.";
             }
+            values.push(out);
+            $values.append(typeof out == "string" ? $("<span>").addClass("value").text(out) : out);
           }
           else {
-            str = 'srt://'+host.host+useport+'?streamid='+(streamname == '' ? 'STREAMNAME' : streamname);
+            for (let port of ports["TSSRT"]) {
+              for (const key of streamkeys) {
+                if (passw && (key == streamname)) {
+                  //if there is a @password, SRT cannot set it. So this will only work if there is a streamkey
+                  if (streamkeys.length <= 1) {
+                    let out = "SRT cannot be used for input if there is a @password. Did you want to configure an SRT passphrase instead?";
+                    values.push(out);
+                    $values.append(
+                      $("<span>").addClass("value").text(out)
+                    );
+                  }
+                  continue;
+                  //TODO remove?
+                  if ((passw.length < 10) || (passw.length > 79)) {
+                    let out = "For SRT, the password length must be between 10 and 79 characters.";
+                    values.push(out);
+                    $values.append(
+                      $("<span>").addClass("value").text(out)
+                    );
+                    continue;
+                  }
+                }
+                let out = 'srt://'+host.host+port.port+'?streamid='+key+(port.passphrase ? "&passphrase="+port.passphrase : "");
+                values.push(out);
+                $values.append(createSpan(out));
+              }
+            }
           }
           break;
-        case 'RTSP':
-        case 'RTSP.exe':
-          str = 'rtsp://'+host.host+useport+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
+        }
+        case "WebRTC": {
+          label += " (WHIP)";
+          
+          //http(s)://localhost/webrtc/streamname
+          //TODO skip if passw
+          
+          //gather hosts
+          let hosts = {}; //in an object to de-duplicate
+          for (let kind of ["HTTP","HTTPS"]) {
+            for (let port of ports[kind]) {
+              if (typeof port == "string") {
+                //it's a port
+                hosts[kind.toLowerCase()+"://"+host.host+port] = 1;
+              }
+              else {
+                //it's an array of public urls
+                for (let url of port) {
+                  hosts[url] = 1;
+                }
+              }
+            }
+          }
+          hosts = Object.keys(hosts);
+
+          for (let host of hosts) {
+            for (const key of streamkeys) {
+              if (passw && (key == streamname)) {
+                //@password is not implemented for WebRTC WHIP input
+                if (streamkeys.length <= 1) {
+                  let out = label+" cannot be used for input if there is a @password.";
+                  values.push(out);
+                  $values.append(
+                    $("<span>").addClass("value").text(out)
+                  );
+                }
+                continue;
+              }
+
+              let out = host+(host[host.length-1] == "/" ? "" : "/")+"webrtc/"+key;
+              values.push(out);
+              $values.append(createSpan(out));
+            }
+          }
+
           break;
-        case 'TS':
-        case 'TS.exe':
-          str = 'udp://'+(ip == '' ? host.host : ip)+useport+'/';
+        }
+        case "RTSP": {
+          for (const port of ports["RTSP"]) {
+            for (const key of streamkeys) {
+              let out = 'rtsp://'+host.host+port+'/'+(key)+(passw && (key == streamname) ? '?pass='+passw : '')
+              values.push(out);
+              $values.append(
+                createSpan(out)
+              );
+            }
+          }
           break;
+        }
+        case "TS": {
+          if ((source.charAt(0) == "/") || (source.slice(0,7) == "ts-exec")) {
+            return; //do not return section
+          }
+          for (const port of ports["TS"]) {
+            let out = 'udp://'+(ip == '' ? host.host : ip)+port+'/';
+            values.push(out);
+            $values.append(
+              createSpan(out)
+            );
+          }
+          break;
+        }
       }
-      var f = $cont.find('.field.'+i.replace('.exe',''));
-      if (f.length) {
-        f.setval(str).closest('label')[0].style.display = "";
+
+      if (rawmode) {
+        rawmode[label] = values;
+        return;
+      }
+
+      let $section = $("<label>").append(
+        $("<span>").addClass("label").text(label+":")
+      );
+      $section.append($values);
+
+      return $section;
+    }
+
+
+    if (rawmode) {
+      for (const kind of show) {
+        createSection(kind);
       }
     }
+    else {
+      $cont.addClass("livestreamhint").html(
+        $('<span>').addClass("unit").html(
+          $("<span>").addClass("info").text("i")
+        )
+      ).append(
+        $('<b>').text('Configure your source to push to:')
+      );
+
+      if (streamkeys.length == 0) {
+        $cont.append($("<div>").text("There is no valid push endpoint with your current settings."));
+      }
+      else {
+        for (const kind of show) {
+          $cont.append(createSection(kind));
+        }
+        $cont.append(context_menu.ele);
+      }
+    }
+    return rawmode || $cont;
   },
   buildUI: function(elements){
     /*elements should be an array of objects, the objects containing the UI element options 
-     * (or a jQuery object that will be inserted isntead).
+     * (or a jQuery object that will be inserted instead).
     
     element options: 
       {
@@ -1240,6 +1680,9 @@ var UI = {
             default:
               $b.click(button['function']);
               break;
+          }
+          if ("icon" in button) {
+            $b.attr("data-icon",button.icon);
           }
         }
         continue;
@@ -1443,51 +1886,65 @@ var UI = {
           $select.trigger("change");
           break;
         case "inputlist":
-          $field = $('<div>').addClass('inputlist');
-          var newitem = function(){
-            var $part;
-            if ("input" in e) {
-              $part = UI.buildUI([e.input]).find(".field_container");
-            }
-            else {
-              var o = Object.assign({},e);
-              delete o.validate;
-              delete o.pointer;
-              o.type = "str";
-              $part = UI.buildUI([o]).find(".field_container");
-            }
-            $part.removeClass("isSetting");
-            $part.addClass("listitem");
-
-            var keyup = function(e){
-              if ($(this).is(":last-child")) {
-                if ($(this).find(".field").getval() != "") {
-                  var $clone = $part.clone(true).keyup(keyup);
-                  $clone.find(".field").setval("");
-                  $(this).after($clone);
-                }
-                else if (e.which == 8) { //backspace
-                  $(this).prev().find(".field").focus();
-                }
+          function createField(e) {
+            let $field = $('<div>').addClass('inputlist');
+            var newitem = function(){
+              var $part;
+              if ("input" in e) {
+                $part = UI.buildUI([e.input]).find(".field_container");
+                //forward help container
+                $part.find(".field").data("help_container",function(){
+                  return $field.data("help_container");
+                });
               }
               else {
-                if ($(this).find(".field").getval() == "") {
-                  var $f = $(this).prev();
-                  if (!$f.length) {
-                    $f = $(this).next();
-                  }
-                  $f.find(".field").focus();
-                  $(this).remove();
-                }
+                var o = Object.assign({},e);
+                delete o.validate;
+                delete o.pointer;
+                o.type = "str";
+                $part = UI.buildUI([o]).find(".field_container");
               }
+              $part.removeClass("isSetting");
+              $part.addClass("listitem");
+
+              var keyup = function(e){
+                if ($(this).is(":last-child")) {
+                  if ($(this).find(".field").getval() != "") {
+                    /*var $clone = $part.clone(true).keyup(keyup);
+                  $clone.find(".field").setval("");
+                  $(this).after($clone);*/
+                    $(this).after(newitem());
+                  }
+                  else if (e.which == 8) { //backspace
+                    $(this).prev().find(".field").focus();
+                  }
+                }
+                else {
+                  if ($(this).find(".field").getval() == "") {
+                    var $f = $(this).prev();
+                    if (!$f.length) {
+                      $f = $(this).next();
+                    }
+                    $f.find(".field").focus();
+                    $(this).remove();
+                  }
+                }
+              };
+
+              $part.keyup(keyup);
+              return $part;
             };
-            
-            $part.keyup(keyup);
-            return $part;
-          };
-          $field.data("newitem",newitem);
-          
-          $field.append($field.data("newitem"));
+            $field.data("newitem",newitem);
+
+            $field.append($field.data("newitem")());
+
+            $field.focus = function(){
+              return $(this).find(".listitem").first().find(".field").focus()
+            };
+
+            return $field;
+          }
+          $field = createField(e);
           break;
         case "sublist": {
           //saves an array with objects contain more settings
@@ -1635,6 +2092,77 @@ var UI = {
           $e.attr("for","none");
           break;
         }
+        case "group":{
+          let $cont = $("<div>").addClass("itemgroup");
+          let children = e.options;
+          let $summary = $("<ul>").addClass("summary");
+          children.unshift($summary);
+          if ("help" in e) {
+            children.unshift(
+              $("<span>").addClass("description").text(e.help)
+            );
+          }
+          if ("label" in e) {
+            children.unshift(
+              $("<b>").text(e.label).attr("tabindex",0).keydown(function(e){
+                e.stopPropagation();
+                if (e.which == 13) {
+                  //enter
+                  $(this).trigger("click");
+                }
+              }).click(function(){
+                $cont.toggleClass("expanded")
+              }).attr("title","Click to show / hide these options")
+            );
+          }
+          if (e.expand || (!(e.expand === false) && Object.keys(e.options).length < 2)) {
+            //do not collapse fields on creation if expand: true is passed
+            //always collapse fields if expand: false is passed
+            //otherwise, collapse if group contains 2 fields or more
+            $cont.addClass("expanded"); 
+          }
+          $cont.change(function(){
+            $summary.html("");
+            $(this).find(".isSetting, input[type=\"hidden\"].isSetting").each(function(){ 
+              var val = $(this).getval();
+              if (val == "") { return; }
+              var opts = $(this).data('opts');
+              if (val != opts['default']) {
+                var label = opts["label"]+": ";
+                switch (opts.type) {
+                  case "select": {
+                    val = opts.select.filter(function(v){ if (v[0] == val) return true; return false; })[0][1]; break;
+                  }
+                  case "unix": {
+                    val = UI.format.dateTime(val); break;
+                  }
+                  case "checkbox": {
+                    val = ""; 
+                    label = label.slice(0,-2);
+                    break;
+                  }
+                  case "inputlist": {
+                    val = val.join(", ");
+                    break;
+                  }
+                }
+                $summary.append(
+                  $("<li>").addClass("setting").append(
+                    $("<span>").addClass("label").text(label)
+                  ).append(
+                    $("<span>").text(val)
+                  ).append(
+                    $("<span>").addClass("unit").text(typeof opts.unit  == "string" ? opts["unit"] : "")
+                  )
+                );
+              }
+            });
+          }).append(UI.buildUI(children)).trigger("change");
+          $c.append($cont); //add this to input_container
+          $e.remove(); //remove the created label UIelement from input_container
+          continue; //continue for (var i in elements)
+          break;
+        }
         case "str": 
         default: {
           $field = $('<input>').attr('type','text');
@@ -1646,7 +2174,7 @@ var UI = {
           }
         }
       }
-      $field.addClass('field').data('opts',e);
+      $field.addClass('field').data('opts',e).data('uid',Math.random().toString().slice(2));
 
       //add generic field options
       if ('pointer' in e) { $field.attr('name',e.pointer.index); }
@@ -1750,7 +2278,7 @@ var UI = {
           }).click(function(){
               var text = String($(this).closest('.field_container').find('.field').getval());
               var $qr = $('<div>').addClass('qrcode');
-              UI.popup.show(
+              UI.popup(
                 $('<span>').addClass('qr_container').append(
                   $('<p>').text(text)
                 ).append($qr)
@@ -2030,6 +2558,7 @@ var UI = {
       //integrated help
       var $ihc = $('<span>').addClass('help_container');
       $e.append($ihc);
+      $field.data('help_container',$ihc);
       if ('help' in e) {
         $ihc.append(
           $('<span>').addClass('ih_balloon').html(e.help)
@@ -2243,22 +2772,28 @@ var UI = {
           });
         }
 
-        $field.data('validate_functions',fs).data('help_container',$ihc).data('validate',function(me,focusonerror){
+        $field.data('validate_functions',fs).data('validate',function(me,focusonerror){
           if ((!$(me).is(":visible")) && (!$(me).is("input[type=\"hidden\"]"))) { return; }
           var val = $(me).getval();
           var fs = $(me).data('validate_functions');
           var $ihc = $(me).data('help_container');
-          $ihc.find('.err_balloon').remove();
+          var uid = $(me).data("uid");
+          if (typeof $ihc == "function") {
+            $ihc = $ihc();
+          }
+          $ihc.find('.err_balloon[data-uid="'+uid+'"]')?.remove(); //only remove balloons that were created by this field (relevant for inputlist)
           for (var i in fs) {
             var error = fs[i](val,me);
             if (error) {
-              $err = $('<span>').addClass('err_balloon').html(error.msg);
+              $err = $('<span>').addClass('err_balloon').attr("data-uid",uid).html(error.msg);
               for (var j in error.classes) {
                 $err.addClass(error.classes[j]);
               }
               $ihc.prepend($err);
-              if (focusonerror) { $(me).focus(); }
-              return ((typeof error == "object") && ("break" in error) ? error["break"] : true);
+              if ((typeof error != "object") || (!("break" in error)) || (error.break)) {
+                if (focusonerror) { $(me).focus(); }
+                return true;
+              }
             }
           }
           return false;
@@ -2895,6 +3430,65 @@ var UI = {
       //end the drag ?
     });
   },
+  copy: function(text){
+    return new Promise(function (resolve,reject) {
+      navigator.permissions.query({ name: "clipboard-write" }).then(function(result) {
+        if (result.state === "granted" || result.state === "prompt") {
+          navigator.clipboard.writeText(text).then(function(){
+            resolve();
+          }).catch(function(){
+            throw "Failed";
+          });
+        }
+        else {
+          throw "Not permitted";
+        }
+      }).catch(function(e){
+
+        //attempt the old method
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.textContent = text;
+        textArea.style.position = "absolute";
+        textArea.style.opacity = 0.00001;
+        var focussed = document.activeElement;
+        //add the text area to the DOM somewhere where hopefully it is "visible" so that it can obtain focus
+        function addToDOM(ele,tryHere) {
+          if (!tryHere) { tryHere = focussed; }
+          if (tryHere.checkVisibility()) {
+            tryHere.appendChild(ele);
+            return true; //success!
+          }
+          if (tryHere.parentNode) { return addToDOM(ele,tryHere.parentNode); }
+          return addToDOM(ele,document.body);
+          return false;
+        }
+        addToDOM(textArea);
+        textArea.focus();
+        if (document.activeElement != textArea) {
+          if (focussed)
+          reject("Copy failed (could not obtain focus)");
+          return;
+        }
+        textArea.setSelectionRange(0,text.length);
+
+        var yay = false;
+        try {
+          yay = document.execCommand('copy');
+        } catch (err) {
+          console.errror(err);
+        }
+        textArea.parentNode.removeChild(textArea);
+        focussed.focus();
+        if (yay) {
+          resolve();
+        }
+        else {
+          reject(e);
+        }
+      });
+    });
+  },
   format: {
     time: function(secs,type){
       var d = new Date(secs * 1000);
@@ -3200,6 +3794,8 @@ var UI = {
     
     UI.interval.clear();
     UI.websockets.clear();
+    UI.elements.contextmenu = [];
+
     $main.attr("data-tab",tab).html(
       $('<h2>').text(tab)
     );
@@ -4950,7 +5546,7 @@ var UI = {
           $main.html('Loading..');
           mist.send(function(){
             UI.navto(tab,other);
-          },{capabilities: true});
+          },{capabilities: true, streamkeys: true});
           return;
         }
 
@@ -4990,6 +5586,10 @@ var UI = {
             $("<button>").text('Switch to '+(other == 'thumbnails' ? 'list' : 'thumbnail')+' view').click(function(){
               mist.stored.set('viewmode',(other == 'thumbnails' ? 'list' : 'thumbnails'));
               UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
+            })
+          ).append(
+            $("<button>").attr("data-icon","key").text("Manage stream keys").click(function(){
+              UI.navto("Stream keys");
             })
           ).append(
             $('<button>').attr("data-icon","plus").text('Create a new stream').click(function(){
@@ -5111,21 +5711,32 @@ var UI = {
                   this.elements.thumbnail.raw = data.online;
                 }
 
-                //is it a folder stream?
-                if (data.source != this.raw_source) {
-                  this.raw_source = data.source;
-                  var inputs_f = UI.findInput("Folder");
-                  this.setAttribute("title",data.source);
-                  if (inputs_f) {
-                    if (mist.inputMatch(inputs_f.source_match,data.source)) {
-                      this.setAttribute("data-isfolderstream","yes");
-                      data.isfolderstream = true;
-                      this.setAttribute("title","This is a folder stream: it points to a folder with media files inside. Click to request its sub streams.");
+                if (data.source !== this.raw_source) {
+                  if (data.source === null) {
+                    this.elements.header.classList.add("wildparent");
+                    this.setAttribute("title","This stream has no configuration and will disappear once it goes offline.");
+                  }
+                  else {
+                    if (this.raw_src === null) {
+                      this.classList.remove("wildparent");
                     }
-                    else {
-                      this.setAttribute("data-isfolderstream","no");
-                      this.setAttribute("title",data.source);
-                      data.isfolderstream = false;
+
+                    this.raw_source = data.source;
+
+                    //is it a folder stream?
+                    var inputs_f = UI.findInput("Folder");
+                    this.setAttribute("title",data.source);
+                    if (inputs_f) {
+                      if (mist.inputMatch(inputs_f.source_match,data.source)) {
+                        this.setAttribute("data-isfolderstream","yes");
+                        data.isfolderstream = true;
+                        this.setAttribute("title","This is a folder stream: it points to a folder with media files inside. Click to request its sub streams.");
+                      }
+                      else {
+                        this.setAttribute("data-isfolderstream","no");
+                        this.setAttribute("title",data.source);
+                        data.isfolderstream = false;
+                      }
                     }
                   }
                 }
@@ -5204,7 +5815,7 @@ var UI = {
               if (id != this.raw) {
                 this.raw = id;
                 var td = this;
-                var a = $("<a>").text(d.name).click(function(){
+                var a = $("<a>").addClass("clickable").text(d.name).click(function(){
                   if (($(td).attr("data-iswildcard") == "no") && ($(td).attr("data-isfolderstream") == "yes")) {
                     UI.navto("Edit",id);
                   }
@@ -5228,7 +5839,16 @@ var UI = {
                 }
                 $(this).html(a);
               }
-              if (d.source != this.raw_src) {
+              if (d.source !== this.raw_src) {
+                if (d.source === null) {
+                  $(this).addClass("wildparent");
+                  $(this).find("a").attr("title","This stream has no configuration and will disappear once it goes offline.")
+                }
+                else if (this.raw_src === null) {
+                  $(this).removeClass("wildparent");
+                  $(this).find("a").attr("title",id.indexOf("+") >= 0 ? "This is a wildcard stream: its config is inherited from its parent: '"+parentstream+"'." : false );
+                }
+
                 this.raw_src = d.source;
                 //check if this is a folder stream
                 if (mist.data.capabilities) {
@@ -5446,11 +6066,24 @@ var UI = {
 
         $main.append(context_menu.ele);
         context_menu.fill = function(streamname,e){
+          let settings = current_streams[streamname];
+          function formatStreamname(streamname) {
+            if (settings.source === null) {
+              //this stream does not exist in config
+              return "<span class=\"wildparent\">"+streamname+"</span><div class=\"description\">Unconfigured</div>";
+            }
+            if (streamname.indexOf("+") >= 0) {
+              //it's a wildcard stream: highlight the base
+              let split = streamname.split("+");
+              return "<span class=\"wildparent\">"+split[0]+"+</span>"+split.slice(1).join("+");
+            }
+            return streamname;
+          }
           var header = [
-            $("<div>").addClass("header").text(streamname)
+            $("<div>").addClass("header").html(formatStreamname(streamname))
           ];
           var gototabs = [
-            ["<span>Edit "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")+"</span>",function(){ UI.navto("Edit",streamname); },"Edit","Change the settings of this stream."],
+            [$("<span>").html("Edit "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")),function(){ UI.navto("Edit",streamname); },"Edit","Change the settings of this stream."],
             ["Stream status",function(){ UI.navto("Status",streamname); },"Status","See more details about the status of this stream."],
             ["Preview stream",function(){ UI.navto("Preview",streamname); },"Preview","Watch the stream."],
             ["Embed stream",function(){ UI.navto("Embed",streamname); },"Embed","Get urls to this stream or get code to embed it on your website."]
@@ -5487,7 +6120,12 @@ var UI = {
               }
             },"nuke","Shut down a running stream completely and/or clean up any potentially left over stream data in memory. It attempts a clean shutdown of the running stream first, followed by a forced shut down, and then follows up by checking for left over data in memory and cleaning that up if any is found."]
           ];
-          if (current_streams[streamname].isfolderstream) {
+          if (settings.source === null) {
+            gototabs.shift();
+            gototabs.unshift([$("<span>").html("Create <b>"+streamname.split("+")[0]+"</b>"),function(){ UI.navto("Edit",streamname); },"Edit","Create this stream."]);
+            actions.shift();
+          }
+          if (settings.isfolderstream) {
             gototabs.pop();
             gototabs.pop();
             actions = [actions[0]];
@@ -5529,12 +6167,21 @@ var UI = {
           var streambase = streamname.split("+")[0];
 
           if (streambase in mist.data.streams) {
-            if ((streambase != streamname) && !(streamname in current_streams)) {
-              //it's a new wildcard stream
-              current_streams[streamname] = $.extend({},mist.data.streams[streambase]);
-              current_streams[streamname].name = streamname;
-              if (current_streams[streambase].isfolderstream) {
-                current_streams[streamname].source += streamname.replace(streambase+"+");
+            if (streambase != streamname) {
+              if  (!(streamname in current_streams)) {
+                //it's a new wildcard stream
+                current_streams[streamname] = $.extend({},mist.data.streams[streambase]);
+                current_streams[streamname].name = streamname;
+                if (current_streams[streambase].isfolderstream) {
+                  current_streams[streamname].source += streamname.replace(streambase+"+");
+                }
+              }
+              else if (data.slice(1).every((v)=>!v)) {
+                //this wildcard stream no longer has any stats or tags
+                //remove it from the table
+                delete current_streams[streamname];
+                $streams.update(current_streams);
+                return;
               }
             }
             current_streams[streamname].stats = data;
@@ -5543,8 +6190,23 @@ var UI = {
           }
           else if (streamname in current_streams) {
             current_streams[streamname].stats = data;
+            $streams.update(current_streams);
           }
-          else { console.log("Received information about unknown stream",streamname,data) }
+          else {
+            //received information about unknown stream
+            if (streamname) {
+              //insert with default settings, uneditable
+              current_streams[streamname] = {
+                name: streamname,
+                source: null,
+                stats: data
+              };
+              $streams.update(current_streams);
+            }
+            else {
+              console.log("Received information about unknown stream",streamname,data);
+            }
+          }
 
         });
         
@@ -5558,555 +6220,686 @@ var UI = {
 
         break;
       }
-      case 'Edit':
-        if (typeof mist.data.capabilities == 'undefined') {
-          mist.send(function(d){
-            UI.navto(tab,other);
-          },{capabilities: true});
-          $main.append('Loading..');
-          return;
-        }
-        
-        
-        var editing = false;
-        if (other != '') { editing = true; }
-        
-        if (!editing) {
-          //new
-          $main.html(
-            $('<h2>').text('New Stream')
-          );
-          var saveas = {};
-        }
-        else {
-          //editing
-          var streamname = other.split("+")[0];
-          var saveas = mist.data.streams[streamname];
-          $main.html(
-            UI.modules.stream.header(other,tab,streamname)
-          );
-          if (streamname != other) {
-            $main.append(
-              $("<div>").addClass("err_balloon").addClass("orange").css({position:"static",width:"54.65em",margin:"2em 0 3em"}).html("Note:<br>You are editing the settings of <b>"+streamname+"</b>, which is the parent of wildcard stream <b>"+other+"</b>. This will also affect other children of <b>"+streamname+"</b>.")
-            );
-          }
-        }
-        
-        var filetypes = [];
-        var $source_datalist = $("<datalist>").attr("id","source_datalist");
-        var $source_info = $("<div>").addClass("source_info");
-        var dynamic_capa_rate_limit = false;
-        var dynamic_capa_source = false;
-        for (var i in mist.data.capabilities.inputs) {
-          for (var j in mist.data.capabilities.inputs[i].source_match) {
-            filetypes.push(mist.data.capabilities.inputs[i].source_match[j]);
-            
-            $source_datalist.append(
-              $("<option>").val(mist.data.capabilities.inputs[i].source_match[j])
-            );
-          }
-        }
-        var $inputoptions = $('<div>');
-        
-        function save(tab) {
-          var send = {};
-          
-          if (!mist.data.streams) {
-            mist.data.streams = {};
-          }
-          
-          mist.data.streams[saveas.name] = saveas;
-          if (other != saveas.name) {
-            delete mist.data.streams[other];
-          }
-          
-          send.addstream = {};
-          send.addstream[saveas.name] = saveas;
-          if (other != saveas.name) {
-            send.deletestream = [other];
-            }
-          if ((saveas.stop_sessions) && (other != '')) {
-            send.stop_sessions = other;
-            delete saveas.stop_sessions;
-          }
+      case 'Edit': {
+        $main.append('Loading..');
+        //renew capabilities and streamkeys
+        mist.send(function(d){
 
-          var type = null;
-          for (var i in mist.data.capabilities.inputs) {
-            if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
-            if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,saveas.source)) {
-              type = i;
-              break;
-            }
-          }
-          if (type) {
-            //sanatize saveas, remove options not in capabilities
-            var input = mist.data.capabilities.inputs[type];
-            for (var i in saveas) {
-              if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes") || (i == "tags")) { continue; }
-              if (("optional" in input) && (i in input.optional)) { continue; }
-              if (("required" in input) && (i in input.required)) { continue; }
-              if ((i == "always_on") && ("always_match" in input) && (mist.inputMatch(input.always_match,saveas.source))) { continue; }
-              delete saveas[i];
-            }
-          }
+          var editing = false;
+          if (other != '') { editing = true; }
 
-          mist.send(function(){
-            delete mist.data.streams[saveas.name].online;
-            delete mist.data.streams[saveas.name].error;
-            UI.navto(tab,(tab == 'Preview' ? (other.indexOf("+") < 0 ? saveas.name : other) : ''));
-          },send);
-          
-          
-        }
-        
-        var $style = $('<style>').text('button.saveandpreview { display: none; }');
-        var $livestreamhint = $('<span>');
-        var $processes = $('<div>');
-        var newproc = {};
-        var select = [];
-        var $subtypecont = $("<div>");
-        for (var i in mist.data.capabilities.processes) {
-          select.push([i,(mist.data.capabilities.processes[i].hrn ? mist.data.capabilities.processes[i].hrn :mist.data.capabilities.processes[i].name)]);
-        }
-        if (select.length) {
-          //if there are processes available
-          var sublist = [{
-            label: 'New process',
-            type: 'select',
-            select: select,
-            value: select[0][0], //set the default type to the first process
-            pointer: {
-              main: newproc,
-              index: "process"
-            },
-            "function": function(){
-              var type = $(this).getval();
-              if (type != null) {
-                var capabilities = mist.data.capabilities.processes[type];
-                var UIarr = [
-                  $("<h4>").text(capabilities.name+" Process options")
-                ];
-                $subtypecont.html(UI.buildUI(UIarr.concat(mist.convertBuildOptions(capabilities,newproc))));
+          if (!editing) {
+            //new
+            $main.html(
+              $('<h2>').text('New Stream')
+            );
+            var saveas = {};
+          }
+          else {
+            //editing
+            var streamname = other.split("+")[0];
+            var saveas;
+            if (streamname in mist.data.streams) {
+              saveas = $.extend({},mist.data.streams[streamname]);
+            }
+            else {
+              //this stream does not exist yet, the user will want to create it
+              //prefill the form
+              saveas = {
+                name: streamname,
+                source: "push://"
+              };
+              if (UI.findStreamKeys(other).length) {
+                //there are stream keys for the stream we are trying to create
+                //preconfigure with required stream key
+                saveas.source += "invalid,host";
               }
             }
-          },$subtypecont];
-          $processes.append(UI.buildUI([
-            $("<br>"),
-            $("<h3>").text("Stream processes"),
+            $main.html(
+              UI.modules.stream.header(other,tab,streamname)
+            );
+            if (streamname != other) {
+              $main.append(
+                $("<div>").addClass("err_balloon").addClass("orange").css({position:"static",width:"54.65em",margin:"2em 0 3em"}).html("Note:<br>You are editing the settings of <b>"+streamname+"</b>, which is the parent of wildcard stream <b>"+other+"</b>. This will also affect other children of <b>"+streamname+"</b>.")
+              );
+            }
+          }
+
+
+          //find existing stream keys
+          saveas.streamkeys = UI.findStreamKeys(other.split("+")[0]); //(even if source is not push://)
+          if (saveas.source && saveas.source.slice(0,7) == "push://") {
+            //if host "streamkey" is used, check the checkbox and clean from displayed source
+            if (saveas.source.match(/push:\/\/[^:@\/]*/)?.[0] == "push://invalid,host") {
+              saveas.streamkey_only = true;
+              saveas.source = saveas.source.replace("push://invalid,host","push://");
+            }
+          }
+
+          var filetypes = [];
+          var $source_datalist = $("<datalist>").attr("id","source_datalist");
+          var $source_info = $("<div>").addClass("source_info");
+          var dynamic_capa_rate_limit = false;
+          var dynamic_capa_source = false;
+          for (var i in mist.data.capabilities.inputs) {
+            for (var j in mist.data.capabilities.inputs[i].source_match) {
+              filetypes.push(mist.data.capabilities.inputs[i].source_match[j]);
+
+              $source_datalist.append(
+                $("<option>").val(mist.data.capabilities.inputs[i].source_match[j])
+              );
+            }
+          }
+          var $inputoptions = $('<div>');
+
+          function save(tab) {
+            var send = {};
+
+            if (!mist.data.streams) {
+              mist.data.streams = {};
+            }
+
+            mist.data.streams[saveas.name] = saveas;
+
+            send.addstream = {};
+            send.addstream[saveas.name] = saveas;
+            if (other != saveas.name) {
+              delete mist.data.streams[other];
+              send.deletestream = [other];
+            }
+            if ((saveas.stop_sessions) && (other != '')) {
+              send.stop_sessions = other;
+              delete saveas.stop_sessions;
+            }
+
+            if (saveas.source.slice(0,7) == "push://") {
+              send.streamkey_del = [];
+              send.streamkey_add = {};
+              let old = UI.findStreamKeys(other.split("+")[0]);
+              for (let key of old) {
+                if (saveas.streamkeys.indexOf(key) < 0) {
+                  //remove any stream keys that are no longer being saved
+                  send.streamkey_del.push(key);
+                }
+              }
+              for (let key of saveas.streamkeys) {
+                //add any stream keys that don't exist yet or that are not set to saveas.name (possible when renaming stream, otherwise should cause form to be invalid)
+                if (!mist.data.streamkeys || !(key in mist.data.streamkeys) || (mist.data.streamkeys[key] != saveas.name)) {
+                  send.streamkey_add[key] = saveas.name;
+                }
+              }
+              //when a stream is being renamed:
+              //- any old keys still in the array will be overwritten, so that they now point to the new stream name
+              //- when keys were removed from the form, they will also be removed from the old stream name
+              if (saveas.streamkey_only) {
+                //add "invalid,host" as host
+                saveas.source = saveas.source.replace(/push:\/\/[^:@\/]*/,"push://invalid,host");
+              }
+              else {
+                //remove invalid host if applicable
+                saveas.source = saveas.source.replace("push://invalid,host","push://");
+              }
+            }
+
+            var type = null;
+            for (var i in mist.data.capabilities.inputs) {
+              if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
+              if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,saveas.source)) {
+                type = i;
+                break;
+              }
+            }
+            if (type) {
+              //sanatize saveas, remove options not in capabilities
+              var input = mist.data.capabilities.inputs[type];
+              for (var i in saveas) {
+                if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes") || (i == "tags")) { continue; }
+                if (("optional" in input) && (i in input.optional)) { continue; }
+                if (("required" in input) && (i in input.required)) { continue; }
+                if ((i == "always_on") && ("always_match" in input) && (mist.inputMatch(input.always_match,saveas.source))) { continue; }
+                delete saveas[i];
+              }
+            }
+
+            mist.send(function(){
+              delete mist.data.streams[saveas.name].online;
+              delete mist.data.streams[saveas.name].error;
+              UI.navto(tab,(tab == 'Preview' ? (other.indexOf("+") < 0 ? saveas.name : other) : ''));
+            },send);
+
+
+          }
+
+          var $style = $('<style>').text('button.saveandpreview { display: none; }');
+          var $livestreamhint = $('<span>').addClass("ih_balloon");
+          var $processes = $('<div>');
+          var newproc = {};
+          var select = [];
+          var $subtypecont = $("<div>");
+          for (var i in mist.data.capabilities.processes) {
+            select.push([i,(mist.data.capabilities.processes[i].hrn ? mist.data.capabilities.processes[i].hrn :mist.data.capabilities.processes[i].name)]);
+          }
+          if (select.length) {
+            //if there are processes available
+            var sublist = [{
+              label: 'New process',
+              type: 'select',
+              select: select,
+              value: select[0][0], //set the default type to the first process
+              pointer: {
+                main: newproc,
+                index: "process"
+              },
+              "function": function(){
+                var type = $(this).getval();
+                if (type != null) {
+                  var capabilities = mist.data.capabilities.processes[type];
+                  var UIarr = [
+                    $("<h4>").text(capabilities.name+" Process options")
+                  ];
+                  $subtypecont.html(UI.buildUI(UIarr.concat(mist.convertBuildOptions(capabilities,newproc))));
+                }
+              }
+            },$subtypecont];
+            $processes.append(UI.buildUI([
+              $("<br>"),
+              $("<h3>").text("Stream processes"),
+              {
+                label: "Stream processes",
+                itemLabel: "stream process",
+                type: "sublist",
+                sublist: sublist,
+                saveas: newproc,
+                pointer: {
+                  main: saveas,
+                  index: "processes"
+                }
+              }
+            ]));
+          }
+          var $form = UI.buildUI([
             {
-              label: "Stream processes",
-              itemLabel: "stream process",
-              type: "sublist",
-              sublist: sublist,
-              saveas: newproc,
+              label: 'Stream name',
+              type: 'str',
+              validate: ['required','streamname'],
               pointer: {
                 main: saveas,
-                index: "processes"
-              }
-            }
-          ]));
-        }
-        var $form = UI.buildUI([
-          {
-            label: 'Stream name',
-            type: 'str',
-            validate: ['required','streamname'],
-            pointer: {
-              main: saveas,
-              index: 'name'
-            },
-            help: 'Set the name this stream will be recognised by for players and/or stream pushing.'
-          },{
-            label: 'Source',
-            type: 'browse',
-            filetypes: filetypes,
-            pointer: {
-              main: saveas,
-              index: 'source'
-            },
-            help: ("<p>\
-                    Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.\
-                  </p>\
-                  <table class=valigntop>\
-                    <tr>\
-                      <th colspan=3><b>File inputs</b></th>\
-                    </tr>\
-                    <tr>\
-                      <th>File</th>\
-                      <td>\
-                        Linux/MacOS:&nbsp;/PATH/FILE<br>\
-                        Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE\
-                      </td>\
-                      <td>\
-                        For file input please specify the proper path and file.<br>\
-                        Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.\
-                      </td>\
-                    </tr>\
-                      <th>\
-                        Folder\
-                      </th>\
-                      <td>\
-                        Linux/MacOS:&nbsp;/PATH/<br>\
-                        Windows:&nbsp;/cygdrive/DRIVE/PATH/\
-                      </td>\
-                      <td>\
-                        A folder stream makes all the recognised files in the selected folder available as a stream.\
-                      </td>\
-                    </tr>\
-                    <tr><td colspan=3>&nbsp;</td></tr>\
-                    <tr>\
-                      <th colspan=3><b>Push inputs</b></th>\
-                    </tr>\
-                    <tr>\
-                      <th>RTMP</th>\
-                      <td>push://(IP)(@PASSWORD)</td>\
-                      <td>\
-                        IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
-                        PASSWORD is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. PASSWORD is MistServer Pro only.\
-                      </td>\
-                    </tr>\
-                    <tr>\
-                      <th>SRT</th>\
-                      <td>push://(IP)</td>\
-                      <td>\
-                        IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
-                      </td>\
-                    </tr>\
-                    <tr>\
-                      <th>RTSP</th>\
-                      <td>push://(IP)(@PASSWORD)</td>\
-                      <td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
-                    </tr>\
-                    <tr>\
-                      <th>TS</th>\
-                      <td>tsudp://(IP):PORT(/INTERFACE)</td>\
-                      <td>\
-                        IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>\
-                        PORT is the port you reserve for this stream on the chosen IP.<br>\
-                        INTERFACE is the interface used, if left all interfaces will be used.\
-                      </td>\
-                    </tr>\
-                    <tr><td colspan=3>&nbsp;</td></tr>\
-                    <tr>\
-                      <th colspan=3><b>Pull inputs</b></th>\
-                    </tr>\
-                    <tr>\
-                      <th>DTSC</th>\
-                      <td>dtsc://MISTSERVER_IP:PORT/(STREAMNAME)</td>\
-                      <td>MISTSERVER_IP is the IP of another MistServer to pull from.<br>\
-                        PORT is the DTSC port of the other MistServer. (default is 4200)<br>\
-                        STREAMNAME is the name of the target stream on the other MistServer. If left empty, the name of this stream will be used.\
-                      </td>\
-                    </tr>\
-                    <tr>\
-                      <th>HLS</th>\
-                      <td>http://URL/TO/STREAM.m3u8</td>\
-                      <td>The URL where the HLS stream is available to MistServer.</td>\
-                    </tr>\
-                    <tr>\
-                      <th>RTSP</th>\
-                      <td>rtsp://(USER:PASSWORD@)IP(:PORT)(/path)</td>\
-                      <td>\
-                        USER:PASSWORD is the account used if authorization is required.<br>\
-                        IP is the IP address used to pull this stream from.<br>\
-                        PORT is the port used to connect through.<br>\
-                        PATH is the path to be used to identify the correct stream.\
-                      </td>\
-                    </tr>\
-                  </table>")
-        ,
-            'function': function(){
-              var source = $(this).val();
-              var $source_field = $(this);
-              $style.remove();
-              $livestreamhint.html('');
-              if (source == '') { return; }
-              var type = null;
-              for (var i in mist.data.capabilities.inputs) {
-                if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
-                if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,source)) {
-                  type = i;
-                  break;
-                }
-              }
-              if (type === null) {
-                $inputoptions.html(
-                  $('<h3>').text('Unrecognized input').addClass('red')
-                ).append(
-                  $('<span>').text('Please edit the stream source.').addClass('red')
-                );
-
-                $source_info.html("");
-                return;
-              }
-              var input = mist.data.capabilities.inputs[type];
-
-              var t = $source_info.find("div");
-              if (t.length) {
-                t.removeClass("active");
-                t.filter("[data-source=\""+source+"\"]").addClass("active");
-              }
-              
-              function update_input_options(source) {
-                var input_options = $.extend({},input);
-                if (input.dynamic_capa) {
-                  input_options.desc = "Loading dynamic capabilities..";
-
-                  //the capabilities for this input can change depending on the source string
-                  if (!("dynamic_capa_results" in input) || (!(source in input.dynamic_capa_results))) {
-                    dynamic_capa_source = source;
-
-                    //we don't know the capabilities for this source string yet
-                    if (dynamic_capa_rate_limit) {
-                      //some other call is already in the waiting list, don't make a new one
-                      return;
+                index: 'name'
+              },
+              help: 'Set the name this stream will be recognised by for players and/or stream pushing.'
+            },{
+              label: 'Source',
+              type: 'browse',
+              filetypes: filetypes,
+              pointer: {
+                main: saveas,
+                index: 'source'
+              },
+              help: ("<p>\
+                Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.\
+                </p>\
+                <table class=valigntop>\
+                <tr>\
+                <th colspan=3><b>File inputs</b></th>\
+                </tr>\
+                <tr>\
+                <th>File</th>\
+                <td>\
+                Linux/MacOS:&nbsp;/PATH/FILE<br>\
+                Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE\
+                </td>\
+                <td>\
+                For file input please specify the proper path and file.<br>\
+                Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.\
+                </td>\
+                </tr>\
+                <th>\
+                Folder\
+                </th>\
+                <td>\
+                Linux/MacOS:&nbsp;/PATH/<br>\
+                Windows:&nbsp;/cygdrive/DRIVE/PATH/\
+                </td>\
+                <td>\
+                A folder stream makes all the recognised files in the selected folder available as a stream.\
+                </td>\
+                </tr>\
+                <tr><td colspan=3>&nbsp;</td></tr>\
+                <tr>\
+                <th colspan=3><b>Push inputs</b></th>\
+                </tr>\
+                <tr>\
+                <th>RTMP</th>\
+                <td>push://(IP)(@PASSWORD)</td>\
+                <td>\
+                IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
+                PASSWORD is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. PASSWORD is MistServer Pro only.\
+                </td>\
+                </tr>\
+                <tr>\
+                <th>SRT</th>\
+                <td>push://(IP)</td>\
+                <td>\
+                IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
+                </td>\
+                </tr>\
+                <tr>\
+                <th>RTSP</th>\
+                <td>push://(IP)(@PASSWORD)</td>\
+                <td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
+                </tr>\
+                <tr>\
+                <th>TS</th>\
+                <td>tsudp://(IP):PORT(/INTERFACE)</td>\
+                <td>\
+                IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>\
+                PORT is the port you reserve for this stream on the chosen IP.<br>\
+                INTERFACE is the interface used, if left all interfaces will be used.\
+                </td>\
+                </tr>\
+                <tr><td colspan=3>&nbsp;</td></tr>\
+                <tr>\
+                <th colspan=3><b>Pull inputs</b></th>\
+                </tr>\
+                <tr>\
+                <th>DTSC</th>\
+                <td>dtsc://MISTSERVER_IP:PORT/(STREAMNAME)</td>\
+                <td>MISTSERVER_IP is the IP of another MistServer to pull from.<br>\
+                PORT is the DTSC port of the other MistServer. (default is 4200)<br>\
+                STREAMNAME is the name of the target stream on the other MistServer. If left empty, the name of this stream will be used.\
+                </td>\
+                </tr>\
+                <tr>\
+                <th>HLS</th>\
+                <td>http://URL/TO/STREAM.m3u8</td>\
+                <td>The URL where the HLS stream is available to MistServer.</td>\
+                </tr>\
+                <tr>\
+                <th>RTSP</th>\
+                <td>rtsp://(USER:PASSWORD@)IP(:PORT)(/path)</td>\
+                <td>\
+                USER:PASSWORD is the account used if authorization is required.<br>\
+                IP is the IP address used to pull this stream from.<br>\
+                PORT is the port used to connect through.<br>\
+                PATH is the path to be used to identify the correct stream.\
+                </td>\
+                </tr>\
+                </table>")
+                ,
+                'function': function(){
+                  var source = $(this).val();
+                  var $source_field = $(this);
+                  $style.remove();
+                  $livestreamhint.html('');
+                  if (source == '') { return; }
+                  var type = null;
+                  for (var i in mist.data.capabilities.inputs) {
+                    if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
+                    if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,source)) {
+                      type = i;
+                      break;
                     }
-                    dynamic_capa_rate_limit = setTimeout(function(){
-                      if (!("dynamic_capa_results" in input)) {
-                        input.dynamic_capa_results = {};
-                      }
-                      input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
-                      mist.send(function(d){
-                        dynamic_capa_rate_limit = false;
-                        input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
-                        update_input_options(dynamic_capa_source);
-                      },{capabilities:dynamic_capa_source});
-                    },1e3); //one second rate limit
+                  }
+                  if (type === null) {
+                    $inputoptions.html(
+                      $('<h3>').text('Unrecognized input').addClass('red')
+                    ).append(
+                      $('<span>').text('Please edit the stream source.').addClass('red')
+                    );
 
+                    $source_info.html("");
+                    return;
+                  }
+                  var input = mist.data.capabilities.inputs[type];
 
+                  var t = $source_info.find("div");
+                  if (t.length) {
+                    t.removeClass("active");
+                    t.filter("[data-source=\""+source+"\"]").addClass("active");
+                  }
+
+                  let $streamkeys = $(this).closest(".input_container").find(".itemgroup [name=\"streamkeys\"]").closest(".itemgroup");
+                  if (source.slice(0,7) == "push://") {
+                    $streamkeys.show();
                   }
                   else {
-                    //we know them, apply
-                    delete input_options.desc;
-                    if (input.dynamic_capa_results[source]) {
-                      input_options = input.dynamic_capa_results[source];
-                    }
-                  }
-                }
-                $inputoptions.html(
-                  $('<h3>').text(input.name+' Input options')
-                );                
-                var build = mist.convertBuildOptions(input_options,saveas);
-                if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
-                  build.push({
-                    label: 'Always on',
-                    type: 'checkbox',
-                    help: 'Keep this input available at all times, even when there are no active viewers.',
-                    pointer: {
-                      main: saveas,
-                      index: 'always_on'
-                    },
-                    value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
-                  });
-                }
-                $inputoptions.append(UI.buildUI(build));
-                $source_info.html("");
-                if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
-                  //this input can enumerate supported devices, and the source string matches the specified static prefix
-
-                  function display_sources() {
-                    //add to source info container
-                    $source_info.html(
-                      $("<p>").text("Possible sources for "+input.name+": (click to set)")
-                    );
-                    var sources = input.enumerated_sources[input.enum_static_prefix];
-                    for (var i in sources) {
-                      var v = sources[i].split(" ")[0];
-                      $source_info.append(
-                        $("<div>").attr("data-source",v).text(sources[i]).click(function(){
-                          var t = $(this).attr("data-source");
-                          $source_field.val(t).trigger("change");                          
-                        }).addClass(v == source ? "active":"")
-                      );
-                    }
-
+                    $streamkeys.hide();
                   }
 
-                  function apply_enumerated_sources() {
-                    if ((!("enumerated_sources" in input)) || (!(input.enum_static_prefix in input.enumerated_sources))) {
-                      if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
-                      input.enumerated_sources[input.enum_static_prefix] = []; //"reserve" the space so we won't make duplicate requests
-                      setTimeout(function(){
-                        //remove the reserved space so that we can collect new values
-                        delete input.enumerated_sources[input.enum_static_prefix];
-                      },10e3);
-                      mist.send(function(d){
-                        //save
-                        if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
-                        input.enumerated_sources[input.enum_static_prefix] = d.enumerate_sources;
-                        
-                        display_sources();
+                  function update_input_options(source) {
+                    var input_options = $.extend({},input);
+                    if (input.dynamic_capa) {
+                      input_options.desc = "Loading dynamic capabilities..";
 
-                      },{enumerate_sources:source});
-                    }
-                    else {
-                      display_sources();
-                    }
-                  }
-                  apply_enumerated_sources();
-                }
-              }
+                      //the capabilities for this input can change depending on the source string
+                      if (!("dynamic_capa_results" in input) || (!(source in input.dynamic_capa_results))) {
+                        dynamic_capa_source = source;
 
-              if (input.name == 'Folder') {
-                if (other.indexOf("+") < 0) { $main.append($style); }
-              }
-              else if (['Buffer','Buffer.exe','TS','TS.exe','TSSRT','TSSRT.exe'].indexOf(input.name) > -1) {
-                var fields = [$("<br>"),$('<span>').text('Configure your source to push to:')];
-                switch (input.name) {
-                  case 'Buffer':
-                  case 'Buffer.exe':
-                    fields.push({
-                      label: 'RTMP full url',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTMP'],
-                      help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
-                    });
-                    fields.push({
-                      label: 'RTMP url',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTMPurl'],
-                      help: 'Use this RTMP url if your client also asks for a stream key'
-                    });
-                    fields.push({
-                      label: 'RTMP stream key',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTMPkey'],
-                      help: 'Use this key if your client asks for a stream key'
-                    });
-                    fields.push({
-                      label: 'SRT',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['TSSRT']
-                    });
-                    fields.push({
-                      label: 'RTSP',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['RTSP']
-                    });
-                    break;
-                  case 'TS':
-                  case 'TS.exe':
-                    if ((source.charAt(0) == "/") || (source.slice(0,7) == "ts-exec")) {
-                      fields = [];
+                        //we don't know the capabilities for this source string yet
+                        if (dynamic_capa_rate_limit) {
+                          //some other call is already in the waiting list, don't make a new one
+                          return;
+                        }
+                        dynamic_capa_rate_limit = setTimeout(function(){
+                          if (!("dynamic_capa_results" in input)) {
+                            input.dynamic_capa_results = {};
+                          }
+                          input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
+                          mist.send(function(d){
+                            dynamic_capa_rate_limit = false;
+                            input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
+                            update_input_options(dynamic_capa_source);
+                          },{capabilities:dynamic_capa_source});
+                        },1e3); //one second rate limit
+
+
                       }
                       else {
-                        fields.push({
-                          label: 'TS',
-                          type: 'span',
-                          clipboard: true,
-                          readonly: true,
-                          classes: ['TS']
-                        });
+                        //we know them, apply
+                        delete input_options.desc;
+                        if (input.dynamic_capa_results[source]) {
+                          input_options = input.dynamic_capa_results[source];
+                        }
+                      }
                     }
-                    break;
-                  case 'TSSRT':
-                  case 'TSSRT.exe': {
-                    fields.push({
-                      label: 'SRT',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['TSSRT']
-                    });
-                    break;
+                    $inputoptions.html(
+                      $('<h3>').text(input.name+' Input options')
+                    );                
+                    var build = mist.convertBuildOptions(input_options,saveas);
+                    if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
+                      build.push({
+                        label: 'Always on',
+                        type: 'checkbox',
+                        help: 'Keep this input available at all times, even when there are no active viewers.',
+                        pointer: {
+                          main: saveas,
+                          index: 'always_on'
+                        },
+                        value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
+                      });
+                    }
+                    $inputoptions.append(UI.buildUI(build));
+                    $source_info.html("");
+                    if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
+                      //this input can enumerate supported devices, and the source string matches the specified static prefix
+
+                      function display_sources() {
+                        //add to source info container
+                        $source_info.html(
+                          $("<p>").text("Possible sources for "+input.name+": (click to set)")
+                        );
+                        var sources = input.enumerated_sources[input.enum_static_prefix];
+                        for (var i in sources) {
+                          var v = sources[i].split(" ")[0];
+                          $source_info.append(
+                            $("<div>").attr("data-source",v).text(sources[i]).click(function(){
+                              var t = $(this).attr("data-source");
+                              $source_field.val(t).trigger("change");                          
+                            }).addClass(v == source ? "active":"")
+                          );
+                        }
+
+                      }
+
+                      function apply_enumerated_sources() {
+                        if ((!("enumerated_sources" in input)) || (!(input.enum_static_prefix in input.enumerated_sources))) {
+                          if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                          input.enumerated_sources[input.enum_static_prefix] = []; //"reserve" the space so we won't make duplicate requests
+                          setTimeout(function(){
+                            //remove the reserved space so that we can collect new values
+                            delete input.enumerated_sources[input.enum_static_prefix];
+                          },10e3);
+                          mist.send(function(d){
+                            //save
+                            if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                            input.enumerated_sources[input.enum_static_prefix] = d.enumerate_sources;
+
+                            display_sources();
+
+                          },{enumerate_sources:source});
+                        }
+                        else {
+                          display_sources();
+                        }
+                      }
+                      apply_enumerated_sources();
+                    }
                   }
-                }
-                $livestreamhint.html(UI.buildUI(fields));
-                UI.updateLiveStreamHint($main.find('[name=name]').val(),$main.find('[name=source]').val(),$livestreamhint);
-              }
 
-              update_input_options(source);
-            }
-          },$source_datalist,$source_info,{
-            label: "Persistent tags",
-            type: "inputlist",
-            help: "You can configure persistent tags that are applied to this stream when it starts. You can use tags to associate configuration or behavior with multiple streams.<br><br>Note that tags are not applied retroactively - if your stream is already active when you edit this field, changes will not take effect until the stream restarts.",
-            pointer: {
-              main: saveas,
-              index: "tags"
-            },
-            input: {
-              type: "str",
-              prefix: "#"
-            },
-            validate: [function(val,me){
-              val = val.join("");
-              if (val.indexOf(" ") > -1) {
-                return {
-                  msg: 'Spaces are not allowed in tag names.',
-                  classes: ['red']
-                };
-              }
-              if (val.indexOf("#") > -1) {
-                return {
-                  msg: 'You don\'t need to prefix these values with a #.',
-                  classes: ['orange'],
-                  "break": false
-                };
-              }
-            }]
-          },{
-            label: 'Stop sessions',
-            type: 'checkbox',
-            help: 'When saving these stream settings, kill this stream\'s current connections.',
-            pointer: {
-              main: saveas,
-              index: 'stop_sessions'
-            }
-          },$livestreamhint,$('<br>'),{
-            type: 'custom',
-            custom: $inputoptions
-          },$processes,
-          {
-            type: 'buttons',
-            buttons: [
-              {
-                type: 'cancel',
-                label: 'Cancel',
-                'function': function(){
-                  UI.navto('Streams');
+                  if (input.name == 'Folder') {
+                    if (other.indexOf("+") < 0) { $main.append($style); }
+                  }
+
+                  let streamname = $main.find('[name=name]').val();
+                  UI.updateLiveStreamHint(
+                    (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
+                    $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
+                    $livestreamhint,
+                    input,
+                    $main.find("[name=streamkeys]").getval()
+                  );
+                  
+                  update_input_options(source);
+                }
+            },$source_datalist,$source_info,{
+              label: "Persistent tags",
+              type: "inputlist",
+              help: "You can configure persistent tags that are applied to this stream when it starts. You can use tags to associate configuration or behavior with multiple streams.<br><br>Note that tags are not applied retroactively - if your stream is already active when you edit this field, changes will not take effect until the stream restarts.",
+              pointer: {
+                main: saveas,
+                index: "tags"
+              },
+              input: {
+                type: "str",
+                prefix: "#"
+              },
+              validate: [function(val,me){
+                val = val.join("");
+                if (val.indexOf(" ") > -1) {
+                  return {
+                    msg: 'Spaces are not allowed in tag names.',
+                    classes: ['red']
+                  };
+                }
+                if (val.indexOf("#") > -1) {
+                  return {
+                    msg: 'You don\'t need to prefix these values with a #.',
+                    classes: ['orange'],
+                    "break": false
+                  };
+                }
+              }]
+            },{
+              type: "group",
+              label: "Permissions for stream input",
+              options: [{
+                label: "Require stream key",
+                type: "checkbox",
+                help: "Check this box to block pushes using the stream name instead of a stream key.",
+                pointer: { main: saveas, index: "streamkey_only" },
+                "function": function(){
+                  $main.find("[name=source]").trigger("change");
                 }
               },{
-                type: 'save',
-                label: 'Save',
-                'function': function(){
-                  save('Streams');
-                }
+                type: "help",
+                help: "Stream keys are a method to bypass all security and allow an incoming push for the given stream. If a token that matches a stream is used it will be accepted."
               },{
-                type: 'save',
-                label: 'Save and Preview',
-                'function': function(){
-                  save('Preview');
+                label: "Stream keys",
+                type: "inputlist",
+                pointer: { main: saveas, index: "streamkeys" },
+                help: "You may enter one or more stream keys. When none are entered, you can only push into this stream using the stream name.",
+                "function": function(){
+                  let streamname = $main.find('[name=name]').val();
+                  UI.updateLiveStreamHint(
+                    (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
+                    $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
+                    $livestreamhint,
+                    false,
+                    $(this).getval()
+                  );
                 },
-                classes: ['saveandpreview']
-              }
-            ]
-          }
-        ]);
-        $main.append($form);
+                input: {
+                  type: "str",
+                  clipboard: true,
+                  maxlength: 256,
+                  validate: [function(val,me){
+                    if (mist.data.streamkeys && (val in mist.data.streamkeys) && (mist.data.streamkeys[val] != other)) {
+                      //duplicates in the current field do not need to be tested - they're all for the same stream so it won't be an issue
+                      return {
+                        msg: "The key '"+val+"' is already in use (for the stream '"+mist.data.streamkeys[val]+"'). Duplicates are not allowed.",
+                        classes: ["red"]
+                      };
+                    }
+                    if (val.length && !val.match(/^[0-9a-z]+$/i)) {
+                      return {
+                        msg: "The key '"+val+"' contains special characters. We recommend not using these as some video streaming protocols do not accept them.",
+                        classes: ["orange"],
+                        "break": false
+                      }
+                    }
+                  }],
+                  unit: 
+                    //NB: because unit is a reference to a DOMelement here, when a new input is created to be added to the list, this button will /move/ to the last input field, it will not be duplicated. In this case this works fine, because the Generate button only makes sense for the last, empty, input anyway.
+                  $("<button>").text("Generate").click(function(){
+                    let $field = $(this).closest(".field_container").find(".field");
 
-        //if the form contents have been changed, set a flag on the header: only ask for confirm to navigate away if there have been changes
-        $form.change(function(){
-          var $h = $main.find(".header");
-          if ($h.length) { $h.attr("data-changed","yes"); }
-        });
-        
-        $main.find('[name=name]').keyup(function(){
-          UI.updateLiveStreamHint($(this).val(),$main.find('[name=source]').val(),$livestreamhint);
-        });
-        UI.updateLiveStreamHint($main.find('[name=name]').val(),$main.find('[name=source]').val(),$livestreamhint);
-        $main.find('[name="source"]').attr("list","source_datalist");
+                    function getRandomVals(n) {
+                      function getRandomVal() {
+                        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                        return chars[Math.floor(Math.random()*chars.length)];
+                      }
+                      let str = "";
+                      while (str.length < n) {
+                        str += getRandomVal();
+                      }
+                      return str;
+                    }
+
+                    function apply() {
+                      $field.setval(getRandomVals(32));
+                      if ($field.data("validate")($field)) { 
+                        //the listitem is invalid
+                        apply();
+                      }
+                    }
+                    apply();
+
+                    $field.trigger("keyup");
+
+                  }),
+                }
+              },$("<div>").addClass("livestreamhint").html(
+                function(){
+                  let basestream = other.split("+")[0];
+
+                  let $c = $("<div>").addClass("description");
+                  let $text = $("<span>");
+                  function setText(){
+                    let bystream = {};
+                    //gather stream keys for base stream and children
+                    for (const key in mist.data.streamkeys) {
+                      const s = mist.data.streamkeys[key];
+                      if (s.split("+")[0] == basestream) {
+                        if (!(s in bystream)) {
+                          bystream[s] = [];
+                        }
+                        bystream[s].push(key);
+                      }
+                    }
+                    delete bystream[basestream];
+                    $text.text(Object.keys(bystream).length ? "Additionally, a total of "+Object.values(bystream).map(function(v){return v.length}).reduce(function(sum,v){return sum+v})+" stream keys for "+Object.keys(bystream).length+" wildcards of \""+basestream+"\" have been configured." : "You can also add stream keys for wildcard streams here:");
+                  }
+                  setText();
+                  $c.append(
+                    $text
+                  ).append(
+                    $("<button>").css("float","right").attr("data-icon","key").text("Manage stream keys").click(function(){
+                      let popup = UI.popup(UI.modules.streamkeys(basestream,function(){
+                        //what to do after the add button is used
+                        popup.show(UI.modules.streamkeys(basestream,arguments.callee));
+                      }));
+                      popup.element[0].addEventListener("close",function(){
+                        //onclose update streamkeys field
+                        mist.send(function(){
+                          setText();
+                          $main.find("[name=\"streamkeys\"]").setval(UI.findStreamKeys(basestream));
+                        },{streamkeys: true})
+                      });
+                    })
+                  );
+                  return $c;
+                }()
+              )]
+            },$livestreamhint,$('<br>'),{
+              type: 'custom',
+              custom: $inputoptions
+            },$processes,{
+              label: 'Stop sessions',
+              type: 'checkbox',
+              help: 'When saving these stream settings, kill this stream\'s current connections.',
+              pointer: {
+                main: saveas,
+                index: 'stop_sessions'
+              }
+            },{
+              type: 'buttons',
+              buttons: [
+                {
+                  type: 'cancel',
+                  label: 'Cancel',
+                  'function': function(){
+                    UI.navto('Streams');
+                  }
+                },{
+                  type: 'save',
+                  label: 'Save',
+                  'function': function(){
+                    save('Streams');
+                  }
+                },{
+                  type: 'save',
+                  label: 'Save and Preview',
+                  'function': function(){
+                    save('Preview');
+                  },
+                  classes: ['saveandpreview']
+                }
+              ]
+            }
+          ]);
+          let $streamkeys = $form.find(".itemgroup [name=\"streamkeys\"]").closest(".itemgroup");
+          if (saveas.source && saveas.source.slice(0,7) == "push://") {
+            $streamkeys.show();
+          }
+          else {
+            $streamkeys.hide();
+          }
+
+          $main.append($form);
+
+          
+          //if the form contents have been changed, set a flag on the header: only ask for confirm to navigate away if there have been changes
+          $form.change(function(){
+            var $h = $main.find(".header");
+            if ($h.length) { $h.attr("data-changed","yes"); }
+          });
+
+          $main.find('[name=name]').keyup(function(){
+            let streamname = $(this).val();
+            UI.updateLiveStreamHint(
+              (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
+              $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
+              $livestreamhint,
+              false,
+              $main.find("[name=streamkeys]").getval()
+            );
+          }).trigger("keyup");
+          $main.find('[name="source"]').attr("list","source_datalist");
+
+
+        },{capabilities: true, streamkeys: true});
         break;
+      }
       case 'Status': {
         if (other == '') { UI.navto('Streams'); return; }
 
@@ -6142,7 +6935,7 @@ var UI = {
 
         break;
       }
-      case 'Preview':
+      case 'Preview': {
         
         if (other == '') { UI.navto('Streams'); return; }
        
@@ -6177,7 +6970,8 @@ var UI = {
 
 
         break;
-      case 'Embed':
+      }
+      case 'Embed': {
         if (other == '') { UI.navto('Streams'); return; }
         
         $main.html(
@@ -6192,6 +6986,16 @@ var UI = {
         );
 
         break;
+      }
+      case 'Stream keys': {
+        $main.html(
+          $("<button>").attr("data-icon","Streams").css({width:"fit-content"}).text("Return to stream overview").click(function(){
+            UI.navto("Streams");
+          })
+        ).append(UI.modules.streamkeys());
+
+        break;
+      }
       case 'Push':
         $main.html(
           $("<h2>").text("Pushes and recordings")
@@ -7802,7 +8606,11 @@ var UI = {
         ).append(
           $nav
         ).append(
-          $("<h2>").text(currenttab == "Edit" ? "Edit \""+parentstream+"\"" : currenttab)
+          $("<h2>").text(
+            currenttab == "Edit"  
+            ? (parentstream in mist.data.streams ? "Edit \""+parentstream+"\"" : "Create \""+parentstream+"\"")
+            : currenttab
+          )
         );
 
         var tabs = [["Settings","Edit"],"Status","Preview","Embed"]
@@ -7810,7 +8618,7 @@ var UI = {
         var isFolderStream = false;
         if (streamname.indexOf("+") < 0) {
           var config = mist.data.streams[streamname];
-          if (config.source && (config.source.match(/^\/.+\/$/) || config.source.match(/^folder:.+$/))) {
+          if (config?.source && (config.source.match(/^\/.+\/$/) || config.source.match(/^folder:.+$/))) {
             isFolderStream = true;
           }
         }
@@ -8198,94 +9006,14 @@ var UI = {
         var $cont = $("<div>").addClass("livestreamhint");
 
         var settings = mist.data.streams[streamname.split("+")[0]];
-        if (settings.source && (settings.source.slice(0,1) != "/") && (!settings.source.match(/-exec:/))) {
-          var type = null;
-          for (var i in mist.data.capabilities.inputs) {
-            if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
-            if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,settings.source)) {
-              type = i;
-              break;
-            }
+        if (settings?.source && (settings.source.slice(0,1) != "/") && (!settings.source.match(/-exec:/))) {
+          if ("streamkeys" in mist.data) {
+            UI.updateLiveStreamHint(streamname,settings.source,$cont);
           }
-          if (type) {
-            var input = mist.data.capabilities.inputs[type];
-            var fields = [$('<span>').text('Configure your source to push to:')];
-            switch (input.name) {
-              case 'Buffer':
-              case 'Buffer.exe':
-                fields.push({
-                  label: 'RTMP full url',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['RTMP'],
-                  help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
-                });
-                fields.push({
-                  label: 'RTMP url',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['RTMPurl'],
-                  help: 'Use this RTMP url if your client also asks for a stream key'
-                });
-                fields.push({
-                  label: 'RTMP stream key',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['RTMPkey'],
-                  help: 'Use this key if your client asks for a stream key'
-                });
-                fields.push({
-                  label: 'SRT',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['TSSRT']
-                });
-                fields.push({
-                  label: 'RTSP',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['RTSP']
-                });
-                break;
-              case 'TS':
-              case 'TS.exe':
-                if (settings.source.charAt(0) == "/") {
-                  fields = [];
-                }
-                else {
-                  fields.push({
-                    label: 'TS',
-                    type: 'span',
-                    clipboard: true,
-                    readonly: true,
-                    classes: ['TS']
-                  });
-                }
-                break;
-              case 'TSSRT':
-              case 'TSSRT.exe': {
-                fields.push({
-                  label: 'SRT',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['TSSRT']
-                });
-                break;
-              }
-              default: {
-                fields = [];
-              }
-            }
-            if (fields.length) {
-              $cont.html(UI.buildUI(fields));
+          else {
+            mist.send(function(){
               UI.updateLiveStreamHint(streamname,settings.source,$cont);
-            }
+            },{streamkeys: true});
           }
         }
         else { 
@@ -10602,7 +11330,7 @@ var UI = {
             },
             Stream: function(push){
               if (push.stream[0] == "#") return push.stream;
-              return $("<a>").text(push.stream).click(function(e){
+              return $("<a>").addClass("clickable").text(push.stream).click(function(e){
                 UI.navto("Preview",push.stream);
                 e.stopPropagation();
               }).on("contextmenu",function(e){
@@ -10614,7 +11342,7 @@ var UI = {
                   $("<div>").addClass("header").text(streamname)
                 ];
                 var gototabs = [
-                  ["<span>Edit "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")+"</span>",function(){ UI.navto("Edit",streamname); },"Edit","Change the settings of this stream."],
+                  [$("<span>").html("Edit "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")),function(){ UI.navto("Edit",streamname); },"Edit","Change the settings of this stream."],
                   ["Stream status",function(){ UI.navto("Status",streamname); },"Status","See more details about the status of this stream."],
                   ["Preview stream",function(){ UI.navto("Preview",streamname); },"Preview","Watch the stream."]
                 ];
@@ -10939,6 +11667,31 @@ var UI = {
                     actions.push(["Edit",function(){
                       UI.navto("Start Push","auto_"+push.id);
                     },"Edit","Edit this automatic push"]);
+                    actions.push(["Copy target",function(){
+                      var me = this;
+                      var text = push.target;
+                      UI.copy(text).then(function(){
+                        me._setText("Copied!")
+                        setTimeout(function(){ context_menu.hide(); },300);
+                      }).catch(function(e){
+                        me._setText("Copy: "+e);
+                        setTimeout(function(){ context_menu.hide(); },300);
+
+                        var popup =  UI.popup(UI.buildUI([
+                          $("<h1>").text("Copy push target"),{
+                            type: "help",
+                            help: "Automatic copying of the template to the clipboard failed ("+e+"). Instead you can manually copy from the field below."
+                          },{
+                            type: "str",
+                            label: "Push target",
+                            value: text,
+                            rows: Math.ceil(text.length/50+2)
+                          }
+                        ]));
+                        popup.element.find("textarea").select();
+                      });
+
+                    },"copy","Copy the full target url to the clipboard."]);
                     if (push.deactivated) {
                       actions.push(["Enable",function(){
                         //push.stream has already been edited to have the normal (activated) stream name; just edit to the push object as is
@@ -11386,7 +12139,7 @@ var UI = {
         },{push_list:1});
 
         if (options.collapsible) {
-          $pushes.find("section").addClass("collapsible").addClass("expanded").each(function(){
+          $pushes.children("section").not(".context_menu").addClass("collapsible").addClass("expanded").each(function(){
             $(this).children().first().click(function(){
               $(this).closest("section.collapsible").toggleClass("expanded")
             });
@@ -11402,6 +12155,423 @@ var UI = {
         $pushes
       );
 
+    },
+    streamkeys: function(streamname,onsave){
+      if (!onsave) {
+        onsave = function(){
+          UI.showTab("Stream keys");
+        }
+      }
+
+      let $c = $("<section>").text("Loading..");
+      mist.send(function(d){ //request current stream keys + active streams
+        var saveas = {};
+        let current_streams = $.extend({},mist.data.streams);
+        if (d.active_streams) {
+          for (let streamname of d.active_streams) {
+            var streambase = streamname.split("+")[0];
+
+            if (streambase in mist.data.streams) {
+              if ((streambase != streamname) && !(streamname in current_streams)) {
+                //it's a new wildcard stream
+                current_streams[streamname] = $.extend({},mist.data.streams[streambase]);
+                current_streams[streamname].name = streamname;
+              }
+              current_streams[streamname].online = 1;
+            }
+          }
+        }
+
+        $c.html(
+          $("<h1>").text("Manage stream keys"+(streamname ? " for '"+streamname+"'" : "")).css("margin-top",0)
+        ).append(UI.buildUI([{
+          type: "help",
+          help: "Stream keys are a method to bypass all security and allow an incoming push for the given stream. If a token that matches a stream is used it will be accepted. This will even apply to vod or unconfigured streams, making them active as a live stream with default settings. <br>Note: A stream with source 'push://' and a stream key would accept both its stream name and stream key for input. To avoid this enable the 'Require stream key' option."
+        },
+        UI.buildUI([$("<h3>").text("Add stream key(s)"),{
+            label: "For stream name",
+            type: "str",
+            pointer: { main: saveas, index: "stream" },
+            prefix: streamname ? streamname+"+" : false,
+            validate: streamname ? [] : ["required","streamname_with_wildcard",function(val){
+              //notify if this stream does not exist
+              if (!(val in current_streams)) {
+                return {
+                  msg: "This stream does not exist (yet). You can add a key for it anyway.",
+                  "break": false
+                };
+              }
+              //warn if this stream exists but does not have a push:// source
+              if (current_streams[val].source?.slice(0,7) != "push://") {
+                return {
+                  msg: "It is not possible to push into this stream. Pushing to this stream will only work if it is not already active.",
+                  classes: ["orange"],
+                  "break": false
+                };
+              }
+
+            }],
+            help: "Enter the stream for which this stream key will be valid. You can enter a stream with wildcard. You can add stream keys for streams that do not exist yet.",
+            datalist: function(){
+              let out = [];
+              for (const stream in current_streams) {
+                if (current_streams[stream].source?.slice(0,7) == "push://") {
+                  if (streamname) {
+                    if (stream.split("+")[0] == streamname) {
+                      out.push(stream.split("+").slice(1).join("+"));
+                    }
+                  }
+                  else {
+                    out.push(stream);
+                  }
+                }
+              }
+              return out;
+            }()
+          },{
+            label: "Stream key(s)",
+            type: "inputlist",
+            classes: ["streamkeysinputlist"],
+            pointer: { main: saveas, index: "keys" },
+            validate: ["required"],
+            help: "Enter one or more keys",
+            input: {
+              type: "str",
+              clipboard: true,
+              maxlength: 256,
+              validate: [function(val,me){
+                if (d.streamkeys && (val in d.streamkeys)) {
+                  //duplicates in the current field do not need to be tested - they're all for the same stream so it won't be an issue
+                  return {
+                    msg: "The key '"+val+"' is already in use. Duplicates are not allowed.",
+                    classes: ["red"]
+                  };
+                }
+                if (val.length && !val.match(/^[0-9a-z]+$/i)) {
+                  return {
+                    msg: "The key '"+val+"' contains special characters. We recommend not using these as some video streaming protocols do not accept them.",
+                    classes: ["orange"],
+                    "break": false
+                  }
+                }
+              }],
+              unit: $("<button>").text("Generate").click(function(){
+                let $field = $(this).closest(".field_container").find(".field");
+
+                function getRandomVals(n) {
+                  function getRandomVal() {
+                    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                    return chars[Math.floor(Math.random()*chars.length)];
+                  }
+                  let str = "";
+                  while (str.length < n) {
+                    str += getRandomVal();
+                  }
+                  return str;
+                }
+
+                function apply() {
+                  $field.setval(getRandomVals(32));
+                  if ($field.data("validate")($field)) { 
+                    //the listitem is invalid
+                    apply();
+                  }
+                }
+                apply();
+
+                $field.trigger("keyup");
+
+              })
+            }
+          },{
+            type: "buttons",
+            buttons: [{
+              type: "save",
+              icon: "plus",
+              label: "Add",
+              "function": function(){
+                let send = {};
+                for (let key of saveas.keys) {
+                  send[key] = streamname ? (saveas.stream ? streamname+"+"+saveas.stream : streamname) : saveas.stream;
+                }
+                mist.send(function(){
+                  onsave();
+                },{streamkey_add:send});
+              }
+            }]
+          }]),
+          $("<h3>").text("Current stream keys"+(streamname ? " for '"+streamname+"'" : "")),{
+            type: "help",
+            help: "Note: the stream status on this page does not update automatically."
+          },{
+            label: "Filter",
+            help: "Only streams or keys that contain the text you enter here will be displayed.",
+            "function": function(){
+              $(this).closest(".input_container").find(".streamkeys")?.[0]?.filter($(this).getval());
+            },
+            css: { marginBottom: "3em" }
+          },
+          function(){
+            const $cont = $("<div>").addClass("streamkeys");
+
+            let bystreams = {};
+            //group keys by stream
+            for (key in d.streamkeys) {
+              if (streamname) {
+                if (d.streamkeys[key].split("+")[0] != streamname) continue;
+              }
+              if (!(d.streamkeys[key] in bystreams)) {
+                bystreams[d.streamkeys[key]] = [];
+              }
+              bystreams[d.streamkeys[key]].push(key);
+            }
+
+            //sort streams
+            let streams = Object.keys(bystreams).sort();
+            function formatStream(streamname) {
+              const $cont = $("<span>").addClass("clickable").text(streamname);
+              if (streamname.indexOf("+") >= 0) {
+                const split = streamname.split("+");
+                $cont.html(
+                  $("<span>").addClass("wildparent").text(split[0]+"+")
+                ).append(split.slice(1));
+              }
+              $cont.on("contextmenu",function(e){
+                e.preventDefault();
+
+                const header = [
+                  $("<div>").addClass("header").html($cont.html())
+                ];
+                const gototabs = [
+                  [$("<span>").html("Edit "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")),function(){ UI.navto("Edit",streamname); },"Edit","Change the settings of this stream."],
+                  ["Stream status",function(){ UI.navto("Status",streamname); },"Status","See more details about the status of this stream."],
+                  ["Preview stream",function(){ UI.navto("Preview",streamname); },"Preview","Watch the stream."]
+                ];
+                if (!(streamname.split("+")[0] in mist.data.streams)) {
+                  //stream does not exist yet, change "Edit" to "Create"
+                  gototabs.shift();
+                  gototabs.unshift([$("<span>").html("Create "+(streamname.indexOf("+") < 0 ? "stream" : "<b>"+streamname.split("+")[0]+"</b>")),function(){ UI.navto("Edit",streamname); },"Edit","Create this stream."]);
+                }
+
+                const menu = [header];
+                menu.push(gototabs);
+
+                context_menu.show(menu,e);
+
+              }).click(function(e){
+                this.dispatchEvent(new MouseEvent("contextmenu",e));
+                e.stopPropagation();
+              });
+              return $cont;
+            }
+
+            //display a container per stream
+            for (let stream of streams) {
+              $cont.append(
+                $("<div>").addClass("stream").attr("data-stream",stream).append(
+                  $("<div>").addClass("header").addClass("activestream").append(
+                    function(){
+                      let active = false;
+                      if (d.active_streams?.indexOf(stream) >= 0) {
+                        active = true;
+                      }
+                      return $("<div>").attr("data-streamstatus",active ? 4 : 0).attr("title",active ? "Active" : "Inactive");
+                    }()
+                  ).append(
+                    formatStream(stream)
+                  ).append(
+                    function(){
+                      let kind = "Unconfigured";
+                      let base = stream.split("+")[0];
+                      if (base in current_streams) {
+                        if (current_streams[base].source.slice(0,7) != "push://") {
+                          kind = "Using stream key will override configured source"
+                        }
+                        else if (current_streams[base].source.slice(0,16) == "push://invalid,host") {
+                          kind = "Stream key only";
+                        }
+                        else {
+                          kind = "Configured";
+                        }
+                      }
+                      return $("<span>").text("("+kind+")").addClass("description").css("font-weight","normal")
+                    }()
+                  ).append(
+                    $("<button>").attr("data-icon","trash").text("Delete all").click(function(){
+                      if (confirm("Are you sure you want to remove all "+bystreams[stream].length+" keys of the stream '"+stream+"'?")) {
+                        let $me = $(this);
+                        mist.send(function(){
+                          let $streamkeys = $me.closest(".streamkeys");
+                          $me.closest(".stream").remove();
+                          //update pagecontrol
+                          $streamkeys[0].show_page();
+                        },{
+                          streamkey_del: Object.values(bystreams[stream])
+                        });
+                      }
+                    })
+                  )
+                ).append(
+                  function(){ 
+                    const $cont = $("<div>").addClass("keys");
+                    for (let key of bystreams[stream]) {
+                      $cont.append(
+                        $("<span>").addClass("key").attr("data-key",key).append(
+                          $("<span>").text(key).addClass("clickable").on("contextmenu",function(e){
+                            e.preventDefault();
+                            let $me = $(this);
+
+                            let raw = UI.updateLiveStreamHint(stream,"push://invalid,host","raw",false,[key]);
+                            function createCopyEntry(label,text) {
+                              return [
+                                "Copy "+label,function(){
+                                  UI.copy(text).then(()=>{
+                                    this._setText("Copied!")
+                                    setTimeout(function(){ context_menu.hide(); },300);
+                                  }).catch((e)=>{
+                                    this._setText("Copy: "+e);
+                                    setTimeout(function(){ context_menu.hide(); },300);
+
+                                    var popup =  UI.popup(UI.buildUI([
+                                      $("<h1>").text("Copy to clipboard"),{
+                                        type: "help",
+                                        help: "Automatic copying failed ("+e+"). Instead you can manually copy from the field below."
+                                      },{
+                                        type: "str",
+                                        label: "Text",
+                                        value: text,
+                                        rows: Math.ceil(text.length/50+2)
+                                      }
+                                    ]));
+                                    popup.element.find("textarea").select();
+                                  });
+                                },"copy","Copy the "+label+" to the clipboard:\n"+text
+                              ];
+                            }
+
+                            let fields = [];
+                            fields.push(createCopyEntry("key",key));
+                            for (const label in raw) {
+                              if (Array.isArray(raw[label])) {
+                                fields.push(createCopyEntry(label+" url",raw[label][0]));
+                                //there will always only be a signle array entry in raw[label] as we have specified only the currently selected stream key
+                              }
+                              else if (label == "RTMP") {
+                                fields.push(createCopyEntry("full RTMP url",raw.RTMP.full_url[0]));
+                                fields.push(createCopyEntry("RTMP url (without key)",Object.keys(raw.RTMP.pairs)[0]));
+                              }
+                            }
+
+                            context_menu.show([
+                              [
+                                $("<div>").addClass("header").append(
+                                  $("<div>").text(key).css("font-family","monospace")
+                                ).append(
+                                  $("<div>").text("for ").append(formatStream(stream).removeClass("clickable"))
+                                )
+                              ],
+                              fields, [
+                                ["Delete this stream key", function(){
+                                  if (confirm("Are you sure you want to remove the key '"+key+"'?")) {
+                                    mist.send(function(){
+                                      let $c = $me.closest(".keys");
+                                      let $streamkeys = $c.closest(".streamkeys");
+                                      $me.closest(".key").remove();
+                                      if (!$c.children().length) {
+                                        $c.closest(".stream").remove();
+                                      }
+                                      //update pagecontrol
+                                      $streamkeys[0].show_page();
+                                    },{
+                                      streamkey_del: key
+                                    });
+                                  }
+
+                                },"trash","Delete this stream key"]
+                              ]
+                            ],e);
+
+                          }).click(function(e){
+                            this.dispatchEvent(new MouseEvent("contextmenu",e));
+                            e.stopPropagation();
+                          })
+                        ).append(
+                          $("<button>").attr("data-icon","trash").attr("title","Delete").click(function(){
+                            if (confirm("Are you sure you want to remove the key '"+key+"'?")) {
+                              let $me = $(this);
+                              mist.send(function(){
+                                let $c = $me.closest(".keys");
+                                let $streamkeys = $c.closest(".streamkeys");
+                                $me.closest(".key").remove();
+                                if (!$c.children().length) {
+                                  $c.closest(".stream").remove();
+                                }
+                                //update pagecontrol
+                                $streamkeys[0].show_page();
+                              },{
+                                streamkey_del: key
+                              });
+                            }
+                          })
+                        )
+                      );
+                    }
+                    return $cont;
+                  }()
+                )
+              );
+            }
+      
+            $cont[0].filter = function(str){
+              str = str.toLowerCase();
+
+              //first, iterate over the streams and hide any that do not match
+              for (var i = 0; i < this.children.length; i++) {
+                var item = this.children[i];
+                if (item.getAttribute("data-stream").toLowerCase().indexOf(str) >= 0) {
+                  item.classList.remove("hidden");
+                  item.classList.add("showAllKeys")
+                }
+                else {
+                  item.classList.add("hidden");
+                  item.classList.remove("showAllKeys");
+                }
+              }
+
+              //now, iterate over the keys and hide any that do not match
+              //if the key matches and its parent is hidden, show it
+              const keys = this.querySelectorAll(".stream .keys .key");
+              for (let key of keys) {
+                if (key.getAttribute("data-key").toLowerCase().indexOf(str) >= 0) {
+                  key.classList.remove("hidden");
+                  key.closest(".stream").classList.remove("hidden");
+                }
+                else {
+                  key.classList.add("hidden");
+                }
+              }
+
+              $cont[0].show_page();
+            }
+      
+            return $cont;
+          }()
+        ]));
+
+        const $pagecontrol = UI.pagecontrol($c.find(".input_container > .streamkeys")[0],mist.stored.get()?.streamkeys_pagesize || 5);
+        $c.append($pagecontrol);
+
+        //save selected page size
+        $pagecontrol.elements.pagelength.change(function(){
+          mist.stored.set("streamkeys_pagesize",$(this).val());
+        });
+
+        const context_menu = new UI.context_menu();
+        $c.append(context_menu.ele);
+
+        $c.find(".field").first().focus();
+      },{ streamkeys: true, active_streams: true, capabilities: true });
+      return $c;
     }
   },
   sockets: {
@@ -11479,7 +12649,6 @@ var UI = {
             //execute the api call right now
             UI.sockets.http.api.get();
           }
-          //TODO reset on tab refresh
         }
       },
       player: function(callback,errorCallback){
@@ -11744,7 +12913,7 @@ var mist = {
             
             //remove everything we don't care about
             var save = $.extend({},d);
-            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth','variable_list','external_writer_list']; //streams was already copied above
+            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth','variable_list','external_writer_list','streamkeys']; //streams was already copied above
             for (var i in save) {
               if (keep.indexOf(i) == -1) {
                 delete save[i];
@@ -12040,66 +13209,13 @@ var mist = {
             break;
           }
           case 'group': {
-            var $cont = $("<div>").addClass("itemgroup");
-            var children = mist.convertBuildOptions({
+            obj.type = "group";
+            obj.label = ele.name;
+            obj.options = mist.convertBuildOptions({
               optional: ele.options
             },saveas);
-            children = children.slice(1); //remove h4 "Optional parameters"
-            var $summary = $("<ul>").addClass("summary");
-            children.unshift($summary);
-            if ("help" in ele) {
-              children.unshift(
-                $("<span>").addClass("description").text(ele.help)
-              );
-            }
-            if ("name" in ele) {
-              children.unshift(
-                $("<b>").text(ele.name).click(function(){
-                  $cont.toggleClass("expanded")
-                }).attr("title","Click to show / hide these options")
-              );
-            }
-            if (ele.expand || (!(ele.expand === false) && Object.keys(ele.options).length < 2)) {
-              //do not collapse fields on creation if expand: true is passed
-              //always collapse fields if expand: false is passed
-              //otherwise, collapse if group contains 2 fields or more
-              $cont.addClass("expanded"); 
-            }
-            return $cont.change(function(){
-              $summary.html("");
-              $(this).find(".isSetting, input[type=\"hidden\"].isSetting").each(function(){ 
-                var val = $(this).getval();
-                if (val == "") { return; }
-                var opts = $(this).data('opts');
-                if (val != opts['default']) {
-                  var label = opts["label"]+": ";
-                  switch (opts.type) {
-                    case "select": {
-                      val = opts.select.filter(function(v){ if (v[0] == val) return true; return false; })[0][1]; break;
-                    }
-                    case "unix": {
-                      val = UI.format.dateTime(val); break;
-                    }
-                    case "checkbox": {
-                      val = ""; 
-                      label = label.slice(0,-2);
-                      break;
-                    }
-                  }
-                  $summary.append(
-                    $("<li>").addClass("setting").append(
-                      $("<span>").addClass("label").text(label)
-                    ).append(
-                      $("<span>").text(val)
-                    ).append(
-                      $("<span>").addClass("unit").text(typeof opts.unit  == "string" ? opts["unit"] : "")
-                    )
-                  );
-                }
-              });
-            }).append(UI.buildUI(children)).trigger("change");
-
-            
+            obj.options = obj.options.slice(1); //remove h4 "Optional parameters"
+            break;
           }
           case 'bool': {
             obj.type = 'checkbox';
@@ -12479,15 +13595,22 @@ $.fn.setval = function(val,extraParameters){
           $(this).children("select").first().val("CUSTOM").trigger("change",extraParameters);
         }
         break;
-      case "inputlist":
+      case "inputlist": {
         if (typeof val == "string") { val = [val]; }
+        //save all children, they will be removed after 
+        //if e.input contains a reference to a DOMelement, removing it will destroy any eventListeners attached to it
+        let $old = $(this).children();
+        //add children for all the values
         for (var i in val) {
           var $newitem = $(this).data("newitem")();
           $newitem.find(".field").setval(val[i]);
           $(this).append($newitem);
         }
-        $(this).append($(this).children().first()); //put empty input last
+        $(this).append($(this).data("newitem")()); //add an empty input
+        $old.remove(); 
+        //any DOMelement in e.input should now be in the empty input added above, so we can safely remove the old inputs
         break;
+      }
       case "sublist":
         var $field = $(this);
         var $curvals = $(this).children(".curvals");

@@ -55,7 +55,7 @@ namespace HTTP{
   /// Simply turns link into a HTTP::URL and calls get(const HTTP::URL&)
   bool Downloader::get(const std::string &link, Util::DataCallback &cb){
     HTTP::URL uri(link);
-    return get(uri, 6, cb);
+    return get(uri, "GET", 6, cb);
   }
 
   /// Sets an extra (or overridden) header to be sent with outgoing requests.
@@ -290,28 +290,29 @@ namespace HTTP{
       sprintf(tmp, "bytes=%zu-%zu", byteStart, byteEnd - 1);
     }
     setHeader("Range", tmp);
-    return get(link, 6, cb);
+    return get(link, "GET", 6, cb);
   }
 
   /// Downloads the given URL into 'H', returns true on success.
   /// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
-  bool Downloader::get(const HTTP::URL & link, uint8_t maxRecursiveDepth, Util::DataCallback & cb) {
+  bool Downloader::get(const HTTP::URL & link, const std::string & method, uint8_t maxRecursiveDepth, Util::DataCallback & cb) {
     if (&cb == &Util::defaultDataCallback) {
-      return get(link, [&]() { return H.body.size(); }, [&](const char *ptr, size_t len) { H.body.append(ptr, len); }, maxRecursiveDepth);
+      return get(link, [&]() { return H.body.size(); }, [&](const char *ptr, size_t len) { H.body.append(ptr, len); }, method, maxRecursiveDepth);
     } else {
       return get(link, [&cb]() { return cb.getDataCallbackPos(); },
-                 [&cb](const char *ptr, size_t len) { cb.dataCallback(ptr, len); }, maxRecursiveDepth);
+                 [&cb](const char *ptr, size_t len) { cb.dataCallback(ptr, len); }, method, maxRecursiveDepth);
     }
   }
 
   bool Downloader::get(const HTTP::URL & link, std::function<size_t()> resumePos,
-                       std::function<void(const char *, size_t)> onData, uint8_t maxRecursiveDepth) {
-    if (!getNonBlocking(link, maxRecursiveDepth)) { return false; }
+                       std::function<void(const char *, size_t)> onData, const std::string & method, uint8_t maxRecursiveDepth) {
+    if (!getNonBlocking(link, maxRecursiveDepth, method)) { return false; }
 
-    nbBlocking = getSocket().isBlocking();
+    bool wasBlocking = getSocket().isBlocking();
+    nbBlocking = true;
     getSocket().setBlocking(true);
     while (!continueNonBlocking(resumePos, onData)) {}
-    getSocket().setBlocking(nbBlocking);
+    getSocket().setBlocking(wasBlocking);
 
     if (isComplete) { return true; }
 
@@ -384,14 +385,14 @@ namespace HTTP{
   }
 
   // prepare a request to be handled in a nonblocking fashion by the continueNonbBocking()
-  bool Downloader::getNonBlocking(const HTTP::URL &link, uint8_t maxRecursiveDepth){
+  bool Downloader::getNonBlocking(const HTTP::URL &link, uint8_t maxRecursiveDepth, const std::string & method){
     if (!canRequest(link)){return false;}
     nbLink = link;
     nbMaxRecursiveDepth = maxRecursiveDepth;
     nbLoop = retryCount + 1; // max 5 attempts
     isComplete = false;
     extraHeaders.erase("Range");
-    prepareRequest(nbLink, "", getSocket());
+    prepareRequest(nbLink, method, getSocket());
     H.sendRequest(getSocket());
     H.Clean();
     nbReqTime = Util::bootSecs();
@@ -605,6 +606,7 @@ namespace HTTP{
 
   bool Downloader::startPut(const HTTP::URL & link, Socket::Connection & conn, uint8_t maxRecursiveDepth) {
     if (!canRequest(link)) { return false; }
+    nbBlocking = true;
     size_t loop = 0;
     while (++loop <= retryCount) { // loop while we are unsuccessful
       MEDIUM_MSG("PUTting to %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);

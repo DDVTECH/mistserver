@@ -15,9 +15,10 @@ namespace HTTP{
     const std::string &const_data() const;
     void prepareRequest(const HTTP::URL & link, const std::string & method, Socket::Connection & conn);
     bool get(const std::string &link, Util::DataCallback &cb = Util::defaultDataCallback);
-    bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6, Util::DataCallback &cb = Util::defaultDataCallback);
-    bool get(const HTTP::URL & link, std::function<size_t()> resumePos,
-             std::function<void(const char *, size_t)> onData, uint8_t maxRecursiveDepth = 6);
+    bool get(const HTTP::URL & link, const std::string & method = "GET", uint8_t maxRecursiveDepth = 6,
+             Util::DataCallback & cb = Util::defaultDataCallback);
+    bool get(const HTTP::URL & link, std::function<size_t()> resumePos, std::function<void(const char *, size_t)> onData,
+             const std::string & method = "GET", uint8_t maxRecursiveDepth = 6);
     bool head(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
     bool getRange(const HTTP::URL &link, size_t byteStart, size_t byteEnd,
                   Util::DataCallback &cb = Util::defaultDataCallback);
@@ -29,7 +30,7 @@ namespace HTTP{
 
     bool startPut(const HTTP::URL & link, Socket::Connection & conn, uint8_t maxRecursiveDepth = 6);
 
-    bool getNonBlocking(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
+    bool getNonBlocking(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6, const std::string & method = "GET");
     bool continueNonBlocking(std::function<size_t()> resumePos, std::function<void(const char *, size_t)> onData);
 
     void getEventLooped(Event::Loop & E, const HTTP::URL & link, uint8_t maxRecursiveDepth,

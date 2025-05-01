@@ -21,6 +21,7 @@ namespace Mist{
 
   bool doDTLS = true;
   bool volkswagenMode = false;
+  std::string ctrlKey;
 
 #ifdef WITH_DATACHANNELS
   void sctp_debug_cb(const char * format, ...){
@@ -494,6 +495,12 @@ namespace Mist{
         myConn.close();
         return;
       }
+
+      if (dl.getHeader("Location").size()){
+        ctrlUrl = HTTP::URL(config->getString("target")).link(dl.getHeader("Location")).getUrl();
+        INFO_MSG("Control URL: %s", ctrlUrl.c_str());
+      }
+
       SDP::Session response;
       response.parseSDP(dl.getHTTP().body);
       INFO_MSG("POST success, sending %zu streams", response.medias.size());
@@ -522,6 +529,14 @@ namespace Mist{
     setBlocking(false);
   }
 
+  OutWebRTC::~OutWebRTC(){
+    if (ctrlUrl.size()){
+      HTTP::Downloader dl;
+      INFO_MSG("Sending DELETE to %s", ctrlUrl.c_str());
+      dl.get(HTTP::URL(ctrlUrl), "DELETE");
+    }
+  }
+
   bool OutWebRTC::listenMode() {
     return !config->getString("target").size() && !config->getString("ip").size();
   }
@@ -532,7 +547,9 @@ namespace Mist{
     capa["friendly"] = "WebRTC";
     capa["desc"] = "Provides WebRTC output";
     capa["url_rel"] = "/webrtc/$";
-    capa["url_match"] = "/webrtc/$";
+    capa["url_prefix"].append("/webrtc/$");
+    capa["url_prefix"].append("/whip/$");
+    capa["url_prefix"].append("/whep/$");
 
     capa["incoming_push_url"] = "http://$host:$port/webrtc/$stream";
 
@@ -583,6 +600,13 @@ namespace Mist{
     capa["optional"]["pubhost"]["type"] = "str";
     capa["optional"]["pubhost"]["option"] = "--pubhost";
     capa["optional"]["pubhost"]["short"] = "H";
+
+    capa["optional"]["ctrlprefix"]["name"] = "Prefix for control URL (DELETE/PATCH requests)";
+    capa["optional"]["ctrlprefix"]["help"] = "Returned as Location header for controlling WebRTC sessions";
+    capa["optional"]["ctrlprefix"]["default"] = "";
+    capa["optional"]["ctrlprefix"]["type"] = "str";
+    capa["optional"]["ctrlprefix"]["option"] = "--ctrlprefix";
+    capa["optional"]["ctrlprefix"]["short"] = "F";
 
     capa["optional"]["override_port"]["name"] = "Override external port";
     capa["optional"]["override_port"]["help"] = "What port to pass on in the SDP (e.g. in case the port is mapped through a firewall to a different port externally). Defaults to actually bound port.";
@@ -840,6 +864,35 @@ namespace Mist{
       H.Chunkify(0, 0, myConn);
       return;
     }
+    if (req.method == "DELETE"){
+      std::string path = HTTP::URL(req.url).path;
+      if (path.find('/')){ path.erase(0, path.rfind('/')+1); }
+      if (path.size() != 10){
+        H.setCORSHeaders();
+        H.StartResponse("404", "Invalid URL", req, myConn);
+        H.Chunkify("URL format invalid, ignored command", myConn);
+        H.Chunkify(0, 0, myConn);
+      }else{
+        {
+          std::deque<Socket::Address> mcAddrs = Socket::getAddrs("224.0.0.224", config->getInteger("port"), AF_INET);
+          if (!mcAddrs.size()){
+            H.setCORSHeaders();
+            H.StartResponse("500", "Internal communication error", req, myConn);
+            H.Chunkify("Could not relay command due to internal communication error", myConn);
+            H.Chunkify(0, 0, myConn);
+            return;
+          }
+          Socket::Address mcAddr = *mcAddrs.begin();
+          Socket::UDPConnection sndr(mcAddr, mcAddr.size(), 0, 0);
+          sndr.SendNow(path);
+        }
+        H.setCORSHeaders();
+        H.StartResponse("200", "Deleted", req, myConn);
+        H.Chunkify("If your stream existed, it was deleted.", myConn);
+        H.Chunkify(0, 0, myConn);
+      }
+      return;
+    }
     if (req.method == "POST"){
       if (req.GetHeader("Content-Type") == "application/sdp"){
 
@@ -868,9 +921,13 @@ namespace Mist{
 
         bool ret = false;
         if (sdpParser.hasSendOnlyMedia()){
-          ret = handleSignalingCommandRemoteOfferForInput(sdpParser);
+          if (req.url.size() >= 6 && req.url.substr(0, 6) != "/whep/"){
+            ret = handleSignalingCommandRemoteOfferForInput(sdpParser);
+          }
         }else{
-          ret = handleSignalingCommandRemoteOfferForOutput(sdpParser);
+          if (req.url.size() >= 6 && req.url.substr(0, 6) != "/whip/"){
+            ret = handleSignalingCommandRemoteOfferForOutput(sdpParser);
+          }
         }
         if (ret){
           if (packetLog.is_open()) {
@@ -880,7 +937,14 @@ namespace Mist{
           }
           noSignalling = true;
           H.SetHeader("Content-Type", "application/sdp");
-          H.SetHeader("Location", streamName + "/" + JSON::Value(getpid()).asString());
+          std::string ctrlprefix = config->getString("ctrlprefix");
+          ctrlKey = Util::getRandomAlphanumeric(10);
+          if (ctrlprefix.size()){
+            ctrlprefix = HTTP::URL(ctrlprefix).link("webrtc/"+ctrlKey).getUrl();
+          }else{
+            ctrlprefix = "/webrtc/"+ctrlKey;
+          }
+          H.SetHeader("Location", ctrlprefix);
           if (req.GetVar("constant").size()){
             INFO_MSG("Disabling automatic playback rate control");
             maxSkipAhead = 1;//disable automatic rate control
@@ -1505,6 +1569,16 @@ namespace Mist{
 
     evLp.addSocket(mainSocket.getSock(), [this](void *) {
       while (mainSocket.Receive()) {
+
+        // Implement recognizing the control key to stop the stream
+        if (mainSocket.data.size() == 10){
+        std::string delCmd = std::string(mainSocket.data, mainSocket.data.size());
+          if (ctrlKey == delCmd){
+            Util::logExitReason(ER_CLEAN_INTENDED_STOP, "WebRTC session deleted by user");
+            config->is_active = false;
+            return;
+          }
+        }
 
         // The first 16 bytes contain the ice username
         if (mainSocket.data.size() <= 16) { continue; }

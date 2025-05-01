@@ -94,7 +94,7 @@ namespace Mist{
   class OutWebRTC : public HTTPOutput{
   public:
     OutWebRTC(Socket::Connection &myConn);
-    ~OutWebRTC(){}
+    ~OutWebRTC();
     static bool listenMode();
     static void listener(Util::Config & conf,
                          std::function<void(Socket::Connection &, Socket::Server &)> callback);
@@ -132,6 +132,7 @@ namespace Mist{
   public:
     std::ofstream packetLog;
   private:
+    std::string ctrlUrl;
     std::string externalAddr;
     void ackNACK(uint32_t SSRC, uint16_t seq);
     void handleReceivedSTUNPacket(WebRTCSocket &wSock);

@@ -103,9 +103,9 @@ namespace Mist{
   }
 
   bool isPrefix(const std::string &url, const std::string &m, std::string &streamname){
+    if (url.size() < m.size()){return false;}
     size_t found = m.find('$');
-    if (found != std::string::npos){
-      if (url.size() < m.size()){return false;}
+    if (found != std::string::npos && m[m.size() - 1] != '$'){
       size_t found_suf = url.find(m.substr(found + 1), found);
       if (m.substr(0, found) == url.substr(0, found) && found_suf != std::string::npos){
         if (url.substr(found, found_suf - found).find('/') != std::string::npos){return false;}
@@ -113,7 +113,13 @@ namespace Mist{
         return true;
       }
     }else{
-      return (url.substr(0, m.size()) == m);
+      if (found != std::string::npos){
+        if (url.substr(0, m.size() - 1) != m.substr(0, m.size() - 1)){ return false; }
+        streamname = url.substr(m.size() - 1);
+        return true;
+      }else{
+        return (url.substr(0, m.size()) == m);
+      }
     }
     return false;
   }

@@ -1791,6 +1791,7 @@ namespace Mist{
 
       if (!parseData){Comms::sessionConfigCache(thisBootMs);}
 
+      uint64_t nTime = 0;
       if (suggestedWait){
         maxWait = suggestedWait;
         // If the suggested wait is 2000ms, we don't know when one could arrive.
@@ -1801,7 +1802,7 @@ namespace Mist{
         if (maxWait > 2000) { maxWait = 2000; }
         // slow down processing, if real time speed is wanted
         if (parseData){
-          uint64_t nTime = buffer.nonGhost();
+          nTime = buffer.nonGhost();
           if (realTime){
             if (nTime){
               uint64_t tTime = targetTime();
@@ -1828,7 +1829,7 @@ namespace Mist{
       stats();
       requestHandler((task == 1));
       //if (task == std::string::npos){} // Continue signal received; no special handling needed
-      if (parseData){
+      if (parseData && (!realTime || !nTime || nTime <= targetTime())){
         if (!isInitialized){
           initialize();
           if (!isInitialized){

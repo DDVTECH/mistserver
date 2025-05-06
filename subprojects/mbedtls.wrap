@@ -1,11 +1,12 @@
 [wrap-file]
-directory = mbedtls-3.6.2
-source_url = https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.2/mbedtls-3.6.2.tar.bz2
-source_filename = mbedtls-3.6.2.tar.bz2
-source_hash = 8b54fb9bcf4d5a7078028e0520acddefb7900b3e66fec7f7175bb5b7d85ccdca
+directory = mbedtls-3.6.3
+source_url = https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.3/mbedtls-3.6.3.tar.bz2
+source_filename = mbedtls-3.6.3.tar.bz2
+source_hash = 64cd73842cdc05e101172f7b437c65e7312e476206e1dbfd644433d11bc56327
 patch_directory = mbedtls
 
 [provide]
 mbedcrypto = mbedcrypto_dep
 mbedx509 = mbedx509_dep
 mbedtls = mbedtls_dep
+

@@ -21,18 +21,9 @@ const char * trackType(char ID){
 
 
 namespace Mist{
-#ifdef SSL
-  bool sslEnabled = false;
-  mbedtls_entropy_context OutRTMP::entropy;
-  mbedtls_ctr_drbg_context OutRTMP::ctr_drbg;
-  mbedtls_ssl_config OutRTMP::sslConf;
-  mbedtls_x509_crt OutRTMP::srvcert;
-  mbedtls_pk_context OutRTMP::pkey;
-#endif
-
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
 #ifdef SSL
-    if (sslEnabled){myConn.sslAccept(&sslConf, &ctr_drbg);}
+    if (setupTLS()){ myConn.sslAccept(&sslConf, &ctr_drbg); }
 #endif
     lastSilence = 0;
     hasSilence = false;
@@ -103,19 +94,30 @@ namespace Mist{
     }
   }
 
+  OutRTMP::~OutRTMP(){
 #ifdef SSL
-  /// Listens for HTTPS requests, accepting them and connecting them to a HTTP socket
-  void OutRTMP::listener(Util::Config & conf,
-                         std::function<void(Socket::Connection &, Socket::Server &)> callback) {
+    if (isTLSEnabled){
+      // Free all the mbedtls structures
+      mbedtls_x509_crt_free(&srvcert);
+      mbedtls_pk_free(&pkey);
+      mbedtls_ssl_config_free(&sslConf);
+      mbedtls_ctr_drbg_free(&ctr_drbg);
+      mbedtls_entropy_free(&entropy);
+      isTLSEnabled = false;
+    }
+#endif
+  }
+
+#ifdef SSL
+  bool OutRTMP::setupTLS(){
+    isTLSEnabled = false;
     // No cert or key? Non-SSL mode.
     if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2){
       INFO_MSG("No cert or key set, regular RTMP mode");
-      Output::listener(conf, callback);
-      return;
+      return false;
     }
 
     INFO_MSG("Cert and key set, RTMPS mode");
-    sslEnabled = true;
 
     // Declare and set up all required mbedtls structures
     int ret;
@@ -124,6 +126,12 @@ namespace Mist{
     mbedtls_pk_init(&pkey);
     mbedtls_x509_crt_init(&srvcert);
     mbedtls_ctr_drbg_init(&ctr_drbg);
+    isTLSEnabled = true;
+
+    mbedtls_debug_set_threshold(0);
+    mbedtls_ssl_conf_dbg(&sslConf, [](void *ctx, int level, const char *file, int line, const char *str){
+      INFO_MSG("TLS [%d]: %s:%d %s", level, file, line, str);
+    }, 0);
 
     // seed the rng
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
@@ -143,32 +151,28 @@ namespace Mist{
     }
 
     // Read key from cmdline option
+#if !HAVE_UPSTREAM_MBEDTLS_SRTP
     ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0);
+#else
+    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0, mbedtls_ctr_drbg_random, &ctr_drbg);
+#endif
     if (ret != 0){
       FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
-      return;
+      return false;
     }
 
     if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
                                            MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
       FAIL_MSG("SSL config defaults failed");
-      return;
+      return false;
     }
     mbedtls_ssl_conf_rng(&sslConf, mbedtls_ctr_drbg_random, &ctr_drbg);
     mbedtls_ssl_conf_ca_chain(&sslConf, srvcert.next, NULL);
     if ((ret = mbedtls_ssl_conf_own_cert(&sslConf, &srvcert, &pkey)) != 0){
       FAIL_MSG("SSL config own certificate failed");
-      return;
+      return false;
     }
-
-    Output::listener(conf, callback);
-
-    // Free all the mbedtls structures
-    mbedtls_x509_crt_free(&srvcert);
-    mbedtls_pk_free(&pkey);
-    mbedtls_ssl_config_free(&sslConf);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
+    return true;
   }
 #endif
 

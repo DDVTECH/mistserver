@@ -12,6 +12,7 @@ namespace Mist{
   class OutRTMP : public Output{
   public:
     OutRTMP(Socket::Connection &conn);
+    ~OutRTMP();
     static void init(Util::Config *cfg);
     void onRequest();
     void sendNext();
@@ -20,8 +21,7 @@ namespace Mist{
     void requestHandler(bool readable);
     bool onFinish();
 #ifdef SSL
-    static void listener(Util::Config & conf,
-                         std::function<void(Socket::Connection &, Socket::Server &)> callback);
+    bool setupTLS();
 #endif
 
   protected:
@@ -59,11 +59,12 @@ namespace Mist{
 
 #ifdef SSL
     // TLS-related
-    static mbedtls_entropy_context entropy;
-    static mbedtls_ctr_drbg_context ctr_drbg;
-    static mbedtls_ssl_config sslConf;
-    static mbedtls_x509_crt srvcert;
-    static mbedtls_pk_context pkey;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_ssl_config sslConf;
+    mbedtls_x509_crt srvcert;
+    mbedtls_pk_context pkey;
+    bool isTLSEnabled;
 #endif
   };
 }// namespace Mist

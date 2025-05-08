@@ -1007,24 +1007,25 @@ namespace Mist{
     return true;
   }
 
-  /// This function decides where in the stream initial playback starts.
-  /// The default implementation calls seek(0) for VoD.
-  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than
-  /// needsLookAhead+minKeepAway ms from the end. Unless lastms < 5000, then it seeks to the first
-  /// keyframe of the main track. Aborts if there is no main track or it has no keyframes.
-  void Output::initialSeek(bool dryRun){
-    if (!meta){return;}
-    meta.removeLimiter();
+  uint64_t Output::getInitialSeekPosition(){
     uint64_t seekPos = 0;
-    if (meta.getLive() && buffer.getSyncMode()){
+    if (meta.getLive()){
+      bool sync = getSyncMode();
       size_t mainTrack = getMainSelectedTrack();
-      if (mainTrack == INVALID_TRACK_ID){return;}
+      if (mainTrack == INVALID_TRACK_ID && (mainTrack = meta.mainTrack()) == INVALID_TRACK_ID){
+        WARN_MSG("No valid main track, seeking to position zero");
+        return 0;
+      }
       DTSC::Keys keys(M.getKeys(mainTrack));
-      if (!keys.getValidCount()){return;}
+      if (!keys.getValidCount()){
+        WARN_MSG("Main track has no keyframes, seeking to position zero");
+        return 0;
+      }
       // seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
       uint32_t firstKey = keys.getFirstValid();
       uint32_t lastKey = keys.getEndValid() - 1;
-      for (int64_t i = lastKey; i >= firstKey; i--){
+      // Seek to approx middle if desync mode, seek to approx end for sync mode
+      for (int64_t i = sync ? lastKey : (lastKey - (lastKey - firstKey) / 2); i >= firstKey; i--){
         seekPos = keys.getTime(i);
         if (seekPos < 5000){continue;}// if we're near the start, skip back
         bool good = true;
@@ -1057,6 +1058,18 @@ namespace Mist{
         if (good){break;}
       }
     }
+    return seekPos;
+  }
+
+  /// This function decides where in the stream initial playback starts.
+  /// The default implementation calls seek(0) for VoD.
+  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than
+  /// needsLookAhead+minKeepAway ms from the end. Unless lastms < 5000, then it seeks to the first
+  /// keyframe of the main track. Aborts if there is no main track or it has no keyframes.
+  void Output::initialSeek(bool dryRun){
+    if (!meta){return;}
+    meta.removeLimiter();
+    uint64_t seekPos = getInitialSeekPosition();
     /*LTS-START*/
     if (isRecordingToFile){
       if (M.getLive()){

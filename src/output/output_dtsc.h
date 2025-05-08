@@ -16,7 +16,6 @@ namespace Mist{
     void stats(bool force = false);
     void sendCmd(const JSON::Value &data);
     void sendOk(const std::string &msg);
-
   private:
     unsigned int lastActive; ///< Time of last sending of data.
     std::string getStatsName();

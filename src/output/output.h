@@ -62,6 +62,7 @@ namespace Mist{
     virtual void onRequest();
     static void listener(Util::Config & conf,
                          std::function<void(Socket::Connection &, Socket::Server &)> callback);
+    virtual uint64_t getInitialSeekPosition();
     virtual void initialSeek(bool dryRun = false);
     uint64_t getMinKeepAway();
     virtual bool liveSeek(bool rateOnly = false);
@@ -77,8 +78,9 @@ namespace Mist{
 
     void selectAllTracks();
 
-    /// Accessor for buffer.setSyncMode.
+    /// Accessors for buffer SyncMode.
     void setSyncMode(bool synced){buffer.setSyncMode(synced);}
+    bool getSyncMode(){return buffer.getSyncMode();}
 
   private: // these *should* not be messed with in child classes.
     /*LTS-START*/

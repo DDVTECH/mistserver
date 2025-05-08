@@ -316,27 +316,8 @@ namespace Mist{
   }
 
   // Override initialSeek to go to last possible position for live streams
-  void OutTSSRT::initialSeek(bool dryRun){
-    if (!meta){return;}
-    if (targetParams.count("pushdelay") ||
-        targetParams.count("duration") ||
-        targetParams.count("split") ||
-        targetParams.count("start") ||
-        targetParams.count("stop") ||
-        targetParams.count("stopunix") ||
-        targetParams.count("unixstop") ||
-        targetParams.count("recstop") ||
-        targetParams.count("recstopunix") ||
-        targetParams.count("recstart") ||
-        targetParams.count("recstartunix") ||
-        targetParams.count("startunix") ||
-        targetParams.count("unixstart")){
-      return Output::initialSeek(dryRun);
-    }
-    meta.removeLimiter();
-
+  uint64_t OutTSSRT::getInitialSeekPosition(){
     uint64_t seekPos = 0;
-
     std::set<size_t> validTracks = M.getValidTracks();
     if (M.getLive() && validTracks.size()){
       if (userSelect.size()){
@@ -351,7 +332,7 @@ namespace Mist{
         }
       }
     }
-    seek(seekPos);
+    return seekPos;
   }
 
   static void addIntOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, size_t def = 0,const std::string unit = ""){

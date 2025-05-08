@@ -17,7 +17,7 @@ namespace Mist{
     bool isReadyForPlay(){return true;}
     virtual void requestHandler(bool readable);
     virtual bool onFinish();
-    virtual void initialSeek(bool dryRun = false);
+    virtual uint64_t getInitialSeekPosition();
     inline virtual bool keepGoing(){return config->is_active;}
   protected:
     virtual void connStats(uint64_t now, Comms::Connections &statComm);

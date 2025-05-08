@@ -1829,16 +1829,17 @@ namespace Mist{
         F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
         if ((F.getDataLen() || (amf_storage && amf_storage->hasContent())) && !(F.needsInitData() && F.isInitData())){
           uint64_t tagTime = next.timestamp;
-          uint64_t timeOffset = 0;
-          if (targetParams.count("timeoffset")){
-            timeOffset = JSON::Value(targetParams["timeoffset"]).asInt();
-          }
-          if (!M.getBootMsOffset()){
-            meta.setBootMsOffset(Util::bootMS() - tagTime);
-            rtmpOffset = timeOffset;
-            setRtmpOffset = true;
-          }else if (!setRtmpOffset){
-            rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset() + timeOffset;
+          if (!setRtmpOffset){
+            uint64_t timeOffset = 0;
+            if (targetParams.count("timeoffset")){
+              timeOffset = JSON::Value(targetParams["timeoffset"]).asInt();
+            }
+            if (!M.getBootMsOffset()){
+              meta.setBootMsOffset(Util::bootMS() - tagTime);
+              rtmpOffset = timeOffset;
+            }else{
+              rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset() + timeOffset;
+            }
             setRtmpOffset = true;
           }
           tagTime += rtmpOffset + trackOffset[reTrack];
@@ -1879,10 +1880,8 @@ namespace Mist{
             }
             if (ltt){
               trackOffset[reTrack] -= diff;
-            }else{
-              rtmpOffset -= diff;
+              tagTime -= diff;
             }
-            tagTime -= diff;
           }
           size_t idx = reTrackToID[reTrack];
           if (idx != INVALID_TRACK_ID && !userSelect.count(idx)){

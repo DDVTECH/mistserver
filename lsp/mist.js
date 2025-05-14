@@ -6266,6 +6266,11 @@ var UI = {
               }
             }
           }
+          if (mist.data.capabilities.internal_writers && mist.data.capabilities.internal_writers.length) {
+            for (let value of mist.data.capabilities.internal_writers) {
+              writer_protocols.push(value+"://");
+            }
+          }
           file_match.sort();
           prot_match.sort();
           
@@ -11941,10 +11946,16 @@ var mist = {
       match = [match];
     }
     for (var s in match){
-      var query = match[s].replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
+      var m = match[s];
+      var str = string;
+      if (m.slice(-1) == "?") {
+        m = m.slice(0,-1);
+        str = str.split("?")[0];
+      }
+      var query = m.replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
       query = query.replace(/\\\*/g,'.*'); //replace * with any amount of .*
       var regex = new RegExp('^(?:[a-zA-Z]\:)?'+query+'(?:\\?[^\\?]*)?$','i'); //case insensitive, and ignore everything after the last ?
-      if (regex.test(string)){
+      if (regex.test(str)){
         return true;
       }
     }

@@ -1551,7 +1551,11 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
       initialSeek();
-      rtmpOffset = currentTime();
+      if (targetParams.count("keepts")){
+        rtmpOffset = 0;
+      }else{
+        rtmpOffset = currentTime();
+      }
       amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
       sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 65536;                                 // 64KiB

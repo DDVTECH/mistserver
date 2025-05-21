@@ -2307,6 +2307,7 @@ namespace Mist{
       // Ensure we have the lookahead available
       if (needsLookAhead && M.getLive() && M.getNowms(nxt.tid) < nxt.time + needsLookAhead){
         int64_t waitTime = (nxt.time + needsLookAhead) - M.getNowms(nxt.tid);
+        if (meta.reloadReplacedPagesIfNeeded()){return 1;}
         return waitTime > 0 ? waitTime : 1;
       }
 

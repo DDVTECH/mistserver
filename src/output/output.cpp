@@ -2838,6 +2838,7 @@ namespace Mist{
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
         INFO_MSG("Reconnecting to %s buffer... (%u)", streamName.c_str(), streamStatus);
         reconnect();
+        if (streamStatus == STRMSTAT_OFF && !M){break;}
         streamStatus = Util::getStreamStatus(streamName);
       }
       if (((streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY) || !meta) && keepGoing()){

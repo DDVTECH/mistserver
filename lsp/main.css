@@ -2166,6 +2166,34 @@ section.clients .inputs:has(table thead tr td:nth-child(3)) h3:after { content: 
 .streamkeys .stream:not(.showAllKeys) .key.hidden {
   display: none;
 }
+.JWKs .key {
+  max-width: 50vh;
+  min-width: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  font-family: monospace;
+}
+.JWKs .permissions > div {
+  display: inline-block;
+  margin-right: 0.5em;
+}
+.JWKs .permissions > div:before {
+  content: "";
+  display: inline-block;
+  height: 1lh;
+  aspect-ratio: 1;
+  margin-right: 0.25em;
+  mask: none center no-repeat;
+  mask-size: contain;
+  mask-image: var(--icon);
+  text-shadow: 0 0 1px var(--secondaryBackgroundColor), 0 0 1px var(--secondaryBackgroundColor), 0 0 1px var(--secondaryBackgroundColor);
+  background-color: var(--accentColor);
+}
+.JWKs .permissions .input { --icon: var(--upImage); }
+.JWKs .permissions .output { --icon: var(--playImage); }
+.JWKs .permissions .admin { --icon: var(--settingsImage); }
+.JWKs .permissions .streams:before { content: none; }
 
 [data-tab="Edit"] .ih_balloon .syntaxes {
   list-style: none;

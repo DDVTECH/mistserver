@@ -934,6 +934,7 @@ context_menu: function(){
         hiddenmenu: {
           "Edit variable": {},
           "Edit external writer": {},
+          "Edit JWK": {},
           "Stream keys": {}
         }
       },
@@ -1648,6 +1649,7 @@ context_menu: function(){
     var $c = $('<div>').addClass('input_container');
     for (var i in elements) {
       var e = elements[i];
+      if (e === false) { continue; }
       if (e instanceof jQuery) {
         $c.append(e);
         continue;
@@ -1984,11 +1986,9 @@ context_menu: function(){
               $part.addClass("listitem");
 
               var keyup = function(e){
+                let $item = $(this).find(".field");
                 if ($(this).is(":last-child")) {
-                  if ($(this).find(".field").getval() != "") {
-                    /*var $clone = $part.clone(true).keyup(keyup);
-                  $clone.find(".field").setval("");
-                  $(this).after($clone);*/
+                  if ($item.getval() != "") {
                     $(this).after(newitem());
                   }
                   else if (e.which == 8) { //backspace
@@ -1996,13 +1996,27 @@ context_menu: function(){
                   }
                 }
                 else {
-                  if ($(this).find(".field").getval() == "") {
+                  if ($item.getval() == "") {
+
+                    //focus on the previous item
                     var $f = $(this).prev();
                     if (!$f.length) {
                       $f = $(this).next();
                     }
                     $f.find(".field").focus();
+
+                    //remove this field's error balloons if any
+                    let $hc = $item.data("help_container");
+                    if ($hc) {
+                      if (typeof $hc == "function") $hc = $hc();
+                      if ($hc?.length) $hc.find(".err_balloon[data-uid='"+$item.data("uid")+"']")?.remove();
+                    }
+
+                    //remove the current field
                     $(this).remove();
+
+                    //re-validate remaining field(s)
+                    $field.find(".field").trigger('change');
                   }
                 }
               };
@@ -2606,7 +2620,10 @@ context_menu: function(){
           $fc.data('subUI',subUI).addClass('limit_list').append(subUI.blackwhite).append(subUI.values);
           break;
       }
-      
+     
+      if ('value' in e) {
+        $field.setval(e.value,["initial"]);
+      }
       if ('pointer' in e) {
         $field.data('pointer',e.pointer).addClass('isSetting');
         if (e.pointer.main) {
@@ -2616,9 +2633,7 @@ context_menu: function(){
           }
         }
       }
-      if ((($field.getval() == "") || ($field.getval() == null) || !("pointer" in e)) && ('value' in e)) {
-        $field.setval(e.value,["initial"]);
-      }
+
       if ('datalist' in e) {
         var r = 'datalist_'+i+MD5($field[0].outerHTML); //magic to hopefully make sure the id is unique
         $field.attr('list',r);
@@ -3563,6 +3578,55 @@ context_menu: function(){
           reject(e);
         }
       });
+    });
+  },
+  upload: function(accept){
+    if (!accept) {
+      accept = {
+        description: "text files",
+        accept: {
+          "text/*": []
+        }
+      };
+    }
+    if (!Array.isArray(accept)) {
+      accept = [accept];
+    }
+
+    return new Promise(function(resolve,reject){
+      if (window.showOpenFilePicker) {
+        try {
+          showOpenFilePicker({
+            startIn: "downloads",
+            types: accept
+          }).then(function(handles){
+            handles[0].getFile().then(resolve).catch(reject);
+          }).catch(reject);
+        }
+        catch (e) {
+          reject(e);
+        }
+      }
+      else {
+        var $input = $("<input>").attr("type","file").hide().change(function(e){
+          if (this.files && this.files.length) {
+            let resolved = resolve(this.files[0]);
+            if (resolved instanceof Promise) {
+              resolved.finally(function(){
+                $input.remove();
+              });
+            }
+            else {
+              setTimeout(function(){
+                $input.remove()
+              },1);
+            }
+            return;
+          }
+        });
+        $(document.body).append($input.click());
+      }
+
     });
   },
   format: {
@@ -4893,7 +4957,7 @@ context_menu: function(){
             help: "In certain places, like target URL's and pushes, variable substitution is applied in order to replace a $variable with their corresponding value. Here you can define your own constants and variables which will be used when variable substitution is applied. Variables can be used within variables but will not be reflected in their latest value on this page."
           },
           $("<div>").addClass("button_container").css("text-align","right").html(
-            $("<button>").text("New variable").click(function(){
+            $("<button>").attr("data-icon","plus").text("New variable").click(function(){
               UI.navto("Edit variable","");
             })
           ),
@@ -5011,12 +5075,26 @@ context_menu: function(){
             help: "When pushing a stream to a target unsupported by MistServer like S3 storage, an external writer can be provided which handles writing the media data to the target location. The writer will receive data over stdin and MistServer will print any info written to stdout and stderr as log messages."
           },
           $("<div>").addClass("button_container").css("text-align","right").html(
-            $("<button>").text("New external writer").click(function(){
+            $("<button>").attr("data-icon","plus").text("New external writer").click(function(){
               UI.navto("Edit external writer","");
             })
           ),
           $uploaders
+        ]));
 
+        let $jwks = $("<div>").html("Loading..");
+        $main.append(UI.buildUI([
+          $('<h3>').text("JSON web keys (JWK)"),
+          {
+            type: "help",
+            help: "You can use JSON web tokens (JWT) to control permissions for viewing certain streams, inputting a stream or even access to this Management Interface.<br>Here, you can store your public keys (JWK) that will be used to validate the JWT's. You can also supply an url from which MistServer can download a key set (JWKS)."
+          },
+          $("<div>").addClass("button_container").css("text-align","right").html(
+            $("<button>").attr("data-icon","plus").text("Add JWK").click(function(){
+              UI.navto("Edit JWK","");
+            })
+          ),
+          $jwks
         ]));
 
         mist.send(function(d){
@@ -5070,7 +5148,125 @@ context_menu: function(){
               );
             }
           }
-        },{external_writer_list:true});
+        
+          if (!d.jwks) {
+            $jwks.html("None configured.");
+          }
+          else {
+            let $tbody = $("<tbody>");
+            let context_menu = new UI.context_menu();
+            for (let entry of d.jwks) {
+
+              let key = entry[0]; /*if key is a string, it's an url to a key set, otherwise it's the key itself*/
+              let permissions = entry.length > 1 ? entry[1] : false;
+              if (!permissions) {
+                //permissions are default
+                permissions = {
+                  input: true,
+                  output: true,
+                  admin: false,
+                  stream: "*"
+                };
+              }
+
+              let $kid;
+              if (typeof key == "string") {
+                $kid = $("<a>").attr("href",key).attr("target","_blank").text(key);
+              }
+              else {
+               let kid = key?.kid ? key.kid : JSON.stringify(key,null,2);
+                $kid = $("<div>").addClass("key").addClass("clickable").text(kid).attr("title",kid);
+              }
+              $tbody.append(
+                $("<tr>").attr("title",typeof key == "string" ? key : JSON.stringify(key,null,2)).on("contextmenu",function(e){
+                  e.preventDefault();
+                  context_menu.show([[
+                    $("<div>").addClass("header").html($kid.clone())
+                  ],[
+                    ["Copy "+(typeof key == "string" ? "url" : "key"),function(){
+                      let text = (typeof key == "string" ? key : JSON.stringify(key));
+                      UI.copy(text).then(()=>{
+                        this._setText("Copied!")
+                        setTimeout(function(){ context_menu.hide(); },300);
+                      }).catch((e)=>{
+                        this._setText("Copy: "+e);
+                        setTimeout(function(){ context_menu.hide(); },300);
+
+                        var popup =  UI.popup(UI.buildUI([
+                          $("<h1>").text("Copy to clipboard"),{
+                            type: "help",
+                            help: "Automatic copying failed ("+e+"). Instead you can manually copy from the field below."
+                          },{
+                            type: "str",
+                            label: "Text",
+                            value: text,
+                            rows: Math.ceil(text.length/50+2)
+                          }
+                        ]));
+                        popup.element.find("textarea").select();
+                      });
+                    },"copy","Copy this "+(typeof key == "string" ? "url" : "key")+" to the clipboard."],
+                    ["Edit",function(){
+                      UI.navto("Edit JWK",$(e.target).closest("tr").index());
+                    },"Edit","Edit this "+(typeof key == "string" ? "url" : "key")+" or its permissions."]
+                  ]],e);
+                }).append(
+                  $("<td>").html(
+                    $kid
+                  )
+                ).append(
+                  $("<td>").text(typeof key == "string" ? "url" : key.kty)
+                ).append(
+                  function(){
+                    let $td = $("<td>").addClass("permissions");
+                    if (permissions.output) {
+                      $td.append($("<div>").addClass("output").attr("title","Viewing"));
+                    }
+                    if (permissions.input) {
+                      $td.append($("<div>").addClass("input").attr("title","Input"));
+                    }
+                    if (permissions.admin) {
+                      $td.append($("<div>").addClass("admin").attr("title","MI and API"));
+                    }
+                    if (!permissions.stream) permissions.stream = "*";
+                    $td.append($("<div>").addClass("streams").text((Array.isArray(permissions.stream) ? "For streams: "+permissions.stream.join(", ") : (permissions.stream == "*" ? "For all streams" : "For streams: "+permissions.stream))))
+                    return $td;
+                  }()
+                ).append(
+                  $("<td>").append(
+                    $("<button>").attr("data-icon","Edit").text("Edit").click(function(){
+                      UI.navto("Edit JWK",$(this).closest("tr").index());
+                    })
+                  ).append(
+                    $("<button>").attr("data-icon","trash").text("Delete").click(function(){
+                      if (confirm("Are you sure you want to delete this key?\n"+(typeof key == "string" ? key : $kid[0].innerText))) {
+                        mist.send(function(){
+                          UI.navto("General");
+                        },{
+                          deletejwks: (typeof key == "string" ? key : (key.kid ? key.kid : key))
+                        });
+                      }
+                    })
+                  )
+                )
+              );
+            }
+            $jwks.html($("<table>").addClass("JWKs").append(
+              $("<thead>").append(
+                $("<tr>").append(
+                  $("<th>").text("Key id or url to key set")
+                ).append(
+                  $("<th>").text("Key type")
+                ).append(
+                  $("<th>").text("Can permit")
+                ).append(
+                  $("<th>")
+                )
+              )
+            ).append($tbody)).append(context_menu.ele);
+          }
+
+        },{ external_writer_list: true, jwks: true });
 
         break;
       }
@@ -5352,6 +5548,272 @@ context_menu: function(){
           },{variable_list:true});
         }
 
+
+        break;
+      }
+      case 'Edit JWK': {
+        let editing = false;
+        if (other != '') {
+          editing = true;
+          $main.html("Loading..");
+          mist.send(buildPage,{jwks:true});
+        }
+        else {
+          buildPage();
+        }
+
+        function buildPage(d){
+          if (editing && d && d.jwks) {
+            editing = d.jwks?.[Number(other)];
+            if (editing && ((editing.length < 2) || !editing[1])) {
+              //permissions are not set - assume defaults
+              editing[1] = {
+                input: true,
+                output: true,
+                admin: false,
+                stream: "*"
+              };
+            } 
+          }
+
+          $main.html(
+            $("<h2>").text(editing ? (typeof editing[0] == "string" ? "Edit url to JWKS" : "Edit JSON web key") : "Add JSON web key(s)")
+          );
+          let saveas = { 
+            urls: [],
+            keys: [],
+            permissions: {} 
+          };
+          if (editing) {
+            if (typeof editing[0] == "string") {
+              saveas.urls = [editing[0]];
+            }
+            else {
+              saveas.keys = [JSON.stringify(editing[0],null,2)];
+            }
+            saveas.permissions = editing[1];
+          }
+
+
+          $main.append(UI.buildUI([{
+            type: "help",
+            help: "You can use JSON web tokens (JWT) to control permissions for viewing certain streams, inputting a stream or even access to this Management Interface.<br>Here, you can add your public keys (JWK) that will be used to validate the JWT's. You can also supply an url from which MistServer can download a key set (JWKS)."
+          },$("<h3>").text("Keys"),!editing || (typeof editing[0] == "string") ? {
+            label: "Url(s) to JSON web key set (JWKS)",
+            help: "Enter one or more urls where MistServer can download a JSON web key set.",
+            pointer: { main: saveas, index: "urls" },
+            type: "inputlist",
+            validate: editing ? ["required"] : [], //used on "Add"-button
+            input: {
+              type: "str",
+              validate: [function(val){
+                if (val == "") return;
+                function isValidHttpUrl(string) {
+                  let url;
+                  try {
+                    url = new URL(string);
+                  } catch (e) {
+                    return false;  
+                  }
+                  return url.protocol === "http:" || url.protocol === "https:";
+                }
+
+                if (!isValidHttpUrl(val)) {
+                  return {
+                    msg: "Please enter a valid url.",
+                    classes: ["red"]
+                  };
+                }
+              }]
+            }
+          } : false,!editing ? {
+            type: "help",
+            help: "- and / or -",
+            css: { margin: "1em 0" }
+          }  : false,!editing || (typeof editing[0] != "string") ? {
+            type: "span",
+            label: "JSON web key (set)",/*
+            value: $("<button>").attr("data-icon","up").text("Upload JWKS file").css({
+              fontSize:"1.25em",
+              marginLeft:0
+            }).click(function(){
+              let $me = $(this);
+              let $field = $(this).closest(".input_container")?.find(".field[name=\"keys\"]");
+
+              function showErr(err) {
+                console.warn(err);
+                var msg = "Upload failed";
+                if (err.name == "AbortError") {
+                  msg = "Upload aborted";
+                }
+                $me.attr("data-icon","cross").text(msg);
+                setTimeout(function(){
+                  $me.attr("data-icon","up").text("Upload JWKS file");
+                },5e3);
+              }
+
+              UI.upload({
+                description: "JWKS files",
+                accept: {
+                  "/json": [".json"]
+                }
+              }).then(function(result){
+                result.text().then(function(text){
+                  try {
+                    let json = JSON.parse(text);
+                    let out = $field.getval();
+                    if ("keys" in json) {
+                      for (let i in json.keys) {
+                        out.push(JSON.stringify(json.keys[i],null,2));
+                      }
+                    }
+                    else if (Array.isArray(json)) {
+                      for (let i in json) {
+                        out.push(JSON.stringify(json[i],null,2));
+                      }
+                    }
+                    else if ("kid" in json) {
+                      out.push(JSON.stringify(json,null,2));
+                    }
+                    $field.setval(out);
+                  }
+                  catch(e) { showErr(e); }
+                });
+              }).catch(showErr);
+
+            }),
+            help: "Upload a JWKS file from your computer.",*/
+          } : false, !editing || (typeof editing[0] != "string") ? {
+            type: "inputlist",
+            pointer: { main: saveas, index: "keys" },
+            help: "Enter a JWK or a JWKS: a json object or array of objects.",
+            validate: editing ? ["required"] : [],
+            input: {
+              type: "textarea",
+              placeholder: JSON.stringify({kid:"youruuid",kty:"oct",k:42},null,2),
+              rows: 6,
+              validate: [function (val,me){
+                let fieldn = 1+$(me).closest(".listitem").index();
+                if (val == "") { return; }
+                let json;
+                try {
+                  json = JSON.parse(val);
+                }
+                catch (e) {}
+                if (!json) {
+                  return {
+                    msg: "Field "+fieldn+": Invalid json.",
+                    classes: ["red"]
+                  };
+                }
+                if ((json === null) || (typeof json != "object")) {
+                  return {
+                    msg: "Field "+fieldn+": Please enter a JSON object or array of objects.",
+                    classes: ["red"]
+                  };
+                }
+                if (Array.isArray(json)) {
+                  for (let key of json) {
+                    if (!("kty" in key)) {
+                      return {
+                        msg: "Field "+fieldn+": All keys should contain the 'kty' index.",
+                        classes: ["red"]
+                      };
+                    }
+                  }
+                }
+                else if (!("kty" in json)) {
+                  return {
+                    msg: "Field "+fieldn+": All keys should contain the 'kty' index.",
+                    classes: ["red"]
+                  };
+                }
+              }]
+            }
+          } : false,$("<h3>").text("Grant permissions"),{
+            label: "Use keys to permit viewing",
+            type: "checkbox",
+            pointer: { main: saveas.permissions, index: "output" },
+            help: "When a valid JWT - signed with one of these keys - is provided, access should be granted to view the stream.",
+            value: true
+          },{
+            label: "Use keys to permit stream input",
+            type: "checkbox",
+            pointer: { main: saveas.permissions, index: "input" },
+            help: "When a valid JWT - signed with one of these keys - is provided, access should be granted to input the stream.",
+            value: true
+          },{
+            label: "Apply to",
+            type: "selectinput",
+            pointer: { main: saveas.permissions, index: "stream" },
+            help: "The keys listed above should only grant access to the streams configured here.<br>You may use STREAMNAME+* to include all wildcard children.",
+            selectinput: [
+              ["*","All streams"],
+              [{
+                type: "inputlist",
+              },"These stream names .."]
+            ]
+          },{
+            label: "API authentication",
+            type: "checkbox",
+            pointer: { main: saveas.permissions, index: "admin" },
+            help: "When a valid JWT - signed with one of these keys - is provided, access should be granted to the MistServer Management Interface and API."
+          },{
+            type: "buttons",
+            buttons: [{
+              type: "save",
+              label: editing ? "Save" : "Add",
+              icon: editing ? "check" : "plus",
+              "function": function(me){
+                for (let i in saveas.keys) {
+                  saveas.keys[i] = JSON.parse(saveas.keys[i]);
+                }
+                let concatenated = saveas.urls.concat(saveas.keys);
+
+                if (concatenated.length == 0) {
+                  //no urls or keys given: show error balloons
+                  let $fields = $(me).closest(".input_container").find(".field[name]");
+                  $fields.each(function(){
+                    //for each field of the form: add a validation function that triggers if it is empty, show the message, and then remove the extra validation function again
+                    let fs = $(this).data("validate_functions");
+                    fs.push(function(val,me){
+                      if (val.length == 0) {
+                        return {
+                          msg: "Please enter something in one of these fields.",
+                          classes: ["orange"]
+                        };
+                      }
+                    });
+                    $(this).data("validate_functions",fs);
+                    $(this).data("validate")(this,true);
+                    fs.pop();
+                    $(this).data("validate_functions",fs)
+                  });
+                  return;
+                }
+
+                let command = { addjwks: [] }
+                for (let i in concatenated) {
+                  command.addjwks.push([concatenated[i],saveas.permissions]);
+                }
+
+                if (editing) {
+                  command.deletejwks = (typeof editing[0] == "string" ? editing[0] : (editing[0].kid ? editing[0].kid : editing[0]));
+                }
+
+                mist.send(function(d){
+                  UI.navto("General");
+                },command);
+              }
+            },{
+              type: "cancel",
+              label: "Return",
+              "function": function(){
+                UI.navto("General");
+              }
+            }]
+          }]));
+        }
 
         break;
       }
@@ -13693,7 +14155,7 @@ $.fn.setval = function(val,extraParameters){
     var type = opts.type;
     switch (type) { //exceptions only
       case 'span':
-        $(this).html(val).attr("title",val);
+        $(this).html(val).attr("title",typeof val == "string" ? val : "");
         break;
       case 'checkbox':
         $(this).prop('checked',val);

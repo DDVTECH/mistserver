@@ -13,7 +13,6 @@
 #include <mist/ts_packet.h>
 #include <mist/util.h>
 
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -26,6 +25,7 @@ Util::Config *cfgPointer = NULL;
 std::string baseStreamName;
 Socket::SRTServer sSock;
 bool rawMode = false;
+int accMode = 0;
 
 void (*oldSignal)(int, siginfo_t *,void *) = 0;
 
@@ -139,10 +139,9 @@ namespace Mist{
       srtConn = new Socket::SRTConnection(s);
       streamName = baseStreamName;
       std::string streamid = srtConn->getStreamName();
-      int64_t acc = config->getInteger("acceptable");
-      if (acc == 0){
+      if (accMode == 0){
         if (streamid.size()){streamName += "+" + streamid;}
-      }else if(acc == 2){
+      }else if(accMode == 2){
         if (streamName != streamid){
           FAIL_MSG("Stream ID '%s' does not match stream name, push blocked", streamid.c_str());
           srtConn->close();
@@ -168,6 +167,7 @@ namespace Mist{
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
   bool InputTSSRT::preRun(){
     Socket::SRT::libraryInit();
+    accMode = config->getInteger("acceptable");
     rawMode = config->getBool("raw");
     if (rawMode){INFO_MSG("Entering raw mode");}
     if (srtConn && *srtConn){return true;}

@@ -809,9 +809,9 @@ namespace Mist{
           if (tmpCtx->bit_rate < 500){
             WARN_MSG("Opus does not support a bitrate of %lu, clipping to 500", tmpCtx->bit_rate);
             tmpCtx->bit_rate = 500;
-          }else if (tmpCtx->bit_rate > 512000){
-            WARN_MSG("Opus does not support a bitrate of %lu, clipping to 512000", tmpCtx->bit_rate);
-            tmpCtx->bit_rate = 512000;
+          }else if (tmpCtx->bit_rate > 256000){
+            WARN_MSG("Opus does not support a bitrate of %lu, clipping to 128000", tmpCtx->bit_rate);
+            tmpCtx->bit_rate = 128000;
           }
           depth = 16;
         }else if (codecOut == "PCM"){

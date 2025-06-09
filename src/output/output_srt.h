@@ -3,9 +3,9 @@
 namespace Mist{
   class OutSRT : public HTTPOutput{
   public:
-    OutSRT(Socket::Connection &conn);
+    OutSRT(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutSRT();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void sendNext();
     void sendHeader();

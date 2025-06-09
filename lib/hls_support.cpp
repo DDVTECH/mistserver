@@ -1,9 +1,12 @@
 #include "hls_support.h"
-#include "langcodes.h" /*LTS*/
+
+#include "langcodes.h"
 #include "stream.h"
+#include "timing.h"
+
 #include <cstdlib>
-#include <sstream>
 #include <iomanip>
+#include <sstream>
 
 namespace HLS{
 

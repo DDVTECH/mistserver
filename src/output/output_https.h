@@ -20,12 +20,12 @@ namespace Mist{
 
   class OutHTTPS : public Output{
   public:
-    OutHTTPS(Socket::Connection &C);
+    OutHTTPS(Socket::Connection & C, Util::Config & cfg, JSON::Value & capa);
     virtual ~OutHTTPS();
     void onRequest(){};
     int run();
-    static bool listenMode(){return true;}
-    static void init(Util::Config *cfg);
+    static bool listenMode(Util::Config *config) { return true; }
+    static void init(Util::Config *cfg, JSON::Value & capa);
 
     // SSL related
     mbedtls_net_context client_fd;

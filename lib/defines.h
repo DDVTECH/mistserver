@@ -168,11 +168,11 @@ static inline void show_stackframe(){}
 #define DEFAULT_PAGE_TIMEOUT 15
 
 /// Count of raw frames for raw frame buffers
-#define RAW_FRAME_COUNT 30
+#define RAW_FRAME_COUNT 90
 
 /// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
-#define META_META_OFFSET 136
-#define META_META_RECORDSIZE 548
+#define META_META_OFFSET 147
+#define META_META_RECORDSIZE 549
 
 #define META_TRACK_OFFSET 148
 #define META_TRACK_RECORDSIZE 1897
@@ -288,11 +288,11 @@ static inline void show_stackframe(){}
 #define QUICK_NEGOTIATE 0xC0000000
 
 // Session and Comm library related constants
-#define COMM_STATUS_SOURCE 0x80
-#define COMM_STATUS_DONOTTRACK 0x40
-#define COMM_STATUS_DISCONNECT 0x20
-#define COMM_STATUS_REQDISCONNECT 0x10
-#define COMM_STATUS_NOKILL 0x8
+#define COMM_STATUS_SOURCE 0x80 // Source for this track
+#define COMM_STATUS_DONOTTRACK 0x40 // The connection should not count as a user (don't keep buffer active for it)
+#define COMM_STATUS_DISCONNECT 0x20 // Disconnected
+#define COMM_STATUS_REQDISCONNECT 0x10 // Other side requests disconnect
+#define COMM_STATUS_NOKILL 0x8 // Do not send kill command to this PID on shutdown
 #define COMM_STATUS_ACTIVE 0x1
 #define COMM_STATUS_INVALID 0x0
 #define COMM_STATUS_ACTSOURCEDNT COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK

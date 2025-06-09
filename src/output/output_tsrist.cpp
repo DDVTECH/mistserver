@@ -77,7 +77,8 @@ namespace Mist{
 
   }
 
-  OutTSRIST::OutTSRIST(Socket::Connection &conn) : TSOutput(conn){
+  OutTSRIST::OutTSRIST(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : TSOutput(conn, _cfg, _capa) {
     closeMyConn();
     connTime = Util::bootSecs();
     lastTimeStamp = 0;
@@ -201,7 +202,6 @@ namespace Mist{
       }
       parseData = false;
       wantRequest = true;
-
   }
 
   OutTSRIST::~OutTSRIST(){}
@@ -220,8 +220,8 @@ namespace Mist{
     return binHost;
   }
 
-  void OutTSRIST::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutTSRIST::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "TSRIST";
     capa["friendly"] = "TS over RIST";
     capa["desc"] = "Real time streaming of TS data over RIST using librist " + std::string(librist_version());
@@ -259,8 +259,7 @@ namespace Mist{
     capa["optional"]["profile"]["select"][1u][1u] = "Main";
 
     cfg->addBasicConnectorOptions(capa);
-    config = cfg;
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rist://*");
                                    //
     JSON::Value & pp = capa["push_parameters"];
@@ -310,7 +309,7 @@ namespace Mist{
     opt["arg"] = "string";
     opt["default"] = "";
     opt["help"] = "Which parser to use for data tracks";
-    config->addOption("datatrack", opt);
+    cfg->addOption("datatrack", opt);
 
     capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
     capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
@@ -448,11 +447,12 @@ int main(int argc, char *argv[]){
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
   Util::Config::binaryType = Util::OUTPUT;
-  mistOut::init(&conf);
+  JSON::Value capa;
+  mistOut::init(&conf, capa);
   if (conf.parseArgs(argc, argv)){
     if (conf.getBool("json")){
-      mistOut::capa["version"] = PACKAGE_VERSION;
-      std::cout << mistOut::capa.toString() << std::endl;
+      capa["version"] = PACKAGE_VERSION;
+      std::cout << capa.toString() << std::endl;
       return -1;
     }
 
@@ -474,11 +474,11 @@ int main(int argc, char *argv[]){
     //int filelimit = conf.getInteger("filelimit");
     //Util::sysSetNrOpenFiles(filelimit);
 
-    if (!mistOut::listenMode()){
+    if (!mistOut::listenMode(&conf)) {
       Socket::Connection S(fileno(stdout), fileno(stdin));
       ///\TODO Update for RIST
       //Socket::SRTConnection tmpSock;
-      mistOut tmp(S);
+      mistOut tmp(S, conf, capa);
       return tmp.run();
     }
     {

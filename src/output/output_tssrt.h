@@ -5,14 +5,14 @@
 namespace Mist{
   class OutTSSRT : public TSOutput{
   public:
-    OutTSSRT(Socket::Connection &conn, Socket::SRTConnection * _srtSock = 0);
+    OutTSSRT(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa, Socket::SRTConnection *_srtSock = 0);
     ~OutTSSRT();
 
-    static bool listenMode();
+    static bool listenMode(Util::Config *config);
     static void listener(Util::Config & conf,
                          std::function<void(Socket::Connection &, Socket::Server &)> callback);
 
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void sendTS(const char *tsData, size_t len = 188);
     virtual void requestHandler(bool readable);
     virtual bool onFinish();

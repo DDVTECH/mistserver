@@ -15,6 +15,8 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/stream.h>
+#include <mist/timing.h>
+
 #include <string>
 
 /// Checks if port 80 is HTTP, returns the indice number (>= 0) if it is.

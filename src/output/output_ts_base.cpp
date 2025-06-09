@@ -2,7 +2,8 @@
 #include <mist/bitfields.h>
 
 namespace Mist{
-  TSOutput::TSOutput(Socket::Connection &conn) : TS_BASECLASS(conn){
+  TSOutput::TSOutput(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : TS_BASECLASS(conn, _cfg, _capa) {
     packCounter = 0;
     ts_from = 0;
     setBlocking(true);

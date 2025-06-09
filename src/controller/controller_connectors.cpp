@@ -7,6 +7,7 @@
 #include <mist/json.h>
 #include <mist/procs.h>
 #include <mist/shared_memory.h>
+#include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/triggers.h>
 #include <mist/util.h>
@@ -89,55 +90,6 @@ namespace Controller{
     currentConnectors.clear();
   }
 
-  static inline void builPipedPart(JSON::Value &p, char *argarr[], int &argnum, const JSON::Value &argset){
-    jsonForEachConst(argset, it){
-      if (it->isMember("option") && p.isMember(it.key())){
-        if (!it->isMember("type")){
-          if (JSON::Value(p[it.key()]).asBool()){
-            argarr[argnum++] = (char *)((*it)["option"].c_str());
-          }
-          continue;
-        }
-        if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
-          p[it.key()] = p[it.key()].asString();
-        }
-        if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" ||
-            (*it)["type"].asStringRef() == "debug"){
-          p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
-        }
-        if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
-          jsonForEach(p[it.key()], iVal){
-            (*iVal) = iVal->asString();
-            argarr[argnum++] = (char *)((*it)["option"].c_str());
-            argarr[argnum++] = (char *)((*iVal).c_str());
-          }
-          continue;
-        }
-        if (p[it.key()].asStringRef().size() > 0){
-          argarr[argnum++] = (char *)((*it)["option"].c_str());
-          argarr[argnum++] = (char *)(p[it.key()].c_str());
-        }else{
-          argarr[argnum++] = (char *)((*it)["option"].c_str());
-        }
-      }
-    }
-  }
-
-  static inline void buildPipedArguments(JSON::Value &p, char *argarr[], const JSON::Value &capabilities){
-    int argnum = 0;
-    static std::string tmparg;
-    tmparg = Util::getMyPath() + std::string("MistOut") + p["connector"].asStringRef();
-    struct stat buf;
-    if (::stat(tmparg.c_str(), &buf) != 0){
-      tmparg = Util::getMyPath() + std::string("MistConn") + p["connector"].asStringRef();
-    }
-    if (::stat(tmparg.c_str(), &buf) != 0){return;}
-    argarr[argnum++] = (char *)tmparg.c_str();
-    const JSON::Value &pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
-    if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
-    if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
-  }
-
   ///\brief Checks current protocol configuration, updates state of enabled connectors if
   /// neccessary. \param p An object containing all protocols. \param capabilities An object
   /// containing the detected capabilities. \returns True if any action was taken
@@ -155,13 +107,6 @@ namespace Controller{
   /// ~~~~~~~~~~~~~~~
   bool CheckProtocols(JSON::Value &p, const JSON::Value &capabilities){
     std::set<std::string> runningConns;
-
-    // used for building args
-    int err = fileno(stderr);
-    char *argarr[15]; // approx max # of args (with a wide margin)
-    int i;
-
-    std::string tmp;
 
     jsonForEach(p, ait){
       std::string prevOnline = (*ait)["online"].asString();
@@ -251,16 +196,29 @@ namespace Controller{
     while (runningConns.size() && conf.is_active){
       if (!currentConnectors.count(*runningConns.begin()) ||
           !Util::Procs::isActive(currentConnectors[*runningConns.begin()])){
-        LOG_MSG("CONF", "Starting connector: %s", runningConns.begin()->c_str());
-        action = true;
-        // clear out old args
-        for (i = 0; i < 15; i++){argarr[i] = 0;}
-        // get args for this connector
-        JSON::Value p = JSON::fromString(*runningConns.begin());
-        buildPipedArguments(p, (char **)&argarr, capabilities);
-        // start piped w/ generated args
-        currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
-        Triggers::doTrigger("OUTPUT_START", *runningConns.begin()); // LTS
+
+        JSON::Value cnf = JSON::fromString(*runningConns.begin());
+
+        std::string tmparg;
+        struct stat buf;
+        tmparg = Util::getMyPath() + "MistOut" + cnf["connector"].asStringRef();
+        // Abort if binary not found
+        if (::stat(tmparg.c_str(), &buf)) { continue; }
+
+        std::deque<std::string> args;
+        args.push_back(tmparg);
+        Util::optionsToArguments(cnf, capabilities["connectors"][cnf["connector"].asStringRef()], args);
+
+        int err = 2; // stderr goes to current stderr
+        pid_t newPid = Util::Procs::StartPiped(args, 0, 0, &err);
+        if (newPid) {
+          LOG_MSG("CONF", "Started connector: %s", runningConns.begin()->c_str());
+          action = true;
+          currentConnectors[*runningConns.begin()] = newPid;
+          Triggers::doTrigger("OUTPUT_START", *runningConns.begin());
+        } else {
+          WARN_MSG("Started connector: %s", runningConns.begin()->c_str());
+        }
       }
       runningConns.erase(runningConns.begin());
     }

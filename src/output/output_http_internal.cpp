@@ -40,7 +40,8 @@ namespace Mist{
     return ret;
   }
 
-  OutHTTP::OutHTTP(Socket::Connection &conn) : HTTPOutput(conn){
+  OutHTTP::OutHTTP(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(conn, _cfg, _capa) {
     stayConnected = false;
     thisError = "";
     // If this connection is a socket and not already connected to stdio, connect it to stdio.
@@ -67,7 +68,9 @@ namespace Mist{
 
   OutHTTP::~OutHTTP(){}
 
-  bool OutHTTP::listenMode(){return !(config->getString("ip").size());}
+  bool OutHTTP::listenMode(Util::Config *config) {
+    return !(config->getString("ip").size());
+  }
 
   void OutHTTP::onFail(const std::string &msg, bool critical){
     // If we are connected through WS, the websockethandler should return the error message
@@ -119,8 +122,8 @@ namespace Mist{
     HTTPOutput::onFail(msg, critical);
   }
 
-  void OutHTTP::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutHTTP::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa.removeMember("deps");
     capa["name"] = "HTTP";
     capa["friendly"] = "HTTP";

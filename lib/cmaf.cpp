@@ -1,5 +1,7 @@
 #include "cmaf.h"
 
+#include "timing.h"
+
 static uint64_t unixBootDiff = Util::unixMS();
 
 namespace CMAF{

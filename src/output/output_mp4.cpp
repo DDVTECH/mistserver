@@ -106,7 +106,7 @@ namespace Mist{
     return Encodings::Base64::encode(resGen.str());
   }
 
-  OutMP4::OutMP4(Socket::Connection &conn) : HTTPOutput(conn){
+  OutMP4::OutMP4(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {
     wsCmds = true;
     sending3GP = false;
     nextHeaderTime = 0xffffffffffffffffull;
@@ -117,8 +117,8 @@ namespace Mist{
   }
   OutMP4::~OutMP4(){}
 
-  void OutMP4::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutMP4::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "MP4";
     capa["friendly"] = "MP4 over HTTP";
     capa["desc"] = "Pseudostreaming in MP4 format over HTTP";

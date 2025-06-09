@@ -75,7 +75,8 @@ namespace Mist{
     return fragments.getValidCount() > 6;
   }
 
-  OutCMAF::OutCMAF(Socket::Connection &conn) : HTTPOutput(conn){
+  OutCMAF::OutCMAF(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(conn, _cfg, _capa) {
     // load from global config
     systemBoot = Util::getGlobalConfig("systemBoot").asInt();
     // fall back to local calculation if loading from global config fails
@@ -123,8 +124,8 @@ namespace Mist{
     }
   }
 
-  void OutCMAF::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutCMAF::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "CMAF";
     capa["friendly"] = "CMAF (fMP4) over HTTP (DASH, HLS7, HSS)";
     capa["desc"] = "Segmented streaming in CMAF (fMP4) format over HTTP";
@@ -203,7 +204,7 @@ namespace Mist{
     capa["optional"]["chunkpath"]["short"] = "e";
     capa["optional"]["chunkpath"]["default"] = "";
 
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("cmaf://*");
     capa["push_urls"].append("cmafs://*");
 

@@ -8,6 +8,7 @@
 #include "mpeg.h"
 #include "nal.h"
 #include "opus.h"
+#include "timing.h"
 
 #include <mutex>
 #include <stdint.h>

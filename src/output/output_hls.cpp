@@ -172,7 +172,7 @@ namespace Mist{
     return result.str();
   }
 
-  OutHLS::OutHLS(Socket::Connection &conn) : TSOutput(conn){
+  OutHLS::OutHLS(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : TSOutput(conn, _cfg, _capa) {
     uaDelay = 0;
     realTime = 0;
     until = 0xFFFFFFFFFFFFFFFFull;
@@ -184,13 +184,12 @@ namespace Mist{
       myConn.open(STDOUT_FILENO, STDIN_FILENO);
       myConn.setHost(host);
     }
-
   }
 
   OutHLS::~OutHLS(){}
 
-  void OutHLS::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutHLS::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "HLS";
     capa["friendly"] = "Apple segmented over HTTP (HLS)";
     capa["desc"] =

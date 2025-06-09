@@ -1,6 +1,7 @@
 #include <mist/ev.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
+#include <mist/timing.h>
 #include <mist/url.h>
 #include <mist/util.h>
 

@@ -4,8 +4,8 @@
 namespace Mist{
   class OutJSON : public HTTPOutput{
   public:
-    OutJSON(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutJSON(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void onIdle();
     virtual void onWebsocketFrame();

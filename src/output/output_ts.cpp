@@ -6,7 +6,7 @@
 #include <mist/stream.h>
 
 namespace Mist{
-  OutTS::OutTS(Socket::Connection &conn) : TSOutput(conn){
+  OutTS::OutTS(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : TSOutput(conn, _cfg, _capa) {
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     streamName = config->getString("streamname");
     pushOut = false;
@@ -126,8 +126,8 @@ namespace Mist{
 
   OutTS::~OutTS(){}
 
-  void OutTS::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutTS::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "TS";
     capa["friendly"] = "TS over TCP";
     capa["desc"] = "Real time streaming in MPEG2/TS format over TCP, UDP or RTP";
@@ -150,8 +150,7 @@ namespace Mist{
     capa["codecs"][0u][2u].append("+JSON");
     capa["codecs"][1u][0u].append("rawts");
     cfg->addConnectorOptions(8888, capa);
-    config = cfg;
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("tsudp://*");
     capa["push_urls"].append("tsrtp://*");
     capa["push_urls"].append("tstcp://*");
@@ -180,7 +179,7 @@ namespace Mist{
     opt["arg"] = "string";
     opt["default"] = "";
     opt["help"] = "Which parser to use for data tracks";
-    config->addOption("datatrack", opt);
+    cfg->addOption("datatrack", opt);
   }
 
   void OutTS::initialSeek(bool dryRun){
@@ -236,7 +235,9 @@ namespace Mist{
     return pushSock.getRemoteAddr().binForm();
   }
 
-  bool OutTS::listenMode(){return !(config->getString("target").size());}
+  bool OutTS::listenMode(Util::Config *config) {
+    return !(config->getString("target").size());
+  }
 
   void OutTS::onRequest(){
     while (myConn.Received().available(188)){

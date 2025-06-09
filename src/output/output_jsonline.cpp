@@ -6,7 +6,8 @@
 #include <mist/stream.h>
 
 namespace Mist{
-  OutJSONLine::OutJSONLine(Socket::Connection &conn) : Output(conn){
+  OutJSONLine::OutJSONLine(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : Output(conn, _cfg, _capa) {
     trkIdx = INVALID_TRACK_ID;
     streamName = config->getString("streamname");
     wantRequest = true;
@@ -54,8 +55,8 @@ namespace Mist{
     }
   }
 
-  void OutJSONLine::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutJSONLine::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "JSONLine";
     capa["friendly"] = "JSON lines over raw TCP";
     capa["desc"] = "Real time JSON line-by-line input over a raw TCP socket or standard input";
@@ -97,14 +98,12 @@ namespace Mist{
     opt["arg_num"] = 1;
     opt["help"] = "Set to - to connect stdio";
     cfg->addOption("target", opt);
-
-    config = cfg;
   }
 
   void OutJSONLine::sendNext(){
   }
 
-  bool OutJSONLine::listenMode() {
+  bool OutJSONLine::listenMode(Util::Config *config) {
     return !(config->getString("target").size());
   }
 

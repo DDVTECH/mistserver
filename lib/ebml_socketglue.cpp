@@ -1,5 +1,7 @@
 #include "ebml_socketglue.h"
 
+#include "bitfields.h"
+
 namespace EBML{
 
   void sendUniInt(Socket::Connection &C, const uint64_t val){
@@ -192,18 +194,14 @@ namespace EBML{
     return contentLen + sizeElemHead(EID_INFO, contentLen);
   }
 
-  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime, bool forceKeyframe){
-    size_t dataLen = 0;
-    char *dataPointer = 0;
-    pkt.getString("data", dataPointer, dataLen);
-    uint32_t blockSize = UniInt::writeSize(pkt.getTrackId()) + 3 + dataLen;
+  void sendSimpleBlock(Socket::Connection & C, const char *dataPointer, const size_t dataLen, size_t trackId,
+                       uint64_t time, bool keyFrame, uint64_t clusterTime) {
+    uint32_t blockSize = UniInt::writeSize(trackId) + 3 + dataLen;
     sendElemHead(C, EID_SIMPLEBLOCK, blockSize);
-    sendUniInt(C, pkt.getTrackId());
+    sendUniInt(C, trackId);
     char blockHead[3] ={0, 0, 0};
-    if (pkt.hasMember("keyframe") || forceKeyframe){blockHead[2] = 0x80;}
-    int offset = 0;
-    if (pkt.hasMember("offset")){offset = pkt.getInt("offset");}
-    Bit::htobs(blockHead, (int16_t)(pkt.getTime() + offset - clusterTime));
+    if (keyFrame) { blockHead[2] = 0x80; }
+    Bit::htobs(blockHead, (int16_t)(time - clusterTime));
     C.SendNow(blockHead, 3);
     C.SendNow(dataPointer, dataLen);
   }

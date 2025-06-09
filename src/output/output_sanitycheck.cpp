@@ -5,7 +5,8 @@
 #include <mist/defines.h>
 
 namespace Mist{
-  OutSanityCheck::OutSanityCheck(Socket::Connection &conn) : Output(conn){
+  OutSanityCheck::OutSanityCheck(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : Output(conn, _cfg, _capa) {
     streamName = config->getString("streamname");
     //if (config->getOption("fakepush", true).size()){
       //pushMultiplier = config->getInteger("fakepush");
@@ -59,8 +60,8 @@ namespace Mist{
     }
   }
 
-  void OutSanityCheck::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutSanityCheck::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "SanityCheck";
     capa["friendly"] = "Development tool: Sanity checker";
     capa["desc"] = "Does sanity check on a stream";
@@ -87,7 +88,6 @@ namespace Mist{
         "async", JSON::fromString("{\"short\":\"y\",\"long\":\"async\",\"help\":"
                                  "\"Retrieve tracks in async track sorting mode (default sync)\"}"));
     cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
 
   /*

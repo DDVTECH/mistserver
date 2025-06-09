@@ -3,10 +3,10 @@
 namespace Mist{
   class OutHTTP : public HTTPOutput{
   public:
-    OutHTTP(Socket::Connection &conn);
+    OutHTTP(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutHTTP();
-    static void init(Util::Config *cfg);
-    static bool listenMode();
+    static void init(Util::Config *cfg, JSON::Value & capa);
+    static bool listenMode(Util::Config *config);
     virtual void onFail(const std::string &msg, bool critical = false);
     /// preHTTP is disabled in the internal HTTP output, since most don't need the stream alive to work
     virtual void preHTTP(){};

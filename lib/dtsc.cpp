@@ -350,9 +350,13 @@ namespace DTSC{
     if (p + 1 >= max || p[0] == 0x00){
       return 0; // out of packet! 1 == error
     }
-    if (p[0] == DTSC_INT){
-      // int, skip 9 bytes to next value
+    if (p[0] == DTSC_INT || p[0] == DTSC_DOUBLE) {
+      // int or double, skip 9 bytes to next value
       return p + 9;
+    }
+    if (p[0] == DTSC_NULL) {
+      // null, skip 1 byte to next value
+      return p + 1;
     }
     if (p[0] == DTSC_STR){
       if (p + 4 >= max){
@@ -737,6 +741,30 @@ namespace DTSC{
     return p[0];
   }
 
+  bool Scan::isString() const {
+    return getType() == DTSC_STR;
+  }
+
+  bool Scan::isInt() const {
+    return getType() == DTSC_INT;
+  }
+
+  bool Scan::isDouble() const {
+    return getType() == DTSC_DOUBLE;
+  }
+
+  bool Scan::isArray() const {
+    return getType() == DTSC_ARR;
+  }
+
+  bool Scan::isObject() const {
+    return getType() == DTSC_OBJ;
+  }
+
+  bool Scan::isNull() const {
+    return getType() == DTSC_NULL;
+  }
+
   /// Returns the boolean value of this DTSC value.
   /// Numbers are compared to 0.
   /// Strings are checked for non-zero length.
@@ -746,6 +774,8 @@ namespace DTSC{
     switch (getType()){
     case DTSC_STR: return (p[1] | p[2] | p[3] | p[4]);
     case DTSC_INT: return (asInt() != 0);
+    case DTSC_NULL: return 0;
+    case DTSC_DOUBLE: return asDouble() != 0;
     case DTSC_OBJ:
     case DTSC_CON:
     case DTSC_ARR: return (p[1] | p[2]);
@@ -759,13 +789,30 @@ namespace DTSC{
   int64_t Scan::asInt() const{
     switch (getType()){
     case DTSC_INT: return Bit::btohll(p + 1);
+    case DTSC_NULL: return 0;
+    case DTSC_DOUBLE: return Bit::btohd(p + 1);
     case DTSC_STR:
       char *str;
       size_t strlen;
       getString(str, strlen);
-      if (!strlen){return 0;}
+      if (!strlen) { return 0; }
       return strtoll(str, 0, 0);
     default: return 0;
+    }
+  }
+
+  double Scan::asDouble() const {
+    switch (getType()) {
+      case DTSC_INT: return Bit::btohll(p + 1);
+      case DTSC_NULL: return 0;
+      case DTSC_DOUBLE: return Bit::btohd(p + 1);
+      case DTSC_STR:
+        char *str;
+        size_t strlen;
+        getString(str, strlen);
+        if (!strlen) { return 0; }
+        return strtoll(str, 0, 0);
+      default: return 0;
     }
   }
 
@@ -780,6 +827,14 @@ namespace DTSC{
       st << asInt();
       return st.str();
     }break;
+    case DTSC_DOUBLE: {
+      std::stringstream st;
+      st << asDouble();
+      return st.str();
+    } break;
+    case DTSC_NULL: {
+      return "null";
+    } break;
     case DTSC_STR:{
       char *str;
       size_t strlen;
@@ -862,6 +917,14 @@ namespace DTSC{
       std::stringstream ret;
       ret << asInt();
       return ret.str();
+    }
+    case DTSC_DOUBLE: {
+      std::stringstream ret;
+      ret << asDouble();
+      return ret.str();
+    }
+    case DTSC_NULL: {
+      return "null";
     }
     case DTSC_OBJ:
     case DTSC_CON:{
@@ -1065,10 +1128,22 @@ namespace DTSC{
       keyCount = keyLen / DTSH_KEY_SIZE;
       partCount = partLen / DTSH_PART_SIZE;
     }
-    size_t tIdx = addTrack(fragCount, keyCount, partCount);
+    size_t tIdx;
+
+    std::string codec = trak.getMember("codec").asString();
+
+    if (codec == "UYVY" || codec == "YUYV" || codec == "NV12") {
+      size_t staticSize = Util::pixfmtToSize(codec, trak.getMember("width").asInt(), trak.getMember("height").asInt());
+      tIdx = addTrack(0, 0, 0, 0, true, staticSize);
+      fragCount = 0;
+      keyCount = 0;
+      partCount = 0;
+    } else {
+      tIdx = addTrack(fragCount, keyCount, partCount);
+    }
 
     setType(tIdx, trak.getMember("type").asString());
-    setCodec(tIdx, trak.getMember("codec").asString());
+    setCodec(tIdx, codec);
     setInit(tIdx, trak.getMember("init").asString());
     setLang(tIdx, trak.getMember("lang").asString());
     setID(tIdx, trak.getMember("trackid").asInt());
@@ -1212,6 +1287,7 @@ namespace DTSC{
       stream.addField("bufferwindow", RAX_64UINT);
       stream.addField("bootmsoffset", RAX_64INT);
       stream.addField("utcoffset", RAX_64INT);
+      stream.addField("utcsource", RAX_UINT, 1);
       stream.addField("minfragduration", RAX_64UINT);
       stream.setRCount(1);
       stream.addRecords(1);
@@ -1250,6 +1326,7 @@ namespace DTSC{
     streamBufferWindowField = stream.getFieldData("bufferwindow");
     streamBootMsOffsetField = stream.getFieldData("bootmsoffset");
     streamUTCOffsetField = stream.getFieldData("utcoffset");
+    streamUTCSourceField = stream.getFieldData("utcsource");
     streamMinimumFragmentDurationField = stream.getFieldData("minfragduration");
   }
 
@@ -1330,6 +1407,7 @@ namespace DTSC{
       stream.setInt("bufferwindow", origStream.getInt("bufferwindow"));
       stream.setInt("bootmsoffset", origStream.getInt("bootmsoffset"));
       stream.setInt("utcoffset", origStream.getInt("utcoffset"));
+      stream.setInt("utcsource", origStream.getInt("utcsource"));
       stream.setInt("minfragduration", origStream.getInt("minfragduration"));
       // Copy tracks
       Util::RelAccX origTracks(origStream.getPointer("tracks"), false);
@@ -1446,6 +1524,9 @@ namespace DTSC{
       }
       stream = Util::RelAccX(streamPage.mapped, true);
       tM.clear();
+      if (trackInvalidateCallback) {
+        for (auto & t : tracks) { trackInvalidateCallback(t.first); }
+      }
       tracks.clear();
       updateFieldDataReferences();
       refresh();
@@ -1458,6 +1539,7 @@ namespace DTSC{
       std::map<size_t, Track>::iterator trIt = tracks.find(i);
       bool always_load = (trIt == tracks.end());
       if (always_load || trIt->second.track.isReload()){
+        if (trackInvalidateCallback) { trackInvalidateCallback(i); }
         ret = true;
         Track &t = tracks[i];
         if (always_load){
@@ -1561,7 +1643,18 @@ namespace DTSC{
         pageCount = M.tracks.at(*it).pages.getRCount();
       }
 
-      size_t newIdx = addTrack(fragCount, keyCount, partCount, pageCount);
+      size_t newIdx = INVALID_TRACK_ID;
+      std::string codec = M.getCodec(*it);
+      if (codec == "UYVY" || codec == "YUYV" || codec == "NV12") {
+        size_t staticSize = Util::pixfmtToSize(codec, M.getWidth(*it), M.getHeight(*it));
+        newIdx = addTrack(0, 0, 0, 0, true, staticSize);
+        fragCount = 0;
+        keyCount = 0;
+        partCount = 0;
+        copyData = false;
+      } else {
+        newIdx = addTrack(fragCount, keyCount, partCount, pageCount);
+      }
       if (newIdx == INVALID_TRACK_ID) { return; }
       setInit(newIdx, M.getInit(*it));
       setID(newIdx, M.getID(*it));
@@ -1647,6 +1740,7 @@ namespace DTSC{
   /// Resizes a given track to be able to hold the given amount of fragments, keys, parts and pages.
   /// Currently called exclusively from Meta::update(), to resize the internal structures.
   void Meta::resizeTrack(size_t source, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, const char * reason, size_t frameSize){
+    if (trackInvalidateCallback) { trackInvalidateCallback(source); }
     size_t pageSize = (isMemBuf ? sizeMemBuf[source] : tM[source].len);
 
     char *orig = (char *)malloc(pageSize);
@@ -1992,6 +2086,10 @@ namespace DTSC{
   bool Meta::getEmbeddedData(size_t trackIdx, size_t num, char * & dataPtr, size_t & dataLen) const{
     const Track & t = tracks.at(trackIdx);
     const Util::RelAccX & R = t.frames;
+    if (num == std::string::npos) {
+      if (!R.getEndPos()) { return false; }
+      num = R.getEndPos() - 1;
+    }
     if (R.getEndPos() <= num || R.getEndPos() > num + RAW_FRAME_COUNT*0.75){return false;}
     dataPtr = R.getPointer(t.framesDataField, num);
     dataLen = t.framesDataField.size;
@@ -2486,10 +2584,14 @@ namespace DTSC{
   }
   int64_t Meta::getBootMsOffset() const{return stream.getInt(streamBootMsOffsetField);}
 
-  void Meta::setUTCOffset(int64_t UTCOffset){
+  void Meta::setUTCOffset(int64_t UTCOffset, uint8_t UTCSource) {
     stream.setInt(streamUTCOffsetField, UTCOffset);
+    stream.setInt(streamUTCSourceField, UTCSource);
   }
   int64_t Meta::getUTCOffset() const{return stream.getInt(streamUTCOffsetField);}
+  uint8_t Meta::getUTCSource() const {
+    return stream.getInt(streamUTCSourceField);
+  }
 
   /*LTS-START*/
   void Meta::setMinimumFragmentDuration(uint64_t fragmentDuration){
@@ -2563,6 +2665,7 @@ namespace DTSC{
   /// Removes the track from the memory structure and caches.
   void Meta::removeTrack(size_t trackIdx){
     if (!getValidTracks().count(trackIdx)){return;}
+    if (trackInvalidateCallback) { trackInvalidateCallback(trackIdx); }
     Track &t = tracks[trackIdx];
     if (t.pages.isReady()){
       for (uint64_t i = t.pages.getDeleted(); i < t.pages.getEndPos(); i++){
@@ -3033,7 +3136,12 @@ namespace DTSC{
       return true;
     }
     if (fpksOld != fpks) {
-      MEDIUM_MSG("Frame rate change: %" PRIu64 " -> %" PRIu64 " fpks", fpksOld, fpks);
+      int64_t diff = fpksOld - fpks;
+      if (diff < 3000 && diff > -3000) {
+        HIGH_MSG("Frame rate change: %" PRIu64 " -> %" PRIu64 " fpks", fpksOld, fpks);
+      } else {
+        INFO_MSG("Frame rate change: %" PRIu64 " -> %" PRIu64 " fpks", fpksOld, fpks);
+      }
       return true;
     } else {
       return false;
@@ -3122,6 +3230,9 @@ namespace DTSC{
     trackList = Util::RelAccX();
     streamPage.close();
     tM.clear();
+    if (trackInvalidateCallback) {
+      for (auto & t : tracks) { trackInvalidateCallback(t.first); }
+    }
     tracks.clear();
     isMaster = true;
     streamName = "";

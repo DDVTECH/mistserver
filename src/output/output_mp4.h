@@ -1,5 +1,5 @@
 #include "output_http.h"
-#include <list>
+
 #include <mist/http_parser.h>
 
 namespace Mist{
@@ -80,10 +80,10 @@ namespace Mist{
 
   class OutMP4 : public HTTPOutput{
   public:
-    OutMP4(Socket::Connection &conn);
+    OutMP4(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutMP4();
     virtual void initialSeek(bool dryRun = false);
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
 
     uint64_t mp4HeaderSize(uint64_t &fileSize, int fragmented = 0) const;
     bool mp4Header(Util::ResizeablePointer & headOut, uint64_t &size, int fragmented = 0);

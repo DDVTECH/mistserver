@@ -443,8 +443,9 @@ namespace Mist{
   public:
     bool isRecording(){return false;}
 
-    ProcessSource(Socket::Connection & c) : Output(c) {
+    ProcessSource(Socket::Connection & c, Util::Config & _cfg, JSON::Value & _capa) : Output(c, _cfg, _capa) {
       meta.ignorePid(getpid());
+      closeMyConn();
       targetParams["keeptimes"] = true;
       realTime = 0;
       convertCtx = NULL;
@@ -471,8 +472,8 @@ namespace Mist{
       }
     }
 
-    static void init(Util::Config *cfg){
-      Output::init(cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa) {
+      Output::init(cfg, capa);
       capa["name"] = "AV";
       // Track selection
       if (isVideo){
@@ -1574,7 +1575,7 @@ namespace Mist{
       {
         uint64_t sleepTime = Util::getMicros();
         std::unique_lock<std::mutex> lk(avMutex);
-        avCV.wait(lk,[](){return !frameReady || !config->is_active;});
+        avCV.wait(lk, [this]() { return !frameReady || !config->is_active; });
         totalSourceSleep += Util::getMicros(sleepTime);
         frameTimes.push_back(thisTime);
         ++outputFrameCount;
@@ -1623,7 +1624,7 @@ namespace Mist{
         {
           uint64_t sleepTime = Util::getMicros();
           std::unique_lock<std::mutex> lk(avMutex);
-          avCV.wait(lk,[](){return !frameReady || !config->is_active;});
+          avCV.wait(lk, [this]() { return !frameReady || !config->is_active; });
           totalSourceSleep += Util::getMicros(sleepTime);
 
           // Retrieve encoded packet
@@ -1655,7 +1656,7 @@ namespace Mist{
         {
           uint64_t sleepTime = Util::getMicros();
           std::unique_lock<std::mutex> lk(avMutex);
-          avCV.wait(lk,[](){return !frameReady || !config->is_active;});
+          avCV.wait(lk, [this]() { return !frameReady || !config->is_active; });
           totalSourceSleep += Util::getMicros(sleepTime);
           // Adjust ptr size to how many bytes were actually written
           ptr.append(0, bytes);
@@ -1703,11 +1704,6 @@ namespace Mist{
         sendFirst = true;
       }
 
-      // Retrieve packet buffer pointers
-      size_t dataLen = 0;
-      char *dataPointer = 0;
-      thisPacket.getString("data", dataPointer, dataLen);
-
       // Allocate encoding/decoding contexts and decode the input if not RAW
       if (isVideo){
         if (frame_RAW && frame_RAW->width && frame_RAW->height){
@@ -1753,7 +1749,7 @@ namespace Mist{
         allocateVideoEncoder();
         if (!configVideoDecoder()){ return; }
         uint64_t startTime = Util::getMicros();
-        if (!decodeVideoFrame(dataPointer, dataLen)){ return; }
+        if (!decodeVideoFrame(thisData, thisDataLen)) { return; }
         uint64_t decodeTime = Util::getMicros();
         if(!transformVideoFrame()){ return; }
         uint64_t transformTime = Util::getMicros();
@@ -1762,7 +1758,7 @@ namespace Mist{
       }else{
         if (!configAudioDecoder()){ return; }
         // Since PCM has a 'codec' in LibAV, handle all decoding using the generic function
-        if (!decodeFrame(dataPointer, dataLen)){ return; }
+        if (!decodeFrame(thisData, thisDataLen)) { return; }
         inputFrameCount += frame_RAW->nb_samples;
         if (sendPacketTime + (((size_t)inputFrameCount)*1000)/M.getRate(thisIdx) < thisTime){
           sendPacketTime += thisTime - (sendPacketTime + (((size_t)inputFrameCount)*1000)/M.getRate(thisIdx));
@@ -1865,7 +1861,8 @@ void sinkThread(){
 
 void sourceThread(){
   Util::nameThread("sourceThread");
-  Mist::ProcessSource::init(&conf);
+  JSON::Value capa;
+  Mist::ProcessSource::init(&conf, capa);
   conf.getOption("streamname", true).append(Mist::opt["source"].c_str());
   JSON::Value opt;
   opt["arg"] = "string";
@@ -1878,7 +1875,7 @@ void sourceThread(){
   }
   conf.getOption("target", true).append("-");
   Socket::Connection S;
-  Mist::ProcessSource out(S);
+  Mist::ProcessSource out(S, conf, capa);
   MEDIUM_MSG("Running source thread...");
   out.run();
   INFO_MSG("Stop source thread...");

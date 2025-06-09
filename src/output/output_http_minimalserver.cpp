@@ -2,7 +2,8 @@
 #include <fstream>
 
 namespace Mist{
-  OutHTTPMinimalServer::OutHTTPMinimalServer(Socket::Connection &conn) : HTTPOutput(conn){
+  OutHTTPMinimalServer::OutHTTPMinimalServer(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(conn, _cfg, _capa) {
     // resolve symlinks etc to a real path
     char *rp = realpath(config->getString("webroot").c_str(), 0);
     if (rp){
@@ -13,8 +14,8 @@ namespace Mist{
   }
   OutHTTPMinimalServer::~OutHTTPMinimalServer(){}
 
-  void OutHTTPMinimalServer::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutHTTPMinimalServer::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "HTTPMinimalServer";
     capa["friendly"] = "Utility: Static HTTP file server";
     capa["desc"] = "Serves static files over HTTP from a set folder";

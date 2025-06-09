@@ -28,6 +28,8 @@ namespace Util{
   JSON::Value getStreamConfig(const std::string &streamname);
   JSON::Value getGlobalConfig(const std::string &optionName);
   JSON::Value getInputBySource(const std::string &filename, bool isProvider = false);
+  void optionsToArguments(const JSON::Value conf, const JSON::Value & capa, std::deque<std::string> & args,
+                          const std::map<std::string, std::string> & overrides = {});
   void sendUDPApi(JSON::Value & cmd);
   uint8_t getStreamStatus(const std::string &streamname);
   uint8_t getStreamStatusPercentage(const std::string &streamname);

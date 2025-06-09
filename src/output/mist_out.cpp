@@ -5,6 +5,7 @@
 #include <mist/stream.h>
 #include <mist/util.h>
 
+#include <iostream>
 #include <signal.h>
 
 void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
@@ -18,15 +19,16 @@ int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
-  mistOut::init(&conf);
+  JSON::Value capa;
+  mistOut::init(&conf, capa);
   if (!conf.parseArgs(argc, argv)) {
     INFO_MSG("Exit reason: %s", Util::exitReason);
     return 1;
   }
 
   if (conf.getBool("json")) {
-    mistOut::capa["version"] = PACKAGE_VERSION;
-    std::cout << mistOut::capa.toString() << std::endl;
+    capa["version"] = PACKAGE_VERSION;
+    std::cout << capa.toString() << std::endl;
     return -1;
   }
 
@@ -46,7 +48,7 @@ int main(int argc, char *argv[]){
   }
 
   conf.activate();
-  if (conf.getString("connection_handler").size() || !mistOut::listenMode()) {
+  if (conf.getString("connection_handler").size() || !mistOut::listenMode(&conf)) {
     {
       struct sigaction new_action;
       new_action.sa_handler = SIG_IGN;
@@ -55,7 +57,7 @@ int main(int argc, char *argv[]){
       sigaction(SIGUSR1, &new_action, NULL);
     }
     Socket::Connection S(STDOUT_FILENO, STDIN_FILENO);
-    mistOut tmp(S);
+    mistOut tmp(S, conf, capa);
     return tmp.run();
   }
 

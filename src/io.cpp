@@ -20,6 +20,8 @@ namespace Mist{
 
   InOutBase::InOutBase() : M(meta){
     mainSelTrackCache = INVALID_TRACK_ID;
+    thisData = 0;
+    thisDataLen = 0;
   }
 
   /// Returns the ID of the main selected track, or 0 if no tracks are selected.

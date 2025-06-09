@@ -1,4 +1,4 @@
-MistServer is dedicated to the public domain.
+MistServer is dedicated to the public domain (through the Unlicense license).
 This means anyone can use MistServer for any purpose - including commercial purposes - without any restrictions.
 
 To allow use in jurisdictions where public domain dedications are not recognized, you may instead opt to distribute MistServer under the Zero-Clause BSD license.
@@ -10,6 +10,7 @@ However, note that while __MistServer itself__ is public domain software, __some
 - `libsrt` is used for SRT support, and available under the Mozilla Public License 2.0.
 - `librist` is used for RIST support, and available under the BSD 2-Clause "Simplified" License.
 - The optional (disabled by default) MistInAV links against `libav`, which is available under the LGPL or GPL licenses.
+- `quirc` is used by `MistProcComposer` to scan for QR codes with timing information, and available under the ISC license.
 
 Note that __all of these dependencies can be disabled__ by toggling build flags - but doing so will of course limit the capabilities of the resulting software accordingly.
 

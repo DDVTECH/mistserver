@@ -41,7 +41,8 @@ namespace Mist{
     sdpState.handleIncomingRTP(track, p);
   }
 
-  OutRTSP::OutRTSP(Socket::Connection &myConn) : Output(myConn){
+  OutRTSP::OutRTSP(Socket::Connection & myConn, Util::Config & _cfg, JSON::Value & _capa)
+    : Output(myConn, _cfg, _capa) {
     outCSeq = 0;
     pausepoint = 0;
     setPacketOffset = false;
@@ -57,8 +58,8 @@ namespace Mist{
     sdpState.myMeta = &meta;
   }
 
-  void OutRTSP::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutRTSP::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "RTSP";
     capa["friendly"] = "RTSP";
     capa["desc"] = "Real Time Streaming in RTSP, over both RTP UDP and TCP";
@@ -100,7 +101,6 @@ namespace Mist{
     capa["optional"]["ignsendport"]["short"] = "I";
 
     cfg->addConnectorOptions(5554, capa);
-    config = cfg;
   }
 
   void OutRTSP::sendNext(){

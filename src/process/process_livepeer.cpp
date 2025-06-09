@@ -65,7 +65,7 @@ namespace Mist{
   public:
     bool isRecording(){return false;}
     bool isReadyForPlay() { return true; }
-    ProcessSource(Socket::Connection &c) : TSOutput(c){
+    ProcessSource(Socket::Connection & c, Util::Config & _cfg, JSON::Value & _capa) : TSOutput(c, _cfg, _capa) {
       meta.ignorePid(getpid());
       capa["name"] = "Livepeer";
       capa["codecs"][0u][0u].append("+H264");
@@ -76,7 +76,7 @@ namespace Mist{
       wantRequest = false;
       parseData = true;
       currPreSeg = 0;
-    };
+    }
     inline virtual bool keepGoing() { return config->is_active; }
     virtual bool onFinish(){
       if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
@@ -344,10 +344,11 @@ void sourceThread(){
   conf.addOption("target", opt);
   conf.getOption("streamname", true).append(Mist::opt["source"].c_str());
   conf.getOption("target", true).append("-?audio="+audio_select+"&video="+video_select);
-  Mist::ProcessSource::init(&conf);
+  JSON::Value capa;
+  Mist::ProcessSource::init(&conf, capa);
   conf.is_active = true;
   Socket::Connection c;
-  Mist::ProcessSource out(c);
+  Mist::ProcessSource out(c, conf, capa);
   if (conf.is_active){
     INFO_MSG("Running source thread...");
     out.run();

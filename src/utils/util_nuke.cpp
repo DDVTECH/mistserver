@@ -1,9 +1,10 @@
-#include <mist/shared_memory.h>
-#include <mist/util.h>
-#include <mist/stream.h>
-#include <mist/procs.h>
 #include <mist/comms.h>
 #include <mist/config.h>
+#include <mist/procs.h>
+#include <mist/shared_memory.h>
+#include <mist/stream.h>
+#include <mist/timing.h>
+#include <mist/util.h>
 
 const char * getStateString(uint8_t state){
   switch (state){

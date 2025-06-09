@@ -5,10 +5,12 @@
 #include <mist/ev.h>
 #include <mist/jwt.h>
 #include <mist/stream.h>
+#include <mist/timing.h>
 #include <mist/triggers.h>
 #include <mist/util.h>
 
 #include <cstdint>
+#include <iostream>
 #include <signal.h>
 #include <sstream>
 #include <stdio.h>

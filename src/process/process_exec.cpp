@@ -1,15 +1,18 @@
 #include "process_exec.h"
+
 #include "process.hpp"
+
 #include <mist/procs.h>
 #include <mist/util.h>
-#include <thread>
+
+#include <condition_variable>
+#include <iostream>
 #include <mutex>
 #include <ostream>
-#include <sys/stat.h>  //for stat
+#include <sys/stat.h> //for stat
 #include <sys/types.h> //for stat
-#include <unistd.h>    //for stat
-#include <condition_variable>
-#include <mutex>
+#include <thread>
+#include <unistd.h> //for stat
 
 int pipein = -1, pipeout = -1;
 
@@ -93,13 +96,13 @@ namespace Mist{
   class ProcessSource : public OutEBML{
   public:
     bool isRecording(){return false;}
-    ProcessSource(Socket::Connection &c) : OutEBML(c){
+    ProcessSource(Socket::Connection & c, Util::Config & _cfg, JSON::Value & _capa) : OutEBML(c, _cfg, _capa) {
       meta.ignorePid(getpid());
       capa["name"] = "MKVExec";
       targetParams["keeptimes"] = true;
       realTime = 0;
       subtractTime = 0;
-    };
+    }
     virtual bool onFinish(){
       if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
         if (userSelect.size()){
@@ -266,7 +269,8 @@ void sinkThread(){
 }
 
 void sourceThread(){
-  Mist::ProcessSource::init(&conf);
+  JSON::Value capa;
+  Mist::ProcessSource::init(&conf, capa);
   conf.getOption("streamname", true).append(Mist::opt["source"].c_str());
   conf.getOption("target", true).append("-?audio=all&video=all");
   if (Mist::opt.isMember("track_select")){
@@ -283,7 +287,7 @@ void sourceThread(){
   }
 
   Socket::Connection c(pipein, 0);
-  Mist::ProcessSource out(c);
+  Mist::ProcessSource out(c, conf, capa);
 
   MEDIUM_MSG("Running source thread...");
   out.run();

@@ -888,28 +888,25 @@ std::string & JSON::Value::operator+=(const std::string & str) {
 /// If the object is a container type, this function will call itself recursively and contain all
 /// contents. As a side effect, this function clear the internal buffer of any object-types.
 std::string JSON::Value::toPacked() const{
-  std::string r;
-  if (isInt() || isNull() || isBool()){
-    r += 0x01;
-    uint64_t numval = intVal;
-    r += *(((char *)&numval) + 7);
-    r += *(((char *)&numval) + 6);
-    r += *(((char *)&numval) + 5);
-    r += *(((char *)&numval) + 4);
-    r += *(((char *)&numval) + 3);
-    r += *(((char *)&numval) + 2);
-    r += *(((char *)&numval) + 1);
-    r += *(((char *)&numval));
+  if (isInt() || isBool()) {
+    std::string r = "\00112345678";
+    Bit::htobll((char *)r.data() + 1, intVal);
+    return r;
   }
   if (isString()){
-    r += 0x02;
-    r += strVal.size() / (256 * 256 * 256);
-    r += strVal.size() / (256 * 256);
-    r += strVal.size() / 256;
-    r += strVal.size() % 256;
+    std::string r = "\0021234";
+    Bit::htobl((char *)r.data() + 1, strVal.size());
     r += strVal;
+    return r;
   }
+  if (isDouble()) {
+    std::string r = "\004012345678";
+    Bit::htobd((char *)r.data() + 1, dblVal);
+    return r;
+  }
+  if (isNull()) { return "\003"; }
   if (isObject()){
+    std::string r;
     r += 0xE0;
     if (objVal.size() > 0){
       jsonForEachConst(*this, i){
@@ -924,50 +921,24 @@ std::string JSON::Value::toPacked() const{
     r += (char)0x0;
     r += (char)0x0;
     r += (char)0xEE;
+    return r;
   }
   if (isArray()){
+    std::string r;
     r += 0x0A;
     jsonForEachConst(*this, i){r += i->toPacked();}
     r += (char)0x0;
     r += (char)0x0;
     r += (char)0xEE;
+    return r;
   }
-  // Note: Will output integers for doubles.
-  // This is intentional, as DTSC packets cannot contain doubles.
-  if (isDouble()){
-    r += 0x01;
-    uint64_t numval = intVal;
-    r += *(((char *)&numval) + 7);
-    r += *(((char *)&numval) + 6);
-    r += *(((char *)&numval) + 5);
-    r += *(((char *)&numval) + 4);
-    r += *(((char *)&numval) + 3);
-    r += *(((char *)&numval) + 2);
-    r += *(((char *)&numval) + 1);
-    r += *(((char *)&numval));
-  }
-  return r;
+  return "";
 }
 // toPacked
 
 /// Packs and transfers over the network.
 /// If the object is a container type, this function will call itself recursively for all contents.
-void JSON::Value::sendTo(Socket::Connection &socket) const{
-  if (isInt() || isNull() || isBool()){
-    socket.SendNow("\001", 1);
-    int tmpHalf = htonl((int)(intVal >> 32));
-    socket.SendNow((char *)&tmpHalf, 4);
-    tmpHalf = htonl((int)(intVal & 0xFFFFFFFF));
-    socket.SendNow((char *)&tmpHalf, 4);
-    return;
-  }
-  if (isString()){
-    socket.SendNow("\002", 1);
-    int tmpVal = htonl((int)strVal.size());
-    socket.SendNow((char *)&tmpVal, 4);
-    socket.SendNow(strVal);
-    return;
-  }
+void JSON::Value::sendTo(Socket::Connection & socket) const {
   if (isObject()){
     if (isMember("trackid") && isMember("time")){
       unsigned int trackid = objVal.find("trackid")->second->asInt();
@@ -1032,11 +1003,14 @@ void JSON::Value::sendTo(Socket::Connection &socket) const{
     socket.SendNow("\000\000\356", 3);
     return;
   }
-}// sendTo
+  socket.SendNow(toPacked());
+} // sendTo
 
 /// Returns the packed size of this Value.
 uint64_t JSON::Value::packedSize() const{
-  if (isInt() || isNull() || isBool()){return 9;}
+  if (isInt() || isBool()) { return 9; }
+  if (isNull()) { return 1; }
+  if (isDouble()) { return 9; }
   if (isString()){return 5 + strVal.size();}
   if (isObject()){
     uint64_t ret = 4;
@@ -1426,17 +1400,8 @@ void JSON::fromDTMI(const char *data, uint64_t len, uint32_t &i, JSON::Value &re
   switch (data[i]){
   case 0x01:{// integer
     if (i + 8 >= len){return;}
-    unsigned char tmpdbl[8];
-    tmpdbl[7] = data[i + 1];
-    tmpdbl[6] = data[i + 2];
-    tmpdbl[5] = data[i + 3];
-    tmpdbl[4] = data[i + 4];
-    tmpdbl[3] = data[i + 5];
-    tmpdbl[2] = data[i + 6];
-    tmpdbl[1] = data[i + 7];
-    tmpdbl[0] = data[i + 8];
+    ret = Bit::btohll(data + i + 1);
     i += 9; // skip 8(an uint64_t)+1 forwards
-    ret = *(int64_t *)tmpdbl;
     return;
     break;
   }
@@ -1447,6 +1412,19 @@ void JSON::fromDTMI(const char *data, uint64_t len, uint32_t &i, JSON::Value &re
     if (i + 4 + tmpi >= len){return;}
     i += tmpi + 5; // skip length+size+1 forwards
     ret = tmpstr;
+    return;
+    break;
+  }
+  case 0x03: { // null
+    ++i;
+    ret.null();
+    return;
+    break;
+  }
+  case 0x04: { // double
+    if (i + 8 >= len) { return; }
+    ret = Bit::btohd(data + i + 1);
+    i += 9; // skip 8(a double)+1 forwards
     return;
     break;
   }

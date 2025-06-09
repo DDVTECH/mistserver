@@ -1,10 +1,11 @@
 #include "output_json.h"
-#include <iomanip>
+
 #include <mist/stream.h>
 #include <mist/triggers.h>
 
 namespace Mist{
-  OutJSON::OutJSON(Socket::Connection &conn) : HTTPOutput(conn){
+  OutJSON::OutJSON(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(conn, _cfg, _capa) {
     wsCmds = true;
     realTime = 0;
     bootMsOffset = 0;
@@ -14,8 +15,8 @@ namespace Mist{
     pushTrack = INVALID_TRACK_ID;
   }
 
-  void OutJSON::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutJSON::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "JSON";
     capa["friendly"] = "JSON over HTTP";
     capa["desc"] = "Pseudostreaming in JSON format over HTTP";

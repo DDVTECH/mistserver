@@ -5,12 +5,14 @@
 #include <mist/defines.h>
 
 namespace Mist{
-  OutOGG::OutOGG(Socket::Connection &conn) : HTTPOutput(conn){realTime = 0;}
+  OutOGG::OutOGG(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {
+    realTime = 0;
+  }
 
   OutOGG::~OutOGG(){}
 
-  void OutOGG::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutOGG::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "OGG";
     capa["friendly"] = "OGG over HTTP";
     capa["desc"] = "Pseudostreaming in OGG format over HTTP";

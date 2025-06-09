@@ -1,12 +1,16 @@
 #include "controller_variables.h"
+
 #include "controller_storage.h"
-#include <mist/downloader.h>
+
 #include <mist/bitfields.h>
 #include <mist/config.h>
+#include <mist/downloader.h>
 #include <mist/json.h>
-#include <mist/stream.h>
-#include <mist/triggers.h>
 #include <mist/procs.h>
+#include <mist/stream.h>
+#include <mist/timing.h>
+#include <mist/triggers.h>
+
 #include <string>
 
 class VarExec {

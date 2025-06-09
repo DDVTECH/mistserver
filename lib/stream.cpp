@@ -1,6 +1,8 @@
 /// \file stream.cpp
 /// Utilities for handling streams.
 
+#include "stream.h"
+
 #include "config.h"
 #include "defines.h"
 #include "dtsc.h"
@@ -12,9 +14,10 @@
 #include "procs.h"
 #include "shared_memory.h"
 #include "socket.h"
+#include "timing.h"
+#include "triggers.h"
 #include "url.h"
-#include "stream.h"
-#include "triggers.h" //LTS
+
 #include <semaphore.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -612,7 +615,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   // Find stream base name
   std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
   // check if base name (everything before + or space) exists
-  const JSON::Value stream_cfg = getStreamConfig(streamname);
+  JSON::Value stream_cfg = getStreamConfig(streamname);
   if (!stream_cfg){
     HIGH_MSG("Stream %s not configured - attempting to ignore", streamname.c_str());
   }
@@ -643,107 +646,49 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   const JSON::Value input = getInputBySource(filename, isProvider);
   if (!input){return false;}
 
-  // copy the necessary arguments to separate storage so we can unlock the config semaphore safely
-  std::map<std::string, std::string> str_args;
-  // check required parameters
-  if (input.isMember("required")){
-    jsonForEachConst(input["required"], prm){
-      if (!prm->isMember("option")){continue;}
-      const std::string opt = (*prm)["option"].asStringRef();
-      // check for overrides
-      if (overrides.count(prm.key())){
-        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
-        str_args[opt] = overrides.at(prm.key());
-      }else{
-        if (!stream_cfg.isMember(prm.key())){
-          FAIL_MSG("Required parameter %s for stream %s missing", prm.key().c_str(), streamname.c_str());
-          return false;
-        }
-        if (stream_cfg[prm.key()].isString()){
-          str_args[opt] = stream_cfg[prm.key()].asStringRef();
-        }else{
-          str_args[opt] = stream_cfg[prm.key()].toString();
-        }
-      }
-    }
+  // Generate arguments for commandline
+  std::deque<std::string> args;
+  if (input.isMember("exec") && input["exec"].isString()) {
+    args.push_back(Util::getMyPath() + input["exec"].asStringRef());
+  } else {
+    args.push_back(Util::getMyPath() + "MistIn" + input["name"].asStringRef());
   }
-  // check optional parameters
-  if (input.isMember("optional")){
-    jsonForEachConst(input["optional"], prm){
-      if (!prm->isMember("option")){continue;}
-      const std::string opt = (*prm)["option"].asStringRef();
-      // check for overrides
-      if (overrides.count(prm.key())){
-        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
-        str_args[opt] = overrides.at(prm.key());
-      }else{
-        if (stream_cfg.isMember(prm.key()) && ((!prm->isMember("default") && stream_cfg[prm.key()]) || (prm->isMember("default") && stream_cfg[prm.key()] != (*prm)["default"]))){
-          if (stream_cfg[prm.key()].isString()){
-            str_args[opt] = stream_cfg[prm.key()].asStringRef();
-          }else{
-            str_args[opt] = stream_cfg[prm.key()].toString();
-          }
-        }
-      }
-      if (!prm->isMember("type") && str_args.count(opt)){str_args[opt] = "";}
-    }
-  }
-  // check internal parameters
-  if (input.isMember("internal")) {
-    jsonForEachConst (input["internal"], prm) {
-      if (!prm->isMember("option")) { continue; }
-      const std::string opt = (*prm)["option"].asStringRef();
-      // check for overrides
-      if (overrides.count(prm.key())) {
-        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
-        str_args[opt] = overrides.at(prm.key());
-      }
-      if (!prm->isMember("type") && str_args.count(opt)) { str_args[opt] = ""; }
-    }
+  Util::optionsToArguments(stream_cfg, input, args, overrides);
+
+  // Set debug level if needed
+  if (Util::printDebugLevel != DEBUG && !stream_cfg.isMember("debug")) {
+    args.push_back("--debug");
+    args.push_back(std::to_string(Util::printDebugLevel));
   }
 
-  if (isProvider){
-    // Set environment variable so we can know if we have a provider when re-exec'ing.
-    setenv("MISTPROVIDER", "1", 1);
-  }
+  // Add streamname option and filename positional argument
+  args.push_back("-s");
+  args.push_back(streamname);
+  args.push_back(filename);
 
-  std::string player_bin = Util::getMyPath() + "MistIn" + input["name"].asStringRef();
-  char *argv[30] ={(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(),
-                    (char *)filename.c_str()};
-  int argNum = 3;
-  std::string debugLvl;
-  if (Util::printDebugLevel != DEBUG && !str_args.count("--debug")){
-    debugLvl = JSON::Value(Util::printDebugLevel).asString();
-    argv[++argNum] = (char *)"--debug";
-    argv[++argNum] = (char *)debugLvl.c_str();
-  }
-  for (std::map<std::string, std::string>::iterator it = str_args.begin(); it != str_args.end(); ++it){
-    argv[++argNum] = (char *)it->first.c_str();
-    if (it->second.size()){argv[++argNum] = (char *)it->second.c_str();}
-  }
-  argv[++argNum] = (char *)0;
+  // Set environment variable so we can know if we have a provider when re-exec'ing.
+  if (isProvider) { setenv("MISTPROVIDER", "1", 1); }
 
   Util::Procs::setHandler();
 
-  int pid = 0;
   if (!forkFirst) {
     DONTEVEN_MSG("Not forking");
     for (auto sock : Util::Procs::socketList) { close(sock); }
     Socket::Connection io(0, 1);
     io.drop();
-    std::stringstream args;
-    for (size_t i = 0; i < 30; ++i){
-      if (!argv[i] || !argv[i][0]) { break; }
-      args << argv[i] << " ";
+    INFO_MSG("Starting %s", args.begin()->c_str());
+    char *const *argv = Util::dequeToArgv(args);
+    if (!argv) {
+      FAIL_MSG("Invalid arguments for input command - aborting");
+      _exit(43);
     }
-    INFO_MSG("Starting %s", args.str().c_str());
     execvp(argv[0], argv);
     FAIL_MSG("Starting process %s failed: %s", argv[0], strerror(errno));
     _exit(42);
   }
 
   int fdErr = STDERR_FILENO;
-  pid = Util::Procs::StartPiped(argv, 0, 0, &fdErr);
+  pid_t pid = Util::Procs::StartPiped(args, 0, 0, &fdErr);
   if (!hadOriginal){unsetenv("MIST_ORIGINAL_SOURCE");}
   if (!pid) {
     FAIL_MSG("Starting process for stream %s failed: %s", streamname.c_str(), strerror(errno));
@@ -764,7 +709,9 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   while (!streamAlive(streamname) && ++waiting < 240){
     Util::wait(250);
     if (!Util::Procs::isRunning(pid)){
-      FAIL_MSG("Input process (PID %d) shut down before stream coming online, aborting.", pid);
+      std::stringstream cmd;
+      for (auto & a : args) { cmd << "'" << a << "' "; }
+      FAIL_MSG("Input process (PID %d, command: %s) shut down before stream coming online, aborting.", pid, cmd.str().c_str());
       break;
     }
   }
@@ -814,42 +761,41 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
       }
     }
 
-    // if match voor current stream && priority is hoger dan wat we al hebben
+    // if match for this source and priority is higher than the highest priority seen so far
     if (tmp_input.getMember("source_match") && curPrio < tmp_input.getMember("priority").asInt()){
-      if (tmp_input.getMember("source_match").getSize()){
-        for (unsigned int j = 0; j < tmp_input.getMember("source_match").getSize(); ++j){
-          std::string source = tmp_input.getMember("source_match").getIndice(j).asString();
-          std::string front = source.substr(0, source.find('*'));
-          std::string back = source.substr(source.find('*') + 1);
-          MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
-                     tmp_input.getMember("name").asString().c_str(), source.c_str());
-
-          if (tmpFn.size() >= front.size()+back.size() && tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
+      auto checkFunc = [&](const std::string & source) {
+        size_t aster = source.find('*');
+        if (aster == std::string::npos) {
+          if (tmpFn == source) {
             if (tmp_input.getMember("non-provider") && !isProvider){
               noProviderNoPick = true;
-              continue;
+              return;
             }
             curPrio = tmp_input.getMember("priority").asInt();
             selected = true;
             input = tmp_input;
           }
+          return;
         }
-      }else{
-        std::string source = tmp_input.getMember("source_match").asString();
-        std::string front = source.substr(0, source.find('*'));
-        std::string back = source.substr(source.find('*') + 1);
-        MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
-                   tmp_input.getMember("name").asString().c_str(), source.c_str());
+        const std::string front = source.substr(0, aster);
+        const std::string back = source.substr(source.find('*') + 1);
 
         if (tmpFn.size() >= front.size()+back.size() && tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
           if (tmp_input.getMember("non-provider") && !isProvider){
             noProviderNoPick = true;
-            continue;
+            return;
           }
           curPrio = tmp_input.getMember("priority").asInt();
           selected = true;
           input = tmp_input;
         }
+      };
+      if (tmp_input.getMember("source_match").getSize()) {
+        for (unsigned int j = 0; j < tmp_input.getMember("source_match").getSize(); ++j) {
+          checkFunc(tmp_input.getMember("source_match").getIndice(j).asString());
+        }
+      } else {
+        checkFunc(tmp_input.getMember("source_match").asString());
       }
     }
   }
@@ -860,9 +806,51 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
       FAIL_MSG("No compatible input found for: %s", tmpFn.c_str());
     }
   }else{
+    MEDIUM_MSG("Matched input: %s (%s)", input.getMember("name").asString().c_str(), tmpFn.c_str());
     ret = input.asJSON();
   }
   return ret;
+}
+
+void Util::optionsToArguments(const JSON::Value conf, const JSON::Value & capa, std::deque<std::string> & args,
+                              const std::map<std::string, std::string> & overrides) {
+  for (std::string argType : {"required", "optional", "internal"}) {
+    if (!capa.isMember(argType)) { continue; }
+    jsonForEachConst (capa[argType], it) {
+      // No option to set? Skip.
+      if (!it->isMember("option")) { continue; }
+      // Not overridden? Skip if either internal or not configured.
+      if (!overrides.count(it.key()) && (argType == "internal" || !conf.isMember(it.key()))) { continue; }
+
+      // Read from override if set, otherwise read from config.
+      JSON::Value val = overrides.count(it.key()) ? JSON::Value(overrides.at(it.key())) : conf[it.key()];
+
+      // No argument? Add option if set to true-alike value
+      if (!it->isMember("type")) {
+        if (val.asBool()) { args.push_back((*it)["option"].asStringRef()); }
+        continue;
+      }
+
+      const std::string & T = (*it)["type"].asStringRef();
+
+      // Inputlist? Add each entry as '--option value', in order.
+      if (T == "inputlist" && val.isArray()) {
+        jsonForEachConst (val, iVal) {
+          args.push_back((*it)["option"].asStringRef());
+          args.push_back(iVal->asString());
+        }
+        continue;
+      }
+
+      // Force convert to integer if numeric argument
+      if (T == "uint" || T == "int" || T == "debug") { val = val.asInt(); }
+
+      // Add the option and value converted to string
+      // (since integer command line options are not technically a thing)
+      args.push_back((*it)["option"].asStringRef());
+      args.push_back(val.asString());
+    }
+  }
 }
 
 /// Sends a message to the local UDP API port
@@ -1397,17 +1385,9 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
       Util::stringToLower(codecLow);
       if (M.getLang(*it) == trackLow || trackLow == codecLow){result.insert(*it);}
       if (!trackType.size() || trackType == "video"){
-        unsigned int resX, resY;
-        if (trackLow == "720p" && M.getWidth(*it) == 1280 && M.getHeight(*it) == 720){result.insert(*it);}
-        if (trackLow == "1080p" && M.getWidth(*it) == 1920 && M.getHeight(*it) == 1080){result.insert(*it);}
-        if (trackLow == "1440p" && M.getWidth(*it) == 2560 && M.getHeight(*it) == 1440){result.insert(*it);}
-        if (trackLow == "2k" && M.getWidth(*it) == 2048 && M.getHeight(*it) == 1080){result.insert(*it);}
-        if (trackLow == "4k" && M.getWidth(*it) == 3840 && M.getHeight(*it) == 2160){result.insert(*it);}
-        if (trackLow == "5k" && M.getWidth(*it) == 5120 && M.getHeight(*it) == 2880){result.insert(*it);}
-        if (trackLow == "8k" && M.getWidth(*it) == 7680 && M.getHeight(*it) == 4320){result.insert(*it);}
-        //match "XxY" format
-        if (sscanf(trackLow.c_str(), "%ux%u", &resX, &resY) == 2){
-          if (M.getWidth(*it) == resX && M.getHeight(*it) == resY){result.insert(*it);}
+        uint32_t w, h;
+        if (Util::parseResolutionString(trackLow, w, h) && M.getWidth(*it) == w && M.getHeight(*it) == h) {
+          result.insert(*it);
         }
       }
     }
@@ -1797,7 +1777,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
       if (it != result.begin()){selected << ", ";}
       selected << *it;
     }
-    MEDIUM_MSG("Would select tracks: %s (%zu)", selected.str().c_str(), result.size());
+    MEDIUM_MSG("Would select %zu out of %zu valid tracks: %s", result.size(), validTracks.size(), selected.str().c_str());
   }
 
   if (!result.size() && validTracks.size() && capa["codecs"][bestSoFar].size()){

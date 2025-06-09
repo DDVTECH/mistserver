@@ -8,9 +8,9 @@ namespace Mist{
 
   class HTTPOutput : public Output{
   public:
-    HTTPOutput(Socket::Connection &conn);
+    HTTPOutput(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     virtual ~HTTPOutput();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     virtual void onFail(const std::string &msg, bool critical = false);
     virtual void onHTTP();
     virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
@@ -20,7 +20,7 @@ namespace Mist{
     virtual bool onFinish();
     virtual void sendNext();
     virtual void initialSeek(bool dryRun = false);
-    static bool listenMode(){return false;}
+    static bool listenMode(Util::Config *config) { return false; }
     void reConnector(std::string &connector);
     std::string getHandler();
     bool parseRange(std::string header, uint64_t &byteStart, uint64_t &byteEnd);

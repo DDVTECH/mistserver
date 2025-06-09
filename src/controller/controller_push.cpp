@@ -1,6 +1,8 @@
 #include "controller_push.h"
+
 #include "controller_statistics.h"
 #include "controller_storage.h"
+
 #include <mist/auth.h>
 #include <mist/bitfields.h>
 #include <mist/config.h>
@@ -8,8 +10,10 @@
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
-#include <string>
+
 #include <mutex>
+#include <signal.h>
+#include <string>
 
 namespace Controller{
 

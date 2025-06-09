@@ -11,8 +11,8 @@
 namespace Mist{
   class OutRTSP : public Output{
   public:
-    OutRTSP(Socket::Connection &myConn);
-    static void init(Util::Config *cfg);
+    OutRTSP(Socket::Connection & myConn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void sendNext();
     void onRequest();
     bool onFinish();

@@ -736,7 +736,7 @@ namespace Mist{
     }
     // Set bootMsOffset in order to display the program time correctly in the player
     zUTC = M.inputLocalVars["zUTC"].asInt();
-    meta.setUTCOffset(zUTC);
+    meta.setUTCOffset(zUTC, UTCSRC_PROTOCOL);
     if (M.getLive()){meta.setBootMsOffset(streamOffset);}
     return true;
   }
@@ -830,7 +830,7 @@ namespace Mist{
     if (!config->is_active){return false;}
 
     // set bootMsOffset in order to display the program time correctly in the player
-    meta.setUTCOffset(zUTC);
+    meta.setUTCOffset(zUTC, UTCSRC_PROTOCOL);
     if (M.getLive()){meta.setBootMsOffset(streamOffset);}
 
     injectLocalVars();
@@ -1422,7 +1422,7 @@ namespace Mist{
         INFO_MSG("Setting program unix start time to '%s' (%" PRIu64 ")", line.substr(pos + 1).c_str(), zUTC);
         // store offset so that we can set it after reading the header
         streamOffset = zUTC - (Util::unixMS() - Util::bootMS());
-        meta.setUTCOffset(zUTC);
+        meta.setUTCOffset(zUTC, UTCSRC_PROTOCOL);
         if (M.getLive()){meta.setBootMsOffset(streamOffset);}
       }else{
         // ignore wrong lines

@@ -26,10 +26,10 @@ namespace Mist{
   class Output : public InOutBase{
   public:
     // constructor and destructor
-    Output(Socket::Connection &conn);
+    Output(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     // static members for initialization and capabilities
-    static void init(Util::Config *cfg);
-    static JSON::Value capa;
+    static void init(Util::Config *cfg, JSON::Value & capa);
+    JSON::Value & capa;
     /*LTS-START*/
     std::string reqUrl;
     /*LTS-END*/
@@ -46,7 +46,7 @@ namespace Mist{
     uint64_t targetTime();
     void setBlocking(bool blocking);
     bool selectDefaultTracks();
-    static bool listenMode(){return true;}
+    static bool listenMode(Util::Config *config) { return true; }
     uint32_t currTrackCount() const;
     virtual bool isReadyForPlay();
     virtual bool reachedPlannedStop();
@@ -56,11 +56,12 @@ namespace Mist{
     virtual void sendNext(){}// REQUIRED! Others are optional.
     virtual bool dropPushTrack(uint32_t trackId, const std::string &dropReason);
     bool getKeyFrame();
+    virtual void invalidateDataPage(size_t trackId);
+    virtual void invalidateTrackPage(size_t trackId);
     size_t prepareNext();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
     virtual void onRequest();
-    static void listener(Util::Config & conf,
-                         std::function<void(Socket::Connection &, Socket::Server &)> callback);
+    static void listener(Util::Config & conf, std::function<void(Socket::Connection &, Socket::Server &)> callback);
     virtual uint64_t getInitialSeekPosition();
     virtual void initialSeek(bool dryRun = false);
     uint64_t getMinKeepAway();
@@ -72,7 +73,7 @@ namespace Mist{
     virtual void sendHeader();
     virtual void onFail(const std::string &msg, bool critical = false);
     virtual void requestHandler(bool readable);
-    static Util::Config *config;
+    Util::Config *config;
     void playbackSleep(uint64_t millis);
 
     void selectAllTracks();
@@ -137,7 +138,7 @@ namespace Mist{
 
     std::set<size_t> getSupportedTracks(const std::string &type = "") const;
 
-    inline virtual bool keepGoing(){return config->is_active && myConn;}
+    inline virtual bool keepGoing() { return Util::Config::is_active && myConn; }
 
     Comms::Connections statComm;
     bool isBlocking; ///< If true, indicates that myConn is blocking.

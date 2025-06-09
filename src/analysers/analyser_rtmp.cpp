@@ -6,6 +6,7 @@
 #include <mist/bitfields.h>
 #include <mist/util.h>
 
+#include <iostream>
 #include <sstream>
 
 void AnalyserRTMP::init(Util::Config &conf){

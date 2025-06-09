@@ -1,19 +1,20 @@
-#include <fcntl.h>
-#include <sys/stat.h>
+#include "input_buffer.h"
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <sstream>
 #include <mist/bitfields.h>
 #include <mist/defines.h>
 #include <mist/langcodes.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
-#include <string>
 
-#include "input_buffer.h"
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
+#include <signal.h>
+#include <sstream>
+#include <string>
+#include <sys/stat.h>
 
 #ifndef TIMEOUTMULTIPLIER
 #define TIMEOUTMULTIPLIER 2
@@ -263,10 +264,12 @@ namespace Mist{
     meta.setLive(true);
   }
 
-  bool InputBuffer::keepRunning(bool updateActCtr){
-    if (M.getLive()){
+  bool InputBuffer::keepRunning(bool updateActCtr) {
+    if (M.getLive() && updateActCtr) {
       uint64_t currLastUpdate = M.getLastUpdated();
-      if (currLastUpdate > activityCounter){activityCounter = currLastUpdate;}
+      if (currLastUpdate > activityCounter) {
+        if ((connectedUsers || isAlwaysOn()) && M.getValidTracks().size()) { activityCounter = currLastUpdate; }
+      }
     }
     return Input::keepRunning(false);
   }
@@ -553,17 +556,6 @@ namespace Mist{
     /*LTS-END*/
   }
 
-  uint64_t InputBuffer::retrieveSetting(DTSC::Scan &streamCfg, const std::string &setting,
-                                        const std::string &option){
-    std::string opt = (option == "" ? setting : option);
-    // If stream is not configured, use commandline option
-    if (!streamCfg){return config->getOption(opt).asInt();}
-    // If it is configured, and the setting is present, use it always
-    if (streamCfg.getMember(setting)){return streamCfg.getMember(setting).asInt();}
-    // If configured, but setting not present, fall back to default
-    return config->getOption(opt, true)[0u].asInt();
-  }
-
   bool InputBuffer::preRun(){
     // This function gets run periodically to make sure runtime updates of the config get parsed.
     Util::Procs::kill_timeout = 5;
@@ -576,7 +568,7 @@ namespace Mist{
     DTSC::Scan streamCfg = rStrmConf.getScan();
 
     //Check if bufferTime setting is correct
-    uint64_t tmpNum = retrieveSetting(streamCfg, "DVR", "bufferTime");
+    uint64_t tmpNum = getSettingUInt64(streamCfg, "DVR", "bufferTime");
     if (tmpNum < 1000){tmpNum = 1000;}
     if (bufferTime != tmpNum){
       DEVEL_MSG("Setting bufferTime from %" PRIu64 " to new value of %" PRIu64, bufferTime, tmpNum);
@@ -584,7 +576,7 @@ namespace Mist{
     }
 
     //Check if idleTime setting is correct
-    tmpNum = retrieveSetting(streamCfg, "idleTime", "idleTime");
+    tmpNum = getSettingUInt64(streamCfg, "idleTime", "idleTime");
     if (tmpNum < 1000){tmpNum = 1000;}
     if (idleTime != tmpNum){
       DEVEL_MSG("Setting idleTime from %" PRIu64 " to new value of %" PRIu64, idleTime, tmpNum);
@@ -592,14 +584,14 @@ namespace Mist{
     }
 
     //Check if input timeout setting is correct
-    tmpNum = retrieveSetting(streamCfg, "inputtimeout");
+    tmpNum = getSettingUInt64(streamCfg, "inputtimeout");
     if (inputTimeout != tmpNum){
       DEVEL_MSG("Setting input timeout from %" PRIu64 " to new value of %" PRIu64, inputTimeout, tmpNum);
       inputTimeout = tmpNum;
     }
 
     //Check if cutTime setting is correct
-    tmpNum = retrieveSetting(streamCfg, "cut");
+    tmpNum = getSettingUInt64(streamCfg, "cut");
     // if the new value is different, print a message and apply it
     if (cutTime != tmpNum){
       INFO_MSG("Setting cutTime from %" PRIu64 " to new value of %" PRIu64, cutTime, tmpNum);
@@ -607,7 +599,7 @@ namespace Mist{
     }
 
     //Check if resume setting is correct
-    tmpNum = retrieveSetting(streamCfg, "resume");
+    tmpNum = getSettingUInt64(streamCfg, "resume");
     if (resumeMode != (bool)tmpNum){
       INFO_MSG("Setting resume mode from %s to new value of %s",
                resumeMode ? "enabled" : "disabled", tmpNum ? "enabled" : "disabled");
@@ -618,7 +610,7 @@ namespace Mist{
     lastReTime = Util::epoch(); /*LTS*/
 
     //Check if segmentsize setting is correct
-    tmpNum = retrieveSetting(streamCfg, "segmentsize");
+    tmpNum = getSettingUInt64(streamCfg, "segmentsize");
     if (tmpNum < meta.biggestFragment() / 2){tmpNum = meta.biggestFragment() / 2;}
     segmentSize = meta.getMinimumFragmentDuration();
     if (segmentSize != tmpNum){
@@ -628,7 +620,7 @@ namespace Mist{
     }
 
     //Check if segmentsize setting is correct
-    tmpNum = retrieveSetting(streamCfg, "maxkeepaway");
+    tmpNum = getSettingUInt64(streamCfg, "maxkeepaway");
     if (M.getMaxKeepAway() != tmpNum){
       INFO_MSG("Setting maxKeepAway from %" PRIu64 " to new value of %" PRIu64, M.getMaxKeepAway(), tmpNum);
       meta.setMaxKeepAway(tmpNum);

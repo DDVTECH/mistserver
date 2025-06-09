@@ -12,7 +12,7 @@ namespace Mist{
 
   class TSOutput : public TS_BASECLASS{
   public:
-    TSOutput(Socket::Connection &conn);
+    TSOutput(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     virtual ~TSOutput(){};
     virtual void sendNext();
     virtual void sendTS(const char *tsData, size_t len = 188){};

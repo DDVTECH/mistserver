@@ -4,9 +4,9 @@
 namespace Mist{
   class OutHTTPTS : public TSOutput{
   public:
-    OutHTTPTS(Socket::Connection &conn);
+    OutHTTPTS(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutHTTPTS();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     void sendTS(const char *tsData, size_t len = 188);
     void initialSeek(bool dryRun = false);

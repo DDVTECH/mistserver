@@ -1,5 +1,3 @@
-#include "bitfields.h"
-#include "dtsc.h"
 #include "ebml.h"
 #include "socket.h"
 
@@ -27,6 +25,7 @@ namespace EBML{
   uint32_t sizeElemDbl(uint32_t ID, const double val);
   uint32_t sizeElemStr(uint32_t ID, const std::string &val);
 
-  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime, bool forceKeyframe = false);
+  void sendSimpleBlock(Socket::Connection & C, const char *dataPointer, const size_t dataLen, size_t trackId,
+                       uint64_t time, bool keyFrame, uint64_t clusterTime);
   uint32_t sizeSimpleBlock(uint64_t trackId, uint32_t dataSize);
 }// namespace EBML

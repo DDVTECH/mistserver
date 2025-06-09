@@ -4,11 +4,11 @@
 namespace Mist{
   class OutSanityCheck : public Output{
   public:
-    OutSanityCheck(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutSanityCheck(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void sendNext();
     void sendHeader();
-    static bool listenMode(){return false;}
+    static bool listenMode(Util::Config *) { return false; }
 
   protected:
     void writeContext();

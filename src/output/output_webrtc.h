@@ -93,12 +93,12 @@ namespace Mist{
 
   class OutWebRTC : public HTTPOutput{
   public:
-    OutWebRTC(Socket::Connection &myConn);
+    OutWebRTC(Socket::Connection & myConn, Util::Config & cfg, JSON::Value & capa);
     ~OutWebRTC();
-    static bool listenMode();
+    static bool listenMode(Util::Config *config);
     static void listener(Util::Config & conf,
                          std::function<void(Socket::Connection &, Socket::Server &)> callback);
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     virtual void sendNext();
     virtual void onWebsocketFrame();
     void setIceHeaders(HTTP::Parser & H);

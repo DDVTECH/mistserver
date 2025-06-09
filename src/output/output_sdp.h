@@ -9,9 +9,9 @@
 namespace Mist{
   class OutSDP : public HTTPOutput{
   public:
-    OutSDP(Socket::Connection &conn);
+    OutSDP(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutSDP();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void sendNext();
     void sendHeader();

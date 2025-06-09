@@ -294,7 +294,8 @@ namespace Mist{
     if (!conf.is_restarting){lstn.close();}
   }
 
-  OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
+  OutWebRTC::OutWebRTC(Socket::Connection & myConn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(myConn, _cfg, _capa) {
 #ifdef WITH_DATACHANNELS
     sctpInited = false;
 #endif
@@ -537,12 +538,12 @@ namespace Mist{
     }
   }
 
-  bool OutWebRTC::listenMode() {
+  bool OutWebRTC::listenMode(Util::Config *config) {
     return !config->getString("target").size() && !config->getString("ip").size();
   }
 
-  void OutWebRTC::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutWebRTC::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "WebRTC";
     capa["friendly"] = "WebRTC";
     capa["desc"] = "Provides WebRTC output";
@@ -709,14 +710,13 @@ namespace Mist{
     capa["optional"]["iceservers"]["default"] = "";
     capa["optional"]["iceservers"]["type"] = "json";
 
-
-    config->addConnectorOptions(18203, capa);
+    cfg->addConnectorOptions(18203, capa);
     capa["optional"]["interface"]["name"] = "UDP bind address";
     capa["optional"]["interface"]["help"] = "Host to bind SRTP UDP sockets to. Defaults to all interfaces.";
     capa["optional"]["port"]["name"] = "UDP port";
     capa["optional"]["port"]["help"] = "UDP port to listen on";
 
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("whip://*");
     capa["push_urls"].append("whips://*");
 

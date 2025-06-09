@@ -4,11 +4,11 @@
 namespace Mist{
   class OutTS : public TSOutput{
   public:
-    OutTS(Socket::Connection &conn);
+    OutTS(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutTS();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void sendTS(const char *tsData, size_t len = 188);
-    static bool listenMode();
+    static bool listenMode(Util::Config *config);
     virtual void initialSeek(bool dryRun = false);
     bool isReadyForPlay();
     void onRequest();
@@ -31,9 +31,7 @@ namespace Mist{
     RTP::Packet tsOut;
 
   protected:
-    inline virtual bool keepGoing(){
-      return config->is_active && (!listenMode() || myConn);
-    }
+    inline virtual bool keepGoing() { return config->is_active && (!listenMode(config) || myConn); }
   };
 }// namespace Mist
 

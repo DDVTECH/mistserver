@@ -6,9 +6,9 @@
 namespace Mist{
   class OutHDS : public HTTPOutput{
   public:
-    OutHDS(Socket::Connection &conn);
+    OutHDS(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutHDS();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void sendNext();
 

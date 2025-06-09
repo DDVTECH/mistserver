@@ -2,10 +2,10 @@
 #include <mist/h264.h>
 
 namespace Mist{
-  OutFLV::OutFLV(Socket::Connection &conn) : HTTPOutput(conn){}
+  OutFLV::OutFLV(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {}
 
-  void OutFLV::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutFLV::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "FLV";
     capa["friendly"] = "Flash progressive over HTTP (FLV)";
     capa["desc"] = "Pseudostreaming in Adobe Flash FLV format over HTTP";
@@ -31,7 +31,7 @@ namespace Mist{
     capa["methods"][0u]["hrn"] = "FLV progressive";
     capa["methods"][0u]["priority"] = 5;
     capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.flv");
 
     JSON::Value opt;

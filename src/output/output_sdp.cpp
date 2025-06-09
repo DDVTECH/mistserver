@@ -1,10 +1,13 @@
 #include "output_sdp.h"
-#include "mist/defines.h"
+
 #include "src/output/output.h"
+
+#include <mist/defines.h>
+
 #include <sys/socket.h>
 
 namespace Mist{
-  OutSDP::OutSDP(Socket::Connection &conn) : HTTPOutput(conn){
+  OutSDP::OutSDP(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {
     exitOnNoRTCP = false;
   }
 
@@ -78,8 +81,8 @@ namespace Mist{
     return sdpAsString.str();
   }
 
-  void OutSDP::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutSDP::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "SDP";
     capa["friendly"] = "RTP streams using SDP";
     capa["desc"] = "Make streams available as a RTP stream, using the SDP";
@@ -105,7 +108,7 @@ namespace Mist{
     capa["methods"][0u]["url_rel"] = "/$.sdp";
     capa["methods"][0u]["priority"] = 11;
 
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.sdp");
 
     JSON::Value opt;
@@ -114,7 +117,6 @@ namespace Mist{
     opt["arg_num"] = 1;
     opt["help"] = "Target filename to store SDP file as, or - for stdout.";
     cfg->addOption("target", opt);
-
   }
 
   OutSDP::~OutSDP(){

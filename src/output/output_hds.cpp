@@ -141,7 +141,7 @@ namespace Mist{
     return Result.str();
   }// BuildManifest
 
-  OutHDS::OutHDS(Socket::Connection &conn) : HTTPOutput(conn){
+  OutHDS::OutHDS(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {
     uaDelay = 0;
     realTime = 0;
     audioTrack = INVALID_TRACK_ID;
@@ -150,8 +150,8 @@ namespace Mist{
 
   OutHDS::~OutHDS(){}
 
-  void OutHDS::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutHDS::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "HDS";
     capa["friendly"] = "Flash segmented over HTTP (HDS)";
     capa["desc"] = "Segmented streaming in Adobe/Flash (FLV-based) format over HTTP ( = HTTP "

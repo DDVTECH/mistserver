@@ -5,9 +5,9 @@
 namespace Mist{
   class OutOGG : public HTTPOutput{
   public:
-    OutOGG(Socket::Connection &conn);
+    OutOGG(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutOGG();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onRequest();
     void sendNext();
     void sendHeader();

@@ -2,9 +2,12 @@
 /// Reads H264 data and prints it in human-readable format.
 
 #include "analyser_h264.h"
+
 #include <mist/bitfields.h>
 #include <mist/bitstream.h>
 #include <mist/h264.h>
+
+#include <iostream>
 
 void AnalyserH264::init(Util::Config &conf){
   Analyser::init(conf);

@@ -30,9 +30,9 @@ namespace Mist{
 
   class OutCMAF : public HTTPOutput{
   public:
-    OutCMAF(Socket::Connection &conn);
+    OutCMAF(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutCMAF();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void sendNext();
     void sendHeader(){};

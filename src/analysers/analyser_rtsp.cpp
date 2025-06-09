@@ -1,5 +1,7 @@
 #include "analyser_rtsp.h"
 
+#include <mist/timing.h>
+
 AnalyserRTSP *classPointer = 0;
 
 void incomingPacket(const DTSC::Packet &pkt){

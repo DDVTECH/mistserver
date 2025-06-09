@@ -6,12 +6,12 @@
 namespace Mist{
   class OutTSRIST : public TSOutput{
   public:
-    OutTSRIST(Socket::Connection &conn);
+    OutTSRIST(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutTSRIST();
 
-    static bool listenMode(){return !(config->getString("target").size());}
+    static bool listenMode(Util::Config *config) { return !(config->getString("target").size()); }
 
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void sendTS(const char *tsData, size_t len = 188);
     bool isReadyForPlay(){return true;}
     virtual void requestHandler(bool readable);

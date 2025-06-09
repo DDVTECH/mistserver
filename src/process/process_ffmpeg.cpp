@@ -9,6 +9,7 @@
 
 #include <algorithm> //for std::find
 #include <condition_variable>
+#include <iostream>
 #include <mutex>
 #include <ostream>
 #include <sys/stat.h> //for stat
@@ -112,12 +113,12 @@ namespace Mist{
   class ProcessSource : public OutEBML{
   public:
     bool isRecording(){return false;}
-    ProcessSource(Socket::Connection &c) : OutEBML(c){
+    ProcessSource(Socket::Connection & c, Util::Config & _cfg, JSON::Value & _capa) : OutEBML(c, _cfg, _capa) {
       meta.ignorePid(getpid());
       capa["name"] = "FFMPEG";
       targetParams["keeptimes"] = true;
       realTime = 0;
-    };
+    }
     virtual bool onFinish(){
       if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
         if (userSelect.size()){
@@ -207,7 +208,8 @@ void sinkThread(){
 
 void sourceThread(){
   Util::nameThread("sourceThread");
-  Mist::ProcessSource::init(&conf);
+  JSON::Value capa;
+  Mist::ProcessSource::init(&conf, capa);
   conf.getOption("streamname", true).append(opt["source"].c_str());
 
   if (Enc.isAudio){
@@ -230,7 +232,7 @@ void sourceThread(){
   }
 
   Socket::Connection c(ffinput, -1);
-  Mist::ProcessSource out(c);
+  Mist::ProcessSource out(c, conf, capa);
 
   MEDIUM_MSG("Running source thread...");
   out.run();

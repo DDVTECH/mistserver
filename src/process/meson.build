@@ -46,6 +46,19 @@ executables += {
     'defines': [],
 }
 
+executables += {
+    'name' : 'MistProcComposer',
+    'sources' : [
+        files('process.hpp', 'process_composer.cpp'),
+        header_tgts,
+        io_cpp,
+        input_cpp,
+        output_cpp,
+    ],
+    'deps' :[libmist_dep],
+    'defines': [],
+}
+
 if get_option('WITH_AV')
     executables += {
         'name' : 'MistProcAV',

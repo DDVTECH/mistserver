@@ -16,6 +16,7 @@ option('DATASIZE', description: 'Size in mebibytes for live stream data pages', 
 option('STAT_CUTOFF', description: 'Time in seconds that statistics history is kept in memory for', type: 'integer', value: 600)
 option('NORIST', description: 'Disable building RIST support, regardless of library being present (by default RIST is enabled if libraries are installed)', type : 'boolean', value : false)
 option('NOSRT', description: 'Disable building SRT support, regardless of library being present (by default SRT is enabled if libraries are installed)', type : 'boolean', value : false)
+option('NOQUIRC', description: 'Disable building QR code reading support using the quirc library', type : 'boolean', value : false)
 option('RELEASE', description: 'Release string used in the reported version information', type: 'string', value: 'DEFAULT')
 option('VERSION', description: 'Version string used in the reported version information', type: 'string', value: 'Unknown')
 option('DEBUG', description: 'Default debug level. Recommended value for development is 4, recommended value for production is 3', type: 'integer', value: 4)

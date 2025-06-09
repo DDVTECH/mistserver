@@ -1,10 +1,10 @@
 #include "output_mp3.h"
 
 namespace Mist{
-  OutMP3::OutMP3(Socket::Connection &conn) : HTTPOutput(conn){}
+  OutMP3::OutMP3(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {}
 
-  void OutMP3::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutMP3::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "MP3";
     capa["friendly"] = "MP3 over HTTP";
     capa["desc"] = "Pseudostreaming in MP3 format over HTTP";

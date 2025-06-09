@@ -17,12 +17,7 @@
 
 #include "../io.h"
 
-namespace Mist{
-  struct booking{
-    uint32_t first;
-    uint32_t curKey;
-    uint32_t curPart;
-  };
+namespace Mist {
 
   struct trackKey{
     size_t track;
@@ -100,6 +95,9 @@ namespace Mist{
     virtual void parseHeader();
     virtual JSON::Value enumerateSources(const std::string &){ return JSON::Value(); };
     virtual JSON::Value getSourceCapa(const std::string &){ return JSON::Value(); };
+
+    virtual uint64_t getSettingUInt64(const DTSC::Scan & streamCfg, const std::string & setting, const std::string & option = "");
+
     bool bufferFrame(size_t track, uint32_t keyNum);
     void doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason);
     bool exitAndLogReason();
@@ -143,4 +141,4 @@ namespace Mist{
 
     void handleBuyDRM();
   };
-}// namespace Mist
+} // namespace Mist

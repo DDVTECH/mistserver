@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 
 namespace Mist{
-  OutDTSC::OutDTSC(Socket::Connection &conn) : Output(conn){
+  OutDTSC::OutDTSC(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : Output(conn, _cfg, _capa) {
     JSON::Value prep;
     if (!config->getBool("syncmode")) { setSyncMode(false); }
     isSyncReceiver = false;
@@ -97,14 +97,14 @@ namespace Mist{
     sendCmd(err);
   }
 
-  void OutDTSC::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutDTSC::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "DTSC";
     capa["friendly"] = "DTSC";
     capa["desc"] = "Real time streaming over DTSC (proprietary protocol for efficient inter-server streaming)";
     capa["deps"] = "";
     capa["codecs"][0u][0u].append("+*");
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("dtsc://*");
     capa["incoming_push_url"] = "dtsc://$host:$port/$stream?pass=$password";
 
@@ -141,13 +141,13 @@ namespace Mist{
     cfg->addOption("pushurl", opt);
 
     cfg->addConnectorOptions(4200, capa);
-    config = cfg;
   }
 
   std::string OutDTSC::getStatsName(){return (pushing ? "INPUT:DTSC" : "OUTPUT:DTSC");}
 
   void OutDTSC::sendNext(){
     DTSC::Packet p(thisPacket, thisIdx+1);
+    if (M.hasEmbeddedFrames(thisIdx)) { p.genericFill(thisTime, 0, thisIdx + 1, thisData, thisDataLen, 0, true); }
     myConn.setBlocking(true);
     myConn.SendNow(p.getData(), p.getDataLen());
     myConn.setBlocking(false);

@@ -76,10 +76,16 @@ bool Util::Procs::childRunning(pid_t p) {
   return !kill(p, 0);
 }
 
-/// This local-only function prepares a deque for getOutputOf and automatically inserts a NULL at the end of the char* const*
-char *const *dequeToArgv(const std::deque<std::string> & argDeq) {
+/// This function prepares a deque for getOutputOf and automatically inserts a NULL at the end of the char* const*
+/// Returns null on error.
+/// If no error, free the pointer after use to not have a memory leak.
+char *const *Util::dequeToArgv(const std::deque<std::string> & argDeq) {
   char **ret = (char **)malloc((argDeq.size() + 1) * sizeof(char *));
-  for (int i = 0; i < argDeq.size(); i++){ret[i] = (char *)argDeq[i].c_str();}
+  if (!ret) {
+    FAIL_MSG("Could not allocate memory for arguments: %s", strerror(errno));
+    return 0;
+  }
+  for (int i = 0; i < argDeq.size(); i++) { ret[i] = (char *)argDeq[i].c_str(); }
   ret[argDeq.size()] = NULL;
   return ret;
 }

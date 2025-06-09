@@ -3,10 +3,10 @@
 #include <mist/util.h>
 
 namespace Mist{
-  OutWAV::OutWAV(Socket::Connection &conn) : HTTPOutput(conn){}
+  OutWAV::OutWAV(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {}
 
-  void OutWAV::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutWAV::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "WAV";
     capa["friendly"] = "WAV over HTTP";
     capa["desc"] = "Pseudostreaming in WAV format over HTTP";
@@ -21,7 +21,7 @@ namespace Mist{
     capa["methods"][0u]["type"] = "html5/audio/wav";
     capa["methods"][0u]["hrn"] = "WAV progressive";
     capa["methods"][0u]["priority"] = 1;
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.wav");
 
     JSON::Value opt;

@@ -6,11 +6,9 @@
 #include "json.h"
 #include "shared_memory.h"
 #include "socket.h"
-#include "timing.h"
 #include "util.h"
 
 #include <functional>
-#include <iostream>
 #include <set>
 #include <stdint.h> //for uint64_t
 #include <stdio.h> //for FILE
@@ -18,6 +16,8 @@
 
 #define DTSC_INT 0x01
 #define DTSC_STR 0x02
+#define DTSC_NULL 0x03
+#define DTSC_DOUBLE 0x04
 #define DTSC_OBJ 0xE0
 #define DTSC_ARR 0x0A
 #define DTSC_CON 0xFF
@@ -26,6 +26,11 @@
 #define TRACK_VALID_EXT_PUSH 2 //(assumed) humans connecting externally
 #define TRACK_VALID_INT_PROCESS 4 //internal processes
 #define TRACK_VALID_ALL 0xFF //all of the above, default
+
+#define UTCSRC_UNKNOWN 0
+#define UTCSRC_RECVTIME 1
+#define UTCSRC_PROTOCOL 2
+#define UTCSRC_QRSYNCED 3
 
 // Increase this value every time the DTSH file format changes in an incompatible way
 // Changelog:
@@ -77,9 +82,17 @@ namespace DTSC{
     size_t getSize() const;
     void forEachMember(std::function<void(const DTSC::Scan &, const std::string &)> cb) const;
 
+    bool isString() const;
+    bool isInt() const;
+    bool isDouble() const;
+    bool isArray() const;
+    bool isObject() const;
+    bool isNull() const;
+
     char getType() const;
     bool asBool() const;
     int64_t asInt() const;
+    double asDouble() const;
     std::string asString() const;
     void getString(char *&result, size_t &len) const;
     JSON::Value asJSON() const;
@@ -340,6 +353,7 @@ namespace DTSC{
 
     void refresh();
     bool reloadReplacedPagesIfNeeded();
+    void setTrackInvalidateCallback(std::function<void(size_t trkIdx)> cb) { trackInvalidateCallback = cb; }
 
     operator bool() const;
 
@@ -495,8 +509,9 @@ namespace DTSC{
     void setBootMsOffset(int64_t bootMsOffset);
     int64_t getBootMsOffset() const;
 
-    void setUTCOffset(int64_t UTCOffset);
+    void setUTCOffset(int64_t UTCOffset, uint8_t UTCSource = UTCSRC_UNKNOWN);
     int64_t getUTCOffset() const;
+    uint8_t getUTCSource() const;
 
     std::set<size_t> getValidTracks(bool skipEmpty = false) const;
     std::set<size_t> getMySourceTracks(size_t pid) const;
@@ -568,6 +583,8 @@ namespace DTSC{
     void resizeTrackList(size_t newTrackCount);
     void preloadTrackFields();
 
+    std::function<void(size_t trkIdx)> trackInvalidateCallback;
+
     std::string streamName;
 
     IPC::sharedPage streamPage;
@@ -597,6 +614,7 @@ namespace DTSC{
     Util::RelAccXFieldData streamBufferWindowField;
     Util::RelAccXFieldData streamBootMsOffsetField;
     Util::RelAccXFieldData streamUTCOffsetField;
+    Util::RelAccXFieldData streamUTCSourceField;
     Util::RelAccXFieldData streamMinimumFragmentDurationField;
 
     Util::RelAccXFieldData trackValidField;

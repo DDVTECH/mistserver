@@ -17,7 +17,7 @@ bool AnalyserEBML::parsePacket(){
   // Read in smart bursts until we have enough data
   while (isOpen() && dataBuffer.size() < neededBytes()){
     uint64_t needed = neededBytes();
-    if (needed > 1024 * 1024){
+    if (needed > 1024 * 1024 * 100) {
       dataBuffer.erase(0, 1);
       continue;
     }
@@ -35,16 +35,16 @@ bool AnalyserEBML::parsePacket(){
   if (dataBuffer.size() < neededBytes()){return false;}
 
   EBML::Element E(dataBuffer.data(), true);
-  HIGH_MSG("Read an element at position %zu", prePos);
+  HIGH_MSG("Read an element of type %s at position %zu (size: %zu, payload: %zu)", E.getIDString(E.getID()).c_str(),
+           prePos, E.getOuterLen(), E.getPayloadLen());
+
   if (detail >= 2){std::cout << E.toPrettyString(depthStash.size() * 2, detail);}
   switch (E.getID()){
   case EBML::EID_SEGMENT:
     segmentOffset = prePos + E.getHeaderLen();
     std::cout << "[OFFSET INFORMATION] Segment offset is " << segmentOffset << std::endl;
     break;
-  case EBML::EID_CLUSTER:
-    std::cout << "[OFFSET INFORMATION] Cluster at " << (prePos - segmentOffset) << std::endl;
-    break;
+  case EBML::EID_CLUSTER: std::cout << "[OFFSET INFORMATION] Cluster at " << prePos << std::endl; break;
   case EBML::EID_SEEKID: lastSeekId = E.getValUInt(); break;
   case EBML::EID_SEEKPOSITION: lastSeekPos = E.getValUInt(); break;
   case EBML::EID_INFO:

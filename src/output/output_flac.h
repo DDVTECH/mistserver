@@ -3,8 +3,8 @@
 namespace Mist{
   class OutFLAC : public HTTPOutput{
   public:
-    OutFLAC(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutFLAC(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     virtual void respondHTTP(const HTTP::Parser &req, bool headersOnly);
     void sendNext();
     void sendHeader();

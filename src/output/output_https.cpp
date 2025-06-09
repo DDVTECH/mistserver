@@ -55,8 +55,8 @@ namespace Mist{
     return r;
   }
 
-  void OutHTTPS::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutHTTPS::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "HTTPS";
     capa["friendly"] = "HTTPS (HTTP+TLS)";
     capa["desc"] = "HTTPS connection handler, provides all enabled HTTP-based outputs";
@@ -114,10 +114,10 @@ namespace Mist{
     capa["optional"]["pubaddr"]["default"] = "";
     capa["optional"]["pubaddr"]["type"] = "inputlist";
     capa["optional"]["pubaddr"]["option"] = "--public-address";
-    config = cfg;
   }
 
-  OutHTTPS::OutHTTPS(Socket::Connection & C) : Output(C) {
+  OutHTTPS::OutHTTPS(Socket::Connection & C, Util::Config & _cfg, JSON::Value & _capa) : Output(C, _cfg, _capa) {
+
     if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2) {
       FAIL_MSG("The cert/key required options were not passed!");
       C.close();

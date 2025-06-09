@@ -41,6 +41,9 @@ namespace Util{
 
   void hexDump(std::ostream & ostrm, const char *ptr, size_t len, size_t indent = 0);
 
+  /// Parses a resolution string to integers by reference, returning true if parsing succeeded.
+  bool parseResolutionString(const std::string & resStr, uint32_t & width, uint32_t & height);
+
   class DataCallback{
   public:
     virtual void dataCallback(const char *ptr, size_t size){
@@ -65,11 +68,12 @@ namespace Util{
     ~ResizeablePointer();
     inline size_t &size(){return currSize;}
     inline const size_t size() const{return currSize;}
-    bool assign(const void *p, uint32_t l);
+    bool assign(const void *p, size_t l);
     bool assign(const std::string &str);
-    bool append(const void *p, uint32_t l);
+    bool append(const void *p, size_t l);
     bool append(const std::string &str);
     bool append(const ResizeablePointer &rhs);
+    bool appendNull(size_t l);
     bool allocate(uint32_t l);
     void shift(size_t byteCount);
     void swap(ResizeablePointer & rhs);

@@ -4,8 +4,8 @@
 namespace Mist{
   class OutEBML : public HTTPOutput{
   public:
-    OutEBML(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutEBML(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     void sendNext();
     void sendHeader();

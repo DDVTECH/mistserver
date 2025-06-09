@@ -6,7 +6,8 @@
 #include <mist/procs.h>
 
 namespace Mist{
-  OutEBML::OutEBML(Socket::Connection &conn) : HTTPOutput(conn){
+  OutEBML::OutEBML(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(conn, _cfg, _capa) {
     subtractTime = 0;
     currentClusterTime = 0;
     newClusterTime = 0;
@@ -49,8 +50,8 @@ namespace Mist{
     }
   }
 
-  void OutEBML::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutEBML::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "EBML";
     capa["friendly"] = "WebM/MKV over HTTP";
     capa["desc"] = "Pseudostreaming in MKV and WebM (EBML) formats over HTTP";
@@ -103,7 +104,7 @@ namespace Mist{
     capa["exceptions"]["codec:FLOAT"] = blacklistNonChrome;
     capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
     capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
 
     JSON::Value & pp = capa["push_parameters"];
     pp["ts"]["name"] = "Timestamps";
@@ -130,38 +131,37 @@ namespace Mist{
   }
 
   /// Calculates the size of a Cluster (contents only) and returns it.
-  /// Bases the calculation on the currently selected tracks and the given start/end time for the
-  /// cluster.
-  size_t OutEBML::clusterSize(uint64_t start, uint64_t end){
-    size_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start-subtractTime);
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      DTSC::Keys keys(M.getKeys(it->first));
+  /// Bases the calculation on the currently selected tracks and the given start/end time for the cluster.
+  size_t OutEBML::clusterSize(uint64_t start, uint64_t end) {
+    size_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start - subtractTime);
+    // In the simple case of start==end, each packet gets its own cluster
+    if (start == end || !end) {
+      sendLen += EBML::sizeSimpleBlock(thisIdx + 1, thisDataLen);
+      return sendLen;
+    }
+    // In the rest of the cases, we need to loop over all tracks and calculate what we will send
+    for (auto & it : userSelect) {
+      DTSC::Keys keys(M.getKeys(it.first));
 
       uint32_t firstPart = keys.getFirstPart(keys.getFirstValid());
       uint64_t curMS = 0;
 
-      if (M.hasEmbeddedFrames(it->first)){
-        for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
+      if (M.hasEmbeddedFrames(it.first)) {
+        for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i) {
           curMS = keys.getTime(i);
-          if (curMS > end){break;}
-          if (curMS >= start){
-            uint32_t blkLen = EBML::sizeSimpleBlock(it->first + 1, keys.getSize(i));
-            sendLen += blkLen;
-          }
+          if (curMS > end) { break; }
+          if (curMS >= start) { sendLen += EBML::sizeSimpleBlock(it.first + 1, keys.getSize(i)); }
         }
-      }else{
-        for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
-          if (keys.getTime(i) > start){break;}
-          firstPart =  keys.getFirstPart(i);
+      } else {
+        for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i) {
+          if (keys.getTime(i) > start) { break; }
+          firstPart = keys.getFirstPart(i);
           curMS = keys.getTime(i);
         }
-        DTSC::Parts parts(M.parts(it->first));
-        for (size_t i = firstPart; i < parts.getEndValid(); ++i){
-          if (curMS >= end){break;}
-          if (curMS >= start){
-            uint32_t blkLen = EBML::sizeSimpleBlock(it->first + 1, parts.getSize(i));
-            sendLen += blkLen;
-          }
+        DTSC::Parts parts(M.parts(it.first));
+        for (size_t i = firstPart; i < parts.getEndValid(); ++i) {
+          if (curMS >= end) { break; }
+          if (curMS >= start) { sendLen += EBML::sizeSimpleBlock(it.first + 1, parts.getSize(i)); }
           curMS += parts.getDuration(i);
         }
       }
@@ -170,9 +170,9 @@ namespace Mist{
   }
 
   void OutEBML::sendNext(){
-    if (thisPacket.getTime() >= newClusterTime){
+    if (thisTime >= newClusterTime) {
       if (liveSeek()){return;}
-      currentClusterTime = thisPacket.getTime();
+      currentClusterTime = thisTime;
       if (!M.getLive()){
         // In case of VoD, clusters are aligned with the main track fragments
         // EXCEPT when they are more than 30 seconds long, because clusters are limited to -32 to 32
@@ -190,18 +190,22 @@ namespace Mist{
                     clusterSize(currentClusterTime, newClusterTime));
       }else{
         // In live, clusters are aligned with the lookAhead time
-        newClusterTime = currentClusterTime + (needsLookAhead ? needsLookAhead : 1);
+        newClusterTime = currentClusterTime + needsLookAhead;
         // EXCEPT if there's a keyframe within the lookAhead window, then align to that keyframe
         // instead This makes sure that inlineRestartCapable works as intended
-        uint64_t nxtKTime = nextKeyTime();
-        if (nxtKTime && nxtKTime < newClusterTime){newClusterTime = nxtKTime;}
+        if (needsLookAhead) {
+          uint64_t nxtKTime = nextKeyTime();
+          if (nxtKTime && nxtKTime < newClusterTime) { newClusterTime = nxtKTime; }
+        } else {
+          newClusterTime = 0;
+        }
       }
       EBML::sendElemHead(myConn, EBML::EID_CLUSTER, clusterSize(currentClusterTime, newClusterTime));
       EBML::sendElemUInt(myConn, EBML::EID_TIMECODE, currentClusterTime-subtractTime);
     }
 
-    DTSC::Packet p(thisPacket, thisIdx + 1);
-    EBML::sendSimpleBlock(myConn, p, currentClusterTime, M.getType(thisIdx) != "video");
+    bool isKey = (M.getType(thisIdx) != "video") || M.hasEmbeddedFrames(thisIdx) || thisPacket.getFlag("keyframe");
+    EBML::sendSimpleBlock(myConn, thisData, thisDataLen, thisIdx + 1, thisTime, isKey, currentClusterTime);
   }
 
   std::string OutEBML::trackCodecID(size_t idx){
@@ -388,6 +392,7 @@ namespace Mist{
     size_t trackSizes = 0;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       trackSizes += sizeElemTrackEntry(it->first);
+      if (M.hasEmbeddedFrames(idx) && M.getLive()) { needsLookAhead = 0; }
     }
     EBML::sendElemHead(myConn, EBML::EID_TRACKS, trackSizes);
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){

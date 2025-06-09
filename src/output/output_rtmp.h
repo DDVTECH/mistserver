@@ -11,13 +11,13 @@ namespace Mist{
 
   class OutRTMP : public Output{
   public:
-    OutRTMP(Socket::Connection &conn);
+    OutRTMP(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutRTMP();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onRequest();
     void sendNext();
     void sendHeader();
-    static bool listenMode();
+    static bool listenMode(Util::Config *config);
     void requestHandler(bool readable);
     bool onFinish();
 #ifdef SSL

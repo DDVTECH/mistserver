@@ -32,14 +32,12 @@
 
 namespace Mist{
   std::string sourceOverride;
-  JSON::Value Output::capa = JSON::Value();
-  Util::Config *Output::config = NULL;
 
   uint32_t getDTSCLen(char *mapped, uint64_t offset){return Bit::btohl(mapped + offset + 4);}
 
   uint64_t getDTSCTime(char *mapped, uint64_t offset){return Bit::btohll(mapped + offset + 12);}
 
-  void Output::init(Util::Config *cfg){
+  void Output::init(Util::Config *cfg, JSON::Value & capa) {
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
@@ -94,11 +92,10 @@ namespace Mist{
     option.append("res_htl");
     option.append("Resolution, high to low");
     capa["optional"]["default_track_sorting"]["select"].append(option);
-
-    config = cfg;
   }
 
-  Output::Output(Socket::Connection &conn) : myConn(conn){
+  Output::Output(Socket::Connection & conn, Util::Config & cfg, JSON::Value & _capa)
+    : capa(_capa), config(&cfg), myConn(conn) {
     liveSeekDisabled = false;
     dataWaitTimeout = 25000;
     timingBootMs = thisBootMs = Util::bootMS();
@@ -187,7 +184,7 @@ namespace Mist{
   }
 
   bool Output::isRecording(){
-    return config->hasOption("target") && config->getString("target").size();
+    return config->hasOption("target") && config->getString("target").size() && !pushing;
   }
 
   /// Called when stream initialization has failed.
@@ -429,6 +426,7 @@ namespace Mist{
     trackSelectionChanged();
 
     //Connect to stream metadata
+    meta.setTrackInvalidateCallback([this](size_t trkIdx) { invalidateTrackPage(trkIdx); });
     meta.reInit(streamName, false);
     unsigned int attempts = 0;
     while (!meta && ++attempts < 20 && Util::streamAlive(streamName)){
@@ -758,6 +756,7 @@ namespace Mist{
     }
     if (!meta.getLive() && keyNum >= keys.getEndValid()) {
       INFO_MSG("Load for track %zu key %zu aborted, is >= %zu", trackId, keyNum, keys.getEndValid());
+      invalidateDataPage(trackId);
       curPage.erase(trackId);
       currentPage.erase(trackId);
       return;
@@ -772,6 +771,7 @@ namespace Mist{
       //Time out after 15 seconds
       if (timeout > 300){
         FAIL_MSG("Timeout while waiting for requested key %zu for track %zu. Aborting.", keyNum, trackId);
+        invalidateDataPage(trackId);
         curPage.erase(trackId);
         currentPage.erase(trackId);
         return;
@@ -802,8 +802,7 @@ namespace Mist{
     stats(true);
 
     if (currentPage.count(trackId) && currentPage[trackId] == pageNum){return;}
-    // If we're loading the track thisPacket is on, null it to prevent accesses.
-    if (thisPacket && thisIdx == trackId){thisPacket.null();}
+    invalidateDataPage(trackId);
     char id[NAME_BUFFER_SIZE];
     snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
     curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
@@ -936,7 +935,12 @@ namespace Mist{
     sought = true;
     std::set<size_t> seekTracks;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      if (M.trackLoaded(it->first)){seekTracks.insert(it->first);}
+      if (M.trackLoaded(it->first)) {
+        seekTracks.insert(it->first);
+        INFO_MSG("Track %zu seekable", it->first);
+      } else {
+        INFO_MSG("Track %zu not loaded", it->first);
+      }
     }
     //Seek all seek positions, first
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
@@ -1072,6 +1076,10 @@ namespace Mist{
       size_t mainTrack = getMainSelectedTrack();
       if (mainTrack == INVALID_TRACK_ID && (mainTrack = meta.mainTrack()) == INVALID_TRACK_ID) {
         WARN_MSG("No valid main track, seeking to position zero");
+        return 0;
+      }
+      if (!M.trackLoaded(mainTrack)) {
+        WARN_MSG("Main track %zu not loaded, seeking to position zero", mainTrack);
         return 0;
       }
       DTSC::Keys keys(M.getKeys(mainTrack));
@@ -2136,7 +2144,7 @@ namespace Mist{
       }
     }
     determineExitReason(); // Allow an output to override the below two checks.
-    if (!config->is_active){Util::logExitReason(ER_UNKNOWN, "set inactive");}
+    if (!Util::Config::is_active) { Util::logExitReason(ER_UNKNOWN, "set inactive"); }
     if (!myConn){Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed");}
     if (strncmp(Util::exitReason, "connection closed", 17) == 0){
       MEDIUM_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
@@ -2333,6 +2341,21 @@ namespace Mist{
     return ret;
   }
 
+  /// Called whenever the current data page for a track is unloaded
+  /// If the current packet is on this page, it's nulled to prevent access during or after the unload.
+  void Output::invalidateDataPage(size_t trackId) {
+    // If we're loading the track thisPacket is on, null it to prevent accesses.
+    if (thisPacket && thisIdx == trackId) {
+      thisPacket.null();
+      thisData = 0;
+      thisDataLen = 0;
+    }
+  }
+
+  /// Called whenever the track page for a track is unloaded or reloaded
+  /// Default implementation does nothing, but may be overridden by child classes to do things.
+  void Output::invalidateTrackPage(size_t trackId) {}
+
   /// Attempts to prepare a new packet for output.
   /// If it returns true and thisPacket evaluates to false, playback has completed.
   /// Could be called repeatedly in a loop if you really really want a new packet.
@@ -2361,11 +2384,11 @@ namespace Mist{
           dropTracks.erase(it->first);
         }
       }
-      if (!dropTracks.size()){
-        FAIL_MSG("Could not equalize tracks! This is very very very bad and I am now going to shut down to prevent worse.");
+      if (!dropTracks.size()) {
         Util::logExitReason(ER_INTERNAL_ERROR, "Could not equalize tracks");
+        onFail(
+          "Could not equalize tracks! This is very very very bad and I am now going to shut down to prevent worse.", true);
         parseData = false;
-        config->is_active = false;
         return 0;
       }
       // actually drop what we found.
@@ -2416,10 +2439,8 @@ namespace Mist{
         }
         thisTime = nxt.time;
         thisIdx = nxt.tid;
-        char * d = 0;
-        size_t dz = 0;
-        M.getEmbeddedData(nxt.tid, nxt.partIndex, d, dz);
-        thisPacket.genericFill(thisTime, 0, thisIdx, d, dz, 0, true);
+        M.getEmbeddedData(nxt.tid, nxt.partIndex, thisData, thisDataLen);
+        thisPacket.genericFill(thisTime, 0, thisIdx, 0, 0, 0, true);
 
         userSelect[nxt.tid].setKeyNum(nxt.partIndex);
         ++nxt.partIndex;
@@ -2559,6 +2580,7 @@ namespace Mist{
         thisPacket.reInit(cPageIt->second.mapped + nxt.offset, 0, true);
         thisIdx = nxt.tid;
         thisTime = nxt.time;
+        thisPacket.getString("data", thisData, thisDataLen);
         dropTrack(nxt.tid, "end of non-live track reached", false);
         return 1;
       }
@@ -2661,6 +2683,7 @@ namespace Mist{
     lastReceive = thisBootMs;
     thisIdx = nxt.tid;
     thisTime = nxt.time;
+    thisPacket.getString("data", thisData, thisDataLen);
 
     if (!userSelect[nxt.tid]){
       dropTrack(nxt.tid, "track is not alive!");

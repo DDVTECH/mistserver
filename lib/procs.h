@@ -11,6 +11,8 @@
 /// Contains utility code, not directly related to streaming media
 namespace Util{
 
+  char *const *dequeToArgv(const std::deque<std::string> & argDeq);
+
   /// Deals with spawning, monitoring and stopping child processes
   class Procs{
   public:

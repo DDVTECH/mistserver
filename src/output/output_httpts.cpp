@@ -12,7 +12,8 @@
 #include <unistd.h>
 
 namespace Mist{
-  OutHTTPTS::OutHTTPTS(Socket::Connection &conn) : TSOutput(conn){
+  OutHTTPTS::OutHTTPTS(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : TSOutput(conn, _cfg, _capa) {
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     HTTP::URL target(config->getString("target"));
     // Detect youtube-style URL
@@ -51,8 +52,8 @@ namespace Mist{
     Output::initialSeek(dryRun);
   }
 
-  void OutHTTPTS::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutHTTPTS::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "HTTPTS";
     capa["friendly"] = "TS over HTTP";
     capa["desc"] = "Pseudostreaming in MPEG2/TS format over HTTP";
@@ -75,7 +76,7 @@ namespace Mist{
     capa["methods"][0u]["type"] = "html5/video/mpeg";
     capa["methods"][0u]["hrn"] = "TS HTTP progressive";
     capa["methods"][0u]["priority"] = 1;
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("https://*/http_upload_hls?"); // Youtube-specific HLS push URL
     capa["push_urls"].append("ts-exec:*");

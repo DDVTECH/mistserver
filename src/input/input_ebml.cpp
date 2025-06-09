@@ -317,8 +317,8 @@ namespace Mist{
             packetData &C = TP.getPacketData(true);
             meta.update(C.time, C.offset, idx, C.dsize, C.bpos, C.key);
             if (dateVal){
-              meta.setUTCOffset(dateVal - C.time);
-              if (!meta.getUTCOffset()){meta.setUTCOffset(1);}
+              meta.setUTCOffset(dateVal - C.time, UTCSRC_PROTOCOL);
+              if (!meta.getUTCOffset()) { meta.setUTCOffset(1, UTCSRC_PROTOCOL); }
               dateVal = 0;
             }
             TP.remove();
@@ -357,8 +357,8 @@ namespace Mist{
           packetData &C = TP.getPacketData(isVideo);
           meta.update(C.time, C.offset, idx, C.dsize, C.bpos, C.key);
           if (dateVal){
-            meta.setUTCOffset(dateVal - C.time);
-            if (!meta.getUTCOffset()){meta.setUTCOffset(1);}
+            meta.setUTCOffset(dateVal - C.time, UTCSRC_PROTOCOL);
+            if (!meta.getUTCOffset()) { meta.setUTCOffset(1, UTCSRC_PROTOCOL); }
             dateVal = 0;
           }
           TP.remove();
@@ -374,8 +374,8 @@ namespace Mist{
               TP.getPacketData(M.getType(M.trackIDToIndex(it->first, getpid())) == "video");
           meta.update(C.time, C.offset, M.trackIDToIndex(C.track, getpid()), C.dsize, C.bpos, C.key);
           if (dateVal){
-            meta.setUTCOffset(dateVal - C.time);
-            if (!meta.getUTCOffset()){meta.setUTCOffset(1);}
+            meta.setUTCOffset(dateVal - C.time, UTCSRC_PROTOCOL);
+            if (!meta.getUTCOffset()) { meta.setUTCOffset(1, UTCSRC_PROTOCOL); }
             dateVal = 0;
           }
           TP.remove();

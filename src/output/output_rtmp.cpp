@@ -83,7 +83,7 @@ void setHupHandler() {
 }
 
 namespace Mist {
-  OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
+  OutRTMP::OutRTMP(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : Output(conn, _cfg, _capa) {
 #ifdef SSL
     if (setupTLS()) { myConn.sslAccept(&sslConf, &ctr_drbg); }
 #endif
@@ -435,7 +435,9 @@ namespace Mist {
     HIGH_MSG("Waiting for server to acknowledge connect request...");
   }
 
-  bool OutRTMP::listenMode(){return !(config->getString("target").size());}
+  bool OutRTMP::listenMode(Util::Config *config) {
+    return !(config->getString("target").size());
+  }
 
   bool OutRTMP::onFinish(){
 
@@ -491,8 +493,8 @@ namespace Mist {
     return false;
   }
 
-  void OutRTMP::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutRTMP::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "RTMP";
     capa["friendly"] = "RTMP";
     capa["desc"] = "Real time streaming over Adobe RTMP";
@@ -579,8 +581,7 @@ namespace Mist {
 #endif
 
     cfg->addConnectorOptions(1935, capa);
-    config = cfg;
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rtmp://*");
     capa["push_urls"].append("rtmps://*");
 

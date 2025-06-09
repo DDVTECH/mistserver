@@ -3,8 +3,8 @@
 namespace Mist{
   class OutMP3 : public HTTPOutput{
   public:
-    OutMP3(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutMP3(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void sendNext();
     void sendHeader();

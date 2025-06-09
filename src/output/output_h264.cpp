@@ -4,7 +4,8 @@
 #include <mist/stream.h>
 
 namespace Mist{
-  OutH264::OutH264(Socket::Connection &conn) : HTTPOutput(conn){
+  OutH264::OutH264(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(conn, _cfg, _capa) {
     prevVidTrack = INVALID_TRACK_ID;
     keysOnly = targetParams.count("keysonly")?1:0;
     stayLive = true;
@@ -323,8 +324,8 @@ namespace Mist{
     return false;
   }
 
-  void OutH264::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutH264::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "H264";
     capa["friendly"] = "H264/H265 over HTTP";
     capa["desc"] = "Pseudostreaming in raw H264/H265 Annex B format over HTTP";

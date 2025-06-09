@@ -5,11 +5,13 @@
 #include <mist/http_parser.h>
 
 namespace Mist{
-  OutSRT::OutSRT(Socket::Connection &conn) : HTTPOutput(conn){realTime = 0;}
+  OutSRT::OutSRT(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {
+    realTime = 0;
+  }
   OutSRT::~OutSRT(){}
 
-  void OutSRT::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutSRT::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "SubRip";
     capa["friendly"] = "SubRip (SRT/WebVTT) over HTTP";
     capa["desc"] = "Pseudostreaming in SubRip Text (SRT) and WebVTT formats over HTTP";

@@ -532,14 +532,31 @@ namespace Controller{
           }
         }
       }
-      if ((*it).substr(0, 8) == "MistProc"){
+      if ((*it).substr(0, 8) == "MistProc") {
         arg_one = Util::getMyPath() + (*it);
         conn_args[0] = arg_one.c_str();
-        capabilities["processes"][(*it).substr(8)] =
-            JSON::fromString(Util::Procs::getOutputOf((char **)conn_args));
-        if (capabilities["processes"][(*it).substr(8)].size() < 1){
-          capabilities["processes"].removeMember((*it).substr(8));
+        std::string entry = (*it).substr(8);
+        JSON::Value & C = capabilities["processes"][entry];
+        C = JSON::fromString(Util::Procs::getOutputOf((char **)conn_args));
+        // Add entry to inputs if type is standalone
+        if (C.isMember("type") && C["type"].asStringRef() == "standalone") {
+          JSON::Value & I = capabilities["inputs"][entry];
+          I = C;
+          // Add executable name, since it differs
+          I["exec"] = *it;
+          // Remove sink option if present in required or optional
+          if (I.isMember("required") && I["required"].isMember("sink")) { I["required"].removeMember("sink"); }
+          if (I.isMember("optional") && I["optional"].isMember("sink")) { I["optional"].removeMember("sink"); }
+          if (I.isMember("source") && I["source"].asStringRef() == "1+") {
+            JSON::Value & src = I["required"]["sources"];
+            src["name"] = "Input stream name(s)";
+            src["option"] = "--sources";
+            src["help"] = "Name(s) of the input(t) that should be displayed";
+            src["type"] = "inputlist";
+            src["validation"].append("streamname_with_wildcard_and_variables");
+          }
         }
+        if (C.size() < 1) { capabilities["processes"].removeMember(entry); }
       }
       if ((*it).substr(0, 6) == "MistIn" && (*it) != "MistInfo"){
         arg_one = Util::getMyPath() + (*it);

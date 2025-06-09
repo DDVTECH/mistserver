@@ -7,7 +7,7 @@
 #include <unistd.h>    //for stat
 
 namespace Mist{
-  OutJPG::OutJPG(Socket::Connection &conn) : HTTPOutput(conn){
+  OutJPG::OutJPG(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {
     motion = false;
     if (isRecording()){
       motion = (config->getString("target").find(".mj") != std::string::npos);
@@ -51,8 +51,8 @@ namespace Mist{
   /// Pretends the stream is always ready to play - we don't care about waiting times or whatever
   bool OutJPG::isReadyForPlay(){return true;}
 
-  void OutJPG::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutJPG::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "JPG";
     capa["desc"] = "Support both single-frame JPEG and motion JPEG (e.g. MJPEG) over HTTP";
     capa["url_rel"].append("/$.jpg");
@@ -72,7 +72,7 @@ namespace Mist{
     capa["methods"][1u]["hrn"] = "JPEG stream";
     capa["methods"][1u]["url_rel"] = "/$.mjpg";
     capa["methods"][1u]["priority"] = 2;
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.jpg");
     capa["push_urls"].append("/*.jpeg");
     capa["push_urls"].append("/*.mjpg");

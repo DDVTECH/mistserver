@@ -2,10 +2,11 @@
 
 namespace Mist{
 
-  OutFLAC::OutFLAC(Socket::Connection &conn) : HTTPOutput(conn){}
+  OutFLAC::OutFLAC(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
+    : HTTPOutput(conn, _cfg, _capa) {}
 
-  void OutFLAC::init(Util::Config *cfg){
-    HTTPOutput::init(cfg);
+  void OutFLAC::init(Util::Config *cfg, JSON::Value & capa) {
+    HTTPOutput::init(cfg, capa);
     capa["name"] = "FLAC";
     capa["friendly"] = "Free Lossless Audio Codec";
     capa["desc"] = "Pseudostreaming in FLAC format over HTTP";

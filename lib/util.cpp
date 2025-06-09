@@ -534,7 +534,7 @@ namespace Util{
     rhs.ro = tmpRo;
   }
 
-  bool ResizeablePointer::assign(const void *p, uint32_t l){
+  bool ResizeablePointer::assign(const void *p, size_t l) {
     if (!allocate(l)){return false;}
     memcpy(ptr, p, l);
     currSize = l;
@@ -545,7 +545,7 @@ namespace Util{
     return assign(str.data(), str.length());
   }
 
-  bool ResizeablePointer::append(const void *p, uint32_t l){
+  bool ResizeablePointer::append(const void *p, size_t l) {
     // We're writing from null pointer - assume outside write (e.g. fread or socket operation) and update the size
     if (!p){
       if (currSize + l > maxSize){
@@ -568,6 +568,13 @@ namespace Util{
 
   bool ResizeablePointer::append(const ResizeablePointer &rhs){
     return append(rhs.ptr, rhs.currSize);
+  }
+
+  bool ResizeablePointer::appendNull(size_t l) {
+    if (!allocate(l + currSize)) { return false; }
+    memset((char *)ptr + currSize, 0, l);
+    currSize += l;
+    return true;
   }
 
   bool ResizeablePointer::allocate(uint32_t l){
@@ -1448,7 +1455,12 @@ namespace Util{
 
   void nameThread(const std::string & name) {
 #ifdef WITH_THREADNAMES
-    pthread_setname_np(pthread_self(), name.c_str());
+    if (name.size() > 15) {
+      std::string n = name.substr(0, 15);
+      pthread_setname_np(pthread_self(), n.c_str());
+    } else {
+      pthread_setname_np(pthread_self(), name.c_str());
+    }
 #endif
   }
 
@@ -1459,6 +1471,60 @@ namespace Util{
       if ((i % 4) == 3) { o << " "; }
     }
     o << std::dec;
+  }
+
+  bool parseResolutionString(const std::string & resStr, uint32_t & width, uint32_t & height) {
+    if (!resStr.size()) { return false; }
+    const char & lastChar = *resStr.rbegin();
+    if (lastChar == 'P' || lastChar == 'p') {
+      if (resStr.size() == 4 && !strncmp(resStr.data(), "720", 3)) {
+        width = 1280;
+        height = 720;
+        return true;
+      }
+      if (resStr.size() == 5 && !strncmp(resStr.data(), "1080", 4)) {
+        width = 1920;
+        height = 1080;
+        return true;
+      }
+      if (resStr.size() == 5 && !strncmp(resStr.data(), "1440", 4)) {
+        width = 2560;
+        height = 1440;
+        return true;
+      }
+      return false;
+    }
+    if ((lastChar == 'K' || lastChar == 'k') && resStr.size() == 2) {
+      if (resStr[0] == '2') {
+        width = 2048;
+        height = 1080;
+        return true;
+      }
+      if (resStr[0] == '4') {
+        width = 3840;
+        height = 2160;
+        return true;
+      }
+      if (resStr[0] == '5') {
+        width = 5120;
+        height = 2880;
+        return true;
+      }
+      if (resStr[0] == '8') {
+        width = 7680;
+        height = 4320;
+        return true;
+      }
+      return false;
+    }
+    // match "XxY" format
+    unsigned int w, h;
+    if (sscanf(resStr.c_str(), "%ux%u", &w, &h) == 2) {
+      width = w;
+      height = h;
+      return true;
+    }
+    return false;
   }
 
 }// namespace Util

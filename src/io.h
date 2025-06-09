@@ -39,8 +39,10 @@ namespace Mist{
     bool standAlone;
 
     DTSC::Packet thisPacket; // The current packet that is being parsed
-    size_t thisIdx; //Track index of current packet
-    uint64_t thisTime; //Time of current packet
+    size_t thisIdx; ///< Track index of current packet
+    uint64_t thisTime; /// < Timestamp of current packet
+    char *thisData; ///< Pointer to codec data of current packet
+    size_t thisDataLen; ///< Byte count of codec data of current packet
 
     std::string streamName;
 

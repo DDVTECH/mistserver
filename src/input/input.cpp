@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <iterator>
 #include <semaphore.h>
 #include <signal.h>
@@ -1800,4 +1801,15 @@ namespace Mist{
     }
     return isAlive && config->is_active;
   }
+
+  uint64_t Input::getSettingUInt64(const DTSC::Scan & streamCfg, const std::string & setting, const std::string & option) {
+    const std::string & opt = (!option.size() ? setting : option);
+    // If stream is not configured, use commandline option
+    if (!streamCfg) { return config->getOption(opt).asInt(); }
+    // If it is configured, and the setting is present, use it always
+    if (streamCfg.getMember(setting)) { return streamCfg.getMember(setting).asInt(); }
+    // If configured, but setting not present, fall back to default
+    return config->getOption(opt, true)[0u].asInt();
+  }
+
 }// namespace Mist

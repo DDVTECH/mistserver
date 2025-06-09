@@ -41,8 +41,6 @@ namespace Mist{
     void removeUnused();
     void finish();
 
-    uint64_t retrieveSetting(DTSC::Scan &streamCfg, const std::string &setting, const std::string &option = "");
-
     void userLeadIn();
     void userOnActive(size_t id);
     void userOnDisconnect(size_t id);

@@ -3,8 +3,8 @@
 namespace Mist{
   class OutWAV : public HTTPOutput{
   public:
-    OutWAV(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutWAV(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void sendNext();
     void sendHeader();

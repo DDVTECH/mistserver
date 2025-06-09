@@ -73,6 +73,12 @@ else
   option_defines += '-DSSL=1'
 endif
 
+if get_option('NOQUIRC')
+  message('QR code reading support through quirc is turned OFF')
+else
+  option_defines += '-DHASQUIRC=1'
+endif
+
 if not get_option('NOUPDATE')
   option_defines += '-DUPDATER=1'
 endif

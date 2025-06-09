@@ -102,7 +102,8 @@ namespace Mist {
     return !getenv("IS_PROTOCOL_PORT") && config->getString("target").size();
   }
 
-  OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection * _srtSock) : TSOutput(conn){
+  OutTSSRT::OutTSSRT(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa, Socket::SRTConnection *_srtSock)
+    : TSOutput(conn, _cfg, _capa) {
     closeMyConn();
     srtConn = _srtSock;
     // NOTE: conn is useless for SRT, as it uses a different socket type.
@@ -373,8 +374,8 @@ namespace Mist {
 
   }
 
-  void OutTSSRT::init(Util::Config *cfg){
-    Output::init(cfg);
+  void OutTSSRT::init(Util::Config *cfg, JSON::Value & capa) {
+    Output::init(cfg, capa);
     capa["name"] = "TSSRT";
     capa["friendly"] = "TS over SRT";
     capa["desc"] = "Real time streaming of TS data over SRT using libsrt " SRT_VERSION_STRING;
@@ -425,10 +426,9 @@ namespace Mist {
     cfg->addConnectorOptions(8889, capa);
     capa["optional"]["port"]["name"] = "UDP port";
     capa["optional"]["port"]["help"] = "UDP port to listen on";
-    config = cfg;
     capa["push_urls"].append("srt://*");
 
-    config->addStandardPushCapabilities(capa);
+    cfg->addStandardPushCapabilities(capa);
     JSON::Value & pp = capa["push_parameters"];
 
     pp["srtopts_main"]["name"] = "Commonly used SRT options";
@@ -578,7 +578,7 @@ namespace Mist {
     opt["arg"] = "string";
     opt["default"] = "";
     opt["help"] = "Which parser to use for data tracks";
-    config->addOption("datatrack", opt);
+    cfg->addOption("datatrack", opt);
 
     capa["optional"]["passphrase"]["name"] = "Passphrase";
     capa["optional"]["passphrase"]["help"] = "If set, requires a SRT passphrase to connect";
@@ -595,7 +595,7 @@ namespace Mist {
     opt["arg"] = "string";
     opt["default"] = "";
     opt["help"] = "If set, requires a SRT passphrase to connect";
-    config->addOption("passphrase", opt);
+    cfg->addOption("passphrase", opt);
 
     capa["optional"]["nostreamid"]["name"] = "Disable streamid";
     capa["optional"]["nostreamid"]["help"] = "Disable reading of the streamid field";
@@ -607,7 +607,7 @@ namespace Mist {
     opt["long"] = "nostreamid";
     opt["short"] = "I";
     opt["help"] = "Disable reading of the streamid field";
-    config->addOption("nostreamid", opt);
+    cfg->addOption("nostreamid", opt);
 
     capa["optional"]["sockopts"]["name"] = "SRT socket options";
     capa["optional"]["sockopts"]["help"] = "Any additional SRT socket options to apply";
@@ -622,7 +622,7 @@ namespace Mist {
     opt["arg"] = "string";
     opt["default"] = "";
     opt["help"] = "Any additional SRT socket options to apply";
-    config->addOption("sockopts", opt);
+    cfg->addOption("sockopts", opt);
 
     opt.null();
     opt["long"] = "remote";
@@ -630,7 +630,7 @@ namespace Mist {
     opt["arg"] = "string";
     opt["default"] = "";
     opt["help"] = "Remote address in the format remoteIP/remotePort/rendezvous";
-    config->addOption("remote", opt);
+    cfg->addOption("remote", opt);
   }
 
   // Buffers TS packets and sends after 7 are buffered.
@@ -761,8 +761,7 @@ namespace Mist {
     statComm.setPacketRetransmitCount(srtConn->packetRetransmitCount());
   }
 
-
-  bool OutTSSRT::listenMode(){
+  bool OutTSSRT::listenMode(Util::Config *config) {
     std::string tgt = config->getString("target");
     if (config->getString("remote").size()){return false;}
     return (!tgt.size() || (tgt.size() >= 6 && tgt.substr(0, 6) == "srt://" && Socket::interpretSRTMode(HTTP::URL(tgt)) == "listener"));

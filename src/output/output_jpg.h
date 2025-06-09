@@ -3,8 +3,8 @@
 namespace Mist{
   class OutJPG : public HTTPOutput{
   public:
-    OutJPG(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutJPG(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     void sendNext();
     bool isReadyForPlay();

@@ -3,9 +3,9 @@
 namespace Mist{
   class OutHTTPMinimalServer : public HTTPOutput{
   public:
-    OutHTTPMinimalServer(Socket::Connection &conn);
+    OutHTTPMinimalServer(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutHTTPMinimalServer();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
 
   private:

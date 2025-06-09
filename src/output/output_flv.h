@@ -3,8 +3,8 @@
 namespace Mist{
   class OutFLV : public HTTPOutput{
   public:
-    OutFLV(Socket::Connection &conn);
-    static void init(Util::Config *cfg);
+    OutFLV(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onHTTP();
     void sendNext();
     void sendHeader();

@@ -4,9 +4,9 @@
 namespace Mist{
   class OutHLS : public TSOutput{
   public:
-    OutHLS(Socket::Connection &conn);
+    OutHLS(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutHLS();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void sendTS(const char *tsData, size_t len = 188);
     void sendNext();
     void onHTTP();

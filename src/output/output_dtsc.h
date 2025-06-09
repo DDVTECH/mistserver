@@ -5,13 +5,13 @@ namespace Mist{
 
   class OutDTSC : public Output{
   public:
-    OutDTSC(Socket::Connection &conn);
+    OutDTSC(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutDTSC();
-    static void init(Util::Config *cfg);
+    static void init(Util::Config *cfg, JSON::Value & capa);
     void onRequest();
     void sendNext();
     void sendHeader();
-    static bool listenMode(){return !(config->getString("target").size());}
+    static bool listenMode(Util::Config *config) { return !(config->getString("target").size()); }
     void onFail(const std::string &msg, bool critical = false);
     void stats(bool force = false);
     void sendCmd(const JSON::Value &data);

@@ -19,6 +19,7 @@ size_t RTMPStream::rec_window_at = 0;
 size_t RTMPStream::snd_window_at = 0;
 size_t RTMPStream::rec_cnt = 0;
 size_t RTMPStream::snd_cnt = 0;
+size_t RTMPStream::parseErr = 0;
 
 timeval RTMPStream::lastrec;
 
@@ -383,6 +384,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
     // Look up previously received chunk, if any (for header types other than 0x00)
     bool allow_short = lastrecv.count(cs_id);
     RTMPStream::Chunk & prev = lastrecv[cs_id];
+    static bool warned = false;
 
     // process the rest of the header, for each chunk type
     switch (headertype) {
@@ -411,7 +413,13 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
           DONTEVEN_MSG("Cannot read whole header");
           return false;
         } // can't read whole header
-        if (!allow_short) { WARN_MSG("Warning: Header type 0x40 with no valid previous chunk!"); }
+        if (!allow_short) {
+          ++parseErr;
+          if (!warned) {
+            WARN_MSG("Warning: Header type 0x40 with no valid previous chunk!");
+            warned = true;
+          }
+        }
         timestamp = inData[i++] << 16;
         timestamp |= inData[i++] << 8;
         timestamp |= inData[i++];
@@ -432,7 +440,13 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
           DONTEVEN_MSG("Cannot read whole header");
           return false;
         } // can't read whole header
-        if (!allow_short) { WARN_MSG("Warning: Header type 0x80 with no valid previous chunk!"); }
+        if (!allow_short) {
+          ++parseErr;
+          if (!warned) {
+            WARN_MSG("Warning: Header type 0x80 with no valid previous chunk!");
+            warned = true;
+          }
+        }
         timestamp = inData[i++] << 16;
         timestamp |= inData[i++] << 8;
         timestamp |= inData[i++];
@@ -447,7 +461,13 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
         msg_stream_id = prev.msg_stream_id;
         break;
       case 0xC0:
-        if (!allow_short) { WARN_MSG("Warning: Header type 0xC0 with no valid previous chunk!"); }
+        if (!allow_short) {
+          ++parseErr;
+          if (!warned) {
+            WARN_MSG("Warning: Header type 0xC0 with no valid previous chunk!");
+            warned = true;
+          }
+        }
         timestamp = prev.timestamp + prev.ts_delta;
         ts_header = prev.ts_header;
         ts_delta = prev.ts_delta;

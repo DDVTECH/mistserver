@@ -42,6 +42,7 @@ namespace RTMPStream{
   extern size_t snd_window_at;   ///< Current position of the sending window.
   extern size_t rec_cnt;         ///< Counter for total data received, in bytes.
   extern size_t snd_cnt;         ///< Counter for total data sent, in bytes.
+  extern size_t parseErr; ///< Counter for parse errors.
 
   extern timeval lastrec; ///< Timestamp of last time data was received.
 

@@ -9,6 +9,8 @@
 /// Holds all AMF parsing and creation related functions and classes.
 namespace AMF{
 
+  extern size_t amfErrors;
+
   /// Enumerates all possible AMF0 types, adding a special DDVTECH container type for ease of use.
   enum obj0type{
     AMF0_NUMBER = 0x00,

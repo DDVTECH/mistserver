@@ -38,6 +38,9 @@ namespace Mist {
     if (setupTLS()) { myConn.sslAccept(&sslConf, &ctr_drbg); }
 #endif
     didPublish = false;
+    lastErrCheck = 0;
+    amfErr = 0;
+    rtmpErr = 0;
     lastSilence = 0;
     hasSilence = false;
     lastAudioInserted = 0;
@@ -1123,7 +1126,20 @@ namespace Mist {
     Output::requestHandler(readable);
   }
 
-  void OutRTMP::onRequest(){parseChunk(myConn.Received());}
+  void OutRTMP::onRequest() {
+    parseChunk(myConn.Received());
+    if (Util::bootSecs() > lastErrCheck + 4) {
+      lastErrCheck = Util::bootSecs();
+      if (amfErr < AMF::amfErrors) {
+        WARN_MSG("Encountered %zu AMF parse errors in the last 5 seconds", AMF::amfErrors - amfErr);
+        amfErr = AMF::amfErrors;
+      }
+      if (rtmpErr < RTMPStream::parseErr) {
+        WARN_MSG("Encountered %zu RTMP parse errors in the last 5 seconds", RTMPStream::parseErr - rtmpErr);
+        rtmpErr = RTMPStream::parseErr;
+      }
+    }
+  }
 
   ///\brief Sends a RTMP command either in AMF or AMF3 mode.
   ///\param amfReply The data to be sent over RTMP.
@@ -1848,10 +1864,14 @@ namespace Mist {
     static AMF::Object amfelem("empty", AMF::AMF0_DDV_CONTAINER);
     static AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
     static AMF::Object3 amf3elem("empty", AMF::AMF3_DDV_CONTAINER);
+    static bool warned = false;
 
     while (next.Parse(inputBuffer)){
       if (!next.data.size()){
-        WARN_MSG("Ignored packet with invalid (null) data pointer");
+        if (!warned) {
+          WARN_MSG("Ignored packet with invalid (null) data pointer - further warnings will be suppressed");
+          warned = true;
+        }
         continue;
       }
 

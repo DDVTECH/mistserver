@@ -25,6 +25,9 @@ namespace Mist{
 #endif
 
   protected:
+    size_t amfErr;
+    size_t rtmpErr;
+    uint64_t lastErrCheck;
     std::string streamOut; ///< When pushing out, the output stream name
     bool setRtmpOffset;
     bool didPublish;

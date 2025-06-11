@@ -5,6 +5,8 @@
 #include "defines.h"
 #include <sstream>
 
+size_t AMF::amfErrors = 0;
+
 AMF::Object nullPtr("error", AMF::AMF0_DDV_CONTAINER);
 
 /// Returns the std::string Indice for the current object, if available.
@@ -526,7 +528,7 @@ AMF::Object AMF::parseOne(const char *& data, unsigned int & len, unsigned int &
     return ret;
   }break;
   }
-  ERROR_MSG("Error: Unimplemented AMF type %hhx - returning.", data[i]);
+  ++amfErrors;
   i = len;
   return AMF::Object("error", AMF::AMF0_DDV_CONTAINER);
 } // parseOne
@@ -1151,7 +1153,7 @@ AMF::Object3 AMF::parseOne3(const char *& data, unsigned int & len, unsigned int
     return ret;
   }break;
   }
-  ERROR_MSG("Error: Unimplemented AMF3 type %hhx at byte %u/%u - returning.", data[i], i, len);
+  ++amfErrors;
   i = len;
   return AMF::Object3("error", AMF::AMF3_DDV_CONTAINER);
 } // parseOne

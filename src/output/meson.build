@@ -10,7 +10,7 @@ outputs = [
     {'name' : 'MP3',               'format' : 'mp3',                'extra': ['http']},
     {'name' : 'H264',              'format' : 'h264',               'extra': ['http']},
     {'name' : 'HDS',               'format' : 'hds',                'extra': ['http']},
-    {'name' : 'SubRip',            'format' : 'srt',                'extra': ['http']},
+    {'name' : 'SubRip',            'format' : 'subrip',             'extra': ['http']},
     {'name' : 'JSON',              'format' : 'json',               'extra': ['http']},
     {'name' : 'TS',                'format' : 'ts',                 'extra': ['ts']},
     {'name' : 'HTTPTS',            'format' : 'httpts',             'extra': ['http', 'ts']},

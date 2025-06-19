@@ -27,6 +27,7 @@ namespace Mist{
   protected:
     std::string streamOut; ///< When pushing out, the output stream name
     bool setRtmpOffset;
+    bool didPublish;
     int64_t rtmpOffset;
     uint64_t lastSend;
     uint32_t maxbps;

@@ -25,6 +25,7 @@ namespace Mist{
 #ifdef SSL
     if (setupTLS()){ myConn.sslAccept(&sslConf, &ctr_drbg); }
 #endif
+    didPublish = false;
     lastSilence = 0;
     hasSilence = false;
     lastAudioInserted = 0;
@@ -1688,10 +1689,28 @@ namespace Mist{
           sendCommand(amfReply, 20, 1);
         }
         HIGH_MSG("Publish starting");
-        if (!targetParams.count("realtime")){realTime = 800;}
-        parseData = true;
+        didPublish = true;
         return;
       }
+      if (didPublish && isRecording() && (amfData.getContentP(0)->StrValue() == "_result" || amfData.getContentP(0)->StrValue() == "onStatus") &&
+          amfData.getContentP(1)->NumValue() == 5){  // result from transaction ID 5 (e.g. our publish call).
+
+        if (!targetParams.count("realtime")){realTime = 800;}
+        parseData = true;
+        didPublish = false;
+        return;
+      }
+
+      // Also handle publish start without matching transation ID
+      if (didPublish && isRecording() && amfData.getContentP(0)->StrValue() == "onStatus" &&
+          amfData.getContentP(3)->getContentP("code")->StrValue() == "NetStream.Publish.Start"){
+        if (!targetParams.count("realtime")){realTime = 800;}
+        parseData = true;
+        didPublish = false; 
+        return;
+      }
+      
+      // Handling generic errors remotely triggered errors.
       if (amfData.getContentP(0)->StrValue() == "onStatus" &&
           amfData.getContentP(3)->getContentP("level")->StrValue() == "error"){
         WARN_MSG("Received error response: %s; %s",

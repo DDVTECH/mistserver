@@ -52,7 +52,7 @@ void stashProxyList(Socket::UDPConnection & udpSrv,
                     std::map<Socket::Address, proxyConnectionDetails> & proxyConnections) {
   IPC::sharedPage proxyListPage;
   char pageName[NAME_BUFFER_SIZE];
-  std::string boundStr = Socket::Address(udpSrv.getLocalAddr()).toString();
+  std::string boundStr = udpSrv.getLocalAddr().toString();
   Util::replace(boundStr, ":", "_");
   snprintf(pageName, NAME_BUFFER_SIZE, SHM_PROXY_LIST_NAME, boundStr.c_str());
   proxyListPage.init(pageName, proxyConnections.size() * PROXY_LIST_RECORDSIZE, true);
@@ -69,8 +69,8 @@ void stashProxyList(Socket::UDPConnection & udpSrv,
 
   size_t idx = 0;
   for (auto p : proxyConnections) {
-    proxyList.setString(localField, p.first.addr, idx);
-    proxyList.setString(remoteField, p.second.local.addr, idx);
+    proxyList.setString(localField, std::string(p.first, p.first.size()), idx);
+    proxyList.setString(remoteField, std::string(p.second.local, p.second.local.size()), idx);
     proxyList.setInt(pidField, p.second.pid, idx);
     ++idx;
   }
@@ -166,10 +166,7 @@ namespace Mist{
 
       // Rendezvous behaviour
       if (rendezvous) {
-        std::string host;
-        uint32_t port;
-        udpSrv->GetDestination(host, port);
-        srtConn->connect(host, port, "output", targetParams);
+        srtConn->connect(udpSrv->getRemoteAddr(), "output", targetParams);
         INFO_MSG("UDP to SRT socket conversion: %s", srtConn->getStateStr());
       }
       // Set target to empty before pushing output conf
@@ -788,13 +785,12 @@ namespace Mist{
       if (opt.size()){arguments["passphrase"] = opt;}
     }
 
-    uint16_t localPort;
     // Either re-use socket 0 or bind a new socket
     Socket::UDPConnection udpSrv;
     if (udpSrv.getSock() != 0 && Socket::checkTrueSocket(0)) {
       udpSrv.assimilate(0);
     } else {
-      localPort = udpSrv.bind(conf.getInteger("port"), conf.getString("interface"));
+      udpSrv.bind(conf.getInteger("port"), conf.getString("interface"));
     }
     // Ensure socket zero is now us
     if (udpSrv.getSock()){
@@ -834,7 +830,7 @@ namespace Mist{
         while(udpSrv.Receive()){
 
 #ifdef PROXYING_SRT
-          const Util::ResizeablePointer & remoteRef = udpSrv.getRemoteAddr();
+          const Socket::Address & remoteRef = udpSrv.getRemoteAddr();
           auto it = proxyConnections.find(remoteRef);
           if (it == proxyConnections.end() || !Util::Procs::isRunning(it->second.pid)) {
 #endif
@@ -845,10 +841,8 @@ namespace Mist{
               if (udpSrv.data.size() >= 40) {
                 rendezvous = (!udpSrv.data[36] && !udpSrv.data[37] && !udpSrv.data[38] && !udpSrv.data[39]);
               }
-              std::string remoteIP, localIP;
-              uint32_t remotePort, localPort;
-              udpSrv.GetDestination(remoteIP, remotePort);
-              udpSrv.GetLocalDestination(localIP, localPort);
+              const Socket::Address & remoteAddr = udpSrv.getRemoteAddr();
+              const Socket::Address & localAddr = udpSrv.getLocalAddr();
 
               // Start setting up the startpiped call arguments
               std::deque<std::string> newArgs;
@@ -857,37 +851,34 @@ namespace Mist{
               // Set remote peer address/port/type
               newArgs.push_back("--remote");
               std::ostringstream oss;
-              oss << remoteIP << '/' << remotePort << '/' << rendezvous;
+              oss << remoteAddr.host() << '/' << remoteAddr.port() << '/' << rendezvous;
               newArgs.push_back(oss.str());
 
-              if (localIP.find(':') != std::string::npos){
-                targetStr.host = "["+localIP+"]";
-              }else{
-                targetStr.host = localIP;
-              }
-              targetStr.setPort(localPort);
+              targetStr.host = localAddr.host();
+              targetStr.setPort(localAddr.port());
               newArgs.push_back(targetStr.getUrl());
 
               conf.fillEffectiveArgs(newArgs);
 
 #ifdef PROXYING_SRT
-              Socket::Address localAddr;
-              if (generateChildAddressInRange(localAddr)) continue; // function returns 1 on fail
-              setenv("MIST_INTL_UDP", localAddr.toString().c_str(), 1);
+              Socket::Address localProxAddr;
+              if (generateChildAddressInRange(localProxAddr))
+                continue; // function returns 1 on fail
+              setenv("MIST_INTL_UDP", localProxAddr.toString().c_str(), 1);
 #endif
               // Create child process with default fdOut/fdErr and fdIn as /dev/null/
               int fdOut = STDOUT_FILENO, fdErr = STDERR_FILENO;
-              INFO_MSG("SRT handshake from %s:%" PRIu32 "! Spawning child process to handle it...",
-                       remoteIP.c_str(), remotePort);
+              INFO_MSG("SRT handshake from %s! Spawning child process to handle it...",
+                       remoteAddr.toString().c_str());
               pid_t pid = Util::Procs::StartPiped(newArgs, 0, &fdOut, &fdErr);
               Util::Procs::forget(pid);
 
 #ifdef PROXYING_SRT
-              it = proxyConnections.emplace(localAddr, proxyConnectionDetails()).first;
+              it = proxyConnections.emplace(localProxAddr, proxyConnectionDetails()).first;
               it->second.local = remoteRef, it->second.pid = pid;
 
               it = proxyConnections.emplace(remoteRef, proxyConnectionDetails()).first;
-              it->second.local = localAddr, it->second.pid = pid;
+              it->second.local = localProxAddr, it->second.pid = pid;
 #endif
             }
 
@@ -895,7 +886,7 @@ namespace Mist{
           }
           // send to the remote address (child) that we stored in proxyconnections
           if (it != proxyConnections.end()) {
-            udpSrv.setDestination(it->second.local, it->second.local.addr.size());
+            udpSrv.setDestination(it->second.local, it->second.local.size());
             udpSrv.SendNow(udpSrv.data, udpSrv.data.size());
           }
 #endif

@@ -509,7 +509,7 @@ void Controller::handleUDPAPI(){
   HTTP::URL boundAddr;
   boundAddr.protocol = "udp";
   boundAddr.setPort(boundPort);
-  boundAddr.host = uSock.getBoundAddress();
+  boundAddr.host = uSock.getBoundAddr().host();
   {
     std::lock_guard<std::mutex> guard(configMutex);
     udpApiBindAddr = boundAddr.getUrl();

@@ -622,7 +622,6 @@ namespace SDP{
         size_t space6 = line.find(' ', space5 + 1);
         std::string h = line.substr(space4 + 1, space5 - space4 - 1);
         std::string i = line.substr(space5 + 1, space6 - space5 - 1);
-        INFO_MSG("Candidate %s:%s", h.c_str(), i.c_str());
         auto newAddr = Socket::getAddrs(h, std::atoi(i.c_str()));
         candidates.insert(newAddr.begin(), newAddr.end());
         continue;
@@ -642,8 +641,17 @@ namespace SDP{
         currMedia->icePwd = icePwd;
       }
 
+      if (!currMedia) {
+        // Global versions of these properties
+        if (line.substr(0, 11) == "a=ice-ufrag") {
+          sdp_get_attribute_value(line, iceUFrag);
+        } else if (line.substr(0, 9) == "a=ice-pwd") {
+          sdp_get_attribute_value(line, icePwd);
+        }
+        continue;
+      }
+
       // the lines below assume that we found a media line already.
-      if (!currMedia){continue;}
 
       // parse properties we need later.
       if (line.substr(0, 8) == "a=rtpmap"){
@@ -664,8 +672,10 @@ namespace SDP{
         currMedia->direction = "recvonly";
       }else if (line.substr(0, 11) == "a=ice-ufrag"){
         sdp_get_attribute_value(line, currMedia->iceUFrag);
+        if (!iceUFrag.size()) { iceUFrag = currMedia->iceUFrag; }
       }else if (line.substr(0, 9) == "a=ice-pwd"){
         sdp_get_attribute_value(line, currMedia->icePwd);
+        if (!icePwd.size()) { icePwd = currMedia->icePwd; }
       }else if (line.substr(0, 10) == "a=rtcp-mux"){
         currMedia->supportsRTCPMux = true;
       }else if (line.substr(0, 10) == "a=rtcp-rsize"){
@@ -805,33 +815,6 @@ namespace SDP{
   bool Answer::hasAudio(){
     SDP::Media *m = sdpOffer.getMediaForType("audio");
     return (m != NULL) ? true : false;
-  }
-
-  bool Answer::enableVideo(const std::string &codecName, SDP::Session &sdpSession){
-    if (!enableMedia("video", codecName, answerVideoMedia, answerVideoFormat, sdpSession)){
-      DONTEVEN_MSG("Failed to enable video.");
-      return false;
-    }
-    isVideoEnabled = true;
-    return true;
-  }
-
-  bool Answer::enableAudio(const std::string &codecName, SDP::Session &sdpSession){
-    if (!enableMedia("audio", codecName, answerAudioMedia, answerAudioFormat, sdpSession)){
-      DONTEVEN_MSG("Not enabling audio.");
-      return false;
-    }
-    isAudioEnabled = true;
-    return true;
-  }
-
-  bool Answer::enableMeta(const std::string &codecName, SDP::Session &sdpSession){
-    if (!enableMedia("meta", codecName, answerMetaMedia, answerMetaFormat, sdpSession)){
-      DONTEVEN_MSG("Not enabling meta.");
-      return false;
-    }
-    isMetaEnabled = true;
-    return true;
   }
 
   void Answer::setDirection(const std::string & dir) {
@@ -1049,8 +1032,8 @@ namespace SDP{
   //                             string with codecs that you
   //                             support; we select the first
   //                             one that we find.
-  bool Answer::enableMedia(const std::string &type, const std::string &codecList,
-                           SDP::Media &outMedia, SDP::MediaFormat &outFormat, SDP::Session &sdpSession){
+  bool Answer::enableMedia(const std::string & type, const std::string & codecList,
+                           const std::string & localIceUfrag, const std::string & localIcePwd) {
     Media *media = sdpOffer.getMediaForType(type);
     if (!media){
       INFO_MSG("Cannot enable %s codec; offer doesn't have %s media.", codecList.c_str(), type.c_str());
@@ -1115,15 +1098,27 @@ namespace SDP{
       return false;
     }
 
-    outMedia = *media;
-    outFormat = *format;
-    outFormat.rtcpFormats.clear();
-    if (!sdpSession.icePwd.size()){
-      sdpSession.icePwd = generateIcePwd();
-      sdpSession.iceUFrag = generateIceUFrag();
+    SDP::Media *outMedia = 0;
+    SDP::MediaFormat *outFormat = 0;
+    if (type == "video") {
+      outMedia = &answerVideoMedia;
+      outFormat = &answerVideoFormat;
+      isVideoEnabled = true;
+    } else if (type == "audio") {
+      outMedia = &answerAudioMedia;
+      outFormat = &answerAudioFormat;
+      isAudioEnabled = true;
+    } else if (type == "meta") {
+      outMedia = &answerMetaMedia;
+      outFormat = &answerMetaFormat;
+      isMetaEnabled = true;
     }
-    outFormat.icePwd = sdpSession.icePwd;
-    outFormat.iceUFrag = sdpSession.iceUFrag;
+
+    *outMedia = *media;
+    *outFormat = *format;
+    outFormat->rtcpFormats.clear();
+    outFormat->icePwd = localIcePwd;
+    outFormat->iceUFrag = localIceUfrag;
 
     return true;
   }
@@ -1139,10 +1134,6 @@ namespace SDP{
 
     return ss.str();
   }
-
-  std::string Answer::generateIceUFrag(){return Util::getRandomAlphanumeric(16);}
-
-  std::string Answer::generateIcePwd(){return Util::getRandomAlphanumeric(32);}
 
   std::vector<std::string> Answer::splitString(const std::string &str, char delim){
 

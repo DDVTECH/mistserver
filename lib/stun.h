@@ -68,6 +68,7 @@ namespace STUN {
       void addXorMappedAddress(const Socket::Address & addr);
       void addIntegrity(const std::string & pwd);
       void addFingerprint();
+      void addUseCandidate();
       void addUsername(const std::string & usr);
 
       // Packet info

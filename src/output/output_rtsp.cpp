@@ -292,7 +292,7 @@ namespace Mist{
             evLp.addSocket(sdpTrack.data.getSock(), [this, trackNo](void* trk){
               SDP::Track &sdpTrack = *(SDP::Track*)trk;
               while (sdpTrack.data.Receive()){
-                if (sdpTrack.data.getDestPort() != sdpTrack.cPortA && checkPort){
+                if (sdpTrack.data.getRemoteAddr().port() != sdpTrack.cPortA && checkPort) {
                   // wrong sending port, ignore packet
                   continue;
                 }

@@ -71,6 +71,7 @@ namespace Mist{
     WebRTCSocket();
     uint64_t lastRecv;
     bool useCandidate;
+    uint64_t lastStunCheck;
 #ifdef WITH_DATACHANNELS
     bool sctpInited;
     struct socket * sctp_sock;
@@ -121,6 +122,7 @@ namespace Mist{
     virtual void onIdle();
   private:
     bool noSignalling;
+    bool controlling;
     uint64_t lastRecv;
     uint64_t lastPackMs;
     uint64_t totalPkts;

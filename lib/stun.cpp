@@ -176,6 +176,25 @@ void STUN::Packet::addFingerprint() {
   // No padding needed; this attribute is always a 4-multiple in size
 }
 
+void STUN::Packet::addUseCandidate() {
+  size_t offset = data.size();
+  if (!data.allocate(offset + 4)) {
+    FAIL_MSG("Cannot write fingerprint into STUN message: out of memory");
+    return;
+  }
+  data.append(0, 4);
+
+  // Update length field
+  Bit::htobs(data + 2, data.size() - 20);
+
+  // Write attribute data:
+  // Type (2b)
+  Bit::htobs(data + offset, STUN_ATTR_USE_CANDIDATE);
+  // Size (2b)
+  Bit::htobs(data + offset + 2, 0);
+  // No payload & no padding needed; this attribute is always 4 bytes
+}
+
 void STUN::Packet::addUsername(const std::string & usr) {
   size_t offset = data.size();
   size_t padding = (4 - (usr.size() % 4)) % 4;

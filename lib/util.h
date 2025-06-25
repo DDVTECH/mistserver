@@ -74,6 +74,8 @@ namespace Util{
     inline operator char *(){return (char *)ptr;}
     inline operator const char *() const{return (const char *)ptr;}
     inline operator void *(){return ptr;}
+    bool operator==(const ResizeablePointer & rhs) const;
+    bool operator<(const ResizeablePointer & rhs) const;
 
   private:
     void *ptr;

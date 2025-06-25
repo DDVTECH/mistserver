@@ -22,7 +22,6 @@
 
 #include <arpa/inet.h>
 #include <cstdlib>
-#include <fstream>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -67,27 +66,15 @@ static const char *gai_strmagic(int errcode){
 Socket::Address::Address() {}
 
 Socket::Address::Address(const std::string & rhs) {
-  addr = rhs;
+  addr.assign(rhs);
 }
 
 Socket::Address::Address(const Util::ResizeablePointer & rhs) {
   addr.assign(rhs, rhs.size());
 }
 
-Socket::Address::Address(const char *rhs, size_t len) {
-  if (!len) {
-    switch (((struct sockaddr *)rhs)->sa_family) {
-      case AF_INET: len = sizeof(struct sockaddr_in); break;
-      case AF_INET6: len = sizeof(struct sockaddr_in6); break;
-      case PF_UNIX: len = sizeof(struct sockaddr_un); break;
-      default: break;
-    }
-  }
-  if (!len) {
-    FAIL_MSG("Cannot assign address from size-less pointer: address family not recognized");
-    addr.clear();
-  }
-  addr.assign(rhs, len);
+Socket::Address::Address(const void *rhs, size_t len) {
+  assign(rhs, len);
 }
 
 std::string Socket::Address::toString() const {
@@ -197,12 +184,67 @@ std::string Socket::Address::host() const {
   return "";
 }
 
+void Socket::Address::swap(Address & rhs) {
+  addr.swap(rhs.addr);
+}
+
+void Socket::Address::assign(const void *ptr, size_t len) {
+  if (!len && ptr) {
+    switch (((struct sockaddr *)ptr)->sa_family) {
+      case AF_INET: len = sizeof(struct sockaddr_in); break;
+      case AF_INET6: len = sizeof(struct sockaddr_in6); break;
+      case PF_UNIX: len = sizeof(struct sockaddr_un); break;
+      default: break;
+    }
+  }
+  if (!len || !ptr) {
+    FAIL_MSG("Cannot assign address from size-less pointer: address family not recognized");
+    addr.truncate(0);
+    return;
+  }
+  addr.assign(ptr, len);
+}
+
 bool Socket::Address::operator<(const Address & rhs) const {
   return addr < rhs.addr;
 }
 
 bool Socket::Address::operator==(const Address & rhs) const {
   return addr.size() && rhs.addr.size() && addr == rhs.addr;
+}
+
+Socket::Address & Socket::Address::operator=(const Socket::Address & rhs) {
+  addr = rhs.addr;
+  return *this;
+}
+
+Socket::Address & Socket::Address::operator=(const void *rhs) {
+  assign(rhs);
+  return *this;
+}
+
+void Socket::Address::reserve() {
+  size_t max = sizeof(struct sockaddr_storage);
+  if (!addr.allocate(max)) {
+    FAIL_MSG("Out of memory allocating space for socket address!");
+    return;
+  }
+  addr.truncate(0);
+  addr.append(0, max);
+}
+
+void Socket::Address::clear() {
+  addr.truncate(0);
+}
+
+std::string Socket::Address::binForm() const {
+  char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
+  switch (family()) {
+    case AF_INET: memcpy(tmpBuffer + 12, ipPtr(), 4); break;
+    case AF_INET6: memcpy(tmpBuffer, ipPtr(), 16); break;
+    default: return ""; break;
+  }
+  return std::string(tmpBuffer, 16);
 }
 
 std::ostream & operator<<(std::ostream & o, const Socket::Address & a) {
@@ -218,18 +260,6 @@ std::string Socket::sockaddrToString(const sockaddr* A){
   }else{
     return "";
   }
-}
-
-static std::string getIPv6BinAddr(const struct sockaddr_in6 &remoteaddr){
-  char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
-  switch (remoteaddr.sin6_family){
-  case AF_INET:
-    memcpy(tmpBuffer + 12, &(reinterpret_cast<const sockaddr_in *>(&remoteaddr)->sin_addr.s_addr), 4);
-    break;
-  case AF_INET6: memcpy(tmpBuffer, &(remoteaddr.sin6_addr.s6_addr), 16); break;
-  default: return ""; break;
-  }
-  return std::string(tmpBuffer, 16);
 }
 
 bool Socket::isLocalhost(const std::string &remotehost){
@@ -388,7 +418,7 @@ bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
   if (s != 0){return false;}
 
   for (rp = result; rp != NULL; rp = rp->ai_next){
-    std::string tBinAddr = getIPv6BinAddr(*((sockaddr_in6 *)rp->ai_addr));
+    std::string tBinAddr = Socket::Address(rp->ai_addr).binForm();
     if (rp->ai_family == AF_INET){
       if (matchIPv6Addr(tBinAddr, binAddr, prefixLen ? prefixLen + 96 : 0)){return true;}
     }else{
@@ -424,7 +454,7 @@ std::string Socket::getBinForms(std::string addr){
   if (s != 0){return "";}
   std::string ret;
   for (rp = result; rp != NULL; rp = rp->ai_next){
-    ret += getIPv6BinAddr(*((sockaddr_in6 *)rp->ai_addr));
+    ret += Socket::Address(rp->ai_addr).binForm();
     if (rp->ai_family == AF_INET){
       ret += (char)(prefixLen <= 32 ? prefixLen + 96 : prefixLen);
     }else{
@@ -1657,7 +1687,8 @@ std::string Socket::Connection::getBoundAddress() const{
 /// Gets binary IPv6 address for connection, if available.
 /// Guaranteed to be either empty or 16 bytes long.
 std::string Socket::Connection::getBinHost() const{
-  return getIPv6BinAddr(remoteaddr);
+  if (!*this) { return ""; }
+  return Socket::Address(&remoteaddr, sizeof(remoteaddr)).binForm();
 }
 
 /// Sets hostname for connection manually.
@@ -2106,13 +2137,14 @@ void Socket::UDPConnection::init(bool _nonblock, int _family){
 #endif
 
   lastPace = 0;
-  boundPort = 0;
   family = _family;
   hasDTLS = false;
   isConnected = false;
   wasEncrypted = false;
   pretendReceive = false;
   ignoreSendErrors = false;
+  intTimer = 0;
+  finTimer = 0;
   sock = socket(family, SOCK_DGRAM, 0);
   if (sock == -1 && family == AF_INET6){
     sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -2146,16 +2178,9 @@ void Socket::UDPConnection::assimilate(int _sock){
   if (sock != -1){close();}
   sock = _sock;
   { // Extract socket family
-    struct sockaddr_storage fin_addr;
-    socklen_t alen = sizeof(fin_addr);
-    if (getsockname(sock, (struct sockaddr *)&fin_addr, &alen) == 0){
-      family = fin_addr.ss_family;
-      if (family == AF_INET6){
-        boundPort = ntohs(((struct sockaddr_in6 *)&fin_addr)->sin6_port);
-      }else{
-        boundPort = ntohs(((struct sockaddr_in *)&fin_addr)->sin_port);
-      }
-    }
+    bindAddr.reserve();
+    socklen_t alen = bindAddr.size();
+    getsockname(sock, bindAddr, &alen);
   }
 }
 
@@ -2219,8 +2244,13 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
   mbedtls_ssl_conf_rng(&ssl_conf, mbedtls_ctr_drbg_random, &rand_ctx);
   mbedtls_ssl_conf_ca_chain(&ssl_conf, cert, NULL);
   mbedtls_ssl_conf_cert_profile(&ssl_conf, &mbedtls_x509_crt_profile_default);
-  //mbedtls_ssl_conf_dbg(&ssl_conf, print_mbedtls_debug_message, stdout);
-  //mbedtls_debug_set_threshold(10);
+
+  // Uncomment to force dTLS 1.2 - browsers set this to the default, though
+  // mbedtls_ssl_conf_min_version(&ssl_conf, MBEDTLS_SSL_MAJOR_VERSION_3, MBEDTLS_SSL_MINOR_VERSION_3);
+
+  // Debug message printing
+  // mbedtls_ssl_conf_dbg(&ssl_conf, print_mbedtls_debug_message, stdout);
+  // mbedtls_debug_set_threshold(10);
 
   // enable SRTP support (non-fatal on error)
 #if !HAVE_UPSTREAM_MBEDTLS_SRTP
@@ -2256,6 +2286,11 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
       return;
     }
     mbedtls_ssl_conf_dtls_cookies(&ssl_conf, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, &cookie_ctx);
+  } else {
+    mbedtls_ssl_conf_handshake_timeout(&ssl_conf, 100, 1000);
+    // Limit to less ciphersuites? Doesn't seem to matter.
+    // mbedtls_ssl_conf_ciphersuites(&ssl_conf, suites);
+    mbedtls_ssl_conf_session_tickets(&ssl_conf, MBEDTLS_SSL_SESSION_TICKETS_DISABLED);
   }
 
   // setup the ssl context
@@ -2276,21 +2311,24 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
   }, [](void *s, unsigned char *buf, size_t len) {
     return ((Socket::UDPConnection *)s)->dTLSRead(buf, len);
   }, NULL);
-  mbedtls_ssl_set_timer_cb(&ssl_ctx, &timer_ctx, mbedtls_timing_set_delay, mbedtls_timing_get_delay);
+
+  mbedtls_ssl_set_timer_cb(&ssl_ctx, this, [](void *p, uint32_t int_ms, uint32_t fin_ms) {
+    Socket::UDPConnection & u = *((Socket::UDPConnection *)p);
+    uint64_t bms = Util::bootMS();
+    u.intTimer = int_ms ? bms + int_ms : 0;
+    u.finTimer = fin_ms ? bms + fin_ms : 0;
+  }, [](void *p) {
+    Socket::UDPConnection & u = *((Socket::UDPConnection *)p);
+    uint64_t bms = Util::bootMS();
+    if (!u.finTimer) { return -1; }
+    int passed = 0;
+    if (u.intTimer <= bms) { ++passed; }
+    if (u.finTimer <= bms) { ++passed; }
+    return passed;
+  });
 
   if (asClient) {
-    uint64_t timeout = Util::bootMS() + 10000;
-    Event::Loop ev;
-    ev.addSendQueue(this);
-    ev.addSocket(sock, [this](void *) {
-      while (Receive()) {};
-    }, 0);
-    while (!handshakeComplete() && Util::bootMS() < timeout) {
-      int ret = mbedtls_ssl_handshake(&ssl_ctx);
-      mbedtls_strerror(ret, mbedtls_msg, sizeof(mbedtls_msg));
-      ev.await(100);
-    }
-    if (!handshakeComplete()) { WARN_MSG("dTLS connect timeout on socket %d", sock); }
+    handshake();
   } else {
     // set transport ID (non-fatal on error)
     r = mbedtls_ssl_set_client_transport_id(&ssl_ctx, (const unsigned char *)"mist", 4);
@@ -2299,6 +2337,12 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
       WARN_MSG("dTLS could not set transport ID: %s", mbedtls_msg);
     }
   }
+}
+
+void Socket::UDPConnection::handshake() {
+  char mbedtls_msg[1024];
+  int ret = mbedtls_ssl_handshake(&ssl_ctx);
+  mbedtls_strerror(ret, mbedtls_msg, sizeof(mbedtls_msg));
 }
 
 bool Socket::UDPConnection::handshakeComplete(){
@@ -2457,20 +2501,8 @@ void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
 
 /// Allocates enough space for the largest type of address we support, so that receive calls can write to it.
 void Socket::UDPConnection::allocateDestination(bool setPktInfo) {
-  if (destAddr.size() < sizeof(sockaddr_in6)){
-    destAddr.truncate(0);
-    destAddr.allocate(sizeof(sockaddr_in6));
-    memset(destAddr, 0, sizeof(sockaddr_in6));
-    ((struct sockaddr *)(char*)destAddr)->sa_family = AF_UNSPEC;
-    destAddr.append(0, sizeof(sockaddr_in6));
-  }
-  if (recvAddr.size() < sizeof(sockaddr_in6)){
-    recvAddr.truncate(0);
-    recvAddr.allocate(sizeof(sockaddr_in6));
-    memset(recvAddr, 0, sizeof(sockaddr_in6));
-    ((struct sockaddr *)(char*)recvAddr)->sa_family = AF_UNSPEC;
-    recvAddr.append(0, sizeof(sockaddr_in6));
-  }
+  destAddr.reserve();
+  recvAddr.reserve();
 #ifdef HASPKTINFO
   if (!setPktInfo) return;
   const int opt = 1;
@@ -2503,18 +2535,22 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   for (auto & it : addrs) {
     if (setDestination(it)) { return; }
   }
-  destAddr.truncate(0);
+  destAddr.clear();
   allocateDestination();
   FAIL_MSG("Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
 }// Socket::UDPConnection SetDestination
 
 bool Socket::UDPConnection::setDestination(const sockaddr *addr, const size_t size) {
+  return setDestination(Socket::Address(addr, size));
+}
+
+bool Socket::UDPConnection::setDestination(const Socket::Address & addr) {
   // UDP sockets can on-the-fly switch between IPv4/IPv6 if necessary
-  if (family != addr->sa_family){
+  if (family != addr.family()) {
     if (ignoreSendErrors){return false;}
-    WARN_MSG("Switching UDP socket from %s to %s", addrFam(family), addrFam(addr->sa_family));
+    WARN_MSG("Switching UDP socket from %s to %s", addrFam(family), addrFam(addr.family()));
     close();
-    family = addr->sa_family;
+    family = addr.family();
     sock = socket(family, SOCK_DGRAM, 0);
     {
       // Allow address re-use
@@ -2528,84 +2564,27 @@ bool Socket::UDPConnection::setDestination(const sockaddr *addr, const size_t si
       }
     }
     checkRecvBuf();
-    if (boundPort){
-      INFO_MSG("Rebinding to %s:%d %s", boundAddr.c_str(), boundPort, boundMulti.c_str());
-      bind(boundPort, boundAddr, boundMulti);
+    if (bindAddr) {
+      INFO_MSG("Rebinding to %s %s", bindAddr.toString().c_str(), boundMulti.c_str());
+      bind(bindAddr, boundMulti);
     }
   }
   hasReceiveData = false;
-  destAddr.assign(addr, size);
-  {
-    std::string trueDest;
-    uint32_t truePort;
-    GetDestination(trueDest, truePort);
-    HIGH_MSG("Set UDP destination to %s:%d (%s)", trueDest.c_str(), truePort, addrFam(family));
-  }
+  destAddr = addr;
+  HIGH_MSG("Set UDP destination to %s", destAddr.toString().c_str());
   return true;
 }
 
-bool Socket::UDPConnection::setDestination(const Socket::Address & addr) {
-  return setDestination((const sockaddr *)addr, addr.size());
-}
-
-const Util::ResizeablePointer & Socket::UDPConnection::getRemoteAddr() const{
+const Socket::Address & Socket::UDPConnection::getRemoteAddr() const {
   return destAddr;
 }
 
-const Util::ResizeablePointer & Socket::UDPConnection::getLocalAddr() const{
+const Socket::Address & Socket::UDPConnection::getLocalAddr() const {
   return recvAddr;
 }
 
-/// Gets the properties of the receiving end of this UDP socket.
-/// This will be the receiving end for all SendNow calls.
-void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
-  if (!destAddr.size()){
-    destIp = "";
-    port = 0;
-    return;
-  }
-  if (!getAddrName(destAddr, destIp, port)){
-    destIp = "";
-    port = 0;
-    FAIL_MSG("Could not get destination for UDP socket");
-  }
-}// Socket::UDPConnection GetDestination
-
-/// Gets the properties of the receiving end of the local UDP socket.
-/// This will be the sending end for all SendNow calls.
-void Socket::UDPConnection::GetLocalDestination(std::string &destIp, uint32_t &port){
-  if (!recvAddr.size()){
-    destIp = "";
-    port = 0;
-    return;
-  }
-  if (!getAddrName(recvAddr, destIp, port)){
-    destIp = "";
-    port = 0;
-    FAIL_MSG("Could not get destination for UDP socket");
-  }
-}// Socket::UDPConnection GetDestination
-
-/// Gets the properties of the receiving end of this UDP socket.
-/// This will be the receiving end for all SendNow calls.
-std::string Socket::UDPConnection::getBinDestination(){
-  std::string binList;
-  if (destAddr.size()){binList = getIPv6BinAddr(*(sockaddr_in6*)(char*)destAddr);}
-  if (binList.size() < 16){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16);}
-  return binList.substr(0, 16);
-}// Socket::UDPConnection GetDestination
-
-/// Returns the port number of the receiving end of this socket.
-/// Returns 0 on error.
-uint32_t Socket::UDPConnection::getDestPort() const{
-  if (!destAddr.size()){return 0;}
-  if (((const struct sockaddr *)(const char*)destAddr)->sa_family == AF_INET6){
-    return ntohs(((const struct sockaddr_in6 *)(const char*)destAddr)->sin6_port);
-  }
-  if (((const struct sockaddr *)(const char*)destAddr)->sa_family == AF_INET){
-    return ntohs(((const struct sockaddr_in *)(const char*)destAddr)->sin_port);
-  }
-  return 0;
+const Socket::Address & Socket::UDPConnection::getBoundAddr() const {
+  return bindAddr;
 }
 
 /// Sets the socket to be blocking if the parameters is true.
@@ -2639,7 +2618,7 @@ void Socket::UDPConnection::SendNow(const char *sdata){
 /// Does not do anything if len < 1.
 /// Prints an DLVL_FAIL level debug message if sending failed.
 void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
-  SendNow(sdata, len, (sockaddr*)(char*)destAddr, destAddr.size());
+  SendNow(sdata, len, destAddr, destAddr.size());
 }
 
 /// Sends a UDP datagram using the buffer sdata of length len.
@@ -2657,6 +2636,12 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
         close();
         return;
       }
+#if defined(ENOKEY)
+      if (errno == ENOKEY) {
+        close();
+        return;
+      }
+#endif
       FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
     }
     return;
@@ -2700,10 +2685,9 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
 
       struct in_pktinfo in_pktinfo;
 #if defined(_WIN32) || defined(__CYGWIN__)
-      memcpy(&(in_pktinfo.ipi_addr), &(((sockaddr_in *)(char *)recvAddr)->sin_family),
-             sizeof(in_pktinfo.ipi_addr));
+      memcpy(&(in_pktinfo.ipi_addr), recvAddr.ipPtr(), sizeof(in_pktinfo.ipi_addr));
 #else
-      memcpy(&(in_pktinfo.ipi_spec_dst), &(((sockaddr_in*)(char*)recvAddr)->sin_family), sizeof(in_pktinfo.ipi_spec_dst));
+      memcpy(&(in_pktinfo.ipi_spec_dst), recvAddr.ipPtr(), sizeof(in_pktinfo.ipi_spec_dst));
 #endif
       in_pktinfo.ipi_ifindex = recvInterface;
       cmsg->cmsg_len = CMSG_LEN(sizeof(in_pktinfo));
@@ -2714,7 +2698,7 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
       cmsg->cmsg_type = IPV6_PKTINFO;
 
       struct in6_pktinfo in6_pktinfo;
-      memcpy(&(in6_pktinfo.ipi6_addr), &(((sockaddr_in6*)(char*)recvAddr)->sin6_addr), sizeof(in6_pktinfo.ipi6_addr));
+      memcpy(&(in6_pktinfo.ipi6_addr), recvAddr.ipPtr(), sizeof(in6_pktinfo.ipi6_addr));
       in6_pktinfo.ipi6_ifindex = recvInterface;
       cmsg->cmsg_len = CMSG_LEN(sizeof(in6_pktinfo));
       *(struct in6_pktinfo*)CMSG_DATA(cmsg) = in6_pktinfo;
@@ -2739,7 +2723,7 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dA
       up += nBytes;
     } else {
       if (errno != ENETUNREACH && !ignoreSendErrors){
-        FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+        FAIL_MSG("Could not send UDP data through %d: %s (%d)", sock, strerror(errno), errno);
       }
     }
 #endif
@@ -2841,17 +2825,6 @@ void Socket::UDPConnection::sendPaced(uint64_t uSendWindow){
   }while(uTime - currPace < uSendWindow);
 }
 
-std::string Socket::UDPConnection::getBoundAddress(){
-  std::string boundaddr;
-  uint32_t boundport;
-  Socket::getSocketName(sock, boundaddr, boundport);
-  return boundaddr;
-}
-
-uint16_t Socket::UDPConnection::getBoundPort() const{
-  return boundPort;
-}
-
 /// Bind to a port number, returning the bound port.
 /// If that fails, returns zero.
 /// \arg port Port to bind to, required.
@@ -2868,7 +2841,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
   memset(&hints, 0, sizeof(hints));
   hints.ai_flags = AI_ADDRCONFIG | AI_PASSIVE | AI_V4MAPPED;
   if (destAddr.size()){
-    hints.ai_family = ((struct sockaddr *)(char*)destAddr)->sa_family;
+    hints.ai_family = destAddr.family();
   }else{
     hints.ai_family = AF_INET6;
     repeatWithIPv4 = true;
@@ -2903,7 +2876,6 @@ repeatAddressFinding:
   }
 
   std::string err_str;
-  uint16_t portNo = 0;
   for (rp = addr_result; rp != NULL; rp = rp->ai_next){
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sock == -1){continue;}
@@ -2957,21 +2929,13 @@ repeatAddressFinding:
       }
     }
     if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0){
-      // get port number
-      struct sockaddr_storage fin_addr;
-      socklen_t alen = sizeof(fin_addr);
-      if (getsockname(sock, (struct sockaddr *)&fin_addr, &alen) == 0){
-        if (family == AF_INET6){
-          portNo = ntohs(((struct sockaddr_in6 *)&fin_addr)->sin6_port);
-        }else{
-          portNo = ntohs(((struct sockaddr_in *)&fin_addr)->sin_port);
-        }
+      bindAddr.reserve();
+      socklen_t alen = bindAddr.size();
+      if (getsockname(sock, bindAddr, &alen)) {
+        WARN_MSG("Could not read bind address: %s", strerror(errno));
       }
-      boundAddr = iface;
       boundMulti = multicastInterfaces;
-      boundPort = portNo;
-      INFO_MSG("UDP bind success %d on %s:%" PRIu32 " (%s)", sock, tryHost.c_str(), boundPort,
-               addrFam(rp->ai_family));
+      INFO_MSG("UDP bind success %d on %s", sock, bindAddr.toString().c_str());
       break;
     }
     if (err_str.size()){err_str += ", ";}
@@ -3070,7 +3034,7 @@ repeatAddressFinding:
     }
     freeaddrinfo(resmulti); // free resolved multicast addr
   }
-  return portNo;
+  return bindAddr.port();
 }
 
 void Socket::UDPConnection::setMulticastTTL(size_t ttl){
@@ -3087,36 +3051,22 @@ bool Socket::UDPConnection::connect(){
     WARN_MSG("Attempting to connect a UDP socket without local and/or remote address!");
     return false;
   }
-
-  std::string destIp, recvIp;
-  uint32_t destPort, recvPort;
-  getAddrName(recvAddr, recvIp, recvPort);
-  getAddrName(destAddr, destIp, destPort);
-  int recvFam = ((struct sockaddr *)(char*)recvAddr)->sa_family;
-  int destFam = ((struct sockaddr *)(char*)destAddr)->sa_family;
-
   if (family == AF_INET6) {
     const int optval = 0;
     if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval)) < 0) {
       WARN_MSG("Could not set IPv6 UDP socket to be dual-stack! %s", strerror(errno));
     }
   }
-
-  if (::bind(sock, (const struct sockaddr*)(char*)recvAddr, recvAddr.size())){
-    FAIL_MSG("Failed to bind socket %d (%s) %s:%" PRIu32 ": %s", sock, addrFam(recvFam), recvIp.c_str(), recvPort, strerror(errno));
+  if (::bind(sock, recvAddr, recvAddr.size())) {
+    FAIL_MSG("Failed to bind socket %d to %s: %s", sock, recvAddr.toString().c_str(), strerror(errno));
     return false;
   }
-  if (::connect(sock, (const struct sockaddr*)(char*)destAddr, destAddr.size())){
-    FAIL_MSG("Failed to connect socket to %s %s:%" PRIu32 ": %s (%d)", addrFam(destFam), destIp.c_str(), destPort, strerror(errno), errno);
+  if (::connect(sock, destAddr, destAddr.size())) {
+    FAIL_MSG("Failed to connect socket %d to %s: %s", sock, destAddr.toString().c_str(), strerror(errno));
     return false;
   }
-
-  if (recvFam == destFam){
-    INFO_MSG("Connected %s UDP socket %d: %s:%" PRIu32 " <-> %s:%" PRIu32, addrFam(recvFam), sock, recvIp.c_str(), recvPort, destIp.c_str(), destPort);
-  }else{
-    INFO_MSG("Connected UDP socket %d: %s:%" PRIu32 " (%s) <-> %s:%" PRIu32 " (%s)", sock, recvIp.c_str(), recvPort, addrFam(recvFam), destIp.c_str(), destPort, addrFam(destFam));
-  }
-
+  INFO_MSG("Connected UDP socket %d: %s <-> %s", sock, recvAddr.toString().c_str(),
+           destAddr.toString().c_str());
   isConnected = true;
   return true;
 }
@@ -3184,8 +3134,8 @@ bool Socket::UDPConnection::Receive(){
       if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_PKTINFO){
         struct in_pktinfo* pi = (in_pktinfo*)CMSG_DATA(cmsg);
         if (family == AF_INET6){
-          struct sockaddr_in6 * recvCast = (sockaddr_in6*)(char*)recvAddr;
-          recvCast->sin6_port = htons(boundPort);
+          struct sockaddr_in6 *recvCast = (sockaddr_in6 *)(sockaddr *)recvAddr;
+          recvCast->sin6_port = htons(bindAddr.port());
           recvCast->sin6_family = AF_INET6;
 #if defined(_WIN32) || defined(__CYGWIN__)
           memcpy(((char *)&(recvCast->sin6_addr)) + 12, &(pi->ipi_addr), sizeof(pi->ipi_addr));
@@ -3195,8 +3145,8 @@ bool Socket::UDPConnection::Receive(){
           memset((void*)&(recvCast->sin6_addr), 0, 10);
           memset((char*)&(recvCast->sin6_addr) + 10, 255, 2);
         }else{
-          struct sockaddr_in * recvCast = (sockaddr_in*)(char*)recvAddr;
-          recvCast->sin_port = htons(boundPort);
+          struct sockaddr_in *recvCast = (sockaddr_in *)(sockaddr *)recvAddr;
+          recvCast->sin_port = htons(bindAddr.port());
           recvCast->sin_family = AF_INET;
 #if defined(_WIN32) || defined(__CYGWIN__)
           memcpy(((char *)&(recvCast->sin_addr)), &(pi->ipi_addr), sizeof(pi->ipi_addr));
@@ -3209,9 +3159,9 @@ bool Socket::UDPConnection::Receive(){
       }
       if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_PKTINFO){
         struct in6_pktinfo* pi = (in6_pktinfo*)CMSG_DATA(cmsg);
-        struct sockaddr_in6 * recvCast = (sockaddr_in6*)(char*)recvAddr;
+        struct sockaddr_in6 *recvCast = (sockaddr_in6 *)(sockaddr *)recvAddr;
         recvCast->sin6_family = AF_INET6;
-        recvCast->sin6_port = htons(boundPort);
+        recvCast->sin6_port = htons(bindAddr.port());
         memcpy(&(recvCast->sin6_addr), &(pi->ipi6_addr), sizeof(pi->ipi6_addr));
         recvInterface = pi->ipi6_ifindex;
         hasReceiveData = true;

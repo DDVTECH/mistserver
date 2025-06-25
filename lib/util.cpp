@@ -595,6 +595,18 @@ namespace Util{
     if (currSize > newLen){currSize = newLen;}
   }
 
+  bool ResizeablePointer::operator==(const ResizeablePointer & rhs) const {
+    if (size() != rhs.size()) { return false; }
+    if (!size()) { return true; }
+    return memcmp(ptr, rhs.ptr, size());
+  }
+
+  bool ResizeablePointer::operator<(const ResizeablePointer & rhs) const {
+    if (size() != rhs.size()) { return size() < rhs.size(); }
+    if (!size()) { return false; }
+    return memcmp(ptr, rhs.ptr, size()) < 0;
+  }
+
   /// Redirects stderr to log parser, writes log parser to the old stderr.
   /// Does nothing if the MIST_CONTROL environment variable is set.
   void redirectLogsIfNeeded(){

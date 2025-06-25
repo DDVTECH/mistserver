@@ -208,9 +208,9 @@ std::string HTTP::URL::getUrl() const{
       ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
     }
   }
-  if (IPv6Addr){
+  if (IPv6Addr || host.find(':') != std::string::npos) {
     ret += "[" + host + "]";
-  }else{
+  } else {
     ret += host;
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
@@ -258,9 +258,9 @@ std::string HTTP::URL::getProxyUrl() const{
   }else{
     ret = "//";
   }
-  if (IPv6Addr){
+  if (IPv6Addr || host.find(':') != std::string::npos) {
     ret += "[" + host + "]";
-  }else{
+  } else {
     ret += host;
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
@@ -285,9 +285,9 @@ std::string HTTP::URL::getBareUrl() const{
       ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
     }
   }
-  if (IPv6Addr){
+  if (IPv6Addr || host.find(':') != std::string::npos) {
     ret += "[" + host + "]";
-  }else{
+  } else {
     ret += host;
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}

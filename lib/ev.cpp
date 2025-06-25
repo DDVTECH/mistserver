@@ -73,16 +73,19 @@ namespace Event{
     uint64_t startTime = Util::bootMS();
     while (timerTimes.size() && timerTimes.begin()->first <= startTime) {
       auto it = timerTimes.begin();
+      uint64_t t = it->first;
+      size_t tid = it->second;
+
       timerTimes.erase(it);
-      VERYHIGH_MSG("Firing timer %zu", it->second);
-      if (timerFuncs[it->second]()) {
+      VERYHIGH_MSG("Firing timer %zu", tid);
+      if (timerFuncs[tid]()) {
         // Reschedule the timer
-        timerTimes.insert({it->first + timerIntervals[it->second], it->second});
+        timerTimes.insert({t + timerIntervals[tid], tid});
       } else {
         // Drop the timer
-        INFO_MSG("Stopping timer %zu", it->second);
-        timerFuncs.erase(it->second);
-        timerIntervals.erase(it->second);
+        INFO_MSG("Stopping timer %zu", tid);
+        timerFuncs.erase(tid);
+        timerIntervals.erase(tid);
       }
     }
     if (timerTimes.size()) {
@@ -94,7 +97,7 @@ namespace Event{
     fd_set rList;
     FD_ZERO(&rList);
     for(size_t i = 0; i < 32; i += 2){
-      if (sockets[i]){
+      if (sockets[i] && sockets[i + 1] < 1024) {
         FD_SET(sockets[i+1], &rList);
         hasSockets = true;
       }
@@ -105,6 +108,12 @@ namespace Event{
     }
     uint64_t currPace = Util::getMicros();
     for (auto it : sendQueues){
+      if (it->finTimer) {
+        if (it->finTimer <= startTime) { it->handshake(); }
+        if (it->finTimer && it->finTimer > startTime && it->finTimer - startTime < maxMs) {
+          maxMs = it->finTimer - startTime;
+        }
+      }
       uint64_t nextPace = it->timeToNextPace(currPace);
       while (!nextPace){
         it->sendPaced(0);
@@ -141,7 +150,7 @@ namespace Event{
     }
     if (r > 0){
       for(size_t i = 0; i < 32; i += 2){
-        if (sockets[i]){
+        if (sockets[i] && sockets[i + 1] < 1024) {
           if (FD_ISSET(sockets[i+1], &rList)){
             if ((sockets[i] & 0xFF000000) == 0xFF000000){
               size_t idx = (sockets[i] & 0x1F);

@@ -1,10 +1,11 @@
 #include "input.h"
+
 #include <mist/dtsc.h>
 #include <mist/nal.h>
 #include <mist/ts_packet.h>
 #include <mist/ts_stream.h>
 #include <mist/urireader.h>
-#include <set>
+
 #include <string>
 
 namespace Mist{
@@ -19,7 +20,7 @@ namespace Mist{
     virtual bool needsLock(){return standAlone && Input::needsLock();}
 
     virtual std::string getConnectedBinHost(){
-      if (udpMode){return udpCon.getBinDestination();}
+      if (udpMode) { return udpCon.getRemoteAddr().binForm(); }
       return reader.getBinHost();
     }
     virtual bool publishesTracks(){return false;}

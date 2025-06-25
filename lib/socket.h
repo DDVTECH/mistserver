@@ -52,12 +52,12 @@ namespace Buffer{
 namespace Socket{
   class Address {
     private:
-      std::string addr;
+      Util::ResizeablePointer addr;
 
     public:
       Address();
       Address(const std::string & rhs);
-      Address(const char *rhs, size_t len = 0);
+      Address(const void *rhs, size_t len = 0);
       Address(const Util::ResizeablePointer & rhs);
       std::string toString() const;
       sa_family_t family() const;
@@ -66,10 +66,17 @@ namespace Socket{
       std::string host() const;
       operator bool() const;
       const uint8_t *const ipPtr() const;
-      operator sockaddr *() const { return (sockaddr *)addr.data(); }
+      operator sockaddr *() const { return (sockaddr *)(const char *)addr; }
       size_t size() const { return addr.size(); }
+      void swap(Socket::Address & rhs);
+      void assign(const void *ptr, size_t len = 0);
       bool operator<(const Address & rhs) const;
       bool operator==(const Address & rhs) const;
+      Address & operator=(const Address & rhs);
+      Address & operator=(const void *rhs);
+      void reserve();
+      void clear();
+      std::string binForm() const;
   };
 
   std::string sockaddrToString(const sockaddr* A);
@@ -249,13 +256,13 @@ namespace Socket{
     void init(bool nonblock, int family = AF_INET6);
     int sock;                   ///< Internally saved socket number
     std::string remotehost;     ///< Stores remote host address
-    Util::ResizeablePointer destAddr; ///< Destination address
-    Util::ResizeablePointer recvAddr; ///< Local address
+    Socket::Address destAddr; ///< Destination address
+    Socket::Address recvAddr; ///< Local address
+    Socket::Address bindAddr; ///< Bound address
     unsigned int up;            ///< Amount of bytes transferred up
     unsigned int down;          ///< Amount of bytes transferred down
     int family;                 ///< Current socket address family
-    std::string boundAddr, boundMulti;
-    int boundPort;
+    std::string boundMulti;
     void checkRecvBuf();
     std::deque<Util::ResizeablePointer> paceQueue;
     uint64_t lastPace;
@@ -297,12 +304,16 @@ namespace Socket{
     int dTLSRead(unsigned char *buf, size_t len);
     int dTLSWrite(const unsigned char *buf, size_t len);
     void dTLSReset();
+    void handshake();
 #endif
+    uint64_t intTimer;
+    uint64_t finTimer;
     bool wasEncrypted;
     void close();
     int getSock();
     void swapSocket(UDPConnection & other);
     uint16_t bind(int port, std::string iface = "", const std::string &multicastAddress = "");
+    uint16_t bind(const Socket::Address *addr, const std::string & multicastAddress = "");
     void setMulticastTTL(size_t ttl);
     bool connect();
     void setBlocking(bool blocking);
@@ -312,16 +323,9 @@ namespace Socket{
     void SetDestination(std::string hostname, uint32_t port);
     bool setDestination(const sockaddr *addr, const size_t size);
     bool setDestination(const Socket::Address & addr);
-    const Util::ResizeablePointer & getRemoteAddr() const;
-    const Util::ResizeablePointer & getLocalAddr() const;
-    void GetDestination(std::string &hostname, uint32_t &port);
-    void GetLocalDestination(std::string &hostname, uint32_t &port);
-    std::string getBinDestination();
-    const void * getDestAddr(){return destAddr;}
-    size_t getDestAddrLen(){return destAddr.size();}
-    std::string getBoundAddress();
-    uint16_t getBoundPort() const;
-    uint32_t getDestPort() const;
+    const Socket::Address & getRemoteAddr() const;
+    const Socket::Address & getLocalAddr() const;
+    const Socket::Address & getBoundAddr() const;
     bool Receive();
     void SendNow(const std::string &data);
     void SendNow(const char *data);

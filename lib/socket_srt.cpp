@@ -158,7 +158,7 @@ namespace Socket{
     HIGH_MSG("Opening SRT connection in %s mode (%s) on socket %d", modeName.c_str(), direction.c_str(), _udpsocket.getSock());
 
     // Copy address from UDP socket
-    remoteaddr = Socket::Address((const char *)_udpsocket.getDestAddr(), _udpsocket.getDestAddrLen());
+    remoteaddr = _udpsocket.getRemoteAddr();
     HIGH_MSG("Addr [%s]", remoteaddr.toString().c_str());
 
     sock = srt_create_socket();
@@ -427,6 +427,52 @@ namespace Socket{
         lastGood = Util::bootMS();
         return;
       }
+    }
+    ERROR_MSG("Invalid mode parameter. Use 'caller' or 'listener'");
+  }
+
+  void SRTConnection::connect(const Socket::Address & addr, const std::string & _direction,
+                              const std::map<std::string, std::string> & _params) {
+    direction = _direction;
+    timedOut = false;
+    handleConnectionParameters(addr.host(), _params);
+    HIGH_MSG("Opening SRT connection %s in %s mode on %s", modeName.c_str(), direction.c_str(),
+             addr.toString().c_str());
+
+    if (modeName == "caller") {
+      setBlocking(true);
+      remoteaddr = addr;
+      if (!open()) { return; }
+      HIGH_MSG("Going to connect sock %d", sock);
+      if (srt_connect(sock, remoteaddr, remoteaddr.size()) != SRT_ERROR) {
+        if (postConfigureSocket() == SRT_ERROR) { ERROR_MSG("Error during postconfigure socket"); }
+        INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s", sock, getStateStr(),
+                 addr.toString().c_str());
+        lastGood = Util::bootMS();
+        return;
+      }
+      close();
+      ERROR_MSG("Can't connect SRT socket to %s", addr.toString().c_str());
+      return;
+    }
+    if (modeName == "listener") {
+      remoteaddr = addr;
+      HIGH_MSG("Going to bind a server on %s", addr.toString().c_str());
+
+      if (!open()) { return; }
+      if (srt_bind(sock, remoteaddr, remoteaddr.size()) == SRT_ERROR) {
+        close();
+        ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());
+        return;
+      }
+      if (srt_listen(sock, 100) == SRT_ERROR) {
+        close();
+        ERROR_MSG("Can not listen on Socket");
+        return;
+      }
+      INFO_MSG("Listener SRT socket success @ %s", addr.toString().c_str());
+      lastGood = Util::bootMS();
+      return;
     }
     ERROR_MSG("Invalid mode parameter. Use 'caller' or 'listener'");
   }

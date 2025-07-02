@@ -333,7 +333,7 @@ namespace Mist{
   void InputMP4::getNext(size_t idx){// get next part from track in stream
     thisPacket.null();
 
-    if (curPositions.empty()){
+    while (curPositions.empty()){
       // fMP4 file? Seek to the right header and read it in
       if (nextBox){
         uint32_t trackId = M.getID(idx);
@@ -377,6 +377,9 @@ namespace Mist{
           curPositions.insert(addPart);
         }
         nextBox += boxSize;
+      }else{
+        WARN_MSG("No current reading position and no next box to read either! Aborting");
+        return;
       }
       if (!curPositions.size()) { return; }
     }

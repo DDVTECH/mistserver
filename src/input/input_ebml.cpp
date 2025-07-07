@@ -36,6 +36,24 @@ namespace Mist{
     capa["source_match"].append("s3+https://*.mk3d");
     capa["source_match"].append("s3+https://*.mks");
     capa["source_match"].append("s3+https://*.webm");
+    capa["source_prefill"].append("/");
+    capa["source_prefill"].append("http://");
+    capa["source_prefill"].append("https://");
+    capa["source_prefill"].append("s3+http://");
+    capa["source_prefill"].append("s3+https://");
+    capa["source_prefill"].append("mkv-exec:");
+#if defined(__CYGWIN__)
+    capa["source_syntax"].append("/cygdrive/[DRIVE/path/to/][file_name]");
+#else
+    capa["source_syntax"].append("/[path/to/][file_name]");
+#endif
+    capa["source_syntax"].append("http://[address]");
+    capa["source_syntax"].append("https://[address]");
+    capa["source_syntax"].append("s3+http://[address]");
+    capa["source_syntax"].append("s3+https://[address]");
+    capa["source_syntax"].append("mkv-exec:[COMMAND]");
+    capa["source_help"]["default"] = "Location where MistServer can find the input file.";
+    capa["source_help"]["mkv-exec:[COMMAND]"] = "MistServer will execute the command as if it's ran in the terminal and will expect to receive matroska data from the command.";
     capa["source_match"].append("mkv-exec:*");
     capa["always_match"].append("mkv-exec:*");
     capa["source_file"] = "$source";

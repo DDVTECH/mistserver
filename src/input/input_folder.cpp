@@ -16,6 +16,13 @@ namespace Mist{
         "streamed as 'files+movie.flv'. This input does not support subdirectories. To support "
         "more complex libraries, look into the documentation for the STREAM_SOURCE trigger.";
     capa["source_match"] = "/*/";
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][folder]/";
+#else
+    capa["source_syntax"] = "/[path/to/][folder]/";
+#endif
+    capa["source_help"] = "Location of folder to watch for files.";
     capa["source_file"] = "$source/$wildcard";
     capa["priority"] = 9;
     capa["morphic"] = 1;

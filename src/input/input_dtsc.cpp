@@ -22,6 +22,18 @@ namespace Mist{
     capa["priority"] = 9;
     capa["source_match"].append("/*.dtsc");
     capa["source_match"].append("dtsc://*");
+    capa["source_prefill"].append("/");
+    capa["source_prefill"].append("dtsc://");
+#if defined(__CYGWIN__)
+    capa["source_syntax"].append("/cygdrive/[DRIVE/path/to/][file_name]");
+    capa["source_help"]["/cygdrive/[DRIVE/path/to/][file_name]"] = "Location where MistServer can find the input file.";
+#else
+    capa["source_syntax"].append("/[path/to/][file_name]");
+    capa["source_help"]["/[path/to/][file_name]"] = "Location where MistServer can find the input file.";
+#endif
+    capa["source_syntax"].append("dtsc://[address][/streamname]");
+    capa["source_help"]["default"] = "Location where MistServer can find the input file.";
+    capa["source_help"]["dtsc://[address][/streamname]"] = "Where MistServer can find the stream.\nInclude the DTSC port if it is not the default (4200).\nIf the stream name is omitted, the stream name of this stream is used.";
     capa["always_match"].append("dtsc://*"); // can be said to always-on mode
     capa["source_file"] = "$source";
     capa["codecs"]["video"].append("H264");

@@ -191,6 +191,33 @@ namespace Mist{
     capa["source_match"].append("s3+http://*.ts");
     capa["source_match"].append("s3+https://*.ts");
     // These can/may be set to always-on mode
+    capa["source_prefill"].append("/");
+    capa["source_prefill"].append("stream://");
+    capa["source_prefill"].append("tsudp://");
+    capa["source_prefill"].append("ts-exec:");
+    capa["source_prefill"].append("http://");
+    capa["source_prefill"].append("http-ts://");
+    capa["source_prefill"].append("https://");
+    capa["source_prefill"].append("https-ts://");
+    capa["source_prefill"].append("s3+http://");
+    capa["source_prefill"].append("s3+https://");
+
+#if defined(__CYGWIN__)
+    capa["source_syntax"].append("/cygdrive/[DRIVE/path/to/][file_name]");
+#else
+    capa["source_syntax"].append("/[path/to/][file_name]");
+#endif
+    capa["source_syntax"].append("tsudp://[address]:[port]");
+    capa["source_syntax"].append("http://[address]");
+    capa["source_syntax"].append("https://[address]");
+    capa["source_syntax"].append("http-ts://[address]");
+    capa["source_syntax"].append("https-ts://[address]");
+    capa["source_syntax"].append("ts-exec:[COMMAND]");
+    capa["source_syntax"].append("stream://[path/to/pipe].ts");
+    capa["source_help"]["default"] = "Location where MistServer can find the input file.";
+    capa["source_help"]["stream://"] = "Location where MistServer can find the named pipe.";
+    capa["source_help"]["tsudp://[address]:[port]"] = "UDP address to listen for using uni- or multi-cast. Note: specifying the port is required.";
+    capa["source_help"]["ts-exec:[COMMAND]"] = "MistServer will execute the command as if it's ran in the terminal and will expect to receive MPEG-TS data from the command.";
     capa["always_match"].append("stream://*.ts");
     capa["always_match"].append("tsudp://*");
     capa["always_match"].append("ts-exec:*");

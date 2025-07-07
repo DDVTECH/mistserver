@@ -15,6 +15,13 @@ namespace Mist{
     capa["name"] = "ISMV";
     capa["desc"] = "This input allows you to stream ISMV Video on Demand files.";
     capa["source_match"] = "/*.ismv";
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][file_name]";
+#else
+    capa["source_syntax"] = "/[path/to/][file_name]";
+#endif
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["priority"] = 9;
     capa["codecs"]["video"].append("H264");
     capa["codecs"]["audio"].append("AAC");

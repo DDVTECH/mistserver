@@ -120,7 +120,11 @@ namespace Mist{
     option.null();
     /*LTS-end*/
 
+    capa["source_name"] = "Receiving a push"; //shown instead of "Buffer" in the settings page help text
     capa["source_match"] = "push://*";
+    capa["source_prefill"] = "push://";
+    capa["source_syntax"] = "push://[host][@password]";
+    capa["source_help"] = "Set up another application/server to push a stream into MistServer. [Host] and [@password] are optional, but enforced if set up. Host only allows the matching address to push into MistServer, a matching password allows non-matching addresses to push into MistServer as well. For a list of matching methods see below. Methods such as stream keys, the USER_NEW trigger and JWTs will bypass this matching.";
     capa["non-provider"] = true; // Indicates we don't provide data, only collect it
     capa["priority"] = 9;
     capa["desc"] =
@@ -128,6 +132,10 @@ namespace Mist{
         "live media data. The push://[host][@password] style source allows all enabled protocols "
         "that support push input to accept a push into MistServer, where you can accept incoming "
         "streams from everyone, based on a set password, and/or use hostname/IP whitelisting.";
+    capa["source_desc"] = "This input type is used for push based streams. It provides a buffer for "
+        "live media data. The push://[host][@password] style source allows all enabled protocols "
+        "that support push input to accept a push into MistServer, where you can accept incoming "
+        "streams from everyone, based on a set password, and/or use hostname/IP whitelisting."; //shown in the settings page input description instead of capa["desc"]
     bufferTime = 50000;
     cutTime = 0;
     segmentSize = DEFAULT_FRAGMENT_DURATION;

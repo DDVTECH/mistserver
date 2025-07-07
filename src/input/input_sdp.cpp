@@ -39,6 +39,13 @@ namespace Mist{
     capa["name"] = "SDP";
     capa["desc"] = "This input allows pulling of RTP packets using a provided SDP file";
     capa["source_match"].append("/*.sdp");
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][file_name]";
+#else
+    capa["source_syntax"] = "/[path/to/][file_name]";
+#endif
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["always_match"].append("/*.sdp");
     capa["priority"] = 9;
     capa["codecs"]["video"].append("H264");

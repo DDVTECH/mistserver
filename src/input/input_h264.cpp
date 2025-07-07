@@ -9,6 +9,10 @@ namespace Mist{
                    "pipe, and turn it into a live stream.";
     capa["source_match"] = "h264-exec:*";
     // May be set to always-on mode
+    capa["source_prefill"] = "h264-exec:";
+    capa["source_syntax"].append("h264-exec:[COMMAND]");
+    capa["source_syntax"].append("h264:[COMMAND]");
+    capa["source_help"] = "Run whatever command is given as if it's ran in the terminal. MistServer will expect to receive raw H264 Annex B data from the command.";
     capa["always_match"].append("h264-exec:*");
     capa["priority"] = 0;
     capa["codecs"]["video"].append("H264");

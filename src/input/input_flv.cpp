@@ -19,6 +19,13 @@ namespace Mist{
     capa["name"] = "FLV";
     capa["desc"] = "Allows loading FLV files for Video on Demand.";
     capa["source_match"] = "/*.flv";
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][file_name]";
+#else
+    capa["source_syntax"] = "/[path/to/][file_name]";
+#endif
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["source_file"] = "$source";
     capa["priority"] = 9;
     capa["codecs"]["video"].append("H264");

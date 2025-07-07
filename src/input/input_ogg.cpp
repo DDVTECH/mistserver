@@ -37,6 +37,13 @@ namespace Mist{
     capa["name"] = "OGG";
     capa["desc"] = "This input allows streaming of OGG files as Video on Demand.";
     capa["source_match"] = "/*.ogg";
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][file_name]";
+#else
+    capa["source_syntax"] = "/[path/to/][file_name]";
+#endif
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["source_file"] = "$source";
     capa["codecs"]["video"].append("theora");
     capa["codecs"]["audio"].append("vorbis");

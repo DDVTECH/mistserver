@@ -20,6 +20,13 @@ namespace Mist{
     capa["name"] = "FLAC";
     capa["desc"] = "Allows loading FLAC files for Audio on Demand.";
     capa["source_match"] = "/*.flac";
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][file_name]";
+#else
+    capa["source_syntax"] = "/[path/to/][file_name]";
+#endif
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["source_file"] = "$source";
     capa["priority"] = 9;
     capa["codecs"]["audio"].append("FLAC");

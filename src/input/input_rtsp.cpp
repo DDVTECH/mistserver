@@ -44,6 +44,10 @@ namespace Mist{
     capa["source_match"].append("rtsp://*");
     // These can/may be set to always-on mode
     capa["always_match"].append("rtsp://*");
+
+    capa["source_prefill"] = "rtsp://";
+    capa["source_syntax"] = "rtsp://[user][:password][@hostname]";
+    
     capa["priority"] = 9;
     capa["codecs"]["video"].append("H264");
     capa["codecs"]["video"].append("HEVC");

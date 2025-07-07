@@ -16,6 +16,9 @@ namespace Mist{
     capa["name"] = "V4L2";
     capa["desc"] = "";
     capa["source_match"] = "v4l2:*";
+    capa["source_prefill"] = "v4l2:";
+    capa["source_syntax"] = "v4l2:/dev/[INPUT]";
+    capa["source_help"] = "V4L2 source to ingest, see the possible sources field for the recognized inputs.";
     capa["always_match"] = capa["source_match"];
     capa["priority"] = 10;
     width = 0;

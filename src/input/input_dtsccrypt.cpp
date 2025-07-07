@@ -19,6 +19,13 @@ namespace Mist{
     capa["desc"] = "Enables DTSC Input";
     capa["priority"] = 9;
     capa["source_match"] = "/*.dtsc";
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][file_name].dtsc";
+#else
+    capa["source_syntax"] = "/[path/to/][file_name].dtsc";
+#endif
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");

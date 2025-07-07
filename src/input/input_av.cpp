@@ -18,6 +18,9 @@ namespace Mist{
         "This input uses libavformat to read any type of file. Unfortunately this input cannot be "
         "redistributed, but it is a great tool for testing the other file-based inputs against.";
     capa["source_match"] = "/*";
+    capa["source_prefill"] = "/";
+    capa["source_syntax"] = "/[path/to/][file_name]";
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["source_file"] = "$source";
     capa["priority"] = 1;
     capa["codecs"].null();

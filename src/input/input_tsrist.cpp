@@ -85,6 +85,9 @@ namespace Mist{
     capa["name"] = "TSRIST";
     capa["desc"] = "This input allows for processing MPEG2-TS-based RIST streams using librist " + std::string(librist_version()) +".";
     capa["source_match"].append("rist://*");
+    capa["source_prefill"] = "rist://";
+    capa["source_syntax"] = "rist://[@][address][:port]";
+    capa["source_help"] = "Set up a listening RIST socket on one of your interfaces by adding the @. Do not include the @ if you want to pull from another location. Due to backwards compatibility with Simple profile EVEN ports are enforced.";
     // These can/may be set to always-on mode
     capa["always_match"].append("rist://*");
     capa["priority"] = 9;

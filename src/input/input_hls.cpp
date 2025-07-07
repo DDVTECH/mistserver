@@ -567,6 +567,27 @@ namespace Mist{
     capa["source_match"].append("s3+http-hls://*");
 
     // All URLs can be set to always-on mode.
+
+    capa["source_prefill"].append("/");
+    capa["source_prefill"].append("http://");
+    capa["source_prefill"].append("https://");
+    capa["source_prefill"].append("s3+http://");
+    capa["source_prefill"].append("s3+http-hls://");
+    capa["source_prefill"].append("s3+https://");
+    capa["source_prefill"].append("s3+https-hls://");
+
+#if defined(__CYGWIN__)
+    capa["source_syntax"].append("/cygdrive/[DRIVE/path/to/][file_name]");
+#else
+    capa["source_syntax"].append("/[path/to/][file_name]");
+#endif
+    capa["source_syntax"].append("http://[address]");
+    capa["source_syntax"].append("https://[address]");
+    capa["source_syntax"].append("s3+http://[address]");
+    capa["source_syntax"].append("s3+http-hls://[address]");
+    capa["source_syntax"].append("s3+https://[address]");
+    capa["source_syntax"].append("s3+https-hls://[address]");
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["always_match"] = capa["source_match"];
 
     capa["priority"] = 9;

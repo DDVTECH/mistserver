@@ -14,6 +14,9 @@ namespace Mist{
         "and PORT are the host and port of the load balancer and the FALLBACK is the full source "
         "URL that should be used if the load balancer cannot be reached.";
     capa["source_match"] = "balance:*";
+    capa["source_prefill"] = "balance:";
+    capa["source_syntax"].append("balance:http://[host:port][?fallback=ALTERNATIVE_INPUT]");
+    capa["source_help"] = "Set up a load balanced input, connect to the given MistServer load balancer to receive the matching stream name. Use the fallback input if the stream is not available within the network. You can use push:// for push as a fallback option.";
     capa["priority"] = 9;
     capa["morphic"] = 1;
 

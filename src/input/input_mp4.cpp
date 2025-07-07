@@ -34,6 +34,21 @@ namespace Mist{
     capa["source_match"].append("https://*.mov");
     capa["source_match"].append("s3+http://*.mov");
     capa["source_match"].append("s3+https://*.mov");
+    capa["source_prefill"].append("/");
+    capa["source_prefill"].append("http://");
+    capa["source_prefill"].append("https://");
+    capa["source_prefill"].append("s3+http://");
+    capa["source_prefill"].append("s3+https://");
+#if defined(__CYGWIN__)
+    capa["source_syntax"].append("/cygdrive/[DRIVE/path/to/][file_name]");
+#else
+    capa["source_syntax"].append("/[path/to/][file_name]");
+#endif
+    capa["source_syntax"].append("http://[address]");
+    capa["source_syntax"].append("https://[address]");
+    capa["source_syntax"].append("s3+http://[address]");
+    capa["source_syntax"].append("s3+https://[address]");
+    capa["source_help"] = "Location where MistServer can find the input file.";
     capa["source_file"] = "$source";
     capa["priority"] = 9;
     capa["codecs"]["video"].append("HEVC");

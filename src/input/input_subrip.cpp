@@ -9,6 +9,12 @@ namespace Mist{
         "This input allows streaming of SubRip (SRT and WebVTT) subtitle files as Video on Demand.";
     capa["source_match"].append("/*.srt");
     capa["source_match"].append("/*.vtt");
+    capa["source_prefill"] = "/";
+#if defined(__CYGWIN__)
+    capa["source_syntax"] = "/cygdrive/[DRIVE/path/to/][file_name]";
+#else
+    capa["source_syntax"] = "/[path/to/][file_name]";
+#endif 
     capa["priority"] = 9;
     capa["codecs"]["subtitle"].append("subtitle");
   }

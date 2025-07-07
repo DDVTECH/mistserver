@@ -50,6 +50,11 @@ namespace Mist{
     capa["desc"] = "This input allows for processing MPEG2-TS-based SRT streams using libsrt " SRT_VERSION_STRING ".";
     capa["source_match"].append("srt://*");
     // These can/may be set to always-on mode
+    
+    capa["source_prefill"] = "srt://";
+    capa["source_syntax"] = "srt://[address]:[port][?PARAMETER=VALUE&PARAMETER=VALUE]";
+    capa["source_help"] = "All available socket options to libSRT are available as parameter, look for 'TSSRT Push parameters' in the documentations. Example of the most popular parameters:\n ?streamid=streamname&latency=1000&passphrase=10characterpassphrase";
+
     capa["always_match"].append("srt://*");
     capa["incoming_push_url"] = "srt://$host:$port";
     capa["incoming_push_url_match"] = "srt://*";

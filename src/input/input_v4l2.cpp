@@ -121,51 +121,54 @@ namespace Mist{
     // Query the device for pixel formats
     struct v4l2_fmtdesc fmt;
     fmt.index = 0;
-    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
-      // For each pixel format, query supported resolutions
-      struct v4l2_frmsizeenum frmSizes;
-      frmSizes.pixel_format = fmt.pixelformat;
-      frmSizes.index = 0;
-      while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &frmSizes) >= 0) {
-        // Only support discrete frame size types for now
-        if (frmSizes.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
-          // For each frame size, query supported FPS values
-          struct v4l2_frmivalenum frmIntervals;
-          memset(&frmIntervals, 0, sizeof(frmIntervals));
-          frmIntervals.pixel_format = fmt.pixelformat;
-          frmIntervals.width = frmSizes.discrete.width;
-          frmIntervals.height = frmSizes.discrete.height;
-          bool setHighestFPS = false;
-          if (frmSizes.discrete.width * frmSizes.discrete.height > width * height){
-            width = frmSizes.discrete.width;
-            height = frmSizes.discrete.height;
-            setHighestFPS = true;
-          }
-          ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals);
-          double maxFPS = 0;
-          while (ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals) != -1) {
-            if (frmIntervals.type == V4L2_FRMIVAL_TYPE_DISCRETE){
-              double fps = (double)frmIntervals.discrete.denominator / (double)frmIntervals.discrete.numerator;
-              std::stringstream ss;
-              ss << intToString(fmt.pixelformat) << "-" << frmSizes.discrete.width << "x" << frmSizes.discrete.height << "@";
-              ss.setf(std::ios::fixed);
-              ss.precision(2);
-              // Use a human readable format for FPS
-              ss << fps;
-              opts.append(ss.str());
-              if (setHighestFPS && fps >= maxFPS){
-                maxFPS = fps;
-                output["optional"]["format"]["default"] = ss.str();
-              }
+    for (v4l2_buf_type capType : {V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE}){
+      fmt.type = capType;
+      while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
+        // For each pixel format, query supported resolutions
+        struct v4l2_frmsizeenum frmSizes;
+        frmSizes.pixel_format = fmt.pixelformat;
+        frmSizes.index = 0;
+        while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &frmSizes) >= 0) {
+          // Only support discrete frame size types for now
+          if (frmSizes.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
+            // For each frame size, query supported FPS values
+            struct v4l2_frmivalenum frmIntervals;
+            memset(&frmIntervals, 0, sizeof(frmIntervals));
+            frmIntervals.pixel_format = fmt.pixelformat;
+            frmIntervals.width = frmSizes.discrete.width;
+            frmIntervals.height = frmSizes.discrete.height;
+            bool setHighestFPS = false;
+            if (frmSizes.discrete.width * frmSizes.discrete.height > width * height){
+              width = frmSizes.discrete.width;
+              height = frmSizes.discrete.height;
+              setHighestFPS = true;
             }
-            frmIntervals.index += 1;
+            ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals);
+            double maxFPS = 0;
+            while (ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals) != -1) {
+              if (frmIntervals.type == V4L2_FRMIVAL_TYPE_DISCRETE){
+                double fps = (double)frmIntervals.discrete.denominator / (double)frmIntervals.discrete.numerator;
+                std::stringstream ss;
+                ss << intToString(fmt.pixelformat) << "-" << frmSizes.discrete.width << "x" << frmSizes.discrete.height << "@";
+                ss.setf(std::ios::fixed);
+                ss.precision(2);
+                // Use a human readable format for FPS
+                ss << fps;
+                opts.append(ss.str());
+                if (setHighestFPS && fps >= maxFPS){
+                  maxFPS = fps;
+                  output["optional"]["format"]["default"] = ss.str();
+                }
+              }
+              frmIntervals.index += 1;
+            }
           }
+          frmSizes.index++;
         }
-        frmSizes.index++;
+        fmt.index++;
       }
-      fmt.index++;
     }
+    
 
     close(fd);
     return output;
@@ -291,7 +294,7 @@ namespace Mist{
     // Abort if this input does not support the requested pixel format
     std::string pixFmtStr = intToString(pixelFmt);
     if (pixFmtStr != "MJPG" && pixFmtStr != "YUYV" && pixFmtStr != "UYVY") {
-      FAIL_MSG("Unsupported pixel format %s, aborting", pixFmtStr.c_str());
+      FAIL_MSG("Unsupported pixel format %s (%d), aborting", pixFmtStr.c_str(), pixelFmt);
       close(fd);
       return false;
     }

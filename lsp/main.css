@@ -606,7 +606,8 @@ select option[value=""] {
   100% { border-color: var(--accentColorDim); }
 }
 .input_container label.active .ih_balloon,
-.input_container > .help_container .ih_balloon {
+.input_container > .help_container .ih_balloon,
+.input_container label:focus-within .ih_balloon {
   display: block;
   z-index: 1;
 }
@@ -886,6 +887,7 @@ table button {
   margin-left: -20.25em;
   width: auto;
 }
+.input_container .grouper:has(> .browse_container) .field[disabled] + button,
 .input_container .field_container .inputlist:has(.browse_container) .listitem button {
   display: none;
 }
@@ -2139,6 +2141,45 @@ section.clients .inputs:has(table thead tr td:nth-child(3)) h3:after { content: 
 .streamkeys .stream:not(.showAllKeys) .key.hidden {
   display: none;
 }
+
+[data-tab="Edit"] .ih_balloon .syntaxes {
+  list-style: none;
+  padding-inline: 0;
+  margin-top: 0;
+}
+[data-tab="Edit"] .ih_balloon .syntaxes li {
+  margin-bottom: 1em;
+}
+[data-tab="Edit"] .ih_balloon .syntaxes li[data-icon] {
+  position: relative;
+}
+[data-tab="Edit"] .ih_balloon .syntaxes li[data-icon] > *:first-child {
+  padding-left: 1lh;
+  font-weight: bold;
+}
+
+[data-tab="Edit"] .ih_balloon .syntaxes li[data-icon]:before, 
+[data-tab="Edit"] .ih_balloon .syntaxes li[data-icon]:after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1lh;
+  aspect-ratio: 1/1;
+  background: none no-repeat center / 75%;
+  mask: none no-repeat center / 75%;
+  mask-image: var(--icon);
+}
+[data-tab="Edit"] .ih_balloon .syntaxes li[data-icon]:before { /*stroke*/
+  content: none;
+  background-color: var(--secondaryBackgroundColor);
+}
+[data-tab="Edit"] .ih_balloon .syntaxes li[data-icon]:after { /*fill*/
+  background-color: var(--accentColor);
+  mask-mode: luminance;
+}
+
 
 [data-index="tags"] .tags {
   display: flex;

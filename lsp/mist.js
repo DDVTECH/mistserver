@@ -1118,13 +1118,78 @@ context_menu: function(){
     throw "Please request streamkeys first.";
   },
   findInputBySource: function(source) {
-    if (source == '') { return; }
+    if (source == '') { return null; }
     if ("capabilities" in mist.data) {
-      for (let i in mist.data.capabilities.inputs) {
-        let input = mist.data.capabilities.inputs[i];
-        if (typeof input.source_match == 'undefined') { continue; }
-        if (mist.inputMatch(input.source_match,source)) {
-          return input;
+
+      //check for cache
+      let matches = {};
+      if ("matches" in mist.data.capabilities.inputs) {
+        matches = mist.data.capabilities.inputs.matches;
+      }
+      else {
+        //gather a list of match strings
+        for (let i in mist.data.capabilities.inputs) {
+          let input = mist.data.capabilities.inputs[i];
+          if (typeof input.source_match == 'undefined') { continue; }
+          let m = input.source_match;
+          if (typeof m == "string") {
+            m = [m];
+          }
+          for (let str of m) {
+            if ((str in matches) && (matches[str] != i)) {
+              //uhoh: duplicate match string for input i and matches[str]: use input with highest input.priority
+              if (input.priority > ((a)=>a ? a : 0)(mist.data.capabilities.inputs[matches[str]].priority)) {
+                matches[str] = i;
+              }
+            }
+            else {
+              matches[str] = i;
+            }
+          }
+        }
+      }
+
+      let sorted;
+      if ("matches_sorted" in mist.data.capabilities.inputs) {
+        sorted = mist.data.capabilities.inputs.matches_sorted;
+      }
+      else {
+
+        //sort them by length: a more detailed match gets priority
+        sorted = Object.keys(matches).sort((a,b) => b.length - a.length);
+
+        //now sort them by input.name+":": these are overrides and should take priority
+        let inputs = {};
+        for (let input of Object.keys(mist.data.capabilities.inputs)) {
+          inputs[input.replace(".exe","").toLowerCase()] = 1;
+        }
+        function isOverride(str) {
+          if (str.slice(-2) == ":*") {
+            let input_name = str.slice(0,-2);
+            if (input_name in inputs) return 1;
+          }
+          return 0;
+        }
+        sorted.sort((a,b)=>{
+          return isOverride(b) - isOverride(a);
+        });
+
+        //for caching purposes :)
+        //these properties will not be enumerable
+        //they will be overwritten (with nothing) when capabilities are refreshed
+        Object.defineProperty(mist.data.capabilities.inputs,"matches",{
+          value: matches
+        });
+        Object.defineProperty(mist.data.capabilities.inputs,"matches_sorted",{
+          value: sorted
+        });
+      }
+
+      for (let match_string of sorted) {
+        if (mist.inputMatch(match_string,source)) {
+          let input_name = matches[match_string];
+          mist.data.capabilities.inputs[input_name].index = input_name; //'INPUT.exe' for windows, whereas input.name would be 'INPUT'
+          return mist.data.capabilities.inputs[input_name];
         }
       }
       return null; //no matching input for this source
@@ -2395,7 +2460,7 @@ context_menu: function(){
               $folder_contents.text('Loading..');
               mist.send(function(d){
                 $path.text(d.browse.path[0]);
-                $field.setval(d.browse.path[0]+'/').trigger("keyup");
+                $field.setval(d.browse.path[0]+(d.browse.path[0].slice(-1) == '/' ? '' : '/')).trigger("keyup");
                 $folder_contents.html(
                   $folder.clone(true).text('..').attr('title','Folder up')
                 );
@@ -2404,7 +2469,7 @@ context_menu: function(){
                   for (var i in d.browse.subdirectories) {
                     var f = d.browse.subdirectories[i];
                     $folder_contents.append(
-                      $folder.clone(true).attr('title',$path.text()+seperator+f).text(f)
+                      $folder.clone(true).attr('title',$path.text()+($path.text().slice(-1) == '/' ? '' : '/')+f).text(f)
                     );
                   }
                 }
@@ -2412,7 +2477,7 @@ context_menu: function(){
                   d.browse.files.sort();
                   for (var i in d.browse.files) {
                     var f = d.browse.files[i];
-                    var src = $path.text()+seperator+f;
+                    var src = $path.text()+(($path.text().slice(-1*seperator.length) == seperator ? '' : seperator))+f;
                     var $file = $('<a>').text(f).addClass('file').attr('title',src);
                     $folder_contents.append($file);
                     
@@ -2450,7 +2515,7 @@ context_menu: function(){
               seperator = '\\';
             }
             $folder.click(function(){
-              var path = $path.text()+seperator+$(this).text();
+              var path = $path.text()+(($path.text().slice(-1*seperator.length) == seperator ? '' : seperator))+$(this).text();
               browse(path);
             });
             
@@ -6279,18 +6344,200 @@ context_menu: function(){
 
           var filetypes = [];
           var $source_datalist = $("<datalist>").attr("id","source_datalist");
+          var source_hinting = {};
           var $source_info = $("<div>").addClass("source_info");
           var dynamic_capa_rate_limit = false;
           var dynamic_capa_source = false;
+
+          function addSourceHint(input) {
+            let prefill = "source_prefill" in input ? input.source_prefill : [];
+            if (typeof prefill == "string") {
+              prefill = [prefill];
+            }
+            for (var j in prefill) {
+              if (!(prefill[j] in source_hinting)) {
+                source_hinting[prefill[j]] = [];
+                $source_datalist.append(
+                  $("<option>").val(prefill[j])
+                );
+              }
+              source_hinting[prefill[j]].push(input);
+            }
+            //also add the "<INPUT NAME>://" type syntax to the source_hinting, but not to the prefill
+            let input_override = input.name.toLowerCase()+":";
+            if (!(input_override in source_hinting)) source_hinting[input_override] = [input];
+          }
           for (var i in mist.data.capabilities.inputs) {
             for (var j in mist.data.capabilities.inputs[i].source_match) {
               filetypes.push(mist.data.capabilities.inputs[i].source_match[j]);
-
-              $source_datalist.append(
-                $("<option>").val(mist.data.capabilities.inputs[i].source_match[j])
-              );
             }
+            addSourceHint(mist.data.capabilities.inputs[i]);
           }
+          Object.defineProperty(source_hinting,"prefills",{
+            value: Object.keys(source_hinting).sort((a,b)=>{b.length-a.length}) //contain an array of the object keys, sorted by string length desc
+          }); //not enumerable
+
+          let $source_help = $("<div>").text("source_help");
+          function showHint(source,cursorpos) {
+            //show help text in the source help balloon and return type of input
+
+            $source_help.html(
+              $("<p>").html("Where MistServer can find the media data.<br>This help text will update as you type to provide more details.")
+            ).append(
+              $("<h3>").text("Video on Demand (VoD)")
+            ).append(
+              $("<p>").text("Please enter the path to your media file. This can be a file on your server (Use the 'browse'-button) or somewhere on the internet (enter the url).")
+            ).append(
+              $("<h3>").text("Live streaming")
+            ).append(
+              $("<h4>").text("Pulling from a device or server")
+            ).append(
+              $("<p>").html("If MistServer should pull the stream from somewhere - for example an IP camera - enter the protocol and address where it can be reached. This should be provided to you by the device or server.<br>For example: <b>rtsp://[user]:[password]@[hostname]</b>")
+            ).append(
+              $("<h4>").text("Pushing into MistServer")
+            ).append(
+              $("<p>").html("To set up MistServer to receive stream data from another application or server, enter <b>push://</b> and follow the instructions from there.")
+            );
+
+            var type = UI.findInputBySource(source)?.index;
+
+            let syntaxes = {};
+            for (let prefill of source_hinting.prefills) {
+              if (source.startsWith(prefill)) {
+                //the entered source starts with this prefill: gather syntaxes to show in the help
+                let inputs = source_hinting[prefill];
+                for (let input of inputs) {
+                  if (type && (input.name == type)) {
+                    //the source string already matches an input type: this will be printed seperately
+                    
+                  }
+
+                  let syntax = "source_syntax" in input ? input.source_syntax : [];
+                  if (typeof syntax == "string") syntax = [syntax];
+                  if (syntax.filter((a)=>a.startsWith(input.name.toLowerCase()+":")).length == 0) {
+                    //also insert generic syntax - if it has not already been included
+                    syntax.push(input.name.toLowerCase()+":[address]");
+                  }
+                  for (s of syntax) {
+                    //add this syntax only if it matches the used prefill
+                    if (s.startsWith(prefill)) {
+                      if (type && (input.name == type)) {
+                        syntaxes["_match"+s] = [input.name];
+                      }
+                      else {
+                        if (!(s in syntaxes)) syntaxes[s] = [];
+                        syntaxes[s].push(input.name);
+                      }
+                    }
+                  }
+                }
+                $source_help.html(
+                  $("<p>").text("Where MistServer can find the media data.")
+                );
+                if (Object.keys(syntaxes).length) {
+                  let $ul = $("<ul>").addClass("syntaxes");
+                  $source_help.append($ul);
+                  for (let syntax in syntaxes) {
+                    let index = syntax;
+                    let is_match = (syntax.slice(0,6) == "_match");
+                    if (is_match) {
+                      syntax = syntax.slice(6);
+                    }
+
+                    let $syntax = $("<span>"); 
+
+                    //highlight cursor location in the syntax string
+                    let syntaxregex = syntax.replace(/\//g,"\\/").replace(/\[.*?\]/g,function(str){
+                      if (str[1].match(/[a-zA-Z0-9]/) === null) return "(\\"+str[1]+".*?)?";
+                      return "(.*?)?";
+                    })+"$";
+                    let source_withcursor = source.substring(0,cursorpos) + "🐁🐀🐁" + source.substring(cursorpos)
+                    let match = source_withcursor.match(syntaxregex);
+                    let highlighted = syntax;
+                    if ((match !== null) && (match.length > 1) && (typeof match[1] != "undefined")) {
+                      //find which group contains the mouse cursor
+                      for (let i = 1; i < match.length; i++) {
+                        if (match[i].includes("🐁🐀🐁")) {
+                          //make the same captured group bold
+                          let n = 0;
+                          highlighted = highlighted.replace(/(\[.*?\])/g,function(str){
+                            n++;
+                            if (n == i) return "<b>"+str+"</b>"; 
+                            else return str;
+                          })
+                          break;
+                        }
+                      }
+                    }
+                    $syntax.html(highlighted);
+
+                    //create a 'pretty' list of the inputs that apply for this syntax
+                    let names = [];
+                    for (let name of syntaxes[index]) {
+                      let input = name in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[name] : (name + ".exe" in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[name + ".exe"] : null);
+                      if (!input) return; //should not happen
+                      names.push("source_name" in input ? input.source_name : name);
+                    }
+                    if (names.length >= 2) {
+                      let last_two = names.splice(-2);
+                      names.push(last_two.join(" or "));
+                    }
+
+                    let $help = $("<div>").addClass("description");
+                    let $li = $("<li>").html(
+                      $("<div>").text(is_match ? "Matched input type: " : "Input type: ").append(
+                        $("<h4>").css("display","inline").text(names.join(", "))
+                      )
+                    ).append(
+                      $("<div>").text("Syntax: ").append($syntax) 
+                    ).append(
+                      $help
+                    );
+                    
+                    if (is_match) {
+                      $ul.prepend($li.attr("data-icon","check"));
+                    }
+                    else {
+                      $ul.append($li);
+                    }
+
+                    //gather syntax help
+                    let help = [];
+                    for (let i of syntaxes[index]) {
+                      let input = i in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[i] : (i + ".exe" in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[i + ".exe"] : null);
+                      if (!input) return; //should not happen
+
+                      let h = input.desc;
+                      if ("source_help" in input) h = input.source_help;
+                      if (typeof h == "object") {
+                        //an object is used to show a specific help for a specific syntax
+                        if (syntax in h) {
+                          h = h[syntax];
+                        }
+                        else if ("default" in h) {
+                          h = h["default"];
+                        }
+                        else {
+                          //probably an invalid syntax, revert to desc
+                          h = input.desc;
+                        }
+                      }
+                      if (!help.includes(h)) help.push(h);
+                    }
+                    for (let h of help) {
+                      $help.append(
+                        $("<div>").css("white-space","pre-line").text(h)
+                      );
+                    }
+                  }
+                }
+                break;
+              }
+            }
+
+            return type ? type : null;
+          }
+
           var $inputoptions = $('<div>');
 
           function save(tab) {
@@ -6436,252 +6683,155 @@ context_menu: function(){
                 main: saveas,
                 index: 'source'
               },
-              help: ("<p>\
-                Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.\
-                </p>\
-                <table class=valigntop>\
-                <tr>\
-                <th colspan=3><b>File inputs</b></th>\
-                </tr>\
-                <tr>\
-                <th>File</th>\
-                <td>\
-                Linux/MacOS:&nbsp;/PATH/FILE<br>\
-                Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE\
-                </td>\
-                <td>\
-                For file input please specify the proper path and file.<br>\
-                Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.\
-                </td>\
-                </tr>\
-                <th>\
-                Folder\
-                </th>\
-                <td>\
-                Linux/MacOS:&nbsp;/PATH/<br>\
-                Windows:&nbsp;/cygdrive/DRIVE/PATH/\
-                </td>\
-                <td>\
-                A folder stream makes all the recognised files in the selected folder available as a stream.\
-                </td>\
-                </tr>\
-                <tr><td colspan=3>&nbsp;</td></tr>\
-                <tr>\
-                <th colspan=3><b>Push inputs</b></th>\
-                </tr>\
-                <tr>\
-                <th>RTMP</th>\
-                <td>push://(IP)(@PASSWORD)</td>\
-                <td>\
-                IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
-                PASSWORD is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. PASSWORD is MistServer Pro only.\
-                </td>\
-                </tr>\
-                <tr>\
-                <th>SRT</th>\
-                <td>push://(IP)</td>\
-                <td>\
-                IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
-                </td>\
-                </tr>\
-                <tr>\
-                <th>RTSP</th>\
-                <td>push://(IP)(@PASSWORD)</td>\
-                <td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
-                </tr>\
-                <tr>\
-                <th>TS</th>\
-                <td>tsudp://(IP):PORT(/INTERFACE)</td>\
-                <td>\
-                IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>\
-                PORT is the port you reserve for this stream on the chosen IP.<br>\
-                INTERFACE is the interface used, if left all interfaces will be used.\
-                </td>\
-                </tr>\
-                <tr><td colspan=3>&nbsp;</td></tr>\
-                <tr>\
-                <th colspan=3><b>Pull inputs</b></th>\
-                </tr>\
-                <tr>\
-                <th>DTSC</th>\
-                <td>dtsc://MISTSERVER_IP:PORT/(STREAMNAME)</td>\
-                <td>MISTSERVER_IP is the IP of another MistServer to pull from.<br>\
-                PORT is the DTSC port of the other MistServer. (default is 4200)<br>\
-                STREAMNAME is the name of the target stream on the other MistServer. If left empty, the name of this stream will be used.\
-                </td>\
-                </tr>\
-                <tr>\
-                <th>HLS</th>\
-                <td>http://URL/TO/STREAM.m3u8</td>\
-                <td>The URL where the HLS stream is available to MistServer.</td>\
-                </tr>\
-                <tr>\
-                <th>RTSP</th>\
-                <td>rtsp://(USER:PASSWORD@)IP(:PORT)(/path)</td>\
-                <td>\
-                USER:PASSWORD is the account used if authorization is required.<br>\
-                IP is the IP address used to pull this stream from.<br>\
-                PORT is the port used to connect through.<br>\
-                PATH is the path to be used to identify the correct stream.\
-                </td>\
-                </tr>\
-                </table>")
-                ,
-                'function': function(){
-                  var source = $(this).val();
-                  var $source_field = $(this);
-                  $style.remove();
-                  $livestreamhint.html('');
-                  if (source == '') { return; }
-                  var type = null;
-                  for (var i in mist.data.capabilities.inputs) {
-                    if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
-                    if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,source)) {
-                      type = i;
-                      break;
+              help: $source_help,
+              'function': function(){
+                var source = $(this).val();
+                var $source_field = $(this);
+                $style.remove();
+                $livestreamhint.html('');
+                let type = showHint(source,this.selectionStart);
+                if (source == '') { return; }
+                if (type === null) {
+                  $inputoptions.html(
+                    $('<h3>').text('Unrecognized input').addClass('red')
+                  ).append(
+                    $('<span>').text('Please edit the stream source.').addClass('red')
+                  );
+
+                  $source_info.html("");
+                  return;
+                }
+                var input = mist.data.capabilities.inputs[type];
+
+                var t = $source_info.find("div");
+                if (t.length) {
+                  t.removeClass("active");
+                  t.filter("[data-source=\""+source+"\"]").addClass("active");
+                }
+
+                let $streamkeys = $(this).closest(".input_container").find(".itemgroup [name=\"streamkeys\"]").closest(".itemgroup");
+                if (source.slice(0,7) == "push://") {
+                  $streamkeys.show();
+                }
+                else {
+                  $streamkeys.hide();
+                }
+
+                function update_input_options(source) {
+                  var input_options = $.extend({},input);
+                  if (input.dynamic_capa) {
+                    input_options.desc = "Loading dynamic capabilities..";
+
+                    //the capabilities for this input can change depending on the source string
+                    if (!("dynamic_capa_results" in input) || (!(source in input.dynamic_capa_results))) {
+                      dynamic_capa_source = source;
+
+                      //we don't know the capabilities for this source string yet
+                      if (dynamic_capa_rate_limit) {
+                        //some other call is already in the waiting list, don't make a new one
+                        return;
+                      }
+                      dynamic_capa_rate_limit = setTimeout(function(){
+                        if (!("dynamic_capa_results" in input)) {
+                          input.dynamic_capa_results = {};
+                        }
+                        input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
+                        mist.send(function(d){
+                          dynamic_capa_rate_limit = false;
+                          input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
+                          update_input_options(dynamic_capa_source);
+                        },{capabilities:dynamic_capa_source});
+                      },1e3); //one second rate limit
+
+
+                    }
+                    else {
+                      //we know them, apply
+                      delete input_options.desc;
+                      if (input.dynamic_capa_results[source]) {
+                        input_options = input.dynamic_capa_results[source];
+                      }
                     }
                   }
-                  if (type === null) {
-                    $inputoptions.html(
-                      $('<h3>').text('Unrecognized input').addClass('red')
-                    ).append(
-                      $('<span>').text('Please edit the stream source.').addClass('red')
-                    );
-
-                    $source_info.html("");
-                    return;
+                  $inputoptions.html(
+                    $('<h3>').text("source_name" in input ? "Input options for "+(input.source_name).toLowerCase() : input.name+' Input options')
+                  );                
+                  var build = mist.convertBuildOptions(input_options,saveas);
+                  if (('always_match' in input) && (mist.inputMatch(input.always_match,source))) {
+                    build.push({
+                      label: 'Always on',
+                      type: 'checkbox',
+                      help: 'Keep this input available at all times, even when there are no active viewers.',
+                      pointer: {
+                        main: saveas,
+                        index: 'always_on'
+                      },
+                      value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
+                    });
                   }
-                  var input = mist.data.capabilities.inputs[type];
+                  $inputoptions.append(UI.buildUI(build));
+                  $source_info.html("");
+                  if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
+                    //this input can enumerate supported devices, and the source string matches the specified static prefix
 
-                  var t = $source_info.find("div");
-                  if (t.length) {
-                    t.removeClass("active");
-                    t.filter("[data-source=\""+source+"\"]").addClass("active");
-                  }
+                    function display_sources() {
+                      //add to source info container
+                      $source_info.html(
+                        $("<p>").text("Possible sources for "+input.name+": (click to set)")
+                      );
+                      var sources = input.enumerated_sources[input.enum_static_prefix];
+                      for (var i in sources) {
+                        var v = sources[i].split(" ")[0];
+                        $source_info.append(
+                          $("<div>").attr("data-source",v).text(sources[i]).click(function(){
+                            var t = $(this).attr("data-source");
+                            $source_field.val(t).trigger("change");                          
+                          }).addClass(v == source ? "active":"")
+                        );
+                      }
 
-                  let $streamkeys = $(this).closest(".input_container").find(".itemgroup [name=\"streamkeys\"]").closest(".itemgroup");
-                  if (source.slice(0,7) == "push://") {
-                    $streamkeys.show();
-                  }
-                  else {
-                    $streamkeys.hide();
-                  }
+                    }
 
-                  function update_input_options(source) {
-                    var input_options = $.extend({},input);
-                    if (input.dynamic_capa) {
-                      input_options.desc = "Loading dynamic capabilities..";
+                    function apply_enumerated_sources() {
+                      if ((!("enumerated_sources" in input)) || (!(input.enum_static_prefix in input.enumerated_sources))) {
+                        if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                        input.enumerated_sources[input.enum_static_prefix] = []; //"reserve" the space so we won't make duplicate requests
+                        setTimeout(function(){
+                          //remove the reserved space so that we can collect new values
+                          delete input.enumerated_sources[input.enum_static_prefix];
+                        },10e3);
+                        mist.send(function(d){
+                          //save
+                          if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                          input.enumerated_sources[input.enum_static_prefix] = d.enumerate_sources;
 
-                      //the capabilities for this input can change depending on the source string
-                      if (!("dynamic_capa_results" in input) || (!(source in input.dynamic_capa_results))) {
-                        dynamic_capa_source = source;
+                          display_sources();
 
-                        //we don't know the capabilities for this source string yet
-                        if (dynamic_capa_rate_limit) {
-                          //some other call is already in the waiting list, don't make a new one
-                          return;
-                        }
-                        dynamic_capa_rate_limit = setTimeout(function(){
-                          if (!("dynamic_capa_results" in input)) {
-                            input.dynamic_capa_results = {};
-                          }
-                          input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
-                          mist.send(function(d){
-                            dynamic_capa_rate_limit = false;
-                            input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
-                            update_input_options(dynamic_capa_source);
-                          },{capabilities:dynamic_capa_source});
-                        },1e3); //one second rate limit
-
-
+                        },{enumerate_sources:source});
                       }
                       else {
-                        //we know them, apply
-                        delete input_options.desc;
-                        if (input.dynamic_capa_results[source]) {
-                          input_options = input.dynamic_capa_results[source];
-                        }
+                        display_sources();
                       }
                     }
-                    $inputoptions.html(
-                      $('<h3>').text(input.name+' Input options')
-                    );                
-                    var build = mist.convertBuildOptions(input_options,saveas);
-                    if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
-                      build.push({
-                        label: 'Always on',
-                        type: 'checkbox',
-                        help: 'Keep this input available at all times, even when there are no active viewers.',
-                        pointer: {
-                          main: saveas,
-                          index: 'always_on'
-                        },
-                        value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
-                      });
-                    }
-                    $inputoptions.append(UI.buildUI(build));
-                    $source_info.html("");
-                    if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
-                      //this input can enumerate supported devices, and the source string matches the specified static prefix
-
-                      function display_sources() {
-                        //add to source info container
-                        $source_info.html(
-                          $("<p>").text("Possible sources for "+input.name+": (click to set)")
-                        );
-                        var sources = input.enumerated_sources[input.enum_static_prefix];
-                        for (var i in sources) {
-                          var v = sources[i].split(" ")[0];
-                          $source_info.append(
-                            $("<div>").attr("data-source",v).text(sources[i]).click(function(){
-                              var t = $(this).attr("data-source");
-                              $source_field.val(t).trigger("change");                          
-                            }).addClass(v == source ? "active":"")
-                          );
-                        }
-
-                      }
-
-                      function apply_enumerated_sources() {
-                        if ((!("enumerated_sources" in input)) || (!(input.enum_static_prefix in input.enumerated_sources))) {
-                          if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
-                          input.enumerated_sources[input.enum_static_prefix] = []; //"reserve" the space so we won't make duplicate requests
-                          setTimeout(function(){
-                            //remove the reserved space so that we can collect new values
-                            delete input.enumerated_sources[input.enum_static_prefix];
-                          },10e3);
-                          mist.send(function(d){
-                            //save
-                            if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
-                            input.enumerated_sources[input.enum_static_prefix] = d.enumerate_sources;
-
-                            display_sources();
-
-                          },{enumerate_sources:source});
-                        }
-                        else {
-                          display_sources();
-                        }
-                      }
-                      apply_enumerated_sources();
-                    }
+                    apply_enumerated_sources();
                   }
-
-                  if (input.name == 'Folder') {
-                    if (other.indexOf("+") < 0) { $main.append($style); }
-                  }
-
-                  let streamname = $main.find('[name=name]').val();
-                  UI.updateLiveStreamHint(
-                    (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
-                    $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
-                    $livestreamhint,
-                    input,
-                    $main.find("[name=streamkeys]").getval()
-                  );
-                  
-                  update_input_options(source);
                 }
+
+                if (input.name == 'Folder') {
+                  if (other.indexOf("+") < 0) { $main.append($style); }
+                }
+
+                let streamname = $main.find('[name=name]').val();
+                UI.updateLiveStreamHint(
+                  (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
+                  $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
+                  $livestreamhint,
+                  input,
+                  $main.find("[name=streamkeys]").getval()
+                );
+
+                update_input_options(source);
+              }
             },$source_datalist,$source_info,{
               label: "Persistent tags",
               type: "inputlist",

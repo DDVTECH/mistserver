@@ -481,31 +481,49 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
   return 0;
 }
 
-void Controller::handleUDPAPI(){
+void Controller::handleUDPAPI() {
   Util::nameThread("UDP_API");
   Socket::UDPConnection uSock(true);
-  uint16_t boundPort;
-  {
+  uint16_t boundPort = 0;
+  bool warned = false;
+  while (!boundPort && Controller::conf.is_active) {
     HTTP::URL udpApiAddr("udp://localhost:4242");
-    if (getenv("UDP_API")){udpApiAddr = HTTP::URL(getenv("UDP_API"));}
+    if (getenv("UDP_API")) { udpApiAddr = HTTP::URL(getenv("UDP_API")); }
     boundPort = uSock.bind(udpApiAddr.getPort(), udpApiAddr.host);
-    if (!boundPort){
-      FAIL_MSG("Could not open local UDP API socket on %s:%" PRIu16 " - retrying with an ephemeral port", udpApiAddr.host.c_str(), udpApiAddr.getPort());
+    if (!boundPort) {
       boundPort = uSock.bind(0, udpApiAddr.host);
-      if (!boundPort){
+      if (!boundPort) {
         std::stringstream newHost;
         char ranNums[3];
         Util::getRandomBytes(ranNums, 3);
         newHost << "127." << (int)ranNums[0] << "." << (int)ranNums[1] << "." << (int)ranNums[2];
-        FAIL_MSG("Could not open local ephemeral UDP API socket either - retrying with host %s", newHost.str().c_str());
         boundPort = uSock.bind(0, newHost.str());
-        if (!boundPort){
-          FAIL_MSG("Could not open local UDP API socket even after all that... disabling local UDP API, some functionality may not be available");
-          return;
+        if (!boundPort) {
+          WARN_MSG("Could not open local UDP API socket; scheduling retry");
+          warned = true;
+          size_t sleeps = 20;
+          while (sleeps && Controller::conf.is_active) {
+            Util::sleep(500);
+            --sleeps;
+          }
+        } else {
+          WARN_MSG("Could not open UDP API port on any port on %s - bound instead to %s",
+                   udpApiAddr.host.c_str(), uSock.getBoundAddr().toString().c_str());
         }
+      } else {
+        WARN_MSG("Could not open local UDP API socket on %s:%" PRIu16
+                 " - bound to ephemeral port %" PRIu16 " instead",
+                 udpApiAddr.host.c_str(), udpApiAddr.getPort(), boundPort);
+      }
+    } else {
+      if (warned) {
+        WARN_MSG("Local UDP API bound successfully on %s", uSock.getBoundAddr().toString().c_str());
+      } else {
+        INFO_MSG("Local UDP API bound on %s", uSock.getBoundAddr().toString().c_str());
       }
     }
   }
+  if (!Controller::conf.is_active || !boundPort) { return; }
   HTTP::URL boundAddr;
   boundAddr.protocol = "udp";
   boundAddr.setPort(boundPort);
@@ -517,22 +535,22 @@ void Controller::handleUDPAPI(){
   }
   Util::Procs::socketList.insert(uSock.getSock());
   uSock.allocateDestination();
-  while (Controller::conf.is_active){
-    if (uSock.Receive()){
-      MEDIUM_MSG("UDP API: %s", (const char*)uSock.data);
+  while (Controller::conf.is_active) {
+    if (uSock.Receive()) {
+      MEDIUM_MSG("UDP API: %s", (const char *)uSock.data);
       JSON::Value Request = JSON::fromString(uSock.data, uSock.data.size());
       Request["minimal"] = true;
       JSON::Value Response;
-      if (Request.isObject()){
+      if (Request.isObject()) {
         std::lock_guard<std::mutex> guard(configMutex);
         Response["authorize"]["local"] = true;
         handleAPICommands(Request, Response);
         Response.removeMember("authorize");
         uSock.SendNow(Response.toString());
-      }else{
-        WARN_MSG("Invalid API command received over UDP: %s", (const char*)uSock.data);
+      } else {
+        WARN_MSG("Invalid API command received over UDP: %s", (const char *)uSock.data);
       }
-    }else{
+    } else {
       Util::sleep(500);
     }
   }

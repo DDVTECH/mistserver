@@ -37,7 +37,7 @@ if get_option('WITH_AV')
 endif
 
 if ccpp.has_header('linux/videodev2.h')
-  inputs += {'name' : 'V4L2', 'format' : 'v4l2'}
+  inputs += {'name' : 'LinuxAV', 'format' : 'linuxav', 'extra' : 'with_pulse'}
 endif
 
 inputs_tgts = []
@@ -55,6 +55,11 @@ foreach input : inputs
     endif
     if input.get('extra').contains('with_av')
       deps += av_libs
+    endif
+    if input.get('extra').contains('with_pulse')
+      if have_pulseaudio
+        deps += libpulse
+      endif
     endif
   endif
   if input.get('name').contains('AV')

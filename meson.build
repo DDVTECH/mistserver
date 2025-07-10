@@ -217,6 +217,19 @@ endif
 # Add thread dependency since we always have thread code in libmist
 mist_deps += dependency('threads')
 
+# Add PulseAudio dependency for LinuxAV input on Linux systems
+libpulse = false
+have_pulseaudio = false
+if host_machine.system() == 'linux'
+  libpulse = dependency('libpulse', required: false)
+  have_pulseaudio = libpulse.found()
+  if have_pulseaudio
+    message('PulseAudio support enabled')
+  else
+    message('PulseAudio support disabled - libpulse not found')
+  endif
+endif
+
 # Add rt dependency when using shared memory
 if not get_option('NOSHM') and host_machine.system() != 'darwin'
   mist_deps += ccpp.find_library('rt', required : true)

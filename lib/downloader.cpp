@@ -5,6 +5,8 @@
 #include "ev.h"
 #include "timing.h"
 
+static const std::string emptyString;
+
 namespace HTTP{
 
   Downloader::Downloader(){
@@ -611,6 +613,11 @@ namespace HTTP{
     uint32_t sCode = getStatusCode();
     if (sCode == 401 || sCode == 407 || (sCode >= 300 && sCode < 400)){return true;}
     return false;
+  }
+
+  const std::string & Downloader::getCookie() const {
+    if (!extraHeaders.count("Cookie")) { return emptyString; }
+    return extraHeaders.at("Cookie");
   }
 
   bool Downloader::canContinue(const HTTP::URL &link){

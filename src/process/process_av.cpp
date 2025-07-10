@@ -441,8 +441,7 @@ namespace Mist{
   public:
     bool isRecording(){return false;}
 
-    ProcessSource(Socket::Connection &c) : Output(c){
-      closeMyConn();
+    ProcessSource(Socket::Connection & c) : Output(c) {
       targetParams["keeptimes"] = true;
       realTime = 0;
       convertCtx = NULL;
@@ -458,7 +457,7 @@ namespace Mist{
       softDecodeFormat = AV_PIX_FMT_NONE;
       hw_decode_ctx = 0;
       skippedFrames = 99999; //< Init high so that it does not skip the first keyframe
-    };
+    }
 
     ~ProcessSource(){
       if (convertCtx){
@@ -1863,7 +1862,7 @@ void sourceThread(){
     video_select = Mist::opt["source_track"].asStringRef();
   }
   conf.getOption("target", true).append("-");
-  Socket::Connection S(1, 0);
+  Socket::Connection S;
   Mist::ProcessSource out(S);
   MEDIUM_MSG("Running source thread...");
   out.run();

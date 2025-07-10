@@ -133,11 +133,7 @@ namespace Mist{
     if (myConn){
       setBlocking(true);
       //Make sure that if the socket is a non-stdio socket, we close it when forking
-      if (myConn.getSocket() > 2){
-        Util::Procs::socketList.insert(myConn.getSocket());
-      }
-    }else{
-      WARN_MSG("Warning: MistOut created with closed socket!");
+      if (myConn.getSocket() > 2) { Util::Procs::socketList.insert(myConn.getSocket()); }
     }
     sentHeader = false;
     isRecordingToFile = false;

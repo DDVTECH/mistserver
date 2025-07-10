@@ -16,6 +16,7 @@
 
 std::mutex segMutex;
 std::mutex broadcasterMutex;
+std::string cookie;
 
 //Stat related stuff
 JSON::Value pStat;
@@ -63,15 +64,7 @@ namespace Mist{
   class ProcessSource : public TSOutput{
   public:
     bool isRecording(){return false;}
-    bool isReadyForPlay(){
-      if (!TSOutput::isReadyForPlay()){return false;}
-      size_t mTrk = getMainSelectedTrack();
-      if (mTrk == INVALID_TRACK_ID || M.getType(mTrk) != "video"){
-        HIGH_MSG("NOT READY (non-video main track)");
-        return false;
-      }
-      return true;
-    }
+    bool isReadyForPlay() { return true; }
     ProcessSource(Socket::Connection &c) : TSOutput(c){
       capa["name"] = "Livepeer";
       capa["codecs"][0u][0u].append("+H264");
@@ -83,6 +76,7 @@ namespace Mist{
       parseData = true;
       currPreSeg = 0;
     };
+    inline virtual bool keepGoing() { return config->is_active; }
     virtual bool onFinish(){
       if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
         if (userSelect.size()){
@@ -139,24 +133,58 @@ namespace Mist{
         }
       }
       if (thisTime > statSourceMs){statSourceMs = thisTime;}
-      if (thisPacket.getFlag("keyframe") && M.trackLoaded(thisIdx) && M.getType(thisIdx) == "video" && (thisTime - presegs[currPreSeg].time) >= 1000){
-        sourceIndex = getMainSelectedTrack();
-        if (presegs[currPreSeg].data.size() > 187){
-          presegs[currPreSeg].keyNo = keyCount;
-          presegs[currPreSeg].width = M.getWidth(thisIdx);
-          presegs[currPreSeg].height = M.getHeight(thisIdx);
-          presegs[currPreSeg].segDuration = thisTime - presegs[currPreSeg].time;
-          presegs[currPreSeg].fullyRead = false;
-          presegs[currPreSeg].fullyWritten = true;
-          currPreSeg = (currPreSeg+1) % PRESEG_COUNT;
+
+      // Split if we have a keyframe which contains new init data
+      if (thisPacket.getFlag("keyframe") && M.trackLoaded(thisIdx) && M.getType(thisIdx) == "video") {
+        // Always split if we current segment is long enough
+        bool shouldSplit = (thisTime - presegs[currPreSeg].time) >= 1000;
+        // Else check for changes to init data
+        if (!shouldSplit) {
+          char *dataPointer = 0;
+          size_t dataLen = 0;
+          thisPacket.getString("data", dataPointer, dataLen);
+          std::string codec = M.getCodec(thisIdx);
+          if (codec == "H264" && dataLen > 3) {
+            uint8_t nalType = (dataPointer[4] & 0x1F);
+            switch (nalType) {
+              case 0x07: // sps
+              case 0x08: // pps
+                shouldSplit = true;
+                INFO_MSG("Switching to new segment since the current keyframe contains new init data");
+              default: break;
+            }
+          } else if (codec == "HEVC" && dataLen > 3) {
+            uint8_t nalType = (dataPointer[4] & 0x7E) >> 1;
+            switch (nalType) {
+              case 32: // vps
+              case 33: // sps
+              case 34: // pps
+                shouldSplit = true;
+                INFO_MSG("Switching to new segment since the current keyframe contains new init data");
+              default: break;
+            }
+          }
         }
-        while (!presegs[currPreSeg].fullyRead && conf.is_active){Util::sleep(100);}
-        presegs[currPreSeg].data.assign(0, 0);
-        needsLookAhead = 0;
-        maxSkipAhead = 0;
-        packCounter = 0;
-        ++keyCount;
-        sendFirst = true;
+        if (shouldSplit) {
+          sourceIndex = getMainSelectedTrack();
+          if (presegs[currPreSeg].data.size() > 187) {
+            presegs[currPreSeg].keyNo = keyCount;
+            presegs[currPreSeg].width = M.getWidth(thisIdx);
+            presegs[currPreSeg].height = M.getHeight(thisIdx);
+            presegs[currPreSeg].segDuration = thisTime - presegs[currPreSeg].time;
+            presegs[currPreSeg].fullyRead = false;
+            presegs[currPreSeg].fullyWritten = true;
+            currPreSeg = (currPreSeg + 1) % PRESEG_COUNT;
+          }
+          while (!presegs[currPreSeg].fullyRead && conf.is_active) { Util::sleep(100); }
+          presegs[currPreSeg].data.assign(0, 0);
+          selectDefaultTracks();
+          needsLookAhead = 0;
+          maxSkipAhead = 0;
+          packCounter = 0;
+          ++keyCount;
+          sendFirst = true;
+        }
       }
       TSOutput::sendNext();
     }
@@ -240,6 +268,7 @@ namespace Mist{
                 S.S.initializeMetadata(meta, thisPacket.getTrackId(), trackId);
                 thisIdx = M.trackIDToIndex(trackId, getpid());
                 meta.setSourceTrack(thisIdx, sourceIndex);
+                if (M.getType(thisIdx) == "audio") { meta.validateTrack(thisIdx, 0); }
               }
             }
             if (S.byteOffset >= S.data.size() && !S.S.hasPacket()){
@@ -314,8 +343,7 @@ void sourceThread(){
   conf.getOption("target", true).append("-?audio="+audio_select+"&video="+video_select);
   Mist::ProcessSource::init(&conf);
   conf.is_active = true;
-  int devnull = open("/dev/null", O_RDWR);
-  Socket::Connection c(devnull, devnull);
+  Socket::Connection c;
   Mist::ProcessSource out(c);
   if (conf.is_active){
     INFO_MSG("Running source thread...");
@@ -326,7 +354,6 @@ void sourceThread(){
   }
   conf.is_active = false;
   co.is_active = false;
-  close(devnull);
 }
 
 ///Inserts a part into the queue of parts to parse
@@ -432,12 +459,21 @@ void uploadThread(size_t myNum){
       {
         std::lock_guard<std::mutex> guard(broadcasterMutex);
         target = HTTP::URL(Mist::currBroadAddr+"/live/"+Mist::lpID+"/"+JSON::Value(mySeg.keyNo).asString()+".ts");
+        upper.setHeader("Cookie", cookie);
       }
       upper.dataTimeout = mySeg.segDuration/1000 + 2;
       upper.retryCount = 2;
       upper.setHeader("Accept", "multipart/mixed");
       upper.setHeader("Content-Duration", JSON::Value(mySeg.segDuration).asString());
       upper.setHeader("Content-Resolution", JSON::Value(mySeg.width).asString()+"x"+JSON::Value(mySeg.height).asString());
+
+      // If the Livepeer API Key hasn't been set then we send the configuration as an HTTP header rather than pushing to the API
+      if (!Mist::opt.isMember("access_token") || !Mist::opt["access_token"] || !Mist::opt["access_token"].isString()) {
+        JSON::Value tc;
+        tc["profiles"] = Mist::opt["target_profiles"];
+        upper.setHeader("Livepeer-Transcode-Configuration", tc.toString());
+      }
+
       uint64_t uplTime = Util::getMicros();
       if (upper.post(target, mySeg.data, mySeg.data.size())){
         uplTime = Util::getMicros(uplTime);
@@ -446,6 +482,11 @@ void uploadThread(size_t myNum){
           was422 = false;
           prevURL.clear();
           mySeg.fullyWritten = false;
+          {
+            std::lock_guard<std::mutex> guard(broadcasterMutex);
+            std::string newCookie = upper.getCookie();
+            if (newCookie.size() && newCookie != cookie) { cookie = newCookie; }
+          }
           //Wait your turn
           while (myNum != insertTurn && conf.is_active){Util::sleep(100);}
           if (!conf.is_active){return;}//Exit early on shutdown
@@ -453,7 +494,9 @@ void uploadThread(size_t myNum){
             parseMultipart(mySeg, upper.getHeader("Content-Type"), upper.const_data());
           }else{
             ++statFailParse;
-            FAIL_MSG("Non-multipart response received - this version only works with multipart!");
+            FAIL_MSG("Non-multipart response (%s, %zu bytes) received - this version only works "
+                     "with multipart!",
+                     upper.getHeader("Content-Type").c_str(), upper.const_data().size());
           }
           mySeg.fullyRead = true;
           insertTurn = (insertTurn + 1) % PRESEG_COUNT;
@@ -495,6 +538,7 @@ void uploadThread(size_t myNum){
       bool switchSuccess = false;
       {
         std::lock_guard<std::mutex> guard(broadcasterMutex);
+        cookie.clear();
         std::string prevBroadAddr = Mist::currBroadAddr;
         Mist::pickRandomBroadcaster();
         if (!Mist::currBroadAddr.size()){
@@ -620,21 +664,30 @@ int main(int argc, char *argv[]){
     capa["optional"]["audio_select"]["type"] = "track_selector_parameter";
     capa["optional"]["audio_select"]["default"] = "none";
 
-    capa["required"]["access_token"]["name"] = "Access token";
-    capa["required"]["access_token"]["help"] = "Your livepeer access token";
-    capa["required"]["access_token"]["type"] = "string";
+    capa["optional"]["access_token"]["name"] = "Access token";
+    capa["optional"]["access_token"]["help"] = "Your livepeer access token";
+    capa["optional"]["access_token"]["type"] = "string";
+
+    capa["optional"]["hardcoded_broadcasters"]["name"] = "Hardcoded Broadcasters";
+    capa["optional"]["hardcoded_broadcasters"]["help"] =
+      "Use hardcoded broadcasters, rather than using Livepeer's gateway.";
+    capa["optional"]["hardcoded_broadcasters"]["type"] = "string";
 
     capa["optional"]["leastlive"]["name"] = "Start in the past";
     capa["optional"]["leastlive"]["help"] = "Start the transcode as far back in the past as possible, instead of at the most-live point of the stream.";
     capa["optional"]["leastlive"]["type"] = "boolean";
     capa["optional"]["leastlive"]["default"] = false;
 
+    capa["optional"]["min_viewers"]["name"] = "Minimum viewers";
+    capa["optional"]["min_viewers"]["help"] =
+      "Transcode will only be active while this many viewers are watching the stream.";
+    capa["optional"]["min_viewers"]["type"] = "int";
+    capa["optional"]["min_viewers"]["default"] = 0;
 
     capa["optional"]["custom_url"]["name"] = "Custom API URL";
     capa["optional"]["custom_url"]["help"] = "Alternative API URL path";
     capa["optional"]["custom_url"]["type"] = "string";
     capa["optional"]["custom_url"]["default"] = "https://livepeer.live/api";
-
 
     capa["required"]["target_profiles"]["name"] = "Profiles";
     capa["required"]["target_profiles"]["type"] = "sublist";
@@ -716,6 +769,7 @@ int main(int argc, char *argv[]){
     capa["ainfo"]["bc"]["name"] = "Currently used broadcaster";
     capa["ainfo"]["sinkTime"]["name"] = "Sink timestamp";
     capa["ainfo"]["sourceTime"]["name"] = "Source timestamp";
+    capa["ainfo"]["percent_done"]["name"] = "Percentage for VoD transcodes";
 
     std::cout << capa.toString() << std::endl;
     return -1;
@@ -869,16 +923,41 @@ int main(int argc, char *argv[]){
     }
     INFO_MSG("Profile parsed: %s", prof->toString().c_str());
   }
- 
+  Mist::opt["target_profiles"] = pl["profiles"];
+
   //Connect to livepeer API
   HTTP::Downloader dl;
-  dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
-  //Get broadcaster list, pick first valid address
-  if (!dl.get(HTTP::URL(api_url+"/broadcaster"))){
-    FAIL_MSG("Livepeer API responded negatively to request for broadcaster list");
-    return 1;
+  if (!Mist::opt.isMember("access_token") || !Mist::opt["access_token"] || !Mist::opt["access_token"].isString()) {
+    dl.setHeader("Authorization", "Bearer " + Mist::opt["access_token"].asStringRef());
   }
-  Mist::lpBroad = JSON::fromString(dl.data());
+
+  if (Mist::opt.isMember("hardcoded_broadcasters") && Mist::opt["hardcoded_broadcasters"] &&
+      Mist::opt["hardcoded_broadcasters"].isString()) {
+    const std::string & hcbc = Mist::opt["hardcoded_broadcasters"].asStringRef();
+    // Detect array
+    if (hcbc.size() && hcbc[0] == '[') {
+      Mist::lpBroad = JSON::fromString(hcbc);
+      // If an array element is a string, assume it's the address field only
+      jsonForEach (Mist::lpBroad, it) {
+        if (it->isString()) {
+          std::string tmp = it->asStringRef();
+          (*it)["address"] = tmp;
+        }
+      }
+    }
+    // If the first letter is H, assume it's a single broadcaster's address field.
+    if (hcbc.size() && hcbc[0] == 'h') {
+      Mist::lpBroad.null();
+      Mist::lpBroad[0u]["address"] = hcbc;
+    }
+  } else {
+    // Get broadcaster list, pick first valid address
+    if (!dl.get(HTTP::URL(api_url + "/broadcaster"))) {
+      FAIL_MSG("Livepeer API responded negatively to request for broadcaster list");
+      return 1;
+    }
+    Mist::lpBroad = JSON::fromString(dl.data());
+  }
   if (!Mist::lpBroad || !Mist::lpBroad.isArray()){
     FAIL_MSG("No Livepeer broadcasters available");
     return 1;
@@ -889,24 +968,29 @@ int main(int argc, char *argv[]){
     return 1;
   }
   INFO_MSG("Using broadcaster: %s", Mist::currBroadAddr.c_str());
-
-  //send transcode request
-  dl.setHeader("Content-Type", "application/json");
-  dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
-  if (!dl.post(HTTP::URL(api_url+"/stream"), pl.toString())){
-    FAIL_MSG("Livepeer API responded negatively to encode request");
-    return 1;
+  if (Mist::opt.isMember("access_token") && Mist::opt["access_token"] && Mist::opt["access_token"].isString()) {
+    // send transcode request
+    dl.setHeader("Content-Type", "application/json");
+    dl.setHeader("Authorization", "Bearer " + Mist::opt["access_token"].asStringRef());
+    if (!dl.post(HTTP::URL(api_url + "/stream"), pl.toString())) {
+      FAIL_MSG("Livepeer API responded negatively to encode request");
+      return 1;
+    }
+    Mist::lpEnc = JSON::fromString(dl.data());
+    if (!Mist::lpEnc) {
+      FAIL_MSG("Livepeer API did not respond with JSON");
+      return 1;
+    }
+    if (!Mist::lpEnc.isMember("id")) {
+      FAIL_MSG("Livepeer API did not respond with a valid ID: %s", dl.data().data());
+      return 1;
+    }
+    Mist::lpID = Mist::lpEnc["id"].asStringRef();
+  } else {
+    // We don't want to use the same manifest ids for multiple proceses on the same stream
+    // name, so we append a random string to the upload URL.
+    Mist::lpID = Mist::opt["source"].asStringRef() + "-" + Util::getRandomAlphanumeric(8);
   }
-  Mist::lpEnc = JSON::fromString(dl.data());
-  if (!Mist::lpEnc){
-    FAIL_MSG("Livepeer API did not respond with JSON");
-    return 1;
-  }
-  if (!Mist::lpEnc.isMember("id")){
-    FAIL_MSG("Livepeer API did not respond with a valid ID: %s", dl.data().data());
-    return 1;
-  }
-  Mist::lpID = Mist::lpEnc["id"].asStringRef();
 
   INFO_MSG("Livepeer transcode ID: %s", Mist::lpID.c_str());
   uint64_t lastProcUpdate = Util::bootSecs();
@@ -945,6 +1029,12 @@ int main(int argc, char *argv[]){
       pData["ainfo"]["fail_other"] = statFailOther;
       pData["ainfo"]["sourceTime"] = statSourceMs;
       pData["ainfo"]["sinkTime"] = statSinkMs;
+      M.reloadReplacedPagesIfNeeded();
+      if (M.getVod()) {
+        uint64_t start = M.getFirstms(sourceIdx);
+        uint64_t end = M.getLastms(sourceIdx);
+        pData["ainfo"]["percent_done"] = 100 * (statSinkMs - start) / (end - start);
+      }
       {
         std::lock_guard<std::mutex> guard(broadcasterMutex);
         pData["ainfo"]["bc"] = Mist::currBroadAddr;

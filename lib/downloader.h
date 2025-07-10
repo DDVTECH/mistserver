@@ -29,6 +29,7 @@ namespace HTTP{
     bool continueNonBlocking(Util::DataCallback &cb);
 
     std::string getHeader(const std::string &headerName);
+    const std::string & getCookie() const;
     std::string &getStatusText();
     uint32_t getStatusCode();
     bool isOk();           ///< True if the request was successful.

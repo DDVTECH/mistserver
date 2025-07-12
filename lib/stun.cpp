@@ -335,8 +335,7 @@ std::string STUN::Packet::toString() const {
         if (l != 4) {
           ret << " <GoogleNetinfo (invalid length)>";
         } else {
-          ret << " <GoogleNetinfo ID=" << Bit::btohs(data + offset + 4)
-              << " cost=" << Bit::btohs(data + offset + 6) << ">";
+          ret << " <GoogleNetinfo ID=" << Bit::btohs(data + offset + 4) << " cost=" << Bit::btohs(data + offset + 6) << ">";
         }
         break;
       case STUN_ATTR_ICE_CONTROLLING:

@@ -1,0 +1,4 @@
+# We don't format the LSP or embed code directories (yet?)
+lsp/*
+embed/*
+

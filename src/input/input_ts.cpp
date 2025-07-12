@@ -81,9 +81,9 @@ void parseThread(Mist::InputTS *input){
       //This meta object is thread local, no mutex needed
       meta.reInit(globalStreamName, false);
       if (!meta){
-        //Meta init failure, retry later
-        //Clear packet buffers so we don't use infinite memory while waiting
-        while (liveStream.hasPacket(tid)){liveStream.getPacket(tid, pack);}
+        // Meta init failure, retry later
+        // Clear packet buffers so we don't use infinite memory while waiting
+        while (liveStream.hasPacket(tid)) { liveStream.getPacket(tid, pack); }
         Util::sleep(100);
         continue;
       }
@@ -91,12 +91,12 @@ void parseThread(Mist::InputTS *input){
       idx = meta.trackIDToIndex(tid, getpid());
       if (idx != INVALID_TRACK_ID){
         //Successfully assigned a track index! Inform the buffer we're pushing
-        userConn.reload(globalStreamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userConn.reload(globalStreamName, idx, COMM_STATUS_ACTSOURCEDNT);
       }
       //Any kind of failure? Retry later.
       if (idx == INVALID_TRACK_ID || !meta.trackValid(idx)){
-        //Clear packet buffers so we don't use infinite memory while waiting
-        while (liveStream.hasPacket(tid)){liveStream.getPacket(tid, pack);}
+        // Clear packet buffers so we don't use infinite memory while waiting
+        while (liveStream.hasPacket(tid)) { liveStream.getPacket(tid, pack); }
         Util::sleep(100);
         continue;
       }
@@ -586,7 +586,7 @@ namespace Mist{
                     meta.setType(rawIdx, "meta");
                     meta.setCodec(rawIdx, "rawts");
                     meta.setID(rawIdx, 1);
-                    userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+                    userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTSOURCEDNT);
                   }
                   uint64_t packetTime = Util::bootMS();
                   uint64_t packetLen = (liveReadBuffer.size() / 188) * 188;
@@ -632,7 +632,7 @@ namespace Mist{
                 meta.setType(rawIdx, "meta");
                 meta.setCodec(rawIdx, "rawts");
                 meta.setID(rawIdx, 1);
-                userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+                userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTSOURCEDNT);
               }
               uint64_t packetTime = Util::bootMS();
               thisPacket.genericFill(packetTime, 0, 1, liveReadBuffer, liveReadBuffer.size(), 0, 0);

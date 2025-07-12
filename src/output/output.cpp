@@ -354,7 +354,7 @@ namespace Mist{
         return;
       }
     }else{
-      if (!Util::startInput(streamName, sourceOverride, true, isPushing())){
+      if (!Util::startInput(streamName, sourceOverride, true, isPushing())) {
         // If stream is configured, use fallback stream setting, if set.
         JSON::Value strCnf = Util::getStreamConfig(streamName);
         if (strCnf && strCnf["fallback_stream"].asStringRef().size()){
@@ -394,7 +394,7 @@ namespace Mist{
         std::string origStream = streamName;
         streamName = newStrm;
         Util::setStreamName(streamName);
-        if (!Util::startInput(streamName, sourceOverride, true, isPushing())){
+        if (!Util::startInput(streamName, sourceOverride, true, isPushing())) {
           onFail("Stream open failed (fallback stream for '" + origStream + "')", true);
           return;
         }
@@ -1038,17 +1038,17 @@ namespace Mist{
     return true;
   }
 
-  uint64_t Output::getInitialSeekPosition(){
+  uint64_t Output::getInitialSeekPosition() {
     uint64_t seekPos = 0;
-    if (meta.getLive()){
+    if (meta.getLive()) {
       bool sync = getSyncMode();
       size_t mainTrack = getMainSelectedTrack();
-      if (mainTrack == INVALID_TRACK_ID && (mainTrack = meta.mainTrack()) == INVALID_TRACK_ID){
+      if (mainTrack == INVALID_TRACK_ID && (mainTrack = meta.mainTrack()) == INVALID_TRACK_ID) {
         WARN_MSG("No valid main track, seeking to position zero");
         return 0;
       }
       DTSC::Keys keys(M.getKeys(mainTrack));
-      if (!keys.getValidCount()){
+      if (!keys.getValidCount()) {
         WARN_MSG("Main track has no keyframes, seeking to position zero");
         return 0;
       }
@@ -1056,7 +1056,7 @@ namespace Mist{
       uint32_t firstKey = keys.getFirstValid();
       uint32_t lastKey = keys.getEndValid() - 1;
       // Seek to approx middle if desync mode, seek to approx end for sync mode
-      for (int64_t i = sync ? lastKey : (lastKey - (lastKey - firstKey) / 2); i >= firstKey; i--){
+      for (int64_t i = sync ? lastKey : (lastKey - (lastKey - firstKey) / 2); i >= firstKey; i--) {
         seekPos = keys.getTime(i);
         if (seekPos < 5000){continue;}// if we're near the start, skip back
         bool good = true;
@@ -1097,8 +1097,8 @@ namespace Mist{
   /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than
   /// needsLookAhead+minKeepAway ms from the end. Unless lastms < 5000, then it seeks to the first
   /// keyframe of the main track. Aborts if there is no main track or it has no keyframes.
-  void Output::initialSeek(bool dryRun){
-    if (!meta){return;}
+  void Output::initialSeek(bool dryRun) {
+    if (!meta) { return; }
     meta.removeLimiter();
     uint64_t seekPos = getInitialSeekPosition();
     /*LTS-START*/
@@ -1878,7 +1878,7 @@ namespace Mist{
       stats();
       requestHandler((task == 1));
       //if (task == std::string::npos){} // Continue signal received; no special handling needed
-      if (parseData && (!realTime || !nTime || nTime <= targetTime())){
+      if (parseData && (!realTime || !nTime || nTime <= targetTime())) {
         if (!isInitialized){
           initialize();
           if (!isInitialized){
@@ -2308,7 +2308,7 @@ namespace Mist{
       // Ensure we have the lookahead available
       if (needsLookAhead && M.getLive() && M.getNowms(nxt.tid) < nxt.time + needsLookAhead){
         int64_t waitTime = (nxt.time + needsLookAhead) - M.getNowms(nxt.tid);
-        if (meta.reloadReplacedPagesIfNeeded()){return 1;}
+        if (meta.reloadReplacedPagesIfNeeded()) { return 1; }
         return waitTime > 0 ? waitTime : 1;
       }
 
@@ -2390,8 +2390,8 @@ namespace Mist{
             userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
           }
 
-          //In non-sync mode, retry (replaceFirst already shuffled the packet order for us)
-          if (!buffer.getSyncMode()){ continue; }
+          // In non-sync mode, retry (replaceFirst already shuffled the packet order for us)
+          if (!buffer.getSyncMode()) { continue; }
 
           return 2000;
         }
@@ -2741,9 +2741,8 @@ namespace Mist{
     }
   }
 
-
-  bool Output::checkStreamKey(){
-    if (!Util::checkStreamKey(streamName)){ return false; }
+  bool Output::checkStreamKey() {
+    if (!Util::checkStreamKey(streamName)) { return false; }
 
     Util::sanitizeName(streamName);
     Util::setStreamName(streamName);
@@ -2757,16 +2756,16 @@ namespace Mist{
     // Initialize the stream source if needed, connect to it
     waitForStreamPushReady();
     // pull the source setting from metadata
-    if (meta){strmSource = meta.getSource();}
+    if (meta) { strmSource = meta.getSource(); }
 
-    if (!strmSource.size()){
+    if (!strmSource.size()) {
       FAIL_MSG("Push rejected - stream %s not configured or unavailable", streamName.c_str());
       pushing = false;
       sourceOverride.clear();
       streamName.clear();
       return false;
     }
-    if ((strmSource.size() >= 7 && strmSource.substr(0, 7) != "push://") || strmSource.find("INTERNAL_") != std::string::npos){
+    if ((strmSource.size() >= 7 && strmSource.substr(0, 7) != "push://") || strmSource.find("INTERNAL_") != std::string::npos) {
       FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s)", streamName.c_str(), strmSource.c_str());
       pushing = false;
       sourceOverride.clear();
@@ -2875,7 +2874,7 @@ namespace Mist{
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
         INFO_MSG("Reconnecting to %s buffer... (%u)", streamName.c_str(), streamStatus);
         reconnect();
-        if (streamStatus == STRMSTAT_OFF && !M){break;}
+        if (streamStatus == STRMSTAT_OFF && !M) { break; }
         streamStatus = Util::getStreamStatus(streamName);
       }
       if (((streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY) || !meta) && keepGoing()){

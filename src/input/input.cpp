@@ -1068,7 +1068,7 @@ namespace Mist{
     Comms::Connections statComm;
     getNext();
     if (thisPacket && !userSelect.count(thisIdx)){
-      userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT);
     }
     while (thisPacket && config->is_active && userSelect[thisIdx]){
       if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
@@ -1086,7 +1086,7 @@ namespace Mist{
         break;
       }
       if (thisPacket && !userSelect.count(thisIdx)){
-        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT);
       }
 
       if (Util::bootSecs() - statTimer > 1){
@@ -1227,9 +1227,7 @@ namespace Mist{
         break;
       }
       idx = realTimeTrackMap.count(thisIdx) ? realTimeTrackMap[thisIdx] : INVALID_TRACK_ID;
-      if (thisPacket && !userSelect.count(idx)){
-        userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
-      }
+      if (thisPacket && !userSelect.count(idx)) { userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTSOURCEDNT); }
       if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
         Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         break;

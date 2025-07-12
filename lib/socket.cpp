@@ -111,12 +111,8 @@ Socket::Address::operator bool() const {
 
 const uint8_t *const Socket::Address::ipPtr() const {
   sa_family_t fam = family();
-  if (fam == AF_INET) {
-    return (const uint8_t *const)&(((const sockaddr_in *)(sockaddr *)(*this))->sin_addr);
-  }
-  if (fam == AF_INET6) {
-    return (const uint8_t *const)&(((const sockaddr_in6 *)(sockaddr *)(*this))->sin6_addr);
-  }
+  if (fam == AF_INET) { return (const uint8_t *const)&(((const sockaddr_in *)(sockaddr *)(*this))->sin_addr); }
+  if (fam == AF_INET6) { return (const uint8_t *const)&(((const sockaddr_in6 *)(sockaddr *)(*this))->sin6_addr); }
   return 0;
 }
 
@@ -133,8 +129,7 @@ std::string Socket::Address::host() const {
     // IPv4 - pretty easy, we simply convert to dotted-decimals notation and append the port
     const sockaddr_in *A = (const sockaddr_in *)(sockaddr *)(*this);
     uint8_t *ip = (uint8_t *)&(A->sin_addr);
-    return std::to_string(ip[0]) + '.' + std::to_string(ip[1]) + '.' + std::to_string(ip[2]) + '.' +
-      std::to_string(ip[3]);
+    return std::to_string(ip[0]) + '.' + std::to_string(ip[1]) + '.' + std::to_string(ip[2]) + '.' + std::to_string(ip[3]);
   }
   if (f == AF_INET6) {
     // IPv6 is... tricky.
@@ -1465,16 +1460,12 @@ void Socket::Connection::SendNow(const char *data, size_t len){
     }
     // Send the string we generated with the hex length and newline
     size_t i = 0;
-    do {
-      i += iwrite(lenChars + offset + i, 10 - offset - i);
-    } while (i < 10 - offset && connected());
+    do { i += iwrite(lenChars + offset + i, 10 - offset - i); } while (i < 10 - offset && connected());
   }
   // Send the actual data (both chunked and non-chunked mode)
   {
     size_t i = 0;
-    do {
-      i += iwrite(data + i, std::min(len - i, (size_t)SOCKETSIZE));
-    } while (i < len && connected());
+    do { i += iwrite(data + i, std::min(len - i, (size_t)SOCKETSIZE)); } while (i < len && connected());
   }
   // Send the final newline if in chunked mode
   if (chunkedMode) {
@@ -2308,9 +2299,7 @@ void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context 
   // set input/output callbacks
   mbedtls_ssl_set_bio(&ssl_ctx, (void *)this, [](void *s, const unsigned char *buf, size_t len) {
     return ((Socket::UDPConnection *)s)->dTLSWrite(buf, len);
-  }, [](void *s, unsigned char *buf, size_t len) {
-    return ((Socket::UDPConnection *)s)->dTLSRead(buf, len);
-  }, NULL);
+  }, [](void *s, unsigned char *buf, size_t len) { return ((Socket::UDPConnection *)s)->dTLSRead(buf, len); }, NULL);
 
   mbedtls_ssl_set_timer_cb(&ssl_ctx, this, [](void *p, uint32_t int_ms, uint32_t fin_ms) {
     Socket::UDPConnection & u = *((Socket::UDPConnection *)p);
@@ -2931,9 +2920,7 @@ repeatAddressFinding:
     if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0){
       bindAddr.reserve();
       socklen_t alen = bindAddr.size();
-      if (getsockname(sock, bindAddr, &alen)) {
-        WARN_MSG("Could not read bind address: %s", strerror(errno));
-      }
+      if (getsockname(sock, bindAddr, &alen)) { WARN_MSG("Could not read bind address: %s", strerror(errno)); }
       boundMulti = multicastInterfaces;
       INFO_MSG("UDP bind success %d on %s", sock, bindAddr.toString().c_str());
       break;
@@ -3065,8 +3052,7 @@ bool Socket::UDPConnection::connect(){
     FAIL_MSG("Failed to connect socket %d to %s: %s", sock, destAddr.toString().c_str(), strerror(errno));
     return false;
   }
-  INFO_MSG("Connected UDP socket %d: %s <-> %s", sock, recvAddr.toString().c_str(),
-           destAddr.toString().c_str());
+  INFO_MSG("Connected UDP socket %d: %s <-> %s", sock, recvAddr.toString().c_str(), destAddr.toString().c_str());
   isConnected = true;
   return true;
 }

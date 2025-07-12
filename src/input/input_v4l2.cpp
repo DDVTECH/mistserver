@@ -433,9 +433,7 @@ namespace Mist{
     }
     Comms::Connections statComm;
     thisIdx = tNumber;
-    if (!userSelect.count(thisIdx)){
-      userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
-    }
+    if (!userSelect.count(thisIdx)) { userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT); }
     while (config->is_active && userSelect[thisIdx]){
       if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
         Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
@@ -461,9 +459,7 @@ namespace Mist{
       thisTime = Util::bootMS() - timeOffset;
       bufferLivePacket(thisTime, 0, tNumber, buffer, bufferinfo.bytesused, 0, true);
 
-      if (!userSelect.count(thisIdx)){
-        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
-      }
+      if (!userSelect.count(thisIdx)) { userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT); }
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
         if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}

@@ -62,8 +62,7 @@ namespace HTTP{
           FAIL_MSG("error s3 mbedtls_md_hmac_finish error %d", status);
           return newUrl;
         }
-        std::string base64encoded =
-          Encodings::Base64::encode(std::string((const char *)signatureBytes, sha1Size));
+        std::string base64encoded = Encodings::Base64::encode(std::string((const char *)signatureBytes, sha1Size));
         downer.setHeader("Date", date);
         downer.setHeader("Authorization", "AWS " + accessKey + ":" + base64encoded);
       }

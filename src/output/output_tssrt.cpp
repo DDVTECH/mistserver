@@ -214,9 +214,7 @@ namespace Mist{
       // Handle override / append of streamname options
       std::string sName = srtConn->getStreamName();
       if (!config->getBool("nostreamid")) {
-        if (sName != ""){
-          streamName = sName;
-        }
+        if (sName != "") { streamName = sName; }
       }
       myConn.setHost(srtConn->remotehost);
 
@@ -253,42 +251,42 @@ namespace Mist{
       }else if (accTypes == 2){//Only allow incoming
         srtConn->setBlocking(false);
         srtConn->direction = "input";
-        if (!checkStreamKey()){
-          if (!streamName.size()){
+        if (!checkStreamKey()) {
+          if (!streamName.size()) {
             onFinish();
             return;
           }
           Util::sanitizeName(streamName);
           Util::setStreamName(streamName);
-          if (Triggers::shouldTrigger("PUSH_REWRITE")){
+          if (Triggers::shouldTrigger("PUSH_REWRITE")) {
             HTTP::URL reqUrl;
             reqUrl.protocol = "srt";
             reqUrl.port = config->getString("port");
             reqUrl.host = config->getString("interface");
-            reqUrl.args = "streamid="+Encodings::URL::encode(sName);
+            reqUrl.args = "streamid=" + Encodings::URL::encode(sName);
             std::string payload = reqUrl.getUrl() + "\n" + getConnectedHost() + "\n" + streamName;
             std::string newStream = streamName;
             Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-            if (!newStream.size()){
+            if (!newStream.size()) {
               FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                        getConnectedHost().c_str(), reqUrl.getUrl().c_str());
-              Util::logExitReason(ER_TRIGGER,
-                  "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                  getConnectedHost().c_str(), reqUrl.getUrl().c_str());
+              Util::logExitReason(ER_TRIGGER, "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                                  getConnectedHost().c_str(), reqUrl.getUrl().c_str());
               onFinish();
               return;
-            }else{
+            } else {
               streamName = newStream;
               Util::sanitizeName(streamName);
               Util::setStreamName(streamName);
             }
           }
-          if (!streamName.size()){
-            Util::logExitReason(ER_FORMAT_SPECIFIC, "Push from %s rejected - there is no stream name set", getConnectedHost().c_str());
+          if (!streamName.size()) {
+            Util::logExitReason(ER_FORMAT_SPECIFIC, "Push from %s rejected - there is no stream name set",
+                                getConnectedHost().c_str());
             onFinish();
             return;
           }
-          if (!allowPush("")){
+          if (!allowPush("")) {
             onFinish();
             return;
           }
@@ -321,7 +319,7 @@ namespace Mist{
   }
 
   // Override initialSeek to go to last possible position for live streams
-  uint64_t OutTSSRT::getInitialSeekPosition(){
+  uint64_t OutTSSRT::getInitialSeekPosition() {
     uint64_t seekPos = 0;
     std::set<size_t> validTracks = M.getValidTracks();
     if (M.getLive() && validTracks.size()){
@@ -716,7 +714,7 @@ namespace Mist{
       size_t thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
       if (thisIdx == INVALID_TRACK_ID){return;}
       if (!userSelect.count(thisIdx)){
-        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
       }
 
       uint64_t pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
@@ -862,14 +860,12 @@ namespace Mist{
 
 #ifdef PROXYING_SRT
               Socket::Address localProxAddr;
-              if (generateChildAddressInRange(localProxAddr))
-                continue; // function returns 1 on fail
+              if (generateChildAddressInRange(localProxAddr)) continue; // function returns 1 on fail
               setenv("MIST_INTL_UDP", localProxAddr.toString().c_str(), 1);
 #endif
               // Create child process with default fdOut/fdErr and fdIn as /dev/null/
               int fdOut = STDOUT_FILENO, fdErr = STDERR_FILENO;
-              INFO_MSG("SRT handshake from %s! Spawning child process to handle it...",
-                       remoteAddr.toString().c_str());
+              INFO_MSG("SRT handshake from %s! Spawning child process to handle it...", remoteAddr.toString().c_str());
               pid_t pid = Util::Procs::StartPiped(newArgs, 0, &fdOut, &fdErr);
               Util::Procs::forget(pid);
 

@@ -279,8 +279,8 @@ namespace Mist{
           uint8_t lLen = lAddr.size();
           sndBuf.append(&lLen, 1);
           sndBuf.append(lAddr, lLen);
-          HIGH_MSG("STUN: user=%s Local=%s Remote=%s", unameAttr.c_str(),
-                   Socket::Address(lAddr).toString().c_str(), Socket::Address(rAddr).toString().c_str());
+          HIGH_MSG("STUN: user=%s Local=%s Remote=%s", unameAttr.c_str(), Socket::Address(lAddr).toString().c_str(),
+                   Socket::Address(rAddr).toString().c_str());
           sndr->SendNow(sndBuf, sndBuf.size());
         }
       }
@@ -420,12 +420,10 @@ namespace Mist{
           if (codec == "H264") {
             myFmt = custFormat++;
             cStr << "a=rtpmap:" << myFmt << " H264/90000\r\n";
-            cStr << "a=fmtp:" << myFmt
-                 << " profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1\r\n";
+            cStr << "a=fmtp:" << myFmt << " profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1\r\n";
           } else if (codec == "opus") {
             myFmt = custFormat++;
-            cStr << "a=rtpmap:" << myFmt << " opus/" << M.getRate(it.first) << "/"
-                 << M.getChannels(it.first) << "\r\n";
+            cStr << "a=rtpmap:" << myFmt << " opus/" << M.getRate(it.first) << "/" << M.getChannels(it.first) << "\r\n";
           } else if (codec == "VP8") {
             myFmt = custFormat++;
             cStr << "a=rtpmap:" << myFmt << " VP8/90000\r\n";
@@ -437,8 +435,7 @@ namespace Mist{
               myFmt = 8;
             } else {
               myFmt = custFormat++;
-              cStr << "a=rtpmap:" << myFmt << " PCMA/" << M.getRate(it.first) << "/"
-                   << M.getChannels(it.first) << "\r\n";
+              cStr << "a=rtpmap:" << myFmt << " PCMA/" << M.getRate(it.first) << "/" << M.getChannels(it.first) << "\r\n";
             }
           }
           o << "m=" << type << " 9 UDP/TLS/RTP/SAVPF " << myFmt << "\r\n";
@@ -463,17 +460,15 @@ namespace Mist{
           o << "a=rtcp-mux\r\n";
           o << "a=rtcp-rsize\r\n";
         }
-        MEDIUM_MSG("Media %" PRIu64 " SSRC=%" PRIu32 " %s/%s", it.first, ssrcs[it.first],
-                   M.getType(it.first).c_str(), M.getCodec(it.first).c_str());
+        MEDIUM_MSG("Media %" PRIu64 " SSRC=%" PRIu32 " %s/%s", it.first, ssrcs[it.first], M.getType(it.first).c_str(),
+                   M.getCodec(it.first).c_str());
       }
 
       HTTP::URL tgt(config->getString("target"));
       if (tgt.protocol == "whip") { tgt.protocol = "http"; }
       if (tgt.protocol == "whips") { tgt.protocol = "https"; }
       HTTP::Downloader dl;
-      if (targetParams.count("auth")) {
-        dl.setHeader("Authorization", "Bearer " + targetParams["auth"]);
-      }
+      if (targetParams.count("auth")) { dl.setHeader("Authorization", "Bearer " + targetParams["auth"]); }
       dl.setHeader("Content-Type", "application/sdp");
       if (!dl.post(tgt, o.str())) {
         Util::logExitReason(ER_FORMAT_SPECIFIC, "Error POSTing WHIP body to target");
@@ -486,17 +481,15 @@ namespace Mist{
         packetLog.open(fileName.c_str());
       }
       if (packetLog.is_open()) {
-        packetLog << "[" << Util::bootMS() << "] SDP offer (us):" << std::endl
-                  << o.str() << std::endl
-                  << std::endl;
-        packetLog << "[" << Util::bootMS() << "] SDP response [" << dl.getStatusCode() << "]["
-                  << dl.getStatusText() << "] (them):" << std::endl
+        packetLog << "[" << Util::bootMS() << "] SDP offer (us):" << std::endl << o.str() << std::endl << std::endl;
+        packetLog << "[" << Util::bootMS() << "] SDP response [" << dl.getStatusCode() << "][" << dl.getStatusText()
+                  << "] (them):" << std::endl
                   << dl.getHTTP().body << std::endl
                   << std::endl;
       }
       if (!dl.isOk()) {
-        Util::logExitReason(ER_FORMAT_SPECIFIC, "Received %" PRIu32 " (%s) response from remote",
-                            dl.getStatusCode(), dl.getStatusText().c_str());
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Received %" PRIu32 " (%s) response from remote", dl.getStatusCode(),
+                            dl.getStatusText().c_str());
         config->is_active = false;
         myConn.close();
         return;
@@ -970,9 +963,7 @@ namespace Mist{
       SDP::Session sdpParser;
       const std::string &offerStr = command["offer_sdp"].asStringRef();
       if (packetLog.is_open()){
-        packetLog << "[" << Util::bootMS() << "] SDP offer (them):" << std::endl
-                  << offerStr << std::endl
-                  << std::endl;
+        packetLog << "[" << Util::bootMS() << "] SDP offer (them):" << std::endl << offerStr << std::endl << std::endl;
       }
       if (!sdpParser.parseSDP(offerStr) || !sdpAnswer.parseOffer(offerStr)){
         sendSignalingError("offer_sdp", "Failed to parse the offered SDP");
@@ -1233,26 +1224,20 @@ namespace Mist{
 
     if (sdpSession.getMediaForType("video")) {
       for (const std::string c : {"H264", "VP9", "VP8"}) {
-        if (sdpSession.getMediaFormatByEncodingName("video", c)) {
-          capa["codecs"][0u][0u].append(c);
-        }
+        if (sdpSession.getMediaFormatByEncodingName("video", c)) { capa["codecs"][0u][0u].append(c); }
       }
     }
 
     if (sdpSession.getMediaForType("audio")) {
       for (const std::string c : {"opus", "ALAW", "ULAW"}) {
-        if (sdpSession.getMediaFormatByEncodingName("audio", c)) {
-          capa["codecs"][0u][1u].append(c);
-        }
+        if (sdpSession.getMediaFormatByEncodingName("audio", c)) { capa["codecs"][0u][1u].append(c); }
       }
     }
 
     if (sdpSession.getMediaForType("meta")) {
       INFO_MSG("Has meta offer!");
       for (const std::string c : {"JSON", "subtitle"}) {
-        if (sdpSession.getMediaFormatByEncodingName("meta", c)) {
-          capa["codecs"][0u][2u].append(std::string("+") + c);
-        }
+        if (sdpSession.getMediaFormatByEncodingName("meta", c)) { capa["codecs"][0u][2u].append(std::string("+") + c); }
       }
     }
   }
@@ -1283,20 +1268,17 @@ namespace Mist{
       }
     }
 
-
-    if (!checkStreamKey()){
-      if (!streamName.size()){
-        return false;
-      }
-      if (Triggers::shouldTrigger("PUSH_REWRITE")){
+    if (!checkStreamKey()) {
+      if (!streamName.size()) { return false; }
+      if (Triggers::shouldTrigger("PUSH_REWRITE")) {
         std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
         std::string newStream = streamName;
         Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-        if (!newStream.size()){
-          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                   getConnectedHost().c_str(), reqUrl.c_str());
+        if (!newStream.size()) {
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(),
+                   reqUrl.c_str());
           return false;
-        }else{
+        } else {
           streamName = newStream;
           Util::sanitizeName(streamName);
           Util::setStreamName(streamName);
@@ -1304,7 +1286,7 @@ namespace Mist{
       }
 
       // allow peer to push video/audio
-      if (!allowPush("")){
+      if (!allowPush("")) {
         FAIL_MSG("Failed to allow push");
         return false;
       }
@@ -1353,9 +1335,9 @@ namespace Mist{
       trk.rtpToDTSC.setCallbacks([this](const DTSC::Packet & p) { onDTSCPkt(p); },
                                  [this](const size_t t, const std::string & i) { onDTSCInit(t, i); });
       trk.sorter.setCallback(M.getID(vIdx), [this, &trk](size_t t, const RTP::Packet & p) {
-        if (packetLog.is_open()){
-          packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << p.getPayloadType()
-                    << " #" << p.getSequence() << std::endl;
+        if (packetLog.is_open()) {
+          packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << p.getPayloadType() << " #"
+                    << p.getSequence() << std::endl;
         }
         trk.rtpToDTSC.addRTP(p);
       });
@@ -1384,9 +1366,9 @@ namespace Mist{
       trk.rtpToDTSC.setCallbacks([this](const DTSC::Packet & p) { onDTSCPkt(p); },
                                  [this](const size_t t, const std::string & i) { onDTSCInit(t, i); });
       trk.sorter.setCallback(M.getID(aIdx), [this, &trk](size_t t, const RTP::Packet & p) {
-        if (packetLog.is_open()){
-          packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << p.getPayloadType()
-                    << " #" << p.getSequence() << std::endl;
+        if (packetLog.is_open()) {
+          packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << p.getPayloadType() << " #"
+                    << p.getSequence() << std::endl;
         }
         trk.rtpToDTSC.addRTP(p);
       });
@@ -1478,8 +1460,8 @@ namespace Mist{
     mainSocket.allocateDestination();
 
     if (packetLog.is_open()){
-      packetLog << "[" << Util::bootMS() << "]" << "Adding incoming main socket "
-                << mainSocket.getSock() << ": " << mainSocket.getBoundAddr() << std::endl;
+      packetLog << "[" << Util::bootMS() << "]" << "Adding incoming main socket " << mainSocket.getSock() << ": "
+                << mainSocket.getBoundAddr() << std::endl;
     }
 
     Util::Procs::socketList.insert(mainSocket.getSock());
@@ -1499,9 +1481,8 @@ namespace Mist{
           o.addFingerprint();
           it.second.udpSock->SendNow(o.data, o.data.size());
           if (packetLog.is_open()) {
-            packetLog << "[" << Util::bootMS() << "]->STUN ("
-                      << (Socket::Address)it.second.udpSock->getRemoteAddr() << ") " << o.toString()
-                      << std::endl;
+            packetLog << "[" << Util::bootMS() << "]->STUN (" << (Socket::Address)it.second.udpSock->getRemoteAddr()
+                      << ") " << o.toString() << std::endl;
           }
           it.second.lastStunCheck = nowMs;
         }
@@ -1510,7 +1491,7 @@ namespace Mist{
     }, 500);
 
     evLp.addSocket(mainSocket.getSock(), [this](void *) {
-      while(mainSocket.Receive()){
+      while (mainSocket.Receive()) {
 
         // The first 16 bytes contain the ice username
         if (mainSocket.data.size() <= 16) { continue; }
@@ -1577,8 +1558,8 @@ namespace Mist{
         wSock.udpSock = s;
 
         if (packetLog.is_open()){
-          packetLog << "[" << Util::bootMS() << "]Connected socket " << sockNo
-                    << " for: " << localAddr << " <-> " << remoteAddr << std::endl;
+          packetLog << "[" << Util::bootMS() << "]Connected socket " << sockNo << " for: " << localAddr << " <-> "
+                    << remoteAddr << std::endl;
         }
         Util::Procs::socketList.insert(sockNo);
         evLp.addSendQueue(s);
@@ -1609,8 +1590,8 @@ namespace Mist{
     mainSocket.allocateDestination();
 
     if (packetLog.is_open()) {
-      packetLog << "[" << Util::bootMS() << "]" << "Adding outgoing main socket "
-                << mainSocket.getSock() << ", port " << udpPort << std::endl;
+      packetLog << "[" << Util::bootMS() << "]" << "Adding outgoing main socket " << mainSocket.getSock() << ", port "
+                << udpPort << std::endl;
     }
 
     Util::Procs::socketList.insert(mainSocket.getSock());
@@ -1645,9 +1626,8 @@ namespace Mist{
           o.addFingerprint();
           it.second.udpSock->SendNow(o.data, o.data.size());
           if (packetLog.is_open()) {
-            packetLog << "[" << Util::bootMS() << "]->STUN ("
-                      << (Socket::Address)it.second.udpSock->getRemoteAddr() << ") " << o.toString()
-                      << std::endl;
+            packetLog << "[" << Util::bootMS() << "]->STUN (" << (Socket::Address)it.second.udpSock->getRemoteAddr()
+                      << ") " << o.toString() << std::endl;
           }
           it.second.lastStunCheck = nowMs;
         }
@@ -1667,8 +1647,7 @@ namespace Mist{
         Socket::Address remoteAddr(mainSocket.getRemoteAddr());
         Socket::Address localAddr(mainSocket.getLocalAddr());
         if (packetLog.is_open()) {
-          packetLog << "[" << Util::bootMS() << "]<-STUN (" << remoteAddr << ") "
-                    << stunPkg.toString() << std::endl;
+          packetLog << "[" << Util::bootMS() << "]<-STUN (" << remoteAddr << ") " << stunPkg.toString() << std::endl;
         }
         outAddr.erase(remoteAddr);
 
@@ -1764,8 +1743,8 @@ namespace Mist{
         wSock.udpSock = s;
 
         if (packetLog.is_open()) {
-          packetLog << "[" << Util::bootMS() << "]Connected socket " << sockNo
-                    << " for: " << localAddr << " <-> " << remoteAddr << std::endl;
+          packetLog << "[" << Util::bootMS() << "]Connected socket " << sockNo << " for: " << localAddr << " <-> "
+                    << remoteAddr << std::endl;
         }
         Util::Procs::socketList.insert(sockNo);
         evLp.addSendQueue(s);
@@ -1805,23 +1784,20 @@ namespace Mist{
           sctpSockets.insert(s);
           if (packetLog.is_open()) {
             packetLog << "[" << Util::bootMS() << "] " << sockNo
-                      << " is now a SCTP socket (current RTP socket = " << currentRTPSocket << ")"
-                      << std::endl;
+                      << " is now a SCTP socket (current RTP socket = " << currentRTPSocket << ")" << std::endl;
           }
         }
         if (!wSock.sctpInited) {
           wSock.cPtr = this;
           usrsctp_register_address((void *)&wSock);
-          wSock.sctp_sock =
-            usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP,
-                           [](struct socket *sock, union sctp_sockstore addr, void *data,
-                              size_t datalen, struct sctp_rcvinfo rcv, int flags, void *ulp_info) {
+          wSock.sctp_sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP,
+                                           [](struct socket *sock, union sctp_sockstore addr, void *data,
+                                              size_t datalen, struct sctp_rcvinfo rcv, int flags, void *ulp_info) {
             WebRTCSocket & wSock = *(WebRTCSocket *)(addr.sconn.sconn_addr);
             if (data) {
               wSock.sctp_connsock = sock;
               if (!(flags & MSG_NOTIFICATION)) {
-                ((OutWebRTC *)wSock.cPtr)
-                  ->onSCTP(wSock, sock, (const char *)data, datalen, rcv.rcv_sid, ntohl(rcv.rcv_ppid));
+                ((OutWebRTC *)wSock.cPtr)->onSCTP(wSock, sock, (const char *)data, datalen, rcv.rcv_sid, ntohl(rcv.rcv_ppid));
               }
               free(data);
             } else {
@@ -1829,7 +1805,7 @@ namespace Mist{
             }
             return 1;
           },
-                           NULL, 0, NULL);
+                                           NULL, 0, NULL);
           struct sockaddr_conn sconn;
           memset(&sconn, 0, sizeof(struct sockaddr_conn));
           sconn.sconn_family = AF_CONN;
@@ -1842,8 +1818,7 @@ namespace Mist{
           usrsctp_listen(wSock.sctp_sock, 1);
         }
         if (packetLog.is_open()) {
-          packetLog << "[" << Util::bootMS() << "]" << "<- SCTP[" << sockNo << "] ("
-                    << wSock.udpSock->data.size()
+          packetLog << "[" << Util::bootMS() << "]" << "<- SCTP[" << sockNo << "] (" << wSock.udpSock->data.size()
                     << "b): " << printSCTP(wSock.udpSock->data, wSock.udpSock->data.size()) << std::endl;
         }
         usrsctp_conninput(&wSock, wSock.udpSock->data, wSock.udpSock->data.size(), 0);
@@ -1872,8 +1847,7 @@ namespace Mist{
           for (int s : sctpSockets) {
             WebRTCSocket & tSock = sockets[s];
             if (tSock.udpSock->handshakeComplete() && tSock.lastRecv < timeout) {
-              INFO_MSG("Found a swap candidate - swapping socket %d with %d",
-                       wSock.udpSock->getSock(), tSock.udpSock->getSock());
+              INFO_MSG("Found a swap candidate - swapping socket %d with %d", wSock.udpSock->getSock(), tSock.udpSock->getSock());
               wSock.udpSock->swapSocket(*(tSock.udpSock));
               swapped = true;
               break;
@@ -1899,13 +1873,11 @@ namespace Mist{
         if (wSock.srtpReader.init(wSock.udpSock->cipher, wSock.udpSock->local_key, wSock.udpSock->local_salt) != 0) {
           FAIL_MSG("Failed to initialize the SRTP reader.");
         }
-        if (wSock.srtpWriter.init(wSock.udpSock->cipher, wSock.udpSock->remote_key,
-                                  wSock.udpSock->remote_salt) != 0) {
+        if (wSock.srtpWriter.init(wSock.udpSock->cipher, wSock.udpSock->remote_key, wSock.udpSock->remote_salt) != 0) {
           FAIL_MSG("Failed to initialize the SRTP writer.");
         }
       } else {
-        if (wSock.srtpReader.init(wSock.udpSock->cipher, wSock.udpSock->remote_key,
-                                  wSock.udpSock->remote_salt) != 0) {
+        if (wSock.srtpReader.init(wSock.udpSock->cipher, wSock.udpSock->remote_key, wSock.udpSock->remote_salt) != 0) {
           FAIL_MSG("Failed to initialize the SRTP reader.");
         }
         if (wSock.srtpWriter.init(wSock.udpSock->cipher, wSock.udpSock->local_key, wSock.udpSock->local_salt) != 0) {
@@ -1918,9 +1890,7 @@ namespace Mist{
       }
       if (currentRTPSocket == -1) { currentRTPSocket = sockNo; }
       if (!parseData && !isPushing()) {
-        if (packetLog.is_open()) {
-          packetLog << "[" << Util::bootMS() << "]Playback started" << std::endl;
-        }
+        if (packetLog.is_open()) { packetLog << "[" << Util::bootMS() << "]Playback started" << std::endl; }
         INFO_MSG("Starting playback");
         parseData = true;
         idleInterval = 1000;
@@ -1929,9 +1899,7 @@ namespace Mist{
 
     // If the connection has been lost, remove it from the list
     if (!*(wSock.udpSock)) {
-      if (packetLog.is_open()) {
-        packetLog << "[" << Util::bootMS() << "]Deleting socket " << sockNo << std::endl;
-      }
+      if (packetLog.is_open()) { packetLog << "[" << Util::bootMS() << "]Deleting socket " << sockNo << std::endl; }
       rtpSockets.erase(sockNo);
       if (currentRTPSocket == sockNo) { currentRTPSocket = -1; }
       sctpSockets.erase(sockNo);
@@ -1953,8 +1921,7 @@ namespace Mist{
     const Socket::Address remoteAddr(wSock.udpSock->getRemoteAddr());
     const STUN::Packet stunMsg(wSock.udpSock->data, wSock.udpSock->data.size());
     if (packetLog.is_open()) {
-      packetLog << "[" << Util::bootMS() << "]<-STUN (" << remoteAddr << ") " << stunMsg.toString()
-                << std::endl;
+      packetLog << "[" << Util::bootMS() << "]<-STUN (" << remoteAddr << ") " << stunMsg.toString() << std::endl;
     }
     if (!stunMsg) {
       FAIL_MSG("Invalid stun message received: %s", stunMsg.toString().c_str());
@@ -2007,17 +1974,13 @@ namespace Mist{
     STUN::Packet stunReply(STUN_MSG_BINDING_RESPONSE_SUCCESS);
     stunReply.copyTID(stunMsg);
     stunReply.addXorMappedAddress(remoteAddr);
-    if (controlling && currentRTPSocket == wSock.udpSock->getSock()) {
-      stunReply.addUseCandidate();
-    }
+    if (controlling && currentRTPSocket == wSock.udpSock->getSock()) { stunReply.addUseCandidate(); }
     stunReply.addIntegrity(passwordLocal);
     stunReply.addFingerprint();
 
     wSock.udpSock->sendPaced(stunReply.data, stunReply.data.size(), false);
     myConn.addUp(stunReply.data.size());
-    if (packetLog.is_open()) {
-      packetLog << "[" << Util::bootMS() << "]->STUN " << stunReply.toString() << std::endl;
-    }
+    if (packetLog.is_open()) { packetLog << "[" << Util::bootMS() << "]->STUN " << stunReply.toString() << std::endl; }
   }
 
   void OutWebRTC::ackNACK(uint32_t pSSRC, uint16_t seq){
@@ -2195,8 +2158,7 @@ namespace Mist{
                       << "PLI: Picture Loss Indication ( = keyframe request = ignored)" << std::endl;
           }
           DONTEVEN_MSG("Received picture loss indication");
-        } else if (fmt == 15 && wSock.udpSock->data.size() >= 20 &&
-                   !memcmp(wSock.udpSock->data + 12, "REMB", 4)) {
+        } else if (fmt == 15 && wSock.udpSock->data.size() >= 20 && !memcmp(wSock.udpSock->data + 12, "REMB", 4)) {
           // REMB Packet: https://datatracker.ietf.org/doc/html/draft-alvestrand-rmcat-remb-03
           uint8_t exp = (wSock.udpSock->data[17] >> 2);
           uint64_t man = Bit::btoh24(wSock.udpSock->data + 17) & 0x3FFFFull;
@@ -2244,8 +2206,8 @@ namespace Mist{
               //If it went down outside those ranges, this is an older packet we should just ignore
             }
             uint32_t bytes = Bit::btohl(wSock.udpSock->data + 24);
-            HIGH_MSG("Received sender report for track %s (%" PRIu32 " pkts, %" PRIu32
-                     "b) time: %" PRIu32 " RTP = %" PRIu64 " NTP",
+            HIGH_MSG("Received sender report for track %s (%" PRIu32 " pkts, %" PRIu32 "b) time: %" PRIu32
+                     " RTP = %" PRIu64 " NTP",
                      it.second.rtpToDTSC.codec.c_str(), packets, bytes, rtpTime, ntpTime);
             if (rtpTime && ntpTime){
               //msDiff is the amount of millis our current NTP time is ahead of the sync moment NTP time
@@ -2931,8 +2893,7 @@ namespace Mist{
         if (videoConstraint < 1024 * 32) { videoConstraint = 1024 * 32; }
 
         if (!noSignalling && videoConstraint != preConstraint) {
-          INFO_MSG("Reduced video bandwidth maximum to %" PRIu32 " because average loss is %.2f",
-                   videoConstraint, curr_avg_loss);
+          INFO_MSG("Reduced video bandwidth maximum to %" PRIu32 " because average loss is %.2f", videoConstraint, curr_avg_loss);
           JSON::Value commandResult;
           commandResult["type"] = "on_video_bitrate";
           commandResult["result"] = true;

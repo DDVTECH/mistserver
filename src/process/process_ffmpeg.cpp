@@ -760,9 +760,8 @@ namespace Mist{
   bool OutENC::buildAudioCommand(){
     std::string samplerate;
     if (sample_rate){samplerate = "-ar " + JSON::Value(sample_rate).asString();}
-    ffcmd = "ffmpeg -fflags nobuffer -hide_banner -loglevel warning -i - -acodec " + codec + " " +
-      samplerate + " -strict -2 -ac 2 " + getBitrateSetting() + " " + flags +
-      " -f matroska -live 1 -cluster_time_limit 100 -";
+    ffcmd = "ffmpeg -fflags nobuffer -hide_banner -loglevel warning -i - -acodec " + codec + " " + samplerate +
+      " -strict -2 -ac 2 " + getBitrateSetting() + " " + flags + " -f matroska -live 1 -cluster_time_limit 100 -";
 
     return true;
   }

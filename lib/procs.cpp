@@ -378,8 +378,7 @@ std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait,
   return std::string(ret, ret.size());
 }
 
-std::string Util::Procs::getLimitedOutputOf(const std::deque<std::string> & argDeq,
-                                            uint64_t maxWait, uint32_t maxValBytes) {
+std::string Util::Procs::getLimitedOutputOf(const std::deque<std::string> & argDeq, uint64_t maxWait, uint32_t maxValBytes) {
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
   return getLimitedOutputOf(argv, maxWait, maxValBytes);
 }

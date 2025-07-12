@@ -507,12 +507,11 @@ void Controller::handleUDPAPI() {
             --sleeps;
           }
         } else {
-          WARN_MSG("Could not open UDP API port on any port on %s - bound instead to %s",
-                   udpApiAddr.host.c_str(), uSock.getBoundAddr().toString().c_str());
+          WARN_MSG("Could not open UDP API port on any port on %s - bound instead to %s", udpApiAddr.host.c_str(),
+                   uSock.getBoundAddr().toString().c_str());
         }
       } else {
-        WARN_MSG("Could not open local UDP API socket on %s:%" PRIu16
-                 " - bound to ephemeral port %" PRIu16 " instead",
+        WARN_MSG("Could not open local UDP API socket on %s:%" PRIu16 " - bound to ephemeral port %" PRIu16 " instead",
                  udpApiAddr.host.c_str(), udpApiAddr.getPort(), boundPort);
       }
     } else {
@@ -985,63 +984,61 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     free(rpath);
   }
 
-  if (Request.isMember("streamkeys")){
+  if (Request.isMember("streamkeys")) {
     JSON::Value & keys = Controller::Storage["streamkeys"];
-    if (Request["streamkeys"].isObject()){
+    if (Request["streamkeys"].isObject()) {
       keys.null();
-      jsonForEachConst(Request["streamkeys"], it){
-        if (it->isString()){ keys[it.key()] = it->asStringRef(); }
+      jsonForEachConst (Request["streamkeys"], it) {
+        if (it->isString()) { keys[it.key()] = it->asStringRef(); }
       }
     }
   }
 
-  if (Request.isMember("streamkey_del")){
+  if (Request.isMember("streamkey_del")) {
     const JSON::Value & del = Request["streamkey_del"];
     JSON::Value & rep = Response["streamkey_del"]["deleted"];
     JSON::Value & keys = Controller::Storage["streamkeys"];
-    if (del.isObject()){
-      jsonForEachConst(del, it){
-        if (keys.isMember(it.key())){
+    if (del.isObject()) {
+      jsonForEachConst (del, it) {
+        if (keys.isMember(it.key())) {
           keys.removeMember(it.key());
           rep.append(it.key());
         }
       }
-    }else if (del.isArray()){
-      jsonForEachConst(del, it){
-        if (it->isString() && keys.isMember(it->asStringRef())){
+    } else if (del.isArray()) {
+      jsonForEachConst (del, it) {
+        if (it->isString() && keys.isMember(it->asStringRef())) {
           keys.removeMember(it->asStringRef());
           rep.append(it->asStringRef());
         }
       }
-    }else if (del.isString()){
-      if (keys.isMember(del.asStringRef())){
+    } else if (del.isString()) {
+      if (keys.isMember(del.asStringRef())) {
         keys.removeMember(del.asStringRef());
         rep.append(del.asStringRef());
       }
-    }else{
+    } else {
       Response["streamkey_del"]["error"] = "streamkey_del must be a string, object or array";
     }
   }
 
-  if (Request.isMember("streamkey_add")){
+  if (Request.isMember("streamkey_add")) {
     const JSON::Value & add = Request["streamkey_add"];
-    if (add.isObject()){
+    if (add.isObject()) {
       JSON::Value & keys = Controller::Storage["streamkeys"];
       JSON::Value & rep = Response["streamkey_add"]["added"];
-      jsonForEachConst(add, it){
-        if (it->isString()){
+      jsonForEachConst (add, it) {
+        if (it->isString()) {
           keys[it.key()] = it->asStringRef();
           rep.append(it.key());
         }
       }
-    }else{
+    } else {
       Response["streamkey_add"]["error"] = "streamkey_add must be an object";
     }
   }
 
-  if (Request.isMember("streamkeys")){
-    Response["streamkeys"] = Controller::Storage["streamkeys"];
-  }
+  if (Request.isMember("streamkeys")) { Response["streamkeys"] = Controller::Storage["streamkeys"]; }
 
   // Examples of valid playlist requests:
   //"playlist":{"streamname": ["append", "path/to/file.ts"]}

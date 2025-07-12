@@ -27,8 +27,7 @@ int main(int argc, char **argv) {
     if (getenv(o.c_str())) {
       std::string target = getenv(o.c_str());
       if (target != arg) {
-        std::cerr << "Argument " << i << " is '" << arg << "' but was expected to be '" << target
-                  << "'" << std::endl;
+        std::cerr << "Argument " << i << " is '" << arg << "' but was expected to be '" << target << "'" << std::endl;
         ret = 1;
       }
     }

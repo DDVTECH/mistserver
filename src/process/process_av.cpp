@@ -248,9 +248,7 @@ namespace Mist{
         }
         avCV.notify_all();
 
-        if (!userSelect.count(thisIdx)){
-          userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
-        }
+        if (!userSelect.count(thisIdx)) { userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT); }
         if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
           Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
           break;
@@ -308,7 +306,7 @@ namespace Mist{
           meta.setFpks(trkIdx, inFpks);
           meta.setInit(trkIdx, (char*)context_out->extradata, context_out->extradata_size);
           if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
-            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
           }
           INFO_MSG("AV1 track index is %zu", trkIdx);
         } else if (codecOut == "JPEG"){
@@ -321,7 +319,7 @@ namespace Mist{
           meta.setHeight(trkIdx,  frameConverted->height);
           meta.setFpks(trkIdx, inFpks);
           if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
-            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
           }
           INFO_MSG("MJPEG track index is %zu", trkIdx);
         }else if (codecOut == "H264"){
@@ -351,7 +349,7 @@ namespace Mist{
           meta.setHeight(trkIdx,  spsChar.height);
           meta.setFpks(trkIdx, inFpks);
           if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
-            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+            userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
           }
           INFO_MSG("H264 track index is %zu", trkIdx);
         }
@@ -374,7 +372,7 @@ namespace Mist{
         meta.setHeight(trkIdx,  frameConverted->height);
         meta.setFpks(trkIdx, inFpks);
         if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
-          userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+          userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
         }
         INFO_MSG("%s track index is %zu", codecOut.c_str(), trkIdx);
       }
@@ -394,7 +392,7 @@ namespace Mist{
       meta.setSize(trkIdx, outAudioDepth);
 
       if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
-        userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
       }
       INFO_MSG("%s track index is %zu", codecOut.c_str(), trkIdx);
     }
@@ -809,7 +807,7 @@ namespace Mist{
           if (tmpCtx->bit_rate < 500){
             WARN_MSG("Opus does not support a bitrate of %lu, clipping to 500", tmpCtx->bit_rate);
             tmpCtx->bit_rate = 500;
-          }else if (tmpCtx->bit_rate > 256000){
+          } else if (tmpCtx->bit_rate > 256000) {
             WARN_MSG("Opus does not support a bitrate of %lu, clipping to 128000", tmpCtx->bit_rate);
             tmpCtx->bit_rate = 128000;
           }

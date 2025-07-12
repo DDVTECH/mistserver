@@ -22,8 +22,7 @@ namespace Util{
     static std::string getOutputOf(const char *const *argv, uint64_t maxWait = 10000);
     static std::string getOutputOf(const std::deque<std::string> & argDeq, uint64_t maxWait = 10000);
     static std::string getLimitedOutputOf(char *const *argv, uint64_t maxWait, uint32_t maxValBytes);
-    static std::string getLimitedOutputOf(const std::deque<std::string> & argDeq, uint64_t maxWait,
-                                          uint32_t maxValBytes);
+    static std::string getLimitedOutputOf(const std::deque<std::string> & argDeq, uint64_t maxWait, uint32_t maxValBytes);
     static pid_t StartPiped(const char *const *argv, int *fdIn, int *fdOut, int *fdErr);
     static pid_t StartPiped(const char *const *argv);
     static pid_t StartPiped(const std::deque<std::string> & argDeq, int *fdIn, int *fdOut, int *fdErr);

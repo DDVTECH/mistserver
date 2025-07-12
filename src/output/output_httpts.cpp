@@ -15,8 +15,7 @@ namespace Mist{
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     HTTP::URL target(config->getString("target"));
     // Detect youtube-style URL
-    if (target.path == "http_upload_hls" && target.args.size() >= 5 &&
-        target.args.find("file=") == target.args.size() - 5) {
+    if (target.path == "http_upload_hls" && target.args.size() >= 5 && target.args.find("file=") == target.args.size() - 5) {
       targetParams["segment"] = target.path + "?" + target.args + "$segmentCounter.ts";
       targetParams["m3u8"] = target.path + "?" + target.args + "index.m3u8";
       targetParams["split"] = "1";

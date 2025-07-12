@@ -17,6 +17,7 @@ namespace Mist{
     void sendCmd(const JSON::Value &data);
     void sendOk(const std::string &msg);
     bool isFileTarget();
+
   private:
     unsigned int lastActive; ///< Time of last sending of data.
     std::string getStatsName();

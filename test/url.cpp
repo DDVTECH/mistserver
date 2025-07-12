@@ -25,8 +25,7 @@ int checkInt(const char *envVar, const uint64_t i) {
   // Environment value exists, do check
   if (i != JSON::Value(getenv(envVar)).asInt()) {
     // Print error message on mismatch, detailing problem
-    std::cerr << "ERROR: Value of " << envVar << " should be '" << getenv(envVar) << "' but was '"
-              << i << "'" << std::endl;
+    std::cerr << "ERROR: Value of " << envVar << " should be '" << getenv(envVar) << "' but was '" << i << "'" << std::endl;
     return 1;
   }
   return 0;

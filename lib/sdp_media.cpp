@@ -987,9 +987,7 @@ namespace SDP{
         o << "a=rtpmap:" << uFmt->payloadType << " ulpfec/90000\r\n";
         o << "a=rtpmap:" << rFmt->payloadType << " red/90000\r\n";
       }
-      if (videoLossPrevention & SDP_LOSS_PREVENTION_NACK){
-        o << "a=rtcp-fb:" << mFmt->payloadType << " nack\r\n";
-      }
+      if (videoLossPrevention & SDP_LOSS_PREVENTION_NACK) { o << "a=rtcp-fb:" << mFmt->payloadType << " nack\r\n"; }
       if (type == "video") { o << "a=rtcp-fb:" << mFmt->payloadType << " goog-remb\r\n"; }
 
       if (!media->mediaID.empty()) { o << "a=mid:" << media->mediaID << "\r\n"; }
@@ -1000,8 +998,7 @@ namespace SDP{
           WARN_MSG("The selected profile-level-id was rewritten to 42e01f");
           usedProfile = "42e01f";
         }
-        o << "a=fmtp:" << mFmt->payloadType
-          << " profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1\r\n";
+        o << "a=fmtp:" << mFmt->payloadType << " profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1\r\n";
       } else if (mFmt->encodingName == "OPUS") {
         o << "a=fmtp:" << mFmt->payloadType << " minptime=10;useinbandfec=1\r\n";
       }
@@ -1032,8 +1029,8 @@ namespace SDP{
   //                             string with codecs that you
   //                             support; we select the first
   //                             one that we find.
-  bool Answer::enableMedia(const std::string & type, const std::string & codecList,
-                           const std::string & localIceUfrag, const std::string & localIcePwd) {
+  bool Answer::enableMedia(const std::string & type, const std::string & codecList, const std::string & localIceUfrag,
+                           const std::string & localIcePwd) {
     Media *media = sdpOffer.getMediaForType(type);
     if (!media){
       INFO_MSG("Cannot enable %s codec; offer doesn't have %s media.", codecList.c_str(), type.c_str());

@@ -411,7 +411,7 @@ namespace Mist{
     }else{
       if (!userSelect.count(idx) || !userSelect[idx]){
         WARN_MSG("Reloading track %zu, index %zu", pkt.getTrackId(), idx);
-        userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTSOURCEDNT);
       }
       if (!userSelect[idx] || (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT)){
         Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");

@@ -164,8 +164,8 @@ namespace SDP{
     bool parseOffer(const std::string &sdp);
     bool hasVideo(); ///< Check if the offer has video.
     bool hasAudio(); ///< Check if the offer has audio.
-    bool enableMedia(const std::string & type, const std::string & codecName,
-                     const std::string & localIceUfrag, const std::string & localIcePwd);
+    bool enableMedia(const std::string & type, const std::string & codecName, const std::string & localIceUfrag,
+                     const std::string & localIcePwd);
     void setDirection(const std::string &dir);
     bool setupVideoDTSCTrack(DTSC::Meta &M, size_t tid);
     bool setupAudioDTSCTrack(DTSC::Meta &M, size_t tid);

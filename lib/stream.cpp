@@ -537,21 +537,21 @@ std::set<std::string> Util::streamTags(const std::string &streamname){
   return ret;
 }
 
-bool Util::checkStreamKey(std::string & streamName){
+bool Util::checkStreamKey(std::string & streamName) {
   IPC::sharedPage shmKeys(SHM_STREAMKEYS, 0, false, false);
   // Abort silently if page cannot be loaded
-  if (!shmKeys){return false;}
+  if (!shmKeys) { return false; }
 
   Util::RelAccX rlxKeys(shmKeys.mapped);
   // Abort silently if page cannot be loaded
-  if (!rlxKeys.isReady()){return false;}
+  if (!rlxKeys.isReady()) { return false; }
   Util::RelAccXFieldData keyField = rlxKeys.getFieldData("key");
   Util::RelAccXFieldData streamField = rlxKeys.getFieldData("stream");
 
   uint64_t startPos = rlxKeys.getDeleted();
   uint64_t endPos = rlxKeys.getEndPos();
-  for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
-    if (streamName == rlxKeys.getPointer(keyField, cPos)){
+  for (uint64_t cPos = startPos; cPos < endPos; ++cPos) {
+    if (streamName == rlxKeys.getPointer(keyField, cPos)) {
       streamName = rlxKeys.getPointer(streamField, cPos);
       return true;
     }

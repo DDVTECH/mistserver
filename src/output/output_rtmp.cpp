@@ -19,11 +19,10 @@ const char * trackType(char ID){
   return "unknown";
 }
 
-
-namespace Mist{
+namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
 #ifdef SSL
-    if (setupTLS()){ myConn.sslAccept(&sslConf, &ctr_drbg); }
+    if (setupTLS()) { myConn.sslAccept(&sslConf, &ctr_drbg); }
 #endif
     didPublish = false;
     lastSilence = 0;
@@ -95,9 +94,9 @@ namespace Mist{
     }
   }
 
-  OutRTMP::~OutRTMP(){
+  OutRTMP::~OutRTMP() {
 #ifdef SSL
-    if (isTLSEnabled){
+    if (isTLSEnabled) {
       // Free all the mbedtls structures
       mbedtls_x509_crt_free(&srvcert);
       mbedtls_pk_free(&pkey);
@@ -110,7 +109,7 @@ namespace Mist{
   }
 
 #ifdef SSL
-  bool OutRTMP::setupTLS(){
+  bool OutRTMP::setupTLS() {
     isTLSEnabled = false;
     // No cert or key? Non-SSL mode.
     if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2){
@@ -130,7 +129,7 @@ namespace Mist{
     isTLSEnabled = true;
 
     mbedtls_debug_set_threshold(0);
-    mbedtls_ssl_conf_dbg(&sslConf, [](void *ctx, int level, const char *file, int line, const char *str){
+    mbedtls_ssl_conf_dbg(&sslConf, [](void *ctx, int level, const char *file, int line, const char *str) {
       INFO_MSG("TLS [%d]: %s:%d %s", level, file, line, str);
     }, 0);
 
@@ -1258,16 +1257,16 @@ namespace Mist{
           streamName = streamName.substr(0, streamName.find('/'));
         }
 
-        if (!checkStreamKey()){
-          if (!streamName.size()){
+        if (!checkStreamKey()) {
+          if (!streamName.size()) {
             onFinish();
             return;
           }
-          if (Triggers::shouldTrigger("RTMP_PUSH_REWRITE")){
+          if (Triggers::shouldTrigger("RTMP_PUSH_REWRITE")) {
             std::string payload = reqUrl + "\n" + getConnectedHost();
             std::string newUrl = reqUrl;
             Triggers::doTrigger("RTMP_PUSH_REWRITE", payload, "", false, newUrl);
-            if (!newUrl.size()){
+            if (!newUrl.size()) {
               FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL",
                        getConnectedHost().c_str(), reqUrl.c_str());
               onFinish();
@@ -1275,13 +1274,13 @@ namespace Mist{
             }
             reqUrl = newUrl;
             size_t lSlash = newUrl.rfind('/');
-            if (lSlash != std::string::npos){
+            if (lSlash != std::string::npos) {
               streamName = newUrl.substr(lSlash + 1);
-            }else{
+            } else {
               streamName = newUrl;
             }
             // handle variables
-            if (streamName.find('?') != std::string::npos){
+            if (streamName.find('?') != std::string::npos) {
               std::string tmpVars = streamName.substr(streamName.find('?') + 1);
               streamName = streamName.substr(0, streamName.find('?'));
               HTTP::parseVars(tmpVars, targetParams);
@@ -1289,33 +1288,32 @@ namespace Mist{
           }
 
           size_t colonPos = streamName.find(':');
-          if (colonPos != std::string::npos && colonPos < 6){
+          if (colonPos != std::string::npos && colonPos < 6) {
             std::string oldName = streamName;
-            if (std::string(".") + oldName.substr(0, colonPos) == oldName.substr(oldName.size() - colonPos - 1)){
+            if (std::string(".") + oldName.substr(0, colonPos) == oldName.substr(oldName.size() - colonPos - 1)) {
               streamName = oldName.substr(colonPos + 1);
-            }else{
+            } else {
               streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
             }
           }
 
           Util::sanitizeName(streamName);
 
-          if (Triggers::shouldTrigger("PUSH_REWRITE")){
+          if (Triggers::shouldTrigger("PUSH_REWRITE")) {
             std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
             std::string newStream = streamName;
             Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-            if (!newStream.size()){
+            if (!newStream.size()) {
               FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                        getConnectedHost().c_str(), reqUrl.c_str());
-              Util::logExitReason(ER_TRIGGER,
-                  "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                  getConnectedHost().c_str(), reqUrl.c_str());
+              Util::logExitReason(ER_TRIGGER, "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                                  getConnectedHost().c_str(), reqUrl.c_str());
               onFinish();
               return;
-            }else{
+            } else {
               streamName = newStream;
               // handle variables
-              if (streamName.find('?') != std::string::npos){
+              if (streamName.find('?') != std::string::npos) {
                 std::string tmpVars = streamName.substr(streamName.find('?') + 1);
                 streamName = streamName.substr(0, streamName.find('?'));
                 HTTP::parseVars(tmpVars, targetParams);
@@ -1324,12 +1322,11 @@ namespace Mist{
           }
           Util::sanitizeName(streamName);
           Util::setStreamName(streamName);
-          if (!allowPush(app_name)){
+          if (!allowPush(app_name)) {
             onFinish();
             return;
           }
         }
-
       }
       // send a status reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
@@ -1692,10 +1689,11 @@ namespace Mist{
         didPublish = true;
         return;
       }
-      if (didPublish && isRecording() && (amfData.getContentP(0)->StrValue() == "_result" || amfData.getContentP(0)->StrValue() == "onStatus") &&
-          amfData.getContentP(1)->NumValue() == 5){  // result from transaction ID 5 (e.g. our publish call).
+      if (didPublish && isRecording() &&
+          (amfData.getContentP(0)->StrValue() == "_result" || amfData.getContentP(0)->StrValue() == "onStatus") &&
+          amfData.getContentP(1)->NumValue() == 5) { // result from transaction ID 5 (e.g. our publish call).
 
-        if (!targetParams.count("realtime")){realTime = 800;}
+        if (!targetParams.count("realtime")) { realTime = 800; }
         parseData = true;
         didPublish = false;
         return;
@@ -1703,13 +1701,13 @@ namespace Mist{
 
       // Also handle publish start without matching transation ID
       if (didPublish && isRecording() && amfData.getContentP(0)->StrValue() == "onStatus" &&
-          amfData.getContentP(3)->getContentP("code")->StrValue() == "NetStream.Publish.Start"){
+          amfData.getContentP(3)->getContentP("code")->StrValue() == "NetStream.Publish.Start") {
         if (!targetParams.count("realtime")){realTime = 800;}
         parseData = true;
-        didPublish = false; 
+        didPublish = false;
         return;
       }
-      
+
       // Handling generic errors remotely triggered errors.
       if (amfData.getContentP(0)->StrValue() == "onStatus" &&
           amfData.getContentP(3)->getContentP("level")->StrValue() == "error"){
@@ -1849,15 +1847,13 @@ namespace Mist{
         F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
         if ((F.getDataLen() || (amf_storage && amf_storage->hasContent())) && !(F.needsInitData() && F.isInitData())){
           uint64_t tagTime = next.timestamp;
-          if (!setRtmpOffset){
+          if (!setRtmpOffset) {
             uint64_t timeOffset = 0;
-            if (targetParams.count("timeoffset")){
-              timeOffset = JSON::Value(targetParams["timeoffset"]).asInt();
-            }
-            if (!M.getBootMsOffset()){
+            if (targetParams.count("timeoffset")) { timeOffset = JSON::Value(targetParams["timeoffset"]).asInt(); }
+            if (!M.getBootMsOffset()) {
               meta.setBootMsOffset(Util::bootMS() - tagTime);
               rtmpOffset = timeOffset;
-            }else{
+            } else {
               rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset() + timeOffset;
             }
             setRtmpOffset = true;
@@ -1965,4 +1961,4 @@ namespace Mist{
       }
     }
   }
-}// namespace Mist
+} // namespace Mist

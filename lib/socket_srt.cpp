@@ -397,8 +397,8 @@ namespace Socket{
         HIGH_MSG("Going to connect sock %d", sock);
         if (srt_connect(sock, remoteaddr, remoteaddr.size()) != SRT_ERROR) {
           if (postConfigureSocket() == SRT_ERROR){ERROR_MSG("Error during postconfigure socket");}
-          INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s:%u -> %s", sock, getStateStr(),
-                   _host.c_str(), _port, it.toString().c_str());
+          INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s:%u -> %s", sock, getStateStr(), _host.c_str(), _port,
+                   it.toString().c_str());
           lastGood = Util::bootMS();
           return;
         }
@@ -436,8 +436,7 @@ namespace Socket{
     direction = _direction;
     timedOut = false;
     handleConnectionParameters(addr.host(), _params);
-    HIGH_MSG("Opening SRT connection %s in %s mode on %s", modeName.c_str(), direction.c_str(),
-             addr.toString().c_str());
+    HIGH_MSG("Opening SRT connection %s in %s mode on %s", modeName.c_str(), direction.c_str(), addr.toString().c_str());
 
     if (modeName == "caller") {
       setBlocking(true);
@@ -446,8 +445,7 @@ namespace Socket{
       HIGH_MSG("Going to connect sock %d", sock);
       if (srt_connect(sock, remoteaddr, remoteaddr.size()) != SRT_ERROR) {
         if (postConfigureSocket() == SRT_ERROR) { ERROR_MSG("Error during postconfigure socket"); }
-        INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s", sock, getStateStr(),
-                 addr.toString().c_str());
+        INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s", sock, getStateStr(), addr.toString().c_str());
         lastGood = Util::bootMS();
         return;
       }

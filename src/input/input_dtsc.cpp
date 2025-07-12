@@ -1,17 +1,17 @@
+#include "input_dtsc.h"
+
+#include <mist/bitfields.h>
+#include <mist/defines.h>
+#include <mist/http_parser.h>
+#include <mist/stream.h>
+#include <mist/util.h>
+
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <mist/defines.h>
-#include <mist/stream.h>
-#include <mist/http_parser.h>
 #include <string>
-
-#include <mist/bitfields.h>
-#include <mist/util.h>
-
-#include "input_dtsc.h"
 
 namespace Mist{
   InputDTSC::InputDTSC(Util::Config *cfg) : Input(cfg){
@@ -83,10 +83,10 @@ namespace Mist{
     return lockNeeded;
   }
 
-  void InputDTSC::parseStreamHeader(){
+  void InputDTSC::parseStreamHeader() {
     // Open metadata
     meta.reInit(streamName, false);
-    if (!meta){
+    if (!meta) {
       FAIL_MSG("Could not open stream metadata to merge in remote tracks; aborting!");
       Util::logExitReason(ER_INTERNAL_ERROR, "Could not open stream metadata to merge in remote tracks");
       config->is_active = false;
@@ -99,8 +99,8 @@ namespace Mist{
     // Open userSelect for all received tracks
     std::set<size_t> validTracks = M.getMySourceTracks(getpid());
     userSelect.clear();
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-      userSelect[*it].reload(streamName, *it, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it) {
+      userSelect[*it].reload(streamName, *it, COMM_STATUS_ACTSOURCEDNT);
     }
   }
 
@@ -116,9 +116,9 @@ namespace Mist{
     std::string host = url.host;
     uint16_t port = url.getPort();
     std::string password;
-    if (url.pass.size()){
+    if (url.pass.size()) {
       password = url.pass;
-    }else if (url.user.size()){
+    } else if (url.user.size()) {
       password = url.user;
     }
     std::map<std::string, std::string> args;
@@ -126,16 +126,16 @@ namespace Mist{
 
     std::string streamName = url.path;
     Util::sanitizeName(streamName);
-    if (!streamName.size()){streamName = config->getString("streamname");}
+    if (!streamName.size()) { streamName = config->getString("streamname"); }
 
     srcConn.open(host, port, true, url.protocol == "dtscs");
     srcConn.Received().splitter.clear();
-    if (!srcConn){return false;}
+    if (!srcConn) { return false; }
     JSON::Value prep;
     prep["cmd"] = "play";
     prep["version"] = APPIDENT;
     prep["stream"] = streamName;
-    if (args.count("sync")){prep["sync"] = JSON::fromString(args["sync"]);}
+    if (args.count("sync")) { prep["sync"] = JSON::fromString(args["sync"]); }
     srcConn.SendNow("DTCM");
     char sSize[4] ={0, 0, 0, 0};
     Bit::htobl(sSize, prep.packedSize());
@@ -276,13 +276,13 @@ namespace Mist{
     fseek(F, thisPos.bytePos, SEEK_SET);
   }
 
-  void InputDTSC::getNextFromStream(size_t idx, bool returnAfterMetaReceived){
+  void InputDTSC::getNextFromStream(size_t idx, bool returnAfterMetaReceived) {
     bool clearMeta = returnAfterMetaReceived;
-    while (config->is_active && srcConn){
+    while (config->is_active && srcConn) {
       thisPacket.reInit(srcConn);
 
       // Handle command packets
-      if (thisPacket.getVersion() == DTSC::DTCM){
+      if (thisPacket.getVersion() == DTSC::DTCM) {
         std::string cmd;
         thisPacket.getString("cmd", cmd);
         // "reset" indicates the metadata will be replaced
@@ -301,70 +301,68 @@ namespace Mist{
           return;
         }
         // "ping" is a request for a "pong"
-        if (cmd == "ping"){
+        if (cmd == "ping") {
           JSON::Value prep;
           prep["cmd"] = "ok";
           prep["msg"] = "Pong!";
-          char sSize[8] ={'D', 'T', 'C', 'M', 0, 0, 0, 0};
-          Bit::htobl(sSize+4, prep.packedSize());
+          char sSize[8] = {'D', 'T', 'C', 'M', 0, 0, 0, 0};
+          Bit::htobl(sSize + 4, prep.packedSize());
           srcConn.SendNow(sSize, 8);
           prep.sendTo(srcConn);
           continue;
         }
         // "sync" indicates a switch between async/sync modes
-        if (cmd == "sync"){
+        if (cmd == "sync") {
           isSyncReceiver = thisPacket.getInt("sync");
-          INFO_MSG("Switching over to receiving in %s mode", isSyncReceiver?"sync":"async");
+          INFO_MSG("Switching over to receiving in %s mode", isSyncReceiver ? "sync" : "async");
           continue;
         }
         // "hi" is the server hello message
-        if (cmd == "hi"){
+        if (cmd == "hi") {
           // let's log the version at INFO level
           thisPacket.getString("version", cmd);
-          if (cmd.size()){
-            INFO_MSG("Connected to remote server version %s", cmd.c_str());
-          }
+          if (cmd.size()) { INFO_MSG("Connected to remote server version %s", cmd.c_str()); }
           continue;
         }
         // Ignore all other commands
         INFO_MSG("Unhandled command: %s", cmd.c_str());
         continue;
       }
-      
+
       // Handle metadata update/replacement packets
       if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
         DTSC::Meta nM("", thisPacket.getScan());
         meta.merge(nM, clearMeta, false);
-        if (clearMeta){ meta.setBootMsOffset(nM.getBootMsOffset()); }
+        if (clearMeta) { meta.setBootMsOffset(nM.getBootMsOffset()); }
         clearMeta = false;
-        if (returnAfterMetaReceived){return;}
+        if (returnAfterMetaReceived) { return; }
         continue;
       }
 
       // Track data packet
-      if (thisPacket.getVersion() == DTSC::DTSC_V1 || thisPacket.getVersion() == DTSC::DTSC_V2){
+      if (thisPacket.getVersion() == DTSC::DTSC_V1 || thisPacket.getVersion() == DTSC::DTSC_V2) {
         thisTime = thisPacket.getTime();
         thisIdx = M.trackIDToIndex(thisPacket.getTrackId());
-        if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)){
+        if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)) {
           uint32_t shrtest_key = 0xFFFFFFFFul;
           uint32_t longest_key = 0;
           DTSC::Keys Mkeys(M.keys(thisIdx));
           uint32_t firstKey = Mkeys.getFirstValid();
           uint32_t endKey = Mkeys.getEndValid();
-          uint32_t checkKey = (endKey-firstKey <= 3)?firstKey:endKey-3;
-          for (uint32_t k = firstKey; k+1 < endKey; k++){
+          uint32_t checkKey = (endKey - firstKey <= 3) ? firstKey : endKey - 3;
+          for (uint32_t k = firstKey; k + 1 < endKey; k++) {
             uint64_t kDur = Mkeys.getDuration(k);
-            if (!kDur){continue;}
-            if (kDur > longest_key && k >= checkKey){longest_key = kDur;}
-            if (kDur < shrtest_key){shrtest_key = kDur;}
+            if (!kDur) { continue; }
+            if (kDur > longest_key && k >= checkKey) { longest_key = kDur; }
+            if (kDur < shrtest_key) { shrtest_key = kDur; }
           }
-          if (longest_key > shrtest_key*2){
+          if (longest_key > shrtest_key * 2) {
             JSON::Value prep;
             prep["cmd"] = "check_key_duration";
             prep["id"] = (uint64_t)thisPacket.getTrackId();
             prep["duration"] = longest_key;
             srcConn.SendNow("DTCM");
-            char sSize[4] ={0, 0, 0, 0};
+            char sSize[4] = {0, 0, 0, 0};
             Bit::htobl(sSize, prep.packedSize());
             srcConn.SendNow(sSize, 4);
             prep.sendTo(srcConn);
@@ -373,21 +371,21 @@ namespace Mist{
         }
 
         // If we're receiving packets in sync, we now know until 1ms ago all tracks are up-to-date
-        if (isSyncReceiver && thisTime){
+        if (isSyncReceiver && thisTime) {
           std::map<size_t, Comms::Users>::iterator uIt;
-          for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt){
-            if (uIt->first == thisIdx){continue;}
-            if (M.getNowms(uIt->first) < thisTime - 1){meta.setNowms(uIt->first, thisTime - 1);}
+          for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt) {
+            if (uIt->first == thisIdx) { continue; }
+            if (M.getNowms(uIt->first) < thisTime - 1) { meta.setNowms(uIt->first, thisTime - 1); }
           }
         }
 
         // If we're not trying to get metadata, break. Otherwise keep going to try and get metadata.
-        if (!returnAfterMetaReceived){break;}
+        if (!returnAfterMetaReceived) { break; }
       }
 
       WARN_MSG("Unhandled DTSC packet type encountered, ignoring...");
     }
-    if (clearMeta){ meta.clear(); }
+    if (clearMeta) { meta.clear(); }
   }
 
   void InputDTSC::seek(uint64_t seekTime, size_t idx){

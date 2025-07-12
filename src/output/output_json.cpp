@@ -180,27 +180,27 @@ namespace Mist{
 
   void OutJSON::onWebsocketFrame(){
     if (!isPushing()){
-      if (!checkStreamKey()){
-        if (!streamName.size()){
+      if (!checkStreamKey()) {
+        if (!streamName.size()) {
           onFinish();
           return;
         }
-        if (Triggers::shouldTrigger("PUSH_REWRITE")){
+        if (Triggers::shouldTrigger("PUSH_REWRITE")) {
           std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
           std::string newStream = streamName;
           Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-          if (!newStream.size()){
+          if (!newStream.size()) {
             FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                      getConnectedHost().c_str(), reqUrl.c_str());
             onFinish();
             return;
-          }else{
+          } else {
             streamName = newStream;
             Util::sanitizeName(streamName);
             Util::setStreamName(streamName);
           }
         }
-        if (!allowPush(pushPass)){
+        if (!allowPush(pushPass)) {
           onFinish();
           return;
         }

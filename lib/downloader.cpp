@@ -566,8 +566,7 @@ namespace HTTP{
             line.erase(line.find_first_of("\r\n"));
             size_t sp1 = line.find(' ');
             size_t sp2 = line.find(' ', sp1 + 1);
-            if (sp1 != std::string::npos && sp2 != std::string::npos &&
-                line.substr(sp1 + 1, sp2 - sp1 - 1) == "100") {
+            if (sp1 != std::string::npos && sp2 != std::string::npos && line.substr(sp1 + 1, sp2 - sp1 - 1) == "100") {
               INFO_MSG("Server approved PUT request for %s: %s", link.getUrl().c_str(), line.c_str() + sp2 + 1);
               conn.Received().clear();
               return true;

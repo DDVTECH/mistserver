@@ -13,13 +13,13 @@
 namespace Mist{
   OutDTSC::OutDTSC(Socket::Connection &conn) : Output(conn){
     JSON::Value prep;
-    if (!config->getBool("syncmode")){ setSyncMode(false); }
+    if (!config->getBool("syncmode")) { setSyncMode(false); }
     isSyncReceiver = false;
     lastActive = Util::epoch();
     if (config->getString("target").size()){
       streamName = config->getString("streamname");
       pushUrl = HTTP::URL(config->getString("target"));
-      if (pushUrl.protocol != "dtsc"){return;}
+      if (pushUrl.protocol != "dtsc") { return; }
 
       setSyncMode(JSON::Value(targetParams["sync"]).asBool());
 
@@ -44,7 +44,7 @@ namespace Mist{
       if (args.count("pw")){prep["password"] = args["pw"];}
       if (args.count("password")){prep["password"] = args["password"];}
       if (pushUrl.pass.size()){prep["password"] = pushUrl.pass;}
-      if (getSyncMode()){prep["sync"] = true;}
+      if (getSyncMode()) { prep["sync"] = true; }
       sendCmd(prep);
       wantRequest = true;
       parseData = true;
@@ -63,11 +63,10 @@ namespace Mist{
 
   OutDTSC::~OutDTSC(){}
 
-  
-  bool OutDTSC::isFileTarget(){
-    if (!isRecording()){return false;}
+  bool OutDTSC::isFileTarget() {
+    if (!isRecording()) { return false; }
     pushUrl = HTTP::URL(config->getString("target"));
-    if (pushUrl.protocol == "dtsc"){return false;}
+    if (pushUrl.protocol == "dtsc") { return false; }
     return true;
   }
 
@@ -164,12 +163,12 @@ namespace Mist{
   }
 
   void OutDTSC::sendHeader(){
-    if (!sentHeader && config->getString("pushurl").size()){
+    if (!sentHeader && config->getString("pushurl").size()) {
       pushUrl = HTTP::URL(config->getString("pushurl"));
-      if (pushUrl.protocol != "dtsc"){
+      if (pushUrl.protocol != "dtsc") {
         WARN_MSG("Invalid push URL format, must start with dtsc:// - %s", config->getString("pushURI").c_str());
-      }else{
-        if (!pushUrl.path.size()){pushUrl.path = streamName;}
+      } else {
+        if (!pushUrl.path.size()) { pushUrl.path = streamName; }
         INFO_MSG("About to push stream %s out. target stream: %s", streamName.c_str(), pushUrl.path.c_str());
         JSON::Value prep;
         prep["cmd"] = "push";
@@ -177,11 +176,11 @@ namespace Mist{
         prep["stream"] = pushUrl.path;
         std::map<std::string, std::string> args;
         HTTP::parseVars(pushUrl.args, args);
-        if (args.count("pass")){prep["password"] = args["pass"];}
-        if (args.count("pw")){prep["password"] = args["pw"];}
-        if (args.count("password")){prep["password"] = args["password"];}
-        if (pushUrl.pass.size()){prep["password"] = pushUrl.pass;}
-        if (getSyncMode()){prep["sync"] = true;}
+        if (args.count("pass")) { prep["password"] = args["pass"]; }
+        if (args.count("pw")) { prep["password"] = args["pw"]; }
+        if (args.count("password")) { prep["password"] = args["password"]; }
+        if (pushUrl.pass.size()) { prep["password"] = pushUrl.pass; }
+        if (getSyncMode()) { prep["sync"] = true; }
         sendCmd(prep);
       }
     }
@@ -346,16 +345,16 @@ namespace Mist{
         inPack.getString("data", data, dataLen);
         uint64_t packTime = inPack.getTime();
         bufferLivePacket(packTime, inPack.getInt("offset"), tid, data, dataLen, inPack.getInt("bpos"), inPack.getFlag("keyframe"));
-        
+
         // If we're receiving packets in sync, we now know until 1ms ago all tracks are up-to-date
-        if (isSyncReceiver && packTime){
+        if (isSyncReceiver && packTime) {
           std::map<size_t, Comms::Users>::iterator uIt;
-          for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt){
-            if (uIt->first == tid){continue;}
-            if (M.getNowms(uIt->first) < packTime - 1){meta.setNowms(uIt->first, packTime - 1);}
+          for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt) {
+            if (uIt->first == tid) { continue; }
+            if (M.getNowms(uIt->first) < packTime - 1) { meta.setNowms(uIt->first, packTime - 1); }
           }
         }
-        
+
       }else{
         // Invalid
         onFail("Invalid packet header received. Aborting.", true);
@@ -367,9 +366,9 @@ namespace Mist{
   void OutDTSC::handlePlay(DTSC::Scan &dScan){
     streamName = dScan.getMember("stream").asString();
     // Put all arguments except for cmd and stream in the targetParams
-    dScan.forEachMember([this](const DTSC::Scan & m, const std::string & name){
-      if (name == "cmd" || name == "stream"){return;}
-      switch (m.getType()){
+    dScan.forEachMember([this](const DTSC::Scan & m, const std::string & name) {
+      if (name == "cmd" || name == "stream") { return; }
+      switch (m.getType()) {
         case DTSC_INT: targetParams[name] = m.asInt(); break;
         case DTSC_STR: targetParams[name] = m.asString(); break;
         default: break;
@@ -384,9 +383,9 @@ namespace Mist{
     qUrl.path = streamName;
     qUrl.args = HTTP::argStr(targetParams, false);
     reqUrl = qUrl.getUrl();
-    if (targetParams.count("sync")){
+    if (targetParams.count("sync")) {
       setSyncMode(JSON::Value(targetParams["sync"]).asBool());
-      if (getSyncMode()){
+      if (getSyncMode()) {
         JSON::Value prep;
         prep["cmd"] = "sync";
         prep["sync"] = 1;
@@ -402,9 +401,9 @@ namespace Mist{
     streamName = dScan.getMember("stream").asString();
     std::string passString = dScan.getMember("password").asString();
     std::map<std::string, std::string> args;
-    dScan.forEachMember([&args](const DTSC::Scan & m, const std::string & name){
-      if (name == "cmd" || name == "stream" || name == "password"){return;}
-      switch (m.getType()){
+    dScan.forEachMember([&args](const DTSC::Scan & m, const std::string & name) {
+      if (name == "cmd" || name == "stream" || name == "password") { return; }
+      switch (m.getType()) {
         case DTSC_INT: args[name] = std::to_string(m.asInt()); break;
         case DTSC_STR: args[name] = m.asString(); break;
         default: break;
@@ -418,37 +417,36 @@ namespace Mist{
     qUrl.pass = passString;
     qUrl.args = HTTP::argStr(args);
     reqUrl = qUrl.getUrl();
-    if (!checkStreamKey()){
-      if (!streamName.size()){
+    if (!checkStreamKey()) {
+      if (!streamName.size()) {
         onFail("Stream key related: stream open failed");
         return;
       }
       Util::sanitizeName(streamName);
       Util::setStreamName(streamName);
-      if (Triggers::shouldTrigger("PUSH_REWRITE")){
+      if (Triggers::shouldTrigger("PUSH_REWRITE")) {
         std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
         std::string newStream = streamName;
         Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
-        if (!newStream.size()){
-          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-                   getConnectedHost().c_str(), reqUrl.c_str());
-          Util::logExitReason(ER_TRIGGER,
-              "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
-              getConnectedHost().c_str(), reqUrl.c_str());
+        if (!newStream.size()) {
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(),
+                   reqUrl.c_str());
+          Util::logExitReason(ER_TRIGGER, "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                              getConnectedHost().c_str(), reqUrl.c_str());
           onFail("Push not allowed - rejected by trigger");
           return;
-        }else{
+        } else {
           streamName = newStream;
           Util::sanitizeName(streamName);
           Util::setStreamName(streamName);
         }
       }
-      if (!allowPush(passString)){
+      if (!allowPush(passString)) {
         onFail("Push not allowed - stream and/or password incorrect", true);
         return;
       }
     }
-    if (dScan.getMember("sync").asBool()){isSyncReceiver = true;}
+    if (dScan.getMember("sync").asBool()) { isSyncReceiver = true; }
     sendOk("You're cleared for pushing! DTSC_HEAD please?");
   }
 

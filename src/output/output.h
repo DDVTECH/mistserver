@@ -79,7 +79,7 @@ namespace Mist{
 
     /// Accessors for buffer SyncMode.
     void setSyncMode(bool synced){buffer.setSyncMode(synced);}
-    bool getSyncMode(){return buffer.getSyncMode();}
+    bool getSyncMode() { return buffer.getSyncMode(); }
 
   private: // these *should* not be messed with in child classes.
     /*LTS-START*/

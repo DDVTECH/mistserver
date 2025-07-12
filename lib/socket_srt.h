@@ -43,8 +43,7 @@ namespace Socket{
 
     void connect(const std::string &_host, int _port, const std::string &_direction = "input",
                  const paramList &_params = paramList());
-    void connect(const Socket::Address & addr, const std::string & _direction = "input",
-                 const paramList & _params = paramList());
+    void connect(const Socket::Address & addr, const std::string & _direction = "input", const paramList & _params = paramList());
     void close();
     bool connected() const;
     bool rejected() const{return rejectReason;}

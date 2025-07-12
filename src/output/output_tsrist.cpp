@@ -355,7 +355,7 @@ namespace Mist{
       size_t thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
       if (thisIdx == INVALID_TRACK_ID){return;}
       if (!userSelect.count(thisIdx)){
-        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
       }
 
       uint64_t adjustTime = thisPacket.getTime() + timeStampOffset;

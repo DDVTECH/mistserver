@@ -303,8 +303,7 @@ namespace Util{
       Event::Loop ev;
       auto attemptFinish = [&]() {
         if (response.Read(conn)) {
-          INFO_MSG("Server response to upload (before %s): %s %s", uri.c_str(),
-                   response.url.c_str(), response.method.c_str());
+          INFO_MSG("Server response to upload (before %s): %s %s", uri.c_str(), response.url.c_str(), response.method.c_str());
           // If the response is a 2XX code, return 0, otherwise return the default response (2).
           if (response.url.size() && response.url[0] == '2') {
             // Success
@@ -367,8 +366,7 @@ namespace Util{
             uint32_t s = *(uint32_t *)(ptr + offset);
             if (offset + 4 + s > 256) { break; }
             if (target.protocol == std::string(ptr + offset + 4, s)) {
-              HIGH_MSG("Using %s in order connect to URL with protocol %s", name.c_str(),
-                       target.protocol.c_str());
+              HIGH_MSG("Using %s in order connect to URL with protocol %s", name.c_str(), target.protocol.c_str());
               std::deque<std::string> parameterList;
               Util::shellSplit(cmdline, parameterList);
               parameterList.push_back(uri);

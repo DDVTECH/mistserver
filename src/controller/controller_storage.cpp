@@ -684,14 +684,14 @@ namespace Controller{
 
     // Write streamkeys to shared memory
     {
-      static IPC::sharedPage streamkeyPage(SHM_STREAMKEYS, 1*1024*1024, false, false);
-      if (streamkeyPage){
+      static IPC::sharedPage streamkeyPage(SHM_STREAMKEYS, 1 * 1024 * 1024, false, false);
+      if (streamkeyPage) {
         Util::RelAccX tmpA(streamkeyPage.mapped, false);
-        if (tmpA.isReady()){tmpA.setReload();}
+        if (tmpA.isReady()) { tmpA.setReload(); }
         streamkeyPage.master = true;
         streamkeyPage.close();
       }
-      streamkeyPage.init(SHM_STREAMKEYS, 1*1024*1024, true, false);
+      streamkeyPage.init(SHM_STREAMKEYS, 1 * 1024 * 1024, true, false);
       Util::RelAccX tPage(streamkeyPage.mapped, false);
       tPage.addField("key", RAX_256STRING);
       tPage.addField("stream", RAX_128STRING);
@@ -699,8 +699,8 @@ namespace Controller{
       Util::RelAccXFieldData streamField = tPage.getFieldData("stream");
       uint32_t i = 0;
       uint32_t max = (streamkeyPage.len - tPage.getOffset()) / tPage.getRSize();
-      jsonForEach(Controller::Storage["streamkeys"], keyIt){
-        if (i >= max){
+      jsonForEach (Controller::Storage["streamkeys"], keyIt) {
+        if (i >= max) {
           ERROR_MSG("Not all streamkeys fit on the memory page!");
           break;
         }

@@ -288,7 +288,7 @@ namespace Mist{
             meta.setType(rawIdx, "meta");
             meta.setCodec(rawIdx, "rawts");
             meta.setID(rawIdx, 1);
-            userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+            userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTSOURCEDNT);
           }
           thisTime = Util::bootMS();
           thisIdx = rawIdx;

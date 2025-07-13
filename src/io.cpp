@@ -298,7 +298,7 @@ namespace Mist{
     }
 
     // First generate only the payload on the correct destination
-    // Leaves the 20 bytes inbetween empty to ensure the data is not accidentally read before it is
+    // Leaves the 20 bytes in between empty to ensure the data is not accidentally read before it is
     // complete
     char *data = page.mapped + pageOffset;
 
@@ -408,8 +408,8 @@ namespace Mist{
                  packTime, aMeta.getLastms(packTrack));
         return;
       }
-      if (packTime > aMeta.getLastms(packTrack) + 30000 && aMeta.getLastms(packTrack)){
-        WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, aMeta.getLastms(packTrack), packTime);
+      if (packTime > aMeta.getNowms(packTrack) + 30000 && aMeta.getLastms(packTrack)) {
+        WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, aMeta.getNowms(packTrack), packTime);
       }
     }
     

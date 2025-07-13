@@ -733,9 +733,8 @@ namespace Mist{
       WARN_MSG("Load for track %zu key %zu aborted - track is empty", trackId, keyNum);
       return;
     }
-    size_t lastAvailKey = keys.getEndValid() - 1;
-    if (!meta.getLive() && keyNum > lastAvailKey){
-      INFO_MSG("Load for track %zu key %zu aborted, is > %zu", trackId, keyNum, lastAvailKey);
+    if (!meta.getLive() && keyNum >= keys.getEndValid()) {
+      INFO_MSG("Load for track %zu key %zu aborted, is >= %zu", trackId, keyNum, keys.getEndValid());
       curPage.erase(trackId);
       currentPage.erase(trackId);
       return;
@@ -2445,7 +2444,7 @@ namespace Mist{
       // Make sure we only try to read the page for the next key if it actually should be available
       // Note: specifically does not apply limiter because these are page-related operations
       DTSC::Keys keys(M.getKeys(nxt.tid, false));
-      if (keys.getEndValid() >= thisKey+1){nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);}
+      if (keys.getEndValid() > thisKey + 1) { nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1); }
       if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
         // If so, the next key is our next packet
         nextTime = keys.getTime(thisKey + 1);

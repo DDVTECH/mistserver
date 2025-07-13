@@ -1200,7 +1200,7 @@ namespace Util{
   /// Defaults to the record count if set to zero.
   void RelAccX::setPresent(uint32_t n){*hdrPresent = n;}
 
-  /// Sets the number of the last valid index
+  /// Sets the number of the first invalid index
   void RelAccX::setEndPos(uint64_t n){*hdrEndPos = n;}
 
   /// Sets the ready flag.

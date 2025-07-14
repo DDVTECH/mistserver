@@ -1000,7 +1000,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     JSON::Value & keys = Controller::Storage["streamkeys"];
     if (del.isObject()) {
       jsonForEachConst (del, it) {
-        if (keys.isMember(it.key())) {
+        if (keys.isMember(it.key()) && keys[it.key()].asStringRef() == it->asString()) {
           keys.removeMember(it.key());
           rep.append(it.key());
         }
@@ -1028,7 +1028,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       JSON::Value & keys = Controller::Storage["streamkeys"];
       JSON::Value & rep = Response["streamkey_add"]["added"];
       jsonForEachConst (add, it) {
-        if (it->isString()) {
+        if (it->isString() && (!keys.isMember(it.key()) || keys[it.key()].asStringRef() != it->asStringRef())) {
           keys[it.key()] = it->asStringRef();
           rep.append(it.key());
         }

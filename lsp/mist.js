@@ -585,7 +585,17 @@ context_menu: function(){
       controls.vars.entries = l.length;
 
       if (!default_display_value && (controls.vars.entries > 0)) {
+        let css = false;
+        if (controls.elements.style.textContent != "") {
+          //it's possible that the new entr(y/ies) is being hidden by our own pagination code: temporarily disable it
+          css = controls.elements.style.textContent;
+          controls.elements.style.textContent = "";
+        }
         default_display_value = getComputedStyle(l[0]).getPropertyValue("display");
+        if (default_display_value == "none") default_display_value = false; //if the calculated value is none, it's useless
+        if (css) {
+          controls.elements.style.textContent = css;
+        }
       }
       l = l.length;
 
@@ -6548,6 +6558,7 @@ context_menu: function(){
             }
 
             mist.data.streams[saveas.name] = saveas;
+            if (saveas.source === null) saveas.source = "";
 
             send.addstream = {};
             send.addstream[saveas.name] = saveas;

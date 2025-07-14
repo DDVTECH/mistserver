@@ -92,6 +92,7 @@ namespace Mist{
   public:
     bool isRecording(){return false;}
     ProcessSource(Socket::Connection &c) : OutEBML(c){
+      meta.ignorePid(getpid());
       capa["name"] = "MKVExec";
       targetParams["keeptimes"] = true;
       realTime = 0;

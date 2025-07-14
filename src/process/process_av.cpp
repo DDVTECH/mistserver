@@ -442,6 +442,7 @@ namespace Mist{
     bool isRecording(){return false;}
 
     ProcessSource(Socket::Connection & c) : Output(c) {
+      meta.ignorePid(getpid());
       targetParams["keeptimes"] = true;
       realTime = 0;
       convertCtx = NULL;

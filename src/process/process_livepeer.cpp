@@ -66,6 +66,7 @@ namespace Mist{
     bool isRecording(){return false;}
     bool isReadyForPlay() { return true; }
     ProcessSource(Socket::Connection &c) : TSOutput(c){
+      meta.ignorePid(getpid());
       capa["name"] = "Livepeer";
       capa["codecs"][0u][0u].append("+H264");
       capa["codecs"][0u][0u].append("+HEVC");
@@ -150,7 +151,7 @@ namespace Mist{
               case 0x07: // sps
               case 0x08: // pps
                 shouldSplit = true;
-                INFO_MSG("Switching to new segment since the current keyframe contains new init data");
+                HIGH_MSG("Switching to new segment since the current keyframe contains new init data");
               default: break;
             }
           } else if (codec == "HEVC" && dataLen > 3) {
@@ -160,7 +161,7 @@ namespace Mist{
               case 33: // sps
               case 34: // pps
                 shouldSplit = true;
-                INFO_MSG("Switching to new segment since the current keyframe contains new init data");
+                HIGH_MSG("Switching to new segment since the current keyframe contains new init data");
               default: break;
             }
           }

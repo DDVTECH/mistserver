@@ -915,6 +915,7 @@ namespace DTSC{
 
   /// Initialize metadata from referenced DTSC::Scan object in master mode.
   Meta::Meta(const std::string &_streamName, const DTSC::Scan &src){
+    ignoredPid = 0;
     version = DTSH_VERSION;
     streamMemBuf = 0;
     isMemBuf = false;
@@ -926,6 +927,7 @@ namespace DTSC{
   /// Initialize empty metadata, in master or slave mode.
   /// If stream name is empty, slave mode is enforced.
   Meta::Meta(const std::string &_streamName, bool master, bool autoBackOff){
+    ignoredPid = 0;
     if (!_streamName.size()){master = false;}
     version = DTSH_VERSION;
     streamMemBuf = 0;
@@ -937,6 +939,7 @@ namespace DTSC{
 
   /// Initialize metadata from given DTSH file in master mode.
   Meta::Meta(const std::string &_streamName, const std::string &fileName){
+    ignoredPid = 0;
     version = DTSH_VERSION;
     streamMemBuf = 0;
     isMemBuf = false;
@@ -1215,7 +1218,7 @@ namespace DTSC{
       trackList.addField("codec", RAX_32STRING);
       trackList.addField("page", RAX_256STRING);
       trackList.addField("lastupdate", RAX_64UINT);
-      trackList.addField("pid", RAX_32UINT);
+      trackList.addField("pid", RAX_64UINT);
       trackList.addField("minkeepaway", RAX_64UINT);
       trackList.addField("sourcetid", RAX_32UINT);
       trackList.addField("encryption", RAX_256STRING);
@@ -2449,6 +2452,7 @@ namespace DTSC{
         if (t.frames.isReady() && !t.frames.getPresent()){continue;}
         if (t.parts.isReady() && !t.parts.getPresent()){continue;}
       }
+      if (ignoredPid && trackList.getInt(trackPidField, i) == ignoredPid) { continue; }
       // Remove track this is based on, if this track is encrypted
       if (trackList.getInt(trackSourceTidField, i) != INVALID_TRACK_ID &&
           std::string(trackList.getPointer(trackEncryptionField, i)) != ""){
@@ -3673,6 +3677,10 @@ namespace DTSC{
     limitMin = min;
     limitMax = max;
     INFO_MSG("Applied limiter from %" PRIu64 " to %" PRIu64, min, max);
+  }
+
+  void Meta::ignorePid(uint64_t ignPid) {
+    ignoredPid = ignPid;
   }
 
   /// Returns true if the tracks idx1 and idx2 are keyframe aligned

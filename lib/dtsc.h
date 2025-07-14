@@ -539,7 +539,10 @@ namespace DTSC{
     void removeLimiter();
     void applyLimiter(uint64_t min, uint64_t max);
 
+    void ignorePid(uint64_t ignPid);
+
   protected:
+    uint64_t ignoredPid;
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
     void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true, bool autoBackOff = true);
     void streamInit(size_t trackCount = DEFAULT_TRACK_COUNT);

@@ -111,6 +111,7 @@ namespace Mist{
   public:
     bool isRecording(){return false;}
     ProcessSource(Socket::Connection &c) : OutEBML(c){
+      meta.ignorePid(getpid());
       capa["name"] = "FFMPEG";
       targetParams["keeptimes"] = true;
       realTime = 0;

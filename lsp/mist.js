@@ -1504,13 +1504,14 @@ context_menu: function(){
           if ((source.charAt(0) == "/") || (source.slice(0,7) == "ts-exec")) {
             return; //do not return section
           }
-          for (const port of ports["TS"]) {
-            let out = 'udp://'+(ip == '' ? host.host : ip)+port+'/';
+          if (source.slice(0,8) == "tsudp://") {
+            let out = 'udp://'+(ip == '' ? host.host : ip)+(custport ? custport : ":[port]")+'/';
             values.push(out);
             $values.append(
               createSpan(out)
             );
           }
+          else { return; }
           break;
         }
       }

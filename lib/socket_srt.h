@@ -77,7 +77,6 @@ namespace Socket{
     std::string direction;
 
     Socket::Address remoteaddr;
-    std::string remotehost;
     std::string getBinHost();
   private:
     SRTSOCKET sock;

@@ -216,7 +216,6 @@ namespace Mist{
       if (!config->getBool("nostreamid")) {
         if (sName != "") { streamName = sName; }
       }
-      myConn.setHost(srtConn->remotehost);
 
       int64_t accTypes = config->getInteger("acceptable");
       if (accTypes == 0){//Allow both directions

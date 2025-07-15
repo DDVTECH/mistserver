@@ -126,7 +126,6 @@ namespace Socket{
     if (!rhs){return *this;}
     remoteaddr = rhs.remoteaddr;
     direction = rhs.direction;
-    remotehost = rhs.remotehost;
     sock = rhs.sock;
     HIGH_MSG("COPIED SRT socket %d", sock);
     performanceMonitor = rhs.performanceMonitor;
@@ -159,7 +158,7 @@ namespace Socket{
 
     // Copy address from UDP socket
     remoteaddr = _udpsocket.getRemoteAddr();
-    HIGH_MSG("Addr [%s]", remoteaddr.toString().c_str());
+    HIGH_MSG("SRT remote address: %s", remoteaddr.toString().c_str());
 
     sock = srt_create_socket();
     HIGH_MSG("Opened SRT socket %d", sock);
@@ -689,7 +688,6 @@ namespace Socket{
     r.postConfigureSocket();
     r.setBlocking(!nonblock);
     r.remoteaddr = Socket::Address((const char *)&tmpaddr, len);
-    r.remotehost = r.remoteaddr.host();
     INFO_MSG("Accepted a socket coming from %s", r.remoteaddr.toString().c_str());
     r.getBinHost();
     return r;

@@ -21,7 +21,7 @@ namespace Mist{
     inline virtual bool keepGoing(){return config->is_active;}
   protected:
     virtual void connStats(uint64_t now, Comms::Connections &statComm);
-    virtual std::string getConnectedHost(){return srtConn?srtConn->remotehost:"";}
+    virtual std::string getConnectedHost(){return srtConn?srtConn->remoteaddr.host():"";}
     virtual std::string getConnectedBinHost(){return srtConn?srtConn->getBinHost():"";}
     virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
   private:

@@ -1429,7 +1429,7 @@ namespace RTP{
     case 5:{
       // We have a keyframe: prepend SPS/PPS if the pic_parameter_set_id changed or if this is the first keyframe
       h264::codedSliceUnit keyPiece(buffer + 4, len - 4);
-      if (!h264OutBuffer.size() || keyPiece.picParameterSetId != curPicParameterSetId){
+      if (spsData.size() && ppsData.size() && (!h264OutBuffer.size() || keyPiece.picParameterSetId != curPicParameterSetId)) {
         curPicParameterSetId = keyPiece.picParameterSetId;
         // Update meta init data if needed
         MP4::AVCC avccBox;

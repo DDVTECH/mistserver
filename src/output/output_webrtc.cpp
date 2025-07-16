@@ -1155,6 +1155,7 @@ namespace Mist{
     updateCapabilitiesWithSDPOffer(sdpSession);
     initialize();
     selectDefaultTracks();
+    if (!meta) { return false; }
 
     // Open the jitterlog if the configuration has it set
     if (config && config->hasOption("jitterlog") && config->getBool("jitterlog")){
@@ -2104,6 +2105,8 @@ namespace Mist{
       RTP::Packet rtp_pkt((const char *)wSock.udpSock->data, (unsigned int)wSock.udpSock->data.size());
       uint16_t currSeqNum = rtp_pkt.getSequence();
 
+      // During shutdown, metadata connection may be severed as the last few packets come in - ignore them
+      if (!M) { return; }
       size_t idx = M.trackIDToIndex(rtp_pkt.getPayloadType(), getpid());
 
       // Do we need to map the payload type to a WebRTC Track? (e.g. RED)

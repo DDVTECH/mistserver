@@ -1290,6 +1290,10 @@ namespace Mist{
     }
     
     keyPart firstKeyPart = *sortSet.begin();
+    if (!M.trackLoaded(firstKeyPart.trackID)){
+      onFail("Stream shutting down mid-playback");
+      return;
+    }
     DTSC::Parts parts(M.parts(firstKeyPart.trackID));
     /*
     if (thisIdx != firstKeyPart.trackID || thisPacket.getTime() != firstKeyPart.time ||

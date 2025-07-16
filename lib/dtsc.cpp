@@ -172,7 +172,7 @@ namespace DTSC{
       null();
       return;
     }
-    if (!data_[0] && !data_[1] && !data_[2] && !data_[3]){
+    if (!data_[0] || !data_[1] || !data_[2] || !data_[3]){
       null();
       return;
     }
@@ -1559,6 +1559,7 @@ namespace DTSC{
       }
 
       size_t newIdx = addTrack(fragCount, keyCount, partCount, pageCount);
+      if (newIdx == INVALID_TRACK_ID) { return; }
       setInit(newIdx, M.getInit(*it));
       setID(newIdx, M.getID(*it));
       setChannels(newIdx, M.getChannels(*it));

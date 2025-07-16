@@ -2223,7 +2223,7 @@ namespace Mist{
       return;
     }
     const Comms::Users &usr = userSelect.at(trackId);
-    if (M.hasEmbeddedFrames(trackId)){
+    if (M && M.getValidTracks().count(trackId) && M.hasEmbeddedFrames(trackId)){
       DEBUG_MSG(printLevel, "Dropping %s track %zu (raw): %s", meta.getCodec(trackId).c_str(), trackId, reason.c_str());
     }else{
       if (!usr){

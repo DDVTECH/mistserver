@@ -1850,6 +1850,10 @@ namespace Mist {
     static AMF::Object3 amf3elem("empty", AMF::AMF3_DDV_CONTAINER);
 
     while (next.Parse(inputBuffer)){
+      if (!next.data.size()){
+        WARN_MSG("Ignored packet with invalid (null) data pointer");
+        continue;
+      }
 
       // send ACK if we received a whole window
       if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size / 4) || Util::bootSecs() > lastAck+15){

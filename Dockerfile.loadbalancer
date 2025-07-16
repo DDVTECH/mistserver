@@ -1,0 +1,15 @@
+FROM alpine AS mist_build
+
+RUN apk add --update git meson ninja gcc g++ linux-headers
+ADD . /src/
+RUN mkdir /build/; cd /build; meson setup /src --default-library=static  -DLOAD_BALANCE=true -DDEBUG=3 -Dstrip=true; ninja MistUtilLoad MistUtilLog
+
+FROM alpine
+RUN apk add libstdc++
+COPY --from=mist_build /build/MistUtilLoad /usr/local/bin/MistUtilLoad
+COPY --from=mist_build /build/MistUtilLog /usr/local/bin/MistUtilLog
+
+LABEL org.opencontainers.image.authors="Jaron Viëtor <jaron.vietor@ddvtech.com>"
+EXPOSE 8042
+ENTRYPOINT ["MistUtilLoad"]
+

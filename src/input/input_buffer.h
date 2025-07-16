@@ -24,7 +24,6 @@ namespace Mist{
     bool allProcsRunning;
     bool resumeMode;
     uint64_t maxKeepAway;
-    IPC::semaphore *liveMeta;
 
   protected:
     // Private Functions

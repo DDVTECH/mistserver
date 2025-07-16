@@ -493,7 +493,7 @@ namespace Mist{
         // of data. To prevent multiple singular processes starting, we use the MstPull semaphore if
         // this input is indeed a singular input type.
         if (isSingular()){
-          pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+          pullLock.open(std::string("/MstSemPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
           if (!pullLock){
             FAIL_MSG("Could not open pull lock - aborting!");
             return 1;

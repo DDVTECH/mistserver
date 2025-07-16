@@ -213,8 +213,8 @@ static inline void show_stackframe(){}
 
 #define EXTWRITERS_INITSIZE 1 * 1024 * 1024
 
-#define SEM_STATISTICS "/MstStat"
-#define SEM_USERS "/MstUser%s" //%s stream name
+#define SEM_STATISTICS "/MstSemStat"
+#define SEM_USERS "/MstSemUser%s" //%s stream name
 
 #define SHM_TRACK_DATA "/MstData%s@%zu_%" PRIu32 //%s stream name, %zu track ID, %PRIu32 page #
 // End new meta
@@ -239,11 +239,11 @@ static inline void show_stackframe(){}
 #define STRMSTAT_INVALID 255
 
 #define SHM_TRIGGER "/MstTRGR%s" //%s trigger name
-#define SEM_LIVE "/MstLIVE%s"   //%s stream name
-#define SEM_INPUT "/MstInpt%s"  //%s stream name
-#define SEM_TRACKLIST "/MstTRKS%s"  //%s stream name
-#define SEM_SESSION "/MstSess%s"
-#define SEM_SESSCACHE "/MstSessCacheLock"
+#define SEM_LIVE "/MstSemLIVE%s"   //%s stream name
+#define SEM_INPUT "/MstSemInpt%s"  //%s stream name
+#define SEM_TRACKLIST "/MstSemTRKS%s"  //%s stream name
+#define SEM_SESSION "/MstSemSess%s"
+#define SEM_SESSCACHE "/MstSemSessCache"
 #define SESS_TIMEOUT 600 // Session timeout in seconds
 #define SHM_CAPA "/MstCapa"
 #define SHM_PROTO "/MstProt"

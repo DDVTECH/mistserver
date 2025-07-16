@@ -34,7 +34,6 @@ namespace Mist{
 
     lastReTime = 0; /*LTS*/
     finalMillis = 0;
-    liveMeta = 0;
     capa["name"] = "Buffer";
     JSON::Value option;
     option["arg"] = "integer";
@@ -146,11 +145,6 @@ namespace Mist{
 
   InputBuffer::~InputBuffer(){
     config->is_active = false;
-    if (liveMeta){
-      liveMeta->unlink();
-      delete liveMeta;
-      liveMeta = 0;
-    }
   }
 
   /// Cleans up any left-over data for the current stream
@@ -165,8 +159,6 @@ namespace Mist{
       cleanUsers.finishAll();
       cleanUsers.setMaster(true);
     }
-    // Delete the live stream semaphore, if any.
-    if (liveMeta){liveMeta->unlink();}
     // Scoping to clear up metadata pages
     {
       DTSC::Meta cleanMeta(streamName, false);

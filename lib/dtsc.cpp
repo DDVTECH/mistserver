@@ -1637,15 +1637,6 @@ namespace DTSC{
   /// Resizes a given track to be able to hold the given amount of fragments, keys, parts and pages.
   /// Currently called exclusively from Meta::update(), to resize the internal structures.
   void Meta::resizeTrack(size_t source, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, const char * reason, size_t frameSize){
-    IPC::semaphore resizeLock;
-
-    if (!isMemBuf){
-      std::string pageName = "/";
-      pageName += trackList.getPointer(trackPageField, source);
-      resizeLock.open(pageName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      resizeLock.wait();
-    }
-
     size_t pageSize = (isMemBuf ? sizeMemBuf[source] : tM[source].len);
 
     char *orig = (char *)malloc(pageSize);
@@ -1676,7 +1667,6 @@ namespace DTSC{
       tMemBuf[source] = (char *)malloc(newPageSize);
       if (!tMemBuf[source]){
         FAIL_MSG("Failed to re-allocate memory for track %zu: %s", source, strerror(errno));
-        resizeLock.unlink();
         return;
       }
       sizeMemBuf[source] = newPageSize;
@@ -1687,7 +1677,6 @@ namespace DTSC{
       tM[source].init(trackList.getPointer(trackPageField, source), newPageSize, true);
       if (!tM[source].mapped){
         FAIL_MSG("Failed to re-allocate shared memory for track %zu: %s", source, strerror(errno));
-        resizeLock.unlink();
         return;
       }
       tM[source].master = false;
@@ -1871,7 +1860,6 @@ namespace DTSC{
     t.track.setReady();
 
     free(orig);
-    resizeLock.unlink();
   }
 
   size_t Meta::addDelayedTrack(size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount){

@@ -758,6 +758,16 @@ JSON::Value::Value(bool val){
   intVal = (val ? 1 : 0);
 }
 
+JSON::Value::Value(JSON::object, std::initializer_list<std::pair<std::string, Value>> values) {
+  myType = OBJECT;
+  for (auto it : values) (*this)[it.first] = it.second;
+}
+
+JSON::Value::Value(JSON::array, std::initializer_list<Value> values) {
+  myType = ARRAY;
+  for (auto it : values) append(it);
+}
+
 #ifdef SIZET_VARIANT
 /// Sets this JSON::Value to the given integer.
 JSON::Value::Value(size_t val){

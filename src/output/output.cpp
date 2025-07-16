@@ -1,6 +1,7 @@
 #include "output.h"
 
 #include <mist/bitfields.h>
+#include <mist/cache.h>
 #include <mist/defines.h>
 #include <mist/encode.h>
 #include <mist/h264.h>
@@ -484,6 +485,7 @@ namespace Mist{
     }
 
     meta.reloadReplacedPagesIfNeeded();
+    if (!M) { reconnect(); }
     if (!M){
       userSelect.clear();
       trackSelectionChanged();
@@ -810,9 +812,17 @@ namespace Mist{
 
     if (currentPage.count(trackId) && currentPage[trackId] == pageNum){return;}
     invalidateDataPage(trackId);
+
+    // Try to load from cache first, without waiting.
     char id[NAME_BUFFER_SIZE];
-    snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
-    curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
+    snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, M.getUUID().c_str(), trackId, pageNum);
+    curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE, false, false, true);
+    // If that fails, try to load from shared memory, with waiting
+    if (!(curPage[trackId].mapped)) {
+      snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
+      curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE, false, true);
+    }
+
     if (!(curPage[trackId].mapped)){
       FAIL_MSG("Initializing page %s failed", curPage[trackId].name.c_str());
       curPage.erase(trackId);
@@ -940,7 +950,7 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       if (M.trackLoaded(it->first)) {
         seekTracks.insert(it->first);
-        INFO_MSG("Track %zu seekable", it->first);
+        VERYHIGH_MSG("Track %zu seekable", it->first);
       } else {
         INFO_MSG("Track %zu not loaded", it->first);
       }
@@ -1025,6 +1035,10 @@ namespace Mist{
       }
       return false;
     }
+
+    // Live DTSC outputs should always send the last packet of each track no matter what
+    if (M.getLive() && pos > M.getLastms(tid) && capa["name"] == "DTSC") { pos = M.getLastms(tid); }
+
     Util::sortedPageInfo tmp;
     tmp.tid = tid;
     tmp.offset = 0;
@@ -2510,13 +2524,18 @@ namespace Mist{
         size_t targetPage = 0;
         size_t nextPage = 0;
         M.getPageNumbersForTime(nxt.tid, nxt.time, targetPage, nextPage);
-
-        if (pageNotOpen || lastMs > nxt.time || targetPage != currentPage[nxt.tid]) {
+        if (pageNotOpen || M.getLastms(nxt.tid) > nxt.time || targetPage != currentPage[nxt.tid]) {
           nxt.offset = 0;
           // (Re)open targetPage, unless we're at the end of that page already and there's a nextPage available
           size_t pageToOpen = targetPage;
           if (atPageEnd && nextPage && targetPage == currentPage[nxt.tid]) {
             pageToOpen = nextPage;
+            // Do not cross the limiter boundary.
+            if (!M.getLive() && M.getTimeForKeyIndex(nxt.tid, nextPage) >= M.getLastms(nxt.tid)) {
+              dropTrack(nxt.tid, "end of limited VoD range reached", false);
+              return 1;
+            }
+            // Load the next page, since we're at the end of the current one.
             loadPageForKey(nxt.tid, nextPage);
           }
           VERYHIGH_MSG("Switching page: %zu -> %zu", (size_t)currentPage[nxt.tid], targetPage);
@@ -2609,7 +2628,7 @@ namespace Mist{
         thisTime = nxt.time;
         thisPacket.getString("data", thisData, thisDataLen);
         dropTrack(nxt.tid, "end of non-live track reached", false);
-        return 1;
+        return 0;
       }
 
       //Check if there exists a different page for the next key

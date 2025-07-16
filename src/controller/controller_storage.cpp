@@ -6,13 +6,17 @@
 #include "controller_streams.h"
 
 #include <mist/auth.h>
+#include <mist/cache.h>
 #include <mist/defines.h>
-#include <mist/downloader.h>
 #include <mist/encode.h>
 #include <mist/jwt.h>
+#include <mist/procs.h>
 #include <mist/shared_memory.h>
+#include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/triggers.h>
+#include <mist/urireader.h>
+#include <mist/util.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -29,6 +33,7 @@ namespace Controller{
   std::string prometheus;
   std::string accesslog;
   std::string udpApiBindAddr;
+  std::string cacheBindAddr;
   Util::Config conf;
   bool isTLSEnabled{false};
   JSON::Value Storage; ///< Global storage of data.
@@ -71,6 +76,8 @@ namespace Controller{
   JSON::Value lastConfigWriteAttempt;
   JSON::Value lastConfigSeen;
   std::map<std::string, JSON::Value> lastConfigWritten;
+
+  pid_t cachePid = -1;
 
   Util::RelAccX *logAccessor(){return rlxLogs;}
 
@@ -858,10 +865,12 @@ namespace Controller{
             }
           }
           if (!globAccX.getFieldAccX("defaultStream") || !globAccX.getFieldAccX("systemBoot") ||
-              !globAccX.getFieldAccX("sessionViewerMode") || !globAccX.getFieldAccX("sessionInputMode") ||
-              !globAccX.getFieldAccX("sessionOutputMode") || !globAccX.getFieldAccX("sessionUnspecifiedMode") ||
-              !globAccX.getFieldAccX("sessionStreamInfoMode") || !globAccX.getFieldAccX("tknMode") ||
-              !globAccX.getFieldAccX("udpApi") || !globAccX.getFieldAccX("iid") || !globAccX.getFieldAccX("hrn") || !haveWeights) {
+              !globAccX.getFieldAccX("cachePath") || !globAccX.getFieldAccX("cacheBytes") ||
+              !globAccX.getFieldAccX("cachePercent") || !globAccX.getFieldAccX("sessionViewerMode") ||
+              !globAccX.getFieldAccX("sessionInputMode") || !globAccX.getFieldAccX("sessionOutputMode") ||
+              !globAccX.getFieldAccX("sessionUnspecifiedMode") || !globAccX.getFieldAccX("sessionStreamInfoMode") ||
+              !globAccX.getFieldAccX("tknMode") || !globAccX.getFieldAccX("udpApi") || !globAccX.getFieldAccX("cacheSocket") ||
+              !globAccX.getFieldAccX("iid") || !globAccX.getFieldAccX("hrn") || !haveWeights) {
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();
@@ -872,6 +881,9 @@ namespace Controller{
         if (!globAccX.isReady()){
           globAccX.addField("defaultStream", RAX_128STRING);
           globAccX.addField("systemBoot", RAX_64UINT);
+          globAccX.addField("cachePath", RAX_512STRING);
+          globAccX.addField("cacheBytes", RAX_64UINT);
+          globAccX.addField("cachePercent", RAX_32UINT);
           globAccX.addField("sessionViewerMode", RAX_64UINT);
           globAccX.addField("sessionInputMode", RAX_64UINT);
           globAccX.addField("sessionOutputMode", RAX_64UINT);
@@ -879,6 +891,7 @@ namespace Controller{
           globAccX.addField("sessionStreamInfoMode", RAX_64UINT);
           globAccX.addField("tknMode", RAX_64UINT);
           globAccX.addField("udpApi", RAX_128STRING);
+          globAccX.addField("cacheSocket", RAX_128STRING);
           globAccX.addField("iid", RAX_64STRING);
           globAccX.addField("hrn", RAX_128STRING);
           for (const char *w : MIST_WEIGHTS) { globAccX.addField(std::string("weight_") + w, RAX_16UINT); }
@@ -886,19 +899,24 @@ namespace Controller{
           globAccX.setEndPos(1);
           globAccX.setReady();
         }
-        globAccX.setString("defaultStream", Storage["config"]["defaultStream"].asStringRef());
-        globAccX.setInt("sessionViewerMode", Storage["config"]["sessionViewerMode"].asInt());
-        globAccX.setInt("sessionInputMode", Storage["config"]["sessionInputMode"].asInt());
-        globAccX.setInt("sessionOutputMode", Storage["config"]["sessionOutputMode"].asInt());
-        globAccX.setInt("sessionUnspecifiedMode", Storage["config"]["sessionUnspecifiedMode"].asInt());
-        globAccX.setInt("sessionStreamInfoMode", Storage["config"]["sessionStreamInfoMode"].asInt());
-        globAccX.setInt("tknMode", Storage["config"]["tknMode"].asInt());
+        const JSON::Value & S = Storage;
+        globAccX.setString("defaultStream", S["config"]["defaultStream"].asStringRef());
+        globAccX.setString("cachePath", S["config"]["cache"]["path"].asStringRef());
+        globAccX.setInt("cacheBytes", S["config"]["cache"]["bytes"].asInt());
+        globAccX.setInt("cachePercent", S["config"]["cache"]["percent"].asDouble() * 1000);
+        globAccX.setInt("sessionViewerMode", S["config"]["sessionViewerMode"].asInt());
+        globAccX.setInt("sessionInputMode", S["config"]["sessionInputMode"].asInt());
+        globAccX.setInt("sessionOutputMode", S["config"]["sessionOutputMode"].asInt());
+        globAccX.setInt("sessionUnspecifiedMode", S["config"]["sessionUnspecifiedMode"].asInt());
+        globAccX.setInt("sessionStreamInfoMode", S["config"]["sessionStreamInfoMode"].asInt());
+        globAccX.setInt("tknMode", S["config"]["tknMode"].asInt());
         globAccX.setString("udpApi", udpApiBindAddr);
+        globAccX.setString("cacheSocket", cacheBindAddr);
         globAccX.setInt("systemBoot", systemBoot);
         globAccX.setString("iid", instanceId);
-        globAccX.setString("hrn", Storage["config"]["serverid"].asString());
+        globAccX.setString("hrn", S["config"]["serverid"].asString());
         for (const char *w : MIST_WEIGHTS) {
-          globAccX.setInt(std::string("weight_") + w, Storage["config"]["weights"][w].asInt());
+          globAccX.setInt(std::string("weight_") + w, S["config"]["weights"][w].asInt());
         }
         globCfg.master = false; // leave the page after closing
         addShmPage(SHM_GLOBAL_CONF);

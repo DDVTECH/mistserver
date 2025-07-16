@@ -9,6 +9,7 @@ namespace Mist{
     ~OutDTSC();
     static void init(Util::Config *cfg, JSON::Value & capa);
     void onRequest();
+    bool onFinish();
     void sendNext();
     void sendHeader();
     static bool listenMode(Util::Config *config) { return !(config->getString("target").size()); }
@@ -24,11 +25,15 @@ namespace Mist{
   private:
     unsigned int lastActive; ///< Time of last sending of data.
     std::string getStatsName();
-    std::string salt;
     HTTP::URL pushUrl;
     void handlePush(DTSC::Scan &dScan);
     void handlePlay(DTSC::Scan &dScan);
+    void handleTrackMedia(size_t trkIdx, uint64_t page);
     bool isSyncReceiver;
+
+    std::deque<std::pair<size_t, uint32_t>> requestQueue;
+    std::map<std::pair<size_t, uint32_t>, uint64_t> recentlyPlayed;
+    std::set<std::pair<size_t, uint32_t>> requestedPages;
 
 #ifdef SSL
     // TLS-related

@@ -1,6 +1,7 @@
 #include "input.h"
 
 #include <mist/auth.h>
+#include <mist/cache.h>
 #include <mist/defines.h>
 #include <mist/encode.h>
 #include <mist/procs.h>
@@ -267,45 +268,49 @@ namespace Mist{
     lastStats = 0;
   }
 
-  void Input::checkHeaderTimes(const HTTP::URL & streamFile){
+  /// Returns true if the existing header file is probably still valid
+  bool Input::checkHeaderTimes(const HTTP::URL & streamFile, uint64_t streamTime) {
+    /// \todo implement remote URLs ~properly~
+    if (!streamTime && !streamFile.isLocalPath()) return true;
+    const std::string & f = streamFile.getFilePath();
 
-    /// \TODO Implement remote URLs?
-
-    if (streamFile.isLocalPath()){
-      const std::string & f = streamFile.getFilePath();
-
-      struct stat bufStream;
-      struct stat bufHeader;
-      struct stat srtStream;
+    struct stat srtStream;
+    if (!streamTime) {
       std::string srtFile = f + ".srt";
       if (stat(srtFile.c_str(), &srtStream) == 0){
         hasSrt = true;
         srtSource.open(srtFile.c_str());
         INFO_MSG("File %s opened as srt source", srtFile.c_str());
       }
-
+      struct stat bufStream;
       if (stat(f.c_str(), &bufStream) != 0){
         INSANE_MSG("Source is not a file - ignoring header check");
-        return;
+        return true;
       }
-      std::string headerFile = f + ".dtsh";
-      if (stat(headerFile.c_str(), &bufHeader) != 0){
-        INSANE_MSG("No header exists to compare - ignoring header check");
-        return;
-      }
-      // the same second is not enough - add a 15 second window where we consider it too old
-      if (bufHeader.st_mtime < bufStream.st_mtime + 15){
-        INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
-        remove(headerFile.c_str());
-      }
-
-      // the same second is not enough - add a 15 second window where we consider it too old
-      if (hasSrt && bufHeader.st_mtime < srtStream.st_mtime + 15){
-        INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
-        remove(headerFile.c_str());
-      }
+      streamTime = bufStream.st_mtime;
     }
 
+    struct stat bufHeader;
+    std::string headerFile = f + ".dtsh";
+    int cacheFd = Cache::cacheRead(headerFile, false);
+    if (cacheFd == -1) {
+      if (stat(headerFile.c_str(), &bufHeader) != 0) return false;
+    } else {
+      fstat(cacheFd, &bufHeader);
+    }
+
+    // the same second is not enough - add a 15 second window where we consider it too old
+    if (bufHeader.st_mtime < streamTime + 15) {
+      INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
+      return false;
+    }
+
+    // the same second is not enough - add a 15 second window where we consider it too old
+    if (hasSrt && bufHeader.st_mtime < srtStream.st_mtime + 15) {
+      INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
+      return false;
+    }
+    return true;
   }
 
   void Input::readSrtHeader(){
@@ -549,6 +554,8 @@ namespace Mist{
       return ret;
     }
 
+    for (int sock : Util::Procs::socketList) close(sock);
+
     // Install child_ignorer handler for SIGCHLD, since we want to wait for them separately
     {
       struct sigaction new_action;
@@ -710,9 +717,9 @@ namespace Mist{
   int Input::run(){
     Comms::sessionConfigCache();
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
-    checkHeaderTimes(HTTP::localURIResolver().link(config->getString("input")));
-    //needHeader internally calls readExistingHeader which in turn attempts to read header cache
-    if (needHeader()){
+    bool headerFresh = checkHeaderTimes(HTTP::localURIResolver().link(config->getString("input")));
+    // First needHeader calls readExistingHeader, which checks for a .dtsh either next to the file or in the cache
+    if (!headerFresh || needHeader()) {
       uint64_t timer = Util::getMicros();
       if (!readHeader() || (!M && needsLock())){
         Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed", config->getString("input").c_str());
@@ -721,9 +728,21 @@ namespace Mist{
       timer = Util::getMicros(timer);
       if (meta.getUUID().empty()) { meta.setUUID(Util::generateUUID()); }
       INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
-      //Write header to file for caching purposes
-      M.toFile(config->getString("input") + ".dtsh");
+      // Write the header to the cache, or if that fails write next to the file itself
+      if (!Cache::cacheWrite(config->getString("input") + ".dtsh", [this](int fd) {
+        Socket::Connection conn(Socket::clone{}, fd);
+        M.send(conn);
+      }, timer / 1000, streamName)) {
+        if (!Util::atomicWriteFile(config->getString("input") + ".dtsh", [this](int fd) {
+          Socket::Connection conn(Socket::clone{}, fd);
+          M.send(conn);
+          return conn;
+        })) {
+          WARN_MSG("Couldn't write (new) header file; it will need to be regenerated next stream load");
+        }
+      }
     }
+
     postHeader();
     if (config->getBool("headeronly")){return 0;}
     if (M && M.getVod()){
@@ -884,6 +903,7 @@ namespace Mist{
 
     internalOnly = (config->getString("input").find("INTERNAL_ONLY") != std::string::npos);
     isBuffer = (capa["name"].asStringRef() == "Buffer");
+    if (isBuffer) { meta.setLive(true); }
 
     /*LTS-START*/
     if (Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
@@ -898,10 +918,8 @@ namespace Mist{
 
     INFO_MSG("Input started");
     activityCounter = Util::bootSecs();
-    // main serve loop
-    while (keepRunning()){
-      evLp.await(0);
-      uint64_t preMs = Util::bootMS();
+
+    evLp.addInterval([&]() {
       // load pages for connected clients on request
       userLeadIn();
       COMM_LOOP(users, userOnActive(id), userOnDisconnect(id))
@@ -909,20 +927,17 @@ namespace Mist{
 
       // unload pages that haven't been used for a while
       removeUnused();
-      if (!M){
+      if (!M) {
         Util::logExitReason(ER_SHM_LOST, "Lost connection to metadata");
-        break;
+        config->is_active = false;
+        return 0;
       }
-
       inputServeStats();
-      // if not shutting down, wait 1 second before looping
-      preMs = Util::bootMS() - preMs;
-      uint64_t waitMs = INPUT_USER_INTERVAL;
-      if (preMs >= waitMs){waitMs = 0;}else{waitMs -= preMs;}
-      if (config->is_active && waitMs){
-        Util::wait(waitMs);
-      }
-    }
+      return INPUT_USER_INTERVAL;
+    }, 1);
+
+    // main serve loop
+    while (keepRunning()) { evLp.await(10000); }
     if (!isThread()){
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
       config->is_active = false;
@@ -1131,11 +1146,33 @@ namespace Mist{
   }
 
   void Input::realtimeMainLoop(){
+
+    // Add a 1s timer for stats if not internal-only and the session system is enabled.
+    if (!getenv("NOSESS")) {
+      evLp.addInterval([&]() {
+        // Connect to stats for INPUT detection
+        if (!statComm) {
+          statComm.reload(streamName, getConnectedBinHost(), std::to_string(getpid()), "INPUT:" + capa["name"].asStringRef(), "");
+        }
+        if (statComm) {
+          if (statComm.getExit() || statComm.getStatus() & COMM_STATUS_REQDISCONNECT) {
+            config->is_active = false;
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from session");
+            return 0;
+          }
+          uint64_t now = Util::bootSecs();
+          statComm.setNow(now);
+          statComm.setStream(streamName);
+          statComm.setTime(now - startTime);
+          statComm.setLastSecond(0);
+          connStats(statComm);
+        }
+        return 1000;
+      }, 1000);
+    }
+
     MEDIUM_MSG("Starting real-time main loop!");
-    uint64_t statTimer = 0;
-    uint64_t startTime = Util::bootSecs();
     size_t idx;
-    Comms::Connections statComm;
 
 
     DTSC::Meta liveMeta(config->getString("streamname"), false);
@@ -1261,31 +1298,7 @@ namespace Mist{
         thisPacket.getString("data", data, dataLen);
         bufferLivePacket(thisTime+timeOffset, thisPacket.getInt("offset"), idx, data, dataLen, 0, thisPacket.getFlag("keyframe"), liveMeta);
       }
-
-
-      if (Util::bootSecs() - statTimer > 1){
-        // Connect to stats for INPUT detection
-        if (!statComm && !getenv("NOSESS")) {
-          statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(),
-                          "INPUT:" + capa["name"].asStringRef(), "");
-        }
-        if (statComm){
-          if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
-            config->is_active = false;
-            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from session");
-            return;
-          }
-          uint64_t now = Util::bootSecs();
-          statComm.setNow(now);
-          statComm.setStream(streamName);
-          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
-          statComm.setTime(now - startTime);
-          statComm.setLastSecond(0);
-          connStats(statComm);
-        }
-
-        statTimer = Util::bootSecs();
-      }
+      evLp.await(0);
     }
     for (std::map<uint64_t, uint64_t>::iterator it = realTimeTrackMap.begin(); it != realTimeTrackMap.end(); ++it){
       liveMeta.abandonTrack(it->second);
@@ -1780,16 +1793,25 @@ namespace Mist{
     }
     // Try to read any existing DTSH file
     std::string fileName = config->getString("input") + ".dtsh";
-    HIGH_MSG("Loading metadata for stream '%s' from file '%s'", streamName.c_str(), fileName.c_str());
-    char *scanBuf;
-    size_t fileSize;
-    HTTP::URIReader inFile(fileName);
-    if (!inFile){return false;}
-    inFile.readAll(scanBuf, fileSize);
-    inFile.close();
-    if (!fileSize){return false;}
-    DTSC::Packet pkt(scanBuf, fileSize, true);
-    HIGH_MSG("Retrieved header of %zu bytes", fileSize);
+    Util::ResizeablePointer scanBuf;
+
+    INFO_MSG("Loading metadata for stream '%s' from file '%s'", streamName.c_str(), fileName.c_str());
+    int fd = Cache::cacheRead(fileName);
+    if (fd != -1) {
+      Socket::Connection cacheConn(fd);
+      cacheConn.setBlocking(true);
+      while (cacheConn && cacheConn.spool()) cacheConn.Received().remove(scanBuf, cacheConn.Received().bytes());
+      if (!scanBuf.size()) return false;
+    } else {
+      if (!HTTP::URIReader::isSupported(fileName)) { return false; }
+      HTTP::URIReader inFile(fileName);
+      if (!inFile) { return false; }
+      inFile.readAll(scanBuf);
+      if (!scanBuf.size()) { return false; }
+    }
+
+    DTSC::Packet pkt(scanBuf, scanBuf.size(), true);
+    HIGH_MSG("Retrieved header of %zu bytes", scanBuf.size());
     meta.reInit(config->getBool("realtime") ? "" : streamName, pkt.getScan());
 
     if (meta.getUUID().empty()) {

@@ -1,7 +1,10 @@
-#include "defines.h"
 #include "shared_memory.h"
-#include "stream.h"
+
+#include "cache.h"
+#include "defines.h"
 #include "timing.h"
+#include "util.h"
+
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -39,9 +42,7 @@ namespace IPC{
     return mySem != SEM_FAILED;
   }
 
-  ///\brief Opens a semaphore
-  ///
-  /// Closes currently opened semaphore if needed
+  /// Opens a semaphore, closes currently opened semaphore if needed
   ///\param name The name of the semaphore
   ///\param oflag The flags with which to open the semaphore
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored
@@ -236,263 +237,195 @@ namespace IPC{
     myName.clear();
   }
 
-  /// brief Creates a shared page
-  ///\param name_ The name of the page to be created
-  ///\param len_ The size to make the page
-  ///\param master_ Whether to create or merely open the page
+  /// Creates a shared page
+  ///\param name The name of the page to be created
+  ///\param len The size to make the page
+  ///\param master Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  sharedPage::sharedPage(const std::string &name_, uint64_t len_, bool master_, bool autoBackoff){
-    handle = 0;
-    len = 0;
-    master = false;
-    mapped = 0;
-    init(name_, len_, master_, autoBackoff);
+  ///\param cache Default to true, the page may also be a temporary file on disk
+  sharedPage::sharedPage(const std::string & name, uint64_t len, bool master, bool autoBackoff, bool cache)
+    : name(name), len(len), master(master), cache(cache) {
+    init(autoBackoff);
   }
 
-  ///\brief Creates a copy of a shared page
+  /// Creates a copy of a shared page
   ///\param rhs The page to copy
-  sharedPage::sharedPage(const sharedPage &rhs){
-    handle = 0;
-    len = 0;
-    master = false;
-    mapped = 0;
-    init(rhs.name, rhs.len, rhs.master);
+  sharedPage::sharedPage(const sharedPage & rhs) : name(rhs.name), len(rhs.len), master(rhs.master), cache(rhs.cache) {
+    init();
   }
 
-  ///\brief Default destructor
+  /// Maps an existing file descriptor as if it were a page
+  ///\param fd the file descriptor
+  sharedPage::sharedPage(const int fd) {
+    if (fd == -1) return;
+    handle = fd;
+
+    struct stat buffStats;
+    int xRes = fstat(handle, &buffStats);
+    if (xRes < 0) return;
+    len = buffStats.st_size;
+
+    mapped = (char *)mmap(0, len, PROT_READ, MAP_SHARED, handle, 0);
+  }
+
+  /// Default destructor
   sharedPage::~sharedPage(){close();}
 
-#ifdef SHM_ENABLED
+  /// Returns whether the shared file is valid or not
+  sharedPage::operator bool() const {
+    return mapped != 0;
+  }
+
+  /// Comparison operator overload
+  bool sharedPage::operator<(const sharedPage & rhs) const {
+    return name < rhs.name;
+  }
+
+  /// Move operator overload which re-inits to a new page
+  sharedPage & sharedPage::operator=(sharedPage && rhs) {
+    if (this == &rhs) return *this;
+    close();
+
+    handle = rhs.handle;
+    name = std::move(rhs.name);
+    len = rhs.len;
+    master = rhs.master;
+    mapped = rhs.mapped;
+    cache = rhs.cache;
+
+    // Avoid memory becoming unlinked
+    rhs.handle = -1;
+    rhs.mapped = 0;
+    rhs.master = false;
+    rhs.len = 0;
+    return *this;
+  }
 
   /// Returns true if the open file still exists.
   bool sharedPage::exists(){
     struct stat sb;
-    if (fstat(handle, &sb)){return false;}
-    return (sb.st_nlink > 0);
+    return fstat(handle, &sb) ? false : (sb.st_nlink > 0);
   }
 
-  ///\brief Unmaps a shared page if allowed
+  /// Unmaps a shared page if allowed
   void sharedPage::unmap(){
-    if (mapped){
-      munmap(mapped, len);
-      mapped = 0;
-      len = 0;
-    }
+    if (!mapped) return;
+    munmap(mapped, len);
+    mapped = 0;
+    len = 0;
   }
 
-  ///\brief Closes a shared page if allowed
+  /// Closes a shared page if allowed
   void sharedPage::close(){
     unmap();
-    if (handle > 0){
-      INSANE_MSG("Closing page %s in %s mode", name.c_str(), master ? "master" : "client");
-      ::close(handle);
-      if (master && name != ""){shm_unlink(name.c_str());}
-      handle = 0;
-    }
-  }
+    if (handle < 0) return;
+    INSANE_MSG("Closing page %s in %s mode", name.c_str(), master ? "master" : "client");
+    ::close(handle);
+    handle = -1;
 
-  ///\brief Returns whether the shared page is valid or not
-  sharedPage::operator bool() const{return mapped != 0;}
-
-  ///\brief Assignment operator
-  void sharedPage::operator=(sharedPage &rhs){
-    init(rhs.name, rhs.len, rhs.master);
-    /// \todo This is bad. The assignment operator changes the rhs value? What the hell?
-    rhs.master = false; // Make sure the memory does not get unlinked
-  }
-
-  ///\brief Initialize a page, de-initialize before if needed
-  ///\param name_ The name of the page to be created
-  ///\param len_ The size to make the page
-  ///\param master_ Whether to create or merely open the page
-  ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  void sharedPage::init(const std::string & name_, uint64_t len_, bool master_, bool autoBackoff) {
-    close();
-    name = name_;
-    len = len_;
-    master = master_;
-    mapped = 0;
-    if (name.size()) {
-      INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master ? "master" : "client",
-                 autoBackoff ? "with" : "without");
-      handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
-      if (handle == -1) {
-        if (master) {
-          if (len > 1) { ERROR_MSG("Overwriting old page for %s", name.c_str()); }
-          handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
-        } else {
-          int i = 0;
-          while (i < 11 && handle == -1 && autoBackoff) {
-            i++;
-            Util::wait(Util::expBackoffMs(i - 1, 10, 10000));
-            handle = shm_open(name.c_str(), O_RDWR, ACCESSPERMS);
-          }
-        }
-      }
-      if (handle == -1) {
-        if (!master_ && autoBackoff) { HIGH_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno)); }
-        return;
-      }
-      if (handle >= 0 && handle < 3) {
-        int tmpHandle = fcntl(handle, F_DUPFD, 3);
-        if (tmpHandle >= 3) {
-          DONTEVEN_MSG("Remapped handle for page %s from %d to %d!", name.c_str(), handle, tmpHandle);
-          ::close(handle);
-          handle = tmpHandle;
-        }
-      }
-      if (master) {
-        if (ftruncate(handle, len) < 0) {
-          FAIL_MSG("truncate to %" PRIu64 " for page %s failed: %s", len, name.c_str(), strerror(errno));
-          return;
-        }
-      } else {
-        // Attempt to read page size from existing object
-        // Retries every 5ms for up to 100 times - that should be plenty for all reasonable cases
-        len = 0;
-        int i = 0;
-        while (!len && ++i < 101) {
-          struct stat buffStats;
-          int xRes = fstat(handle, &buffStats);
-          if (xRes < 0 || !buffStats.st_size) {
-            Util::wait(5);
-          } else {
-            len = buffStats.st_size;
-          }
-        }
-        // Still no size after 500ms - something is seriously wrong. Abort!
-        if (!len) {
-          FAIL_MSG("Page %s could be opened, but was 0 bytes long", name.c_str());
-          mapped = 0;
-          return;
-        }
-      }
-      mapped = (char *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
-      if (mapped == MAP_FAILED) {
-        FAIL_MSG("mmap for page %s failed: %s", name.c_str(), strerror(errno));
-        mapped = 0;
-        return;
-      }
-    }
-  }
-
+    // Master mode removes the page upon close
+    if (master && name != "") {
+      if (!cache) {
+#ifdef SHM_ENABLED
+        shm_unlink(name.c_str());
+#else
+        unlink(name.c_str());
 #endif
-
-  /// brief Creates a shared file
-  ///\param name_ The name of the file to be created
-  ///\param len_ The size to make the file
-  ///\param master_ Whether to create or merely open the file
-  ///\param autoBackoff When only opening the file, wait for it to appear or fail
-  sharedFile::sharedFile(const std::string &name_, uint64_t len_, bool master_, bool autoBackoff)
-      : handle(0), name(name_), len(len_), master(master_), mapped(NULL){
-    handle = 0;
-    name = name_;
-    len = len_;
-    master = master_;
-    mapped = 0;
-    init(name_, len_, master_, autoBackoff);
-  }
-
-  ///\brief Creates a copy of a shared page
-  ///\param rhs The page to copy
-  sharedFile::sharedFile(const sharedFile &rhs){
-    handle = 0;
-    name = "";
-    len = 0;
-    master = false;
-    mapped = 0;
-    init(rhs.name, rhs.len, rhs.master);
-  }
-
-  ///\brief Returns whether the shared file is valid or not
-  sharedFile::operator bool() const{return mapped != 0;}
-
-  ///\brief Assignment operator
-  void sharedFile::operator=(sharedFile &rhs){
-    init(rhs.name, rhs.len, rhs.master);
-    rhs.master = false; // Make sure the memory does not get unlinked
-  }
-
-  ///\brief Unmaps a shared file if allowed
-  void sharedFile::unmap(){
-    if (mapped && len){
-      munmap(mapped, len);
-      mapped = 0;
-      len = 0;
+      }
     }
   }
 
-  /// Unmaps, closes and unlinks (if master and name is set) the shared file.
-  void sharedFile::close(){
-    unmap();
-    if (handle > 0){
-      ::close(handle);
-      if (master && name != ""){unlink(std::string(Util::getTmpFolder() + name).c_str());}
-      handle = 0;
-    }
-  }
-
-  /// Returns true if the open file still exists.
-  bool sharedFile::exists(){
-    struct stat sb;
-    if (fstat(handle, &sb)){return false;}
-    return (sb.st_nlink > 0);
-  }
-
-  ///\brief Initialize a page, de-initialize before if needed
-  ///\param name_ The name of the page to be created
-  ///\param len_ The size to make the page
-  ///\param master_ Whether to create or merely open the page
-  ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  void sharedFile::init(const std::string &name_, uint64_t len_, bool master_, bool autoBackoff){
+  /// Initialises a shared page based on the passed parameters
+  void sharedPage::init(const std::string & name_, uint64_t len_, bool master_, bool autoBackoff, bool cache_) {
     close();
     name = name_;
     len = len_;
     master = master_;
+    cache = cache_;
+    init(autoBackoff);
+  }
+
+  /// Initialises a shared page based on the passed parameters
+  void sharedPage::init(bool autoBackoff) {
     mapped = 0;
-    if (name.size()){
-      /// \todo Use ACCESSPERMS instead of 0600?
-      handle = open(std::string(Util::getTmpFolder() + name).c_str(),
-                    (master ? O_CREAT | O_TRUNC | O_EXCL : 0) | O_RDWR, (mode_t)0600);
-      if (handle == -1){
-        if (master){
-          HIGH_MSG("Overwriting old file for %s", name.c_str());
-          handle = open(std::string(Util::getTmpFolder() + name).c_str(),
-                        O_CREAT | O_TRUNC | O_RDWR, (mode_t)0600);
-        }else{
-          int i = 0;
-          while (i < 11 && handle == -1 && autoBackoff){
-            i++;
-            Util::wait(Util::expBackoffMs(i-1, 10, 10000));
-            handle = open(std::string(Util::getTmpFolder() + name).c_str(), O_RDWR, (mode_t)0600);
-          }
+    if (!name.size()) return;
+    INSANE_MSG("Opening %s %s in %s mode %s auto-backoff", cache ? "file" : "page", name.c_str(),
+               master ? "master" : "client", autoBackoff ? "with" : "without");
+
+    // Lambda for calling the appropriate open function
+    auto fnOpen = [&](int oflag, mode_t mode = ACCESSPERMS) -> int {
+      if (cache) {
+        int fd = Cache::cacheRead(name, autoBackoff);
+        if (fd != -1) return fd;
+      }
+
+#ifdef SHM_ENABLED
+      int fd = shm_open(name.c_str(), oflag, mode);
+#else
+      int fd = open(std::string(Util::getTmpFolder() + name).c_str(), master ? oflag | O_TRUNC : oflag, mode);
+#endif
+      // If cache read failed, make sure to set it as such
+      if (fd != -1) cache = false;
+      return fd;
+    };
+
+    // Attempt to open the file with exponential backoff
+    handle = fnOpen((master ? O_CREAT | O_EXCL : 0) | O_RDWR);
+    if (handle == -1) {
+      if (master) {
+        if (len > 1) ERROR_MSG("Overwriting old %s for %s", cache ? "file" : "page", name.c_str());
+        handle = fnOpen(O_CREAT | O_RDWR);
+      } else {
+        int i = 0;
+        while (i < 11 && handle == -1 && autoBackoff) {
+          i++;
+          Util::wait(Util::expBackoffMs(i - 1, 10, 10000));
+          handle = fnOpen(O_RDWR);
         }
       }
-      if (handle == -1){
-        HIGH_MSG("shf_open for page %s failed: %s", name.c_str(), strerror(errno));
+    }
+
+    // Could not open the file
+    if (handle == -1) {
+      if (!master && autoBackoff) { HIGH_MSG("Open for page %s failed: %s", name.c_str(), strerror(errno)); }
+      return;
+    }
+
+    // Somehow the page acquired the fd of one of the standard streams, remap it
+    if (handle >= 0 && handle < 3) {
+      int tmpHandle = fcntl(handle, F_DUPFD, 3);
+      if (tmpHandle >= 3) {
+        DONTEVEN_MSG("Remapped handle for page %s from %d to %d!", name.c_str(), handle, tmpHandle);
+        ::close(handle);
+        handle = tmpHandle;
+      }
+    }
+
+    // Truncate (master) or acquire (attacher) the appropriate size for mmap
+    if (master) {
+      if (ftruncate(handle, len) < 0) {
+        FAIL_MSG("Truncate to %" PRIu64 " for %s %s failed: %s", len, cache ? "file" : "page", name.c_str(), strerror(errno));
         return;
       }
-      if (master){
-        if (ftruncate(handle, len) < 0){
-          INFO_MSG("ftruncate to len for shf page %s failed: %s", name.c_str(), strerror(errno));
-          return;
-        }
-      }else{
-        struct stat buffStats;
-        int xRes = fstat(handle, &buffStats);
-        if (xRes < 0){return;}
-        len = buffStats.st_size;
-      }
-      mapped = (char *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
-      if (mapped == MAP_FAILED){
+    } else {
+      struct stat buffStats;
+      int xRes = fstat(handle, &buffStats);
+      if (xRes < 0) return;
+      len = buffStats.st_size;
+      if (!len) {
         mapped = 0;
         return;
       }
     }
-  }
 
-  ///\brief Default destructor
-  sharedFile::~sharedFile(){close();}
+    // Finally, map the page into virtual memory
+    mapped = (char *)mmap(0, len, cache ? PROT_READ : PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
+    if (mapped == MAP_FAILED) {
+      FAIL_MSG("Call mmap for page %s failed: %s", name.c_str(), strerror(errno));
+      mapped = 0;
+      return;
+    }
+  }
 
   ///\brief Creates a semaphore guard, locks the semaphore on call
   semGuard::semGuard(semaphore *thisSemaphore) : mySemaphore(thisSemaphore){mySemaphore->wait();}

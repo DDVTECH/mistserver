@@ -1,10 +1,13 @@
 #include "output_hls.h"
 
+#include <mist/cache.h>
 #include <mist/langcodes.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
 #include <mist/url.h>
 
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 namespace Mist{
@@ -190,6 +193,7 @@ namespace Mist{
     uaDelay = 0;
     realTime = 0;
     until = 0xFFFFFFFFFFFFFFFFull;
+    useCache = !config->getBool("nocache");
     // If this connection is a socket and not already connected to stdio, connect it to stdio.
     if (myConn.getPureSocket() != -1 && myConn.getSocket() != STDIN_FILENO && myConn.getSocket() != STDOUT_FILENO){
       std::string host = getConnectedHost();
@@ -287,6 +291,14 @@ namespace Mist{
     capa["optional"]["listlimit"]["default"] = 0;
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
+
+    cfg->addOption("nocache", R"-({
+      "short":"c","long":"nocache"
+      "help":"Do not use cache.",
+    })-");
+    capa["optional"]["nocache"]["name"] = "Cache disabled";
+    capa["optional"]["nocache"]["help"] = "Toggles the use of the cache";
+    capa["optional"]["nocache"]["option"] = "--nocache";
 
     cfg->addOption("chunkpath", R"-({
       "arg":"string","default":"",
@@ -454,6 +466,28 @@ namespace Mist{
         return;
       }
 
+      if (useCache) {
+        cacheName = "hls_" + std::to_string(from) + '_' + std::to_string(until);
+        for (auto it : userSelect) cacheName += '_' + std::to_string(it.first);
+        cacheName += '+' + M.getUUID();
+        IPC::sharedPage mappedFile(Cache::cacheRead(cacheName));
+
+        // Segment is already in the cache, read it and get ready to request the next segment
+        if (mappedFile) {
+          H.SetHeader("Content-Length", mappedFile.len);
+          H.StartResponse(req, myConn);
+          H.Chunkify(mappedFile.mapped, mappedFile.len, myConn);
+          H.Chunkify(0, 0, myConn);
+
+          parseData = false;
+          wantRequest = true;
+          cacheName.clear();
+          return;
+        }
+        // cacheName is now set; which is an implicit request to cache the next segment
+        requestedAt = Util::bootMS();
+      }
+
       H.StartResponse(req, myConn, true);
       responded = true;
       // we assume whole fragments - but timestamps may be altered at will
@@ -464,6 +498,7 @@ namespace Mist{
       packCounter = 0;
       parseData = true;
       wantRequest = false;
+
       seek(from);
       ts_from = from;
     } else {
@@ -524,6 +559,15 @@ namespace Mist{
           }
           packData.clear();
         }
+      }
+
+      // Write to cache if a name is set, also record how long it took for the request to be fulfilled
+      if (cacheName.size()) {
+        uint32_t genTime = Util::bootMS() - requestedAt;
+        uint64_t expiry = M.getVod() ? 0 : Util::unixMS() + std::max<uint64_t>(60, 1.5 * M.getBufferWindow());
+        Cache::cacheWrite(cacheName, H.body, genTime, streamName, expiry);
+        cacheName.clear();
+        requestedAt = Util::bootMS();
       }
 
       // Signal end of data

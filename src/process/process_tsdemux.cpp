@@ -156,6 +156,7 @@ namespace Mist {
           thisPacket.getString("data", data, dataLen);
           bufferLivePacket(thisTime, thisPacket.getInt("offset"), thisIdx, data, dataLen, 0, thisPacket.getFlag("keyframe"));
           getNext();
+          evLp.await(0);
           if (!thisPacket) {
             Util::logExitReason(ER_CLEAN_EOF, "no more data");
             break;

@@ -12,6 +12,9 @@ namespace Secure{
   std::string md5(const char *input, size_t in_len);
   void md5bin(const char *input, size_t in_len, char *output);
 
+  // Hashing functions (FNV-1a)
+  std::string fnv1a(const std::string & input);
+
   // Hashing functions (SHA-256)
   std::string sha256(std::string input);
   std::string sha256(const char *input, size_t in_len);

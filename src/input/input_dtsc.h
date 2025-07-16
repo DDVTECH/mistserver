@@ -35,37 +35,55 @@ namespace Mist{
     }
 
   protected:
-    // Private Functions
     bool openStreamSource();
+    bool openRemoteSource();
     void closeStreamSource();
     void parseStreamHeader();
     bool checkArguments();
+    bool getRemoteInfo();
     bool readHeader();
     bool needHeader();
+    void postHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
-    void getNextFromStream(size_t idx = INVALID_TRACK_ID, bool returnAfterMetaReceived = false);
+    void getNextFromStream(size_t idx = INVALID_TRACK_ID, bool returnAfterMetaReceived = false, uint64_t timeLimit = 0);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
+    bool bufferFrame(size_t idx, uint32_t keyNum);
 
-    FILE *F;
+    HTTP::URIReader F;
 
     Socket::Connection srcConn;
 
-    bool lockCache;
-    bool lockNeeded;
+    bool lockCache{false};
+    bool lockNeeded{false};
 
     std::set<seekPos> currentPositions;
 
-    uint64_t lastreadpos;
+    uint64_t lastReadPos{0};
     uint64_t lastRecvTime{0};
     uint64_t lastPktTime{0};
+    uint64_t pageFillStart{0};
     HTTP::Downloader balanceDl;
 
     char buffer[8];
     Util::ResizeablePointer pktBuf;
 
     void seekNext(uint64_t ms, size_t trackIdx, bool forceSeek = false);
+    void sendCmd(const JSON::Value & data);
+    DTSC::packType handleCommandPacket();
+    DTSC::packType handleCommandPacket(bool & clearMeta);
+    DTSC::packType handlePacket(bool & clearMeta);
 
-    bool isSyncReceiver;
+    bool cachedHeader{false};
+    bool isSyncReceiver{false};
+    bool isLive{false};
+    bool isVod{false};
+    bool infoReceived{false};
+    bool headerReceived{false};
+    bool gotPong{false};
+    std::string uuid;
+    HTTP::URL sourceUri;
+    IPC::sharedPage page;
+    std::map<std::string, uint64_t> requested;
   };
 }// namespace Mist
 

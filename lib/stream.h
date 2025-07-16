@@ -30,7 +30,7 @@ namespace Util{
   JSON::Value getInputBySource(const std::string &filename, bool isProvider = false);
   void optionsToArguments(const JSON::Value conf, const JSON::Value & capa, std::deque<std::string> & args,
                           const std::map<std::string, std::string> & overrides = {});
-  void sendUDPApi(JSON::Value & cmd);
+  void sendUDPApi(const JSON::Value & cmd);
   uint8_t getStreamStatus(const std::string &streamname);
   uint8_t getStreamStatusPercentage(const std::string &streamname);
   bool streamMatches(const std::string & stream, const std::string & matchString);

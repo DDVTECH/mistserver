@@ -859,46 +859,44 @@ static void removeDuplicateProtocols(){
   }
 }
 
-/// Helper function for nuke_stream and related calls
-static void nukeStream(const std::string & strm){
-  std::deque<std::string> command;
-  command.push_back(Util::getMyPath() + "MistUtilNuke");
-  command.push_back(strm);
-  int stdIn = 0;
-  int stdOut = 1;
-  int stdErr = 2;
-  Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
-}
-
-
 void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
-  /*LTS-START*/
   // These are only used internally. We abort further processing if encountered.
-  if (Request.isMember("trigger_stat")){
-    JSON::Value &tStat = Request["trigger_stat"];
-    if (tStat.isMember("name") && tStat.isMember("ms")){
-      Controller::triggerLog &tLog = Controller::triggerStats[tStat["name"].asStringRef()];
+  if (Request.isMember("trigger_stat")) {
+    JSON::Value & tStat = Request["trigger_stat"];
+    if (tStat.isMember("name") && tStat.isMember("ms")) {
+      Controller::triggerLog & tLog = Controller::triggerStats[tStat["name"].asStringRef()];
       tLog.totalCount++;
       tLog.ms += tStat["ms"].asInt();
-      if (!tStat.isMember("ok") || !tStat["ok"].asBool()){tLog.failCount++;}
+      if (!tStat.isMember("ok") || !tStat["ok"].asBool()) { tLog.failCount++; }
     }
     return;
   }
-  if (Request.isMember("trigger_fail")){
+  if (Request.isMember("trigger_fail")) {
     Controller::triggerStats[Request["trigger_fail"].asStringRef()].failCount++;
     return;
   }
-  if (Request.isMember("push_status_update")){
-    JSON::Value &statUp = Request["push_status_update"];
+  if (Request.isMember("push_status_update")) {
+    JSON::Value & statUp = Request["push_status_update"];
     if (statUp.isMember("id") && statUp.isMember("status")) { setPushStatus(statUp); }
+    return;
   }
-  if (Request.isMember("proc_status_update")){
-    JSON::Value &statUp = Request["proc_status_update"];
-    if (statUp.isMember("id") && statUp.isMember("status") && statUp.isMember("source") && statUp.isMember("proc") && statUp.isMember("sink")){
-      setProcStatus(statUp["id"].asInt(), statUp["proc"].asStringRef(), statUp["source"].asStringRef(), statUp["sink"].asStringRef(), statUp["status"]);
+  if (Request.isMember("proc_status_update")) {
+    JSON::Value & statUp = Request["proc_status_update"];
+    if (statUp.isMember("id") && statUp.isMember("status") && statUp.isMember("source") && statUp.isMember("proc") &&
+        statUp.isMember("sink")) {
+      setProcStatus(statUp["id"].asInt(), statUp["proc"].asStringRef(), statUp["source"].asStringRef(),
+                    statUp["sink"].asStringRef(), statUp["status"]);
     }
+    return;
   }
-  /*LTS-END*/
+  if (Request.isMember("cache_udp_socket")) {
+    std::string prev = Controller::cacheBindAddr;
+    Controller::cacheBindAddr = Request["cache_udp_socket"].asStringRef();
+    if (prev != Controller::cacheBindAddr) { Controller::writeConfig(); }
+    return;
+  }
+
+  // The remainder are non-internal calls. They may contain more than one command.
 
   if (Request.isMember("config_backup")){
     std::set<std::string> skip;
@@ -973,6 +971,20 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       out["prometheus"] = in["prometheus"];
       Controller::prometheus = out["prometheus"].asStringRef();
     }
+
+    if (in.isMember("cache")) {
+      if (in["cache"].isMember("path")) { out["cache"]["path"] = in["cache"]["path"].asString(); }
+      if (in["cache"].isMember("bytes")) {
+        out["cache"]["bytes"] = in["cache"]["bytes"].asInt();
+        if (out["cache"]["bytes"].asInt() < 0) { out["cache"]["bytes"] = 0; }
+      }
+      if (in["cache"].isMember("percent")) {
+        out["cache"]["percent"] = in["cache"]["percent"].asDouble();
+        if (out["cache"]["percent"].asDouble() <= 0.0) { out["cache"]["percent"] = 0; }
+        if (out["cache"]["percent"].asDouble() >= 100.0) { out["cache"]["percent"] = 100; }
+      }
+    }
+
     if (in.isMember("sessionViewerMode")){out["sessionViewerMode"] = in["sessionViewerMode"];}
     if (in.isMember("sessionInputMode")){out["sessionInputMode"] = in["sessionInputMode"];}
     if (in.isMember("sessionOutputMode")){out["sessionOutputMode"] = in["sessionOutputMode"];}
@@ -1309,6 +1321,22 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   if (Request.isMember("addstream")){
     Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
   }
+
+  auto deleteCache = [&](const std::string & strm) {
+    int stdIn = 0;
+    int stdOut = 1;
+    int stdErr = 2;
+    std::deque<std::string> command = {Util::getMyPath() + "MistUtilCache", "--stream", strm};
+    Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
+  };
+  if (Request.isMember("deletecache")) {
+    if (Request["deletecache"].isString()) {
+      deleteCache(Request["deletecache"].asStringRef());
+    } else if (Request["deletecache"].isArray()) {
+      jsonForEachConst (Request["deletecache"], it) { deleteCache(it->asStringRef()); }
+    }
+  }
+
   if (Request.isMember("deletestream")){
     // if array, delete all elements
     // if object, delete all entries
@@ -1830,7 +1858,15 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
-  if (Request.isMember("nuke_stream") && Request["nuke_stream"].isString() && Request["nuke_stream"].asStringRef().size()){
+  auto nukeStream = [&](const std::string & strm) {
+    int stdIn = 0;
+    int stdOut = 1;
+    int stdErr = 2;
+    std::deque<std::string> command = {Util::getMyPath() + "MistUtilNuke", strm};
+    Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
+  };
+
+  if (Request.isMember("nuke_stream") && Request["nuke_stream"].isString() && Request["nuke_stream"].asStringRef().size()) {
     nukeStream(Request["nuke_stream"].asStringRef());
   }
 

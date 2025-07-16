@@ -599,7 +599,7 @@ namespace Mist{
         uint64_t prePos = readPos;
         reader.readSome(188, *this);
         if (readPos == prePos){
-          Util::sleep(50);
+          evLp.await(50);
         }else{
           while (liveReadBuffer.size() >= 188){
             while (liveReadBuffer[0] != 0x47 && liveReadBuffer.size() >= 188){
@@ -677,7 +677,7 @@ namespace Mist{
           }
         }
         if (!received){
-          Util::sleep(100);
+          evLp.await(100);
         }else{
           noDataSince = Util::bootSecs();
         }

@@ -1,4 +1,3 @@
-#include "output_http.h"
 #include "output_ts_base.h"
 
 namespace Mist{
@@ -25,6 +24,10 @@ namespace Mist{
     size_t audTrack;
     size_t rawIdx{INVALID_TRACK_ID};
     uint64_t until;
+    uint64_t requestedAt;
+
+    std::string cacheName;
+    bool useCache{true};
   };
 }// namespace Mist
 

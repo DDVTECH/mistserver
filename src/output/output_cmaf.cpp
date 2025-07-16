@@ -319,7 +319,11 @@ namespace Mist{
     // Any non-empty value overrides the llhls query parameter; only the exact value "0" disables LL-HLS.
     if (req.GetHeader("X-Mist-LLHLS").size()) { generator.setParam("llhls", req.GetHeader("X-Mist-LLHLS")); }
 
-    const std::string playlist = generator.subPlaylist(M, userSelect, getMainSelectedTrack(), requestTid);
+    const std::string mTrackParam = req.GetVar("mTrack");
+    size_t mTrack = atoi(mTrackParam.c_str());
+    if (!mTrackParam.size() && userSelect.size()) { mTrack = getMainSelectedTrack(); }
+
+    const std::string playlist = generator.subPlaylist(M, userSelect, mTrack, requestTid);
     if (playlist.size() <= 3) {
       H.SendResponse(playlist, "Playlist unavailable", myConn);
       return;

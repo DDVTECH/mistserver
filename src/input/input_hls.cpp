@@ -1576,10 +1576,9 @@ namespace Mist{
     Input::finish();
   }
 
-  void InputHLS::checkHeaderTimes(const HTTP::URL & streamFile){
-    if (streamIsLive){return;} //< Since the playlist will likely be newer than the DTSH for live-dvr
-    Input::checkHeaderTimes(streamFile);
+  bool InputHLS::checkHeaderTimes(const HTTP::URL & streamFile, uint64_t streamTime) {
+    if (streamIsLive) { return true; } //< Since the playlist will likely be newer than the DTSH for live-dvr
+    return Input::checkHeaderTimes(streamFile, streamTime);
   }
-
 
 }// namespace Mist

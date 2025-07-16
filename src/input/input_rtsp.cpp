@@ -264,7 +264,7 @@ namespace Mist{
       // No new data? Sleep and retry, if connection still open
       if (!tcpCon.Received().size() || !tcpCon.Received().available(1)){
         if (!tcpCon.spool() && tcpCon && keepAlive()){
-          Util::sleep(waitTime);
+          evLp.await(waitTime);
           doTimers();
           if (!mustHave){return tcpCon;}
         }
@@ -335,12 +335,12 @@ namespace Mist{
           recH.Clean();
           return true;
         }
-        if (!tcpCon.spool() && tcpCon && keepAlive()){Util::sleep(waitTime);}
+        if (!tcpCon.spool() && tcpCon && keepAlive()) { evLp.await(waitTime); }
         doTimers();
         continue;
       }
       if (!tcpCon.Received().available(4)){
-        if (!tcpCon.spool() && tcpCon && keepAlive()){Util::sleep(waitTime);}
+        if (!tcpCon.spool() && tcpCon && keepAlive()) { evLp.await(waitTime); }
         doTimers();
         continue;
       }// a TCP RTP packet, but not complete yet
@@ -350,7 +350,7 @@ namespace Mist{
       std::string tcpHead = tcpCon.Received().copy(4);
       uint16_t len = ntohs(*(short *)(tcpHead.data() + 2));
       if (!tcpCon.Received().available(len + 4)){
-        if (!tcpCon.spool() && tcpCon){Util::sleep(waitTime);}
+        if (!tcpCon.spool() && tcpCon) { evLp.await(waitTime); }
         doTimers();
         continue;
       }// a TCP RTP packet, but not complete yet

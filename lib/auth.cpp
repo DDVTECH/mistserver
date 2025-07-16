@@ -24,6 +24,25 @@ namespace Secure{
     return outStr.str();
   }
 
+  /// Calculates the Fowler–Noll–Vo (variant 1a) hash, and returns it as a string.
+  std::string fnv1a(const std::string & input) {
+    const char *BASE26 = "abcdefghijklmnopqrstuvwxyz";
+    const uint64_t FNV_OFFSET = 14695981039346656037ULL;
+    const uint64_t FNV_PRIME = 1099511628211ULL;
+    uint64_t hashed = FNV_OFFSET;
+    for (size_t i = 0; i < input.size(); ++i) {
+      hashed ^= (uint8_t)input[i];
+      hashed *= FNV_PRIME;
+    }
+    std::string base26;
+    do {
+      base26 += BASE26[hashed % 26];
+      hashed /= 26;
+    } while (hashed);
+    while (base26.length() < 5) base26 += base26[(base26.length() - 1) % 5];
+    return base26;
+  }
+
   /// Calculates a SHA256 digest as per NSAs SHA-2, returning it as a hexadecimal alphanumeric string.
   std::string sha256(std::string input){return sha256(input.data(), input.size());}
 
@@ -241,7 +260,7 @@ namespace Secure{
     }
     unsigned long long bit_len = in_len << 3;
     // Write the length into the last 8 bytes
-    buffer[56] = (bit_len >> 54) & 0xff;
+    buffer[56] = (bit_len >> 56) & 0xff;
     buffer[57] = (bit_len >> 48) & 0xff;
     buffer[58] = (bit_len >> 40) & 0xff;
     buffer[59] = (bit_len >> 32) & 0xff;

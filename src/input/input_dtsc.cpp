@@ -1,6 +1,8 @@
 #include "input_dtsc.h"
 
+#include <mist/auth.h>
 #include <mist/bitfields.h>
+#include <mist/cache.h>
 #include <mist/defines.h>
 #include <mist/encode.h>
 #include <mist/http_parser.h>
@@ -81,21 +83,23 @@ namespace Mist{
     capa["optional"]["maxkeepaway"]["type"] = "uint";
     capa["optional"]["maxkeepaway"]["default"] = 7500;
     /*LTS-END*/
-
-    F = NULL;
-    lockCache = false;
-    lockNeeded = false;
-    isSyncReceiver = false;
   }
 
-  bool InputDTSC::needsLock(){
-    if (!lockCache){
-      lockCache = true;
-      std::string input = config->getString("input");
-      if (input == "-") { return lockNeeded = false; }
-      return lockNeeded = input.size() < 8 || (input.substr(0, 7) != "dtsc://" && input.substr(0, 8) != "dtscs://");
-    }
-    return lockNeeded;
+  bool InputDTSC::openRemoteSource() {
+    if (srcConn) return true;
+    srcConn.open(sourceUri.host, sourceUri.getPort(), true, sourceUri.protocol == "dtscs");
+    Util::Procs::socketList.insert(srcConn.getSocket());
+
+    srcConn.Received().splitter.clear();
+    return srcConn;
+  }
+
+  bool InputDTSC::needsLock() {
+    if (sourceUri.protocol != "dtsc" && sourceUri.protocol != "dtscs") return Input::needsLock();
+    // For dtsc:// we need to know if the remote stream is VOD or live.
+    // VOD streams need a lock (serve mode), live streams don't (stream mode).
+    if (!infoReceived) { getRemoteInfo(); }
+    return !isLive;
   }
 
   void InputDTSC::parseStreamHeader() {
@@ -163,47 +167,41 @@ namespace Mist{
   }
 
   bool InputDTSC::openStreamSource(){
-    std::string source = config->getString("input");
-    if (source == "-"){
+    if (sourceUri.host == "-") {
       srcConn.open(fileno(stdout), fileno(stdin));
       srcConn.Received().splitter.clear();
       return true;
     }
-    HTTP::URL url(source);
 
-    std::string host = url.host;
-    uint16_t port = url.getPort();
-    std::string password;
-    if (url.pass.size()) {
-      password = url.pass;
-    } else if (url.user.size()) {
-      password = url.user;
-    }
+    if (!openRemoteSource()) return false;
+
+    /// \todo future password support for in the play cmd
+    // std::string password = sourceUri.pass.size() ? sourceUri.pass : sourceUri.user;
     std::map<std::string, std::string> args;
-    HTTP::parseVars(url.args, args);
+    HTTP::parseVars(sourceUri.args, args);
 
-    std::string streamName = url.path;
+    std::string streamName = sourceUri.path;
     Util::sanitizeName(streamName);
-    if (!streamName.size()) { streamName = config->getString("streamname"); }
-
-    srcConn.open(host, port, true, url.protocol == "dtscs");
-    srcConn.Received().splitter.clear();
+    if (!streamName.size()) streamName = config->getString("streamname");
     if (!srcConn) { return false; }
-    JSON::Value prep;
-    prep["cmd"] = "play";
-    prep["version"] = APPIDENT;
-    prep["stream"] = streamName;
-    if (args.count("sync")) { prep["sync"].fromString(args["sync"]); }
-    if (args.count("noinput")) { prep["noinput"].fromString(args["noinput"]); }
-    srcConn.SendNow("DTCM");
-    char sSize[4] ={0, 0, 0, 0};
-    Bit::htobl(sSize, prep.packedSize());
-    srcConn.SendNow(sSize, 4);
-    prep.sendTo(srcConn);
+
+    JSON::Value prep(JSON::object{},
+                     {
+                       {"cmd", "play"},
+                       {"version", APPIDENT},
+                       {"stream", streamName},
+                     });
+
+    if (!isLive) prep["serve"] = true;
+    if (args.count("sync")) prep["sync"].fromString(args["sync"]);
+    if (args.count("noinput")) prep["noinput"].fromString(args["noinput"]);
+    sendCmd(prep);
     return true;
   }
 
   void InputDTSC::closeStreamSource() {
+    evLp.remove(srcConn.getSocket());
+    Util::Procs::socketList.erase(srcConn.getSocket());
     srcConn.close();
   }
 
@@ -216,7 +214,8 @@ namespace Mist{
   }
 
   bool InputDTSC::checkArguments(){
-    if (!needsLock()){return true;}
+    sourceUri = config->getString("input");
+    if (!sourceUri.isLocalPath()) { return true; }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
         Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
@@ -229,31 +228,199 @@ namespace Mist{
       }
     }
 
-    // open File
-    F = fopen(config->getString("input").c_str(), "r+b");
-    if (!F){
+    // Remote: we try and open a connection later in needHeader
+    if (sourceUri.protocol == "dtsc" || sourceUri.protocol == "dtscs") return true;
+
+    // File: try and open the file
+    if (!F.open(config->getString("input").c_str())) {
       Util::logExitReason(ER_READ_START_FAILURE, "Could not open file %s", config->getString("input").c_str());
       return false;
     }
-    fseek(F, 0, SEEK_SET);
+    F.seek(0);
     return true;
   }
 
-  bool InputDTSC::needHeader(){
-    if (!needsLock()){return false;}
-    return Input::needHeader();
+  bool InputDTSC::getRemoteInfo() {
+    if (infoReceived) return true;
+    if (!openRemoteSource()) return false;
+
+    std::string remoteStreamName = sourceUri.path;
+    Util::sanitizeName(remoteStreamName);
+    if (!remoteStreamName.size()) remoteStreamName = config->getString("streamname");
+
+    // Send getinfo and immediately ping, messages on the remote are strictly ordered which means
+    // new remotes respond with streaminfo and a pong, whereas old remotes respond with just pong
+    sendCmd(JSONOBJECT({{"cmd", "getinfo"}, {"version", APPIDENT}, {"stream", remoteStreamName}}));
+    sendCmd(JSONOBJECT({{"cmd", "ping"}}));
+
+    gotPong = false;
+    uint64_t startTime = Util::bootMS();
+    uint64_t nowMs = startTime;
+    evLp.addSocket(4242, srcConn.getSocket());
+    while (startTime + 5000 > (nowMs = Util::bootMS())) {
+      size_t ret = evLp.await(startTime + 5000 - nowMs);
+      if (ret == 4242 && srcConn.spool()) {
+        while (srcConn.Received().available(8)) {
+          if (srcConn.Received().copy(2) != "DT") {
+            srcConn.Received().clear();
+            break;
+          }
+          size_t pktSize = Bit::btohl(srcConn.Received().copy(8).data() + 4) + 8;
+          if (!srcConn.Received().available(pktSize)) break;
+          pktBuf.truncate(0);
+          pktBuf.allocate(pktSize);
+          srcConn.Received().remove(pktBuf, pktSize);
+          thisPacket.reInit(pktBuf, pktBuf.size());
+          if (thisPacket.getVersion() == DTSC::DTCM) handleCommandPacket();
+        }
+      }
+      if (infoReceived) break;
+      if (gotPong) {
+        // Got pong without streaminfo first, the remote is old, fall back to old behaviour
+        WARN_MSG("Remote does not support getinfo; assuming live stream");
+        isLive = true;
+        infoReceived = true;
+        break;
+      }
+    }
+    evLp.remove(srcConn.getSocket());
+
+    return infoReceived;
   }
 
-  bool InputDTSC::readHeader(){
-    if (!F){
+  bool InputDTSC::needHeader() {
+    if (sourceUri.protocol != "dtsc" && sourceUri.protocol != "dtscs") return Input::needHeader();
+    if (!infoReceived) getRemoteInfo();
+    if (infoReceived && isLive) return false;
+    if (infoReceived && isVod) {
+      cachedHeader = readExistingHeader();
+      if (M.getUUID() != uuid) {
+        Cache::wipeStreamFromCache(meta.getStreamName(), true);
+        meta.clear();
+        return true;
+      }
+      return !cachedHeader;
+    }
+
+    // Fallback for old remotes that don't support getinfo: assume live
+    if (!infoReceived) {
+      isLive = true;
+      infoReceived = true;
+    }
+    return false;
+  }
+
+  void InputDTSC::postHeader() {
+    if (M && !srcConn && sourceUri.protocol != "dtsc" && sourceUri.protocol != "dtscs") {
+      infoReceived = true;
+      isLive = M.getLive();
+      isVod = M.getVod();
+    }
+
+    // Open userSelect for all received tracks if we are in live mode
+    if (isLive) {
+      std::set<size_t> validTracks = M.getMySourceTracks(getpid());
+      if (!validTracks.size()) { return; }
+      userSelect.clear();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it) {
+        userSelect[*it].reload(streamName, *it, COMM_STATUS_ACTSOURCEDNT);
+      }
+    }
+
+    {
+      JSON::Value APIcall;
+      APIcall["tag_stream"][streamName] = "replicated";
+      Util::sendUDPApi(APIcall);
+    }
+  }
+
+  bool InputDTSC::readHeader() {
+    if (sourceUri.protocol == "dtsc" || sourceUri.protocol == "dtscs") {
+      // Re-init meta only if there is no cached header
+      if (!cachedHeader) {
+        meta.reInit(streamName);
+        if (!meta) {
+          Util::logExitReason(ER_INTERNAL_ERROR, "Could not open stream metadata to merge in remote tracks");
+          config->is_active = false;
+          return false;
+        }
+      }
+
+      // Connect to the remote for a fresh header, fallback to cache if we cannot
+      if (!openStreamSource()) {
+        if (cachedHeader) WARN_MSG("Remote unavailable; using cached header");
+        return cachedHeader;
+      }
+
+      // Wait for up to 15 seconds for the remote to send us the header
+      uint64_t startTime = Util::bootMS();
+      uint64_t nowMs = startTime;
+      bool clearMeta = !headerReceived;
+      evLp.remove(srcConn.getSocket());
+      evLp.addSocket(4242, srcConn.getSocket());
+      while (!headerReceived && startTime + 15000 > (nowMs = Util::bootMS())) {
+        size_t ret = evLp.await(startTime + 15000 - nowMs);
+        if (ret == 4242 && srcConn.spool()) {
+          Socket::Buffer & rcv = srcConn.Received();
+          while (rcv.available(8) && !headerReceived) {
+            if (rcv.copy(2) != "DT") {
+              rcv.clear();
+              break;
+            }
+            size_t pktSize = Bit::btohl(rcv.copy(8).data() + 4) + 8;
+            if (!rcv.available(pktSize)) break;
+            pktBuf.truncate(0);
+            pktBuf.allocate(pktSize);
+            rcv.remove(pktBuf, pktSize);
+            thisPacket.reInit(pktBuf, pktBuf.size());
+            handlePacket(clearMeta);
+          }
+        }
+      }
+      evLp.remove(srcConn.getSocket());
+      if (!headerReceived) {
+        if (cachedHeader) {
+          WARN_MSG("Timeout waiting for remote DTSH header; using cached header");
+        } else {
+          ERROR_MSG("Timeout waiting for DTSH header from the remote; no cached header available");
+        }
+        return cachedHeader;
+      }
+      // For VOD remotes we add a socket callback to handle start_track_media / data / stop_track_media commands
+      if (M) {
+        evLp.addSocket(srcConn.getSocket(), [this](void *p) {
+          Util::ResizeablePointer ptr;
+          bool clearMeta = !headerReceived;
+          Socket::Buffer & rcv = srcConn.Received();
+          do {
+            while (rcv.available(8)) {
+              if (rcv.copy(2) != "DT") {
+                rcv.clear();
+                break;
+              }
+              size_t pktSize = Bit::btohl(rcv.copy(8).data() + 4) + 8;
+              if (!rcv.available(pktSize)) break;
+              ptr.truncate(0);
+              ptr.allocate(pktSize);
+              rcv.remove(ptr, pktSize);
+              thisPacket.reInit(ptr, ptr.size());
+              handlePacket(clearMeta);
+            }
+          } while (srcConn.spool());
+        }, 0);
+        return true;
+      }
+    }
+    if (!F) {
       Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
     }
     size_t moreHeader = 0;
     do{
       char hdr[8];
-      fseek(F, moreHeader, SEEK_SET);
-      if (fread(hdr, 8, 1, F) != 1){
+      char *ptr = hdr;
+      F.seek(moreHeader);
+      if (F.readExact(ptr, 8)) {
         Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not read header @ bpos %zu", config->getString("input").c_str(), moreHeader);
         return false;
       }
@@ -263,8 +430,8 @@ namespace Mist{
       }
       size_t pktLen = Bit::btohl(hdr + 4);
       char *pkt = (char *)malloc(8 + pktLen * sizeof(char));
-      fseek(F, moreHeader, SEEK_SET);
-      if (fread(pkt, 8 + pktLen, 1, F) != 1){
+      F.seek(moreHeader);
+      if (F.readExact(pkt, 8 + pktLen)) {
         free(pkt);
         FAIL_MSG("Could not read packet @ bpos %zu", moreHeader);
       }
@@ -292,20 +459,20 @@ namespace Mist{
       return;
     }
     seekPos thisPos = *currentPositions.begin();
-    fseek(F, thisPos.bytePos, SEEK_SET);
-    if (feof(F)){
+    F.seek(thisPos.bytePos);
+    if (F.isEOF()) {
       thisPacket.null();
       Util::logExitReason(ER_CLEAN_EOF, "End of file reached");
       return;
     }
-    clearerr(F);
     currentPositions.erase(currentPositions.begin());
-    lastreadpos = ftell(F);
-    if (fread(buffer, 4, 1, F) != 1){
-      if (feof(F)){
-        Util::logExitReason(ER_CLEAN_EOF, "End of file reached while seeking @ %" PRIu64, lastreadpos);
-      }else{
-        Util::logExitReason(ER_UNKNOWN, "Could not seek to next @ %" PRIu64, lastreadpos);
+    lastReadPos = F.getPos();
+    char *ptr = buffer;
+    if (F.readExact(ptr, 4)) {
+      if (F.isEOF()) {
+        Util::logExitReason(ER_CLEAN_EOF, "End of file reached while seeking @ %" PRIu64, lastReadPos);
+      } else {
+        Util::logExitReason(ER_UNKNOWN, "Could not seek to next @ %" PRIu64, lastReadPos);
       }
       thisPacket.null();
       return;
@@ -319,13 +486,14 @@ namespace Mist{
     if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0){version = 1;}
     if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0){version = 2;}
     if (version == 0){
-      Util::logExitReason(ER_FORMAT_SPECIFIC, "Invalid packet header @ %#" PRIx64 " - %.4s != %.4s @ %" PRIu64, lastreadpos,
-                buffer, DTSC::Magic_Packet2, lastreadpos);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Invalid packet header @ %#" PRIx64 " - %.4s != %.4s @ %" PRIu64,
+                          lastReadPos, buffer, DTSC::Magic_Packet2, lastReadPos);
       thisPacket.null();
       return;
     }
-    if (fread(buffer + 4, 4, 1, F) != 1){
-      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet size @ %" PRIu64, lastreadpos);
+    ptr += 4;
+    if (F.readExact(ptr, 4)) {
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet size @ %" PRIu64, lastReadPos);
       thisPacket.null();
       return;
     }
@@ -333,8 +501,9 @@ namespace Mist{
     uint32_t packSize = Bit::btohl(buffer + 4);
     pBuf.resize(8 + packSize);
     memcpy((char *)pBuf.data(), buffer, 8);
-    if (fread((void *)(pBuf.data() + 8), packSize, 1, F) != 1){
-      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet @ %" PRIu64, lastreadpos);
+    ptr = &pBuf[0] + 8;
+    if (F.readExact(ptr, packSize)) {
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet @ %" PRIu64, lastReadPos);
       thisPacket.null();
       return;
     }
@@ -342,12 +511,14 @@ namespace Mist{
     thisTime = thisPacket.getTime();
     thisIdx = thisPacket.getTrackId();
     seekNext(thisPos.seekTime, thisPos.trackID);
-    fseek(F, thisPos.bytePos, SEEK_SET);
+    F.seek(thisPos.bytePos);
   }
 
-  void InputDTSC::getNextFromStream(size_t idx, bool returnAfterMetaReceived) {
+  void InputDTSC::getNextFromStream(size_t idx, bool returnAfterMetaReceived, uint64_t timeLimit) {
+    uint64_t endTime = (timeLimit == 0) ? UINT64_MAX : Util::bootMS() + timeLimit;
     bool clearMeta = returnAfterMetaReceived;
-    while (config->is_active && srcConn) {
+
+    while (config->is_active && srcConn && Util::bootMS() < endTime) {
 
       pktBuf.truncate(0);
       thisPacket.null();
@@ -404,112 +575,11 @@ namespace Mist{
       // Read success! Initialize thisPacket from our packet buffer
       thisPacket.reInit(pktBuf, pktBuf.size());
 
-      // Handle command packets
-      if (thisPacket.getVersion() == DTSC::DTCM) {
-        std::string cmd;
-        thisPacket.getString("cmd", cmd);
-        // "reset" indicates the metadata will be replaced
-        if (cmd == "reset"){
-          // set clearMeta to true so that if we get no new header, we wipe the metadata entirely
-          // Also ensures that the next header will wipe old tracks instead of only being an addition
-          clearMeta = true;
-          continue;
-        }
-        // "error" indicates a fatal error
-        if (cmd == "error"){
-          // abort the input process and set the message as the exit reason
-          thisPacket.getString("msg", cmd);
-          Util::logExitReason(ER_FORMAT_SPECIFIC, "%s", cmd.c_str());
-          thisPacket.null();
-          return;
-        }
-        // "ping" is a request for a "pong"
-        if (cmd == "ping") {
-          JSON::Value prep;
-          prep["cmd"] = "ok";
-          prep["msg"] = "Pong!";
-          char sSize[8] = {'D', 'T', 'C', 'M', 0, 0, 0, 0};
-          Bit::htobl(sSize + 4, prep.packedSize());
-          srcConn.SendNow(sSize, 8);
-          prep.sendTo(srcConn);
-          continue;
-        }
-        // "sync" indicates a switch between async/sync modes
-        if (cmd == "sync") {
-          isSyncReceiver = thisPacket.getInt("sync");
-          INFO_MSG("Switching over to receiving in %s mode", isSyncReceiver ? "sync" : "async");
-          continue;
-        }
-        // "hi" is the server hello message
-        if (cmd == "hi") {
-          // let's log the version at INFO level
-          thisPacket.getString("version", cmd);
-          if (cmd.size()) {
-            INFO_MSG("Connected to remote server %s version %s", srcConn.getHost().c_str(), cmd.c_str());
-          }
-          continue;
-        }
-        // Ignore all other commands
-        INFO_MSG("Unhandled command: %s", cmd.c_str());
-        continue;
-      }
-
-      // Handle metadata update/replacement packets
-      if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
-        DTSC::Meta nM("", thisPacket.getScan());
-        meta.merge(nM, clearMeta, false);
-        if (clearMeta) { meta.setBootMsOffset(nM.getBootMsOffset()); }
-        clearMeta = false;
-        if (returnAfterMetaReceived) { return; }
-        continue;
-      }
-
-      // Track data packet
-      if (thisPacket.getVersion() == DTSC::DTSC_V1 || thisPacket.getVersion() == DTSC::DTSC_V2) {
-        lastPktTime = Util::bootMS();
-        thisTime = thisPacket.getTime();
-        thisIdx = M.trackIDToIndex(thisPacket.getTrackId());
-        if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)) {
-          uint32_t shrtest_key = 0xFFFFFFFFul;
-          uint32_t longest_key = 0;
-          DTSC::Keys Mkeys(M.keys(thisIdx));
-          uint32_t firstKey = Mkeys.getFirstValid();
-          uint32_t endKey = Mkeys.getEndValid();
-          uint32_t checkKey = (endKey - firstKey <= 3) ? firstKey : endKey - 3;
-          for (uint32_t k = firstKey; k + 1 < endKey; k++) {
-            uint64_t kDur = Mkeys.getDuration(k);
-            if (!kDur) { continue; }
-            if (kDur > longest_key && k >= checkKey) { longest_key = kDur; }
-            if (kDur < shrtest_key) { shrtest_key = kDur; }
-          }
-          if (longest_key > shrtest_key * 2) {
-            JSON::Value prep;
-            prep["cmd"] = "check_key_duration";
-            prep["id"] = (uint64_t)thisPacket.getTrackId();
-            prep["duration"] = longest_key;
-            srcConn.SendNow("DTCM");
-            char sSize[4] = {0, 0, 0, 0};
-            Bit::htobl(sSize, prep.packedSize());
-            srcConn.SendNow(sSize, 4);
-            prep.sendTo(srcConn);
-            INFO_MSG("Key duration %" PRIu32 " is quite long - confirming with upstream source", longest_key);
-          }
-        }
-
-        // If we're receiving packets in sync, we now know until 1ms ago all tracks are up-to-date
-        if (isSyncReceiver && thisTime) {
-          std::map<size_t, Comms::Users>::iterator uIt;
-          for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt) {
-            if (uIt->first == thisIdx) { continue; }
-            if (M.getNowms(uIt->first) < thisTime - 1) { meta.setNowms(uIt->first, thisTime - 1); }
-          }
-        }
-
-        // If we're not trying to get metadata, break. Otherwise keep going to try and get metadata.
-        if (!returnAfterMetaReceived) { break; }
-      }
-
-      WARN_MSG("Unhandled DTSC packet type encountered, ignoring...");
+      // Handle the packet and return or break based on the returned packet type
+      DTSC::packType pType = handlePacket(clearMeta);
+      if (pType == DTSC::DTSC_INVALID) { return; }
+      if (pType == DTSC::DTSC_HEAD && returnAfterMetaReceived) { return; }
+      if ((pType == DTSC::DTSC_V1 || pType == DTSC::DTSC_V2) && !returnAfterMetaReceived) { break; }
     }
     if (clearMeta) { meta.clear(); }
   }
@@ -531,14 +601,13 @@ namespace Mist{
     tmpPos.trackID = trackIdx;
     if (!forceSeek && thisPacket && ms >= thisPacket.getTime() && trackIdx >= thisPacket.getTrackId()){
       tmpPos.seekTime = thisPacket.getTime();
-      tmpPos.bytePos = ftell(F);
+      tmpPos.bytePos = F.getPos();
     }else{
       tmpPos.seekTime = 0;
       tmpPos.bytePos = 0;
     }
-    if (feof(F)){
-      clearerr(F);
-      fseek(F, 0, SEEK_SET);
+    if (F.isEOF()) {
+      F.seek(0);
       tmpPos.bytePos = 0;
       tmpPos.seekTime = 0;
     }
@@ -550,18 +619,18 @@ namespace Mist{
     }
     bool foundPacket = false;
     while (!foundPacket){
-      lastreadpos = ftell(F);
-      if (feof(F)){
-        WARN_MSG("Reached EOF during seek to %" PRIu64 " in track %zu - aborting @ %" PRIu64, ms,
-                 trackIdx, lastreadpos);
+      lastReadPos = F.getPos();
+      if (F.isEOF()) {
+        WARN_MSG("Reached EOF during seek to %" PRIu64 " in track %zu - aborting @ %" PRIu64, ms, trackIdx, lastReadPos);
         return;
       }
       // Seek to first packet after ms.
-      fseek(F, tmpPos.bytePos, SEEK_SET);
-      lastreadpos = ftell(F);
+      F.seek(tmpPos.bytePos);
+      lastReadPos = F.getPos();
       // read the header
       char header[20];
-      if (fread((void *)header, 20, 1, F) != 1){
+      char *ptr = header;
+      if (F.readExact(ptr, 20)) {
         WARN_MSG("Could not read header from file. Much sadface.");
         return;
       }
@@ -572,7 +641,7 @@ namespace Mist{
         if (memcmp(header, "DT", 2) != 0){
           WARN_MSG("Invalid header during seek to %" PRIu64 " in track %zu @ %" PRIu64
                    " - resetting bytePos from %" PRIu64 " to zero",
-                   ms, trackIdx, lastreadpos, tmpPos.bytePos);
+                   ms, trackIdx, lastReadPos, tmpPos.bytePos);
           tmpPos.bytePos = 0;
           continue;
         }
@@ -593,5 +662,270 @@ namespace Mist{
     if (tmpPos.seekTime > 0xffffffffffffff00ll){tmpPos.seekTime = 0;}
     currentPositions.insert(tmpPos);
     return;
+  }
+
+  void InputDTSC::sendCmd(const JSON::Value & data) {
+    MEDIUM_MSG("Sending DTCM: %s", data.toString().c_str());
+    char sSize[8] = {'D', 'T', 'C', 'M', 0, 0, 0, 0};
+    Bit::htobl(sSize + 4, data.packedSize());
+    srcConn.SendNow(sSize, 8);
+    data.sendTo(srcConn);
+  }
+
+  DTSC::packType InputDTSC::handleCommandPacket() {
+    bool ignoredResult = false;
+    return handleCommandPacket(ignoredResult);
+  }
+
+  DTSC::packType InputDTSC::handleCommandPacket(bool & clearMeta) {
+    if (thisPacket.getVersion() != DTSC::DTCM) return thisPacket.getVersion();
+    std::string cmd;
+    thisPacket.getString("cmd", cmd);
+    HIGH_MSG("Received DTCM: %s", thisPacket.getScan().asJSON().toString().c_str());
+    // "reset" indicates the metadata will be replaced (setting clearMeta also means a next header wipes old tracks)
+    if (cmd == "reset") {
+      clearMeta = true;
+      headerReceived = false;
+      return DTSC::DTCM;
+    }
+    // "error" indicates a fatal error
+    if (cmd == "error") {
+      thisPacket.getString("msg", cmd);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "%s", cmd.c_str());
+      thisPacket.null();
+      return DTSC::DTSC_INVALID;
+    }
+    // "ping" is a request for a "pong"
+    if (cmd == "ping") {
+      sendCmd(JSONOBJECT({{"cmd", "ok"}, {"msg", "Pong!"}}));
+      return DTSC::DTCM;
+    }
+    // "ok" is an acknowledgement from the remote (e.g. pong for our ping)
+    if (cmd == "ok") {
+      std::string msg;
+      thisPacket.getString("msg", msg);
+      if (msg == "Pong!") { gotPong = true; }
+      return DTSC::DTCM;
+    }
+    // "sync" indicates a switch between async/sync modes
+    if (cmd == "sync") {
+      isSyncReceiver = thisPacket.getInt("sync");
+      INFO_MSG("Switching over to receiving in %s mode", isSyncReceiver ? "sync" : "async");
+      return DTSC::DTCM;
+    }
+    // "hi" is the server hello message
+    if (cmd == "hi") {
+      thisPacket.getString("version", cmd);
+      if (cmd.size()) INFO_MSG("Connected to remote server %s version %s", srcConn.getHost().c_str(), cmd.c_str());
+      return DTSC::DTCM;
+    }
+    // "streaminfo" contains the type of stream and the time on the remote
+    if (cmd == "streaminfo") {
+      isLive = thisPacket.getFlag("live");
+      isVod = thisPacket.getFlag("vod");
+      uuid = thisPacket.getInt("uuid");
+      infoReceived = true;
+      return DTSC::DTCM;
+    }
+    // "start_track_media" opens a page to write data to until a stop is received
+    if (cmd == "start_track_media") {
+      uint64_t trkIdx = M.trackIDToIndex(thisPacket.getInt("id"));
+      if (trkIdx == INVALID_TRACK_ID) {
+        ERROR_MSG("Cannot find track index for id %" PRIu64, thisPacket.getInt("id"));
+        return DTSC::DTCM;
+      }
+
+      uint64_t firstKey = thisPacket.getInt("firstkey");
+      uint64_t pageIdx = M.getPageIndexForKeyExact(trkIdx, firstKey);
+      if (pageIdx == INVALID_KEY_NUM) {
+        ERROR_MSG("Cannot find page for track %" PRIu64 " firstkey %" PRIu64, trkIdx, firstKey);
+        return DTSC::DTCM;
+      }
+
+      uint64_t pageSize = M.pages(trkIdx).getInt("size", pageIdx);
+      meta.pages(trkIdx).setInt("avail", 0, pageIdx); // fresh request
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trkIdx, (uint32_t)firstKey);
+
+      page.init(pageName, pageSize, true, true, false);
+      page.master = false;
+
+      pageFillStart = Util::bootMS();
+      return DTSC::DTCM;
+    }
+    // "stop_track_media" closes the current page and sets avail to zero if the page was incomplete
+    if (cmd == "stop_track_media") {
+      uint64_t trkIdx = M.trackIDToIndex(thisPacket.getInt("id"));
+      if (trkIdx == INVALID_TRACK_ID) {
+        ERROR_MSG("Cannot find track index for id %" PRIu64, thisPacket.getInt("id"));
+        return DTSC::DTCM;
+      }
+
+      uint64_t firstKey = thisPacket.getInt("firstkey");
+      uint64_t pageIdx = M.getPageIndexForKeyExact(trkIdx, firstKey);
+      if (pageIdx == INVALID_KEY_NUM) {
+        ERROR_MSG("Cannot find page for track %" PRIu64 " firstkey %" PRIu64, trkIdx, firstKey);
+        return DTSC::DTCM;
+      }
+
+      if (isVod) {
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, M.getUUID().c_str(), trkIdx, (uint32_t)firstKey);
+
+        if (Cache::cacheWrite(pageName, [&](int fd) {
+          Socket::Connection S(Socket::clone{}, fd);
+          S.SendNow(page.mapped, meta.pages(trkIdx).getInt("avail", pageIdx));
+        }, Util::bootMS() - pageFillStart, streamName)) {
+          page.master = true; // ensure deletion of the original
+        }
+      }
+
+      requested.erase(std::to_string(trkIdx) + '@' + std::to_string(firstKey));
+      page.close();
+      return DTSC::DTCM;
+    }
+    // Ignore all other commands
+    INFO_MSG("Unhandled command: %s", cmd.c_str());
+    return DTSC::DTCM;
+  }
+
+  DTSC::packType InputDTSC::handlePacket(bool & clearMeta) {
+    DTSC::packType packType = thisPacket.getVersion();
+    switch (packType) {
+      // Command packet
+      case DTSC::DTCM: {
+        packType = handleCommandPacket(clearMeta);
+        break;
+      }
+      // Handle metadata update/replacement packet
+      case DTSC::DTSC_HEAD: {
+        DTSC::Meta nM("", thisPacket.getScan());
+        meta.merge(nM, clearMeta, !isLive);
+        if (clearMeta) {
+          meta.setBootMsOffset(nM.getBootMsOffset());
+          meta.setVod(nM.getVod());
+          meta.setLive(nM.getLive());
+          meta.setUUID(nM.getUUID());
+        }
+        clearMeta = false;
+        headerReceived = true;
+
+        if (isVod) {
+          INFO_MSG("Attempting to write header to cache");
+          Cache::cacheWrite(config->getString("input") + ".dtsh", [this](int fd) {
+            Socket::Connection conn(Socket::clone{}, fd);
+            M.send(conn);
+          }, 0, streamName);
+        }
+
+        break;
+      }
+      // Track data packet
+      case DTSC::DTSC_V1:
+      case DTSC::DTSC_V2: {
+        lastPktTime = Util::bootMS();
+        thisTime = thisPacket.getTime();
+        thisIdx = M.trackIDToIndex(thisPacket.getTrackId());
+
+        if (isLive) {
+          if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)) {
+            uint32_t shrtest_key = 0xFFFFFFFFul;
+            uint32_t longest_key = 0;
+            DTSC::Keys Mkeys(M.keys(thisIdx));
+            uint32_t firstKey = Mkeys.getFirstValid();
+            uint32_t endKey = Mkeys.getEndValid();
+            uint32_t checkKey = (endKey - firstKey <= 3) ? firstKey : endKey - 3;
+            for (uint32_t k = firstKey; k + 1 < endKey; k++) {
+              uint64_t kDur = Mkeys.getDuration(k);
+              if (!kDur) { continue; }
+              if (kDur > longest_key && k >= checkKey) { longest_key = kDur; }
+              if (kDur < shrtest_key) { shrtest_key = kDur; }
+            }
+            if (longest_key > shrtest_key * 2) {
+              sendCmd(JSONOBJECT({{"cmd", "check_key_duration"}, {"id", (uint64_t)thisPacket.getTrackId()}, {"duration", longest_key}}));
+              INFO_MSG("Key duration %" PRIu32 " is quite long - confirming with upstream source", longest_key);
+            }
+          }
+          // If we're receiving packets in sync, we now know until 1ms ago all tracks are up-to-date
+          if (isSyncReceiver && thisTime) {
+            std::map<size_t, Comms::Users>::iterator uIt;
+            for (uIt = userSelect.begin(); uIt != userSelect.end(); ++uIt) {
+              if (uIt->first == thisIdx) { continue; }
+              if (M.getNowms(uIt->first) < thisTime - 1) { meta.setNowms(uIt->first, thisTime - 1); }
+            }
+          }
+        }
+
+        // Write the data to the relevant page if said page exists
+        if (page) {
+          char *dataPointer = 0;
+          size_t len = 0;
+          thisPacket.getString("data", dataPointer, len);
+          InOutBase::bufferNext(thisPacket.getTime(), thisPacket.getInt("offset"), thisIdx, dataPointer, len,
+                                thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"), page);
+        }
+        break;
+      }
+      // Unknown packet type
+      default: {
+        WARN_MSG("Unhandled DTSC packet type (%d) encountered, ignoring...", thisPacket.getVersion());
+      }
+    }
+    return packType;
+  }
+
+  bool InputDTSC::bufferFrame(size_t idx, uint32_t keyNum) {
+    // For non-remotes call the default implementation
+    if (sourceUri.protocol != "dtsc" && sourceUri.protocol != "dtscs") return Input::bufferFrame(idx, keyNum);
+    if (M.getLive()) { return true; }
+    size_t sourceIdx = M.getSourceTrack(idx);
+    if (sourceIdx == INVALID_TRACK_ID) { sourceIdx = idx; }
+
+    // Now check whether the remote has the pages available
+    Util::RelAccX & tPages = meta.pages(idx);
+    DTSC::Keys keys(M.keys(idx));
+    uint64_t firstKey = keys.getFirstValid();
+    if (keyNum < firstKey) {
+      HIGH_MSG("Key %" PRIu32 " on track %zu no longer seekable (earliest requestable key is %" PRIu64
+               "). Cancelling buffering.",
+               keyNum, idx, firstKey);
+      return true;
+    }
+    uint64_t lastKey = keys.getEndValid();
+    if (keyNum > lastKey) {
+      if (keyNum > lastKey + 1) {
+        WARN_MSG("Key %" PRIu32 " on track %zu is higher than total (latest key is %" PRIu64 "). Cancelling buffering.",
+                 keyNum, idx, lastKey);
+      }
+      return true;
+    }
+    if (!tPages.getEndPos()) {
+      WARN_MSG("No pages for track %zu found! Cancelling bufferFrame", idx);
+      return false;
+    }
+    uint64_t pageIdx = 0;
+    for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++) {
+      if (tPages.getInt("firstkey", i) > keyNum) break;
+      pageIdx = i;
+    }
+    uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
+    pageCounter[idx][pageNumber] = Util::bootSecs();
+
+    // Check whether the requested page is already loaded into memory
+    if (isBuffered(idx, pageNumber, meta)) {
+      // Mark the page as still actively requested
+      DONTEVEN_MSG("Track %zu, key %" PRIu32 " is already buffered in page %" PRIu32 ". Cancelling bufferFrame", idx,
+                   keyNum, pageNumber);
+      return true;
+    }
+
+    // Not already loaded or cached? Return if we already requested from the remote in the past 15 seconds, it's probably in-flight
+    std::string trkAtPage = std::to_string(idx) + '@' + std::to_string(pageNumber);
+    if (requested.count(trkAtPage) && Util::bootMS() < requested[trkAtPage] + 15000) return true;
+    requested[trkAtPage] = Util::bootMS();
+
+    // Perform request
+    sendCmd(JSONOBJECT({{"cmd", "get_track_media"}, {"id", M.getID(idx)}, {"page", pageNumber}}));
+    return true;
   }
 }// namespace Mist

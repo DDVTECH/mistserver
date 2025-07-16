@@ -134,7 +134,7 @@ namespace DTSC{
     void setKeyFrame(bool kf);
     virtual uint64_t getTime() const;
     void setTime(uint64_t _time);
-      void nullMember(const std::string & memb);
+    void nullMember(const std::string & memb);
     size_t getTrackId() const;
     char *getData() const;
     uint32_t getDataLen() const;
@@ -563,6 +563,8 @@ namespace DTSC{
     bool nextPageAvailable(uint32_t idx, size_t currentPage) const;
     void getPageNumbersForTime(uint32_t idx, uint64_t time, size_t & currPage, size_t & nextPage) const;
     size_t getPageNumberForKey(uint32_t idx, uint64_t keynumber) const;
+    size_t getPageIndexForKey(uint32_t idx, uint64_t keyNum) const;
+    size_t getPageIndexForKeyExact(uint32_t idx, uint64_t keyNum) const;
     size_t getKeyNumForTime(uint32_t idx, uint64_t time) const;
     bool keyTimingsMatch(size_t idx1, size_t idx2) const;
 
@@ -583,8 +585,8 @@ namespace DTSC{
 
     uint64_t getSendLen(bool skipDynamic = false, std::set<size_t> selectedTracks = std::set<size_t>(), bool reID = false) const;
     void toFile(const std::string &uri) const;
-    void send(Socket::Connection &conn, bool skypDynamic = false,
-              std::set<size_t> selectedTracks = std::set<size_t>(), bool reID = false) const;
+    void send(Socket::Connection & conn, bool skipDynamic = false, std::set<size_t> selectedTracks = std::set<size_t>(),
+              bool reID = false) const;
     void toJSON(JSON::Value & res, bool skipDynamic = true, bool tracksOnly = false, bool privateData = false) const;
 
     std::string getStreamName() const{return streamName;}
@@ -622,6 +624,7 @@ namespace DTSC{
     bool isMaster;
     uint64_t limitMin;
     uint64_t limitMax;
+    Util::ResizeablePointer limitTrkMax;
     bool isLimited;
 
     char *streamMemBuf;

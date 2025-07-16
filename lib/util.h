@@ -14,8 +14,8 @@ namespace Socket {
 
 namespace Util{
   bool isDirectory(const std::string &path);
-  bool createPathFor(const std::string &file);
-  bool createPath(const std::string &path);
+  bool createPathFor(const std::string & file, bool silent = false);
+  bool createPath(const std::string & path, bool silent = false);
   bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result);
   void stringToLower(std::string &val);
   size_t replace(std::string &str, const std::string &from, const std::string &to);
@@ -25,8 +25,8 @@ namespace Util{
   void splitString(const std::string & val, char delim, std::deque<std::string> & result);
   void shellSplit(const std::string & val, std::deque<std::string> & result);
   bool externalWriter(const std::string & file, Socket::Connection & conn, bool append = false);
-
-  bool atomicWriteFile(const std::string & filename, const std::string & contents);
+  bool atomicWriteFile(const std::string & file, std::function<bool(int)> cb);
+  bool atomicWriteFile(const std::string & file, const std::string & contents);
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 
@@ -200,6 +200,9 @@ namespace Util{
 
     uint64_t getInt(const std::string &name, uint64_t recordNo = 0) const;
     uint64_t getInt(const RelAccXFieldData &fd, uint64_t recordNo = 0) const;
+
+    bool getBool(const std::string & name, uint64_t recordNo = 0) const;
+    bool getBool(const RelAccXFieldData & fd, uint64_t recordNo = 0) const;
 
     std::string toPrettyString(size_t indent = 0) const;
     std::string toCompactString(size_t indent = 0) const;

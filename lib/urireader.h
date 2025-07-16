@@ -12,6 +12,9 @@ namespace HTTP{
   /// Calls progress callback for long-duration operations, if set.
   class URIReader : public Util::DataCallback{
   public:
+    /// Checks if a specific HTTP::URL would theoretically work or not.
+    static bool isSupported(const HTTP::URL & uri);
+
     // Setters/initers
 
     /// Sets the internal URI to the current working directory, but does not call open().
@@ -29,11 +32,13 @@ namespace HTTP{
     bool open(const std::string &reluri);
     /// Seeks to the given position, relative to fragment's #start=X value or 0 if not set.
     bool seek(const uint64_t pos);
+
     /// Reads all data from start to end, calling the dataCallback whenever minLen/maxLen require it.
     void readAll(size_t (*dataCallback)(const char *data, size_t len));
-
     /// Reads all data from start to end, returning it in a single buffer with all data.
     void readAll(char *&dataPtr, size_t &dataLen);
+    /// Reads all data from start to end, using our trusty resizable pointer instead of a allocated char pointer.
+    void readAll(Util::ResizeablePointer & dataPtr);
     /// Reads all data from start to end, using callbacks
     void readAll(Util::DataCallback &cb);
 
@@ -41,8 +46,11 @@ namespace HTTP{
     size_t readSome(size_t (*dataCallback)(const char *data, size_t len), size_t wantedLen);
     /// Reads wantedLen bytes of data from current position, returning it in a single buffer.
     size_t readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen);
-
+    /// Reads wantedLen bytes of data from a data callback.
     size_t readSome(size_t wantedLen, Util::DataCallback &cb);
+
+    /// Read blocking function that returns false if not exactly wantedLen bytes can be returned.
+    bool readExact(char *& dataPtr, size_t wantedLen);
 
     /// Closes the currently open URI. Does not change the internal URI value.
     void close();

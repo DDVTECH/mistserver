@@ -2,6 +2,7 @@
 
 #include <mist/auth.h>
 #include <mist/bitfields.h>
+#include <mist/cache.h>
 #include <mist/config.h>
 #include <mist/encode.h>
 #include <mist/h264.h>
@@ -114,7 +115,7 @@ namespace Mist{
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), idx, pageNumber);
     uint64_t pageSize = tPages.getInt("size", pageIdx);
     std::string pageName(pageId);
-    page.init(pageName, pageSize, true);
+    page.init(pageName, pageSize, true, false);
 
     if (!page){
       ERROR_MSG("Could not open page %s", pageId);
@@ -177,15 +178,21 @@ namespace Mist{
       return;
     }
 
-    HIGH_MSG("Removing page %" PRIu32 " on track %zu from the corresponding metaPage", pageNumber, idx);
-    tPages.setInt("avail", 0, pageIdx);
-
     // Open the correct page
     char pageId[NAME_BUFFER_SIZE];
-    snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), idx, pageNumber);
-    std::string pageName(pageId);
     IPC::sharedPage toErase;
-    toErase.init(pageName, tPages.getInt("size", pageIdx), false, false);
+    snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, M.getUUID().c_str(), idx, pageNumber);
+    toErase.init(pageId, 0, false, false, true);
+    if (toErase) {
+      HIGH_MSG("Not erasing page %s: is meant to be cached", pageId);
+      return;
+    }
+    snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), idx, pageNumber);
+    toErase.init(pageId, 0, false, false);
+
+    tPages.setInt("avail", 0, pageIdx);
+    HIGH_MSG("Removing page %" PRIu32 " on track %zu from the corresponding metaPage", pageNumber, idx);
+
     // Set the master flag so that the page will be destroyed once it leaves scope
     toErase.master = true;
     // Update the page on the tracks index page if needed
@@ -222,9 +229,19 @@ namespace Mist{
   /// Checks whether a key is buffered
   ///\param tid The trackid on which to locate the key
   ///\param keyNum The number of the keyframe to find
-  bool InOutBase::isBuffered(size_t idx, uint32_t keyNum, DTSC::Meta & aMeta){
+  bool InOutBase::isBuffered(size_t idx, uint32_t keyNum, DTSC::Meta & aMeta) {
     ///\return The result of bufferedOnPage(tid, keyNum)
-    return bufferedOnPage(idx, keyNum, aMeta) != INVALID_KEY_NUM;
+    uint32_t pageNo = bufferedOnPage(idx, keyNum, aMeta);
+    if (pageNo == INVALID_KEY_NUM) { return false; }
+
+    // Check if we can actually open the page from cache or shared memory
+    char pageName[NAME_BUFFER_SIZE];
+    snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, aMeta.getUUID().c_str(), idx, pageNo);
+    IPC::sharedPage p(pageName, 0, false, false, true);
+    if (p) { return true; }
+    snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), idx, pageNo);
+    p.init(pageName, 0, false, false);
+    return p;
   }
 
   /// Returns the pagenumber where this key is buffered on
@@ -238,8 +255,10 @@ namespace Mist{
       if (pageNum > keyNum) continue;
       uint64_t keyCount = tPages.getInt("keycount", i);
       if (!keyCount || pageNum + keyCount - 1 < keyNum) continue;
+
       uint64_t avail = tPages.getInt("avail", i);
-      return avail ? pageNum : INVALID_KEY_NUM;
+      if (!avail) return INVALID_KEY_NUM;
+      return pageNum;
     }
     return INVALID_KEY_NUM;
   }

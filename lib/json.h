@@ -3,11 +3,13 @@
 #include "socket.h"
 
 #include <deque>
+#include <initializer_list>
 #include <istream>
 #include <map>
 #include <set>
 #include <stdint.h>
 #include <string>
+#include <utility>
 
 static const std::set<std::string> emptyset;
 
@@ -21,6 +23,12 @@ namespace JSON{
   struct parse {};
 #define PARSEJSON \
   JSON::parse {}
+
+  /// Used to select a particular initialiser list variant for the constructor
+  struct object {};
+  struct array {};
+#define JSONOBJECT(...) JSON::Value(JSON::object{}, __VA_ARGS__)
+#define JSONARRAY(...) JSON::Value(JSON::array{}, __VA_ARGS__)
 
   /// JSON-string-escapes a value
   std::string string_escape(const std::string & val, bool isRaw = false);
@@ -55,7 +63,9 @@ namespace JSON{
     Value(uint64_t val);
     Value(double val);
     Value(bool val);
-    #ifdef SIZET_VARIANT
+    Value(array, std::initializer_list<Value> values);
+    Value(object, std::initializer_list<std::pair<std::string, Value>> values);
+#ifdef SIZET_VARIANT
     Value(size_t val);
     #endif
     // comparison operators

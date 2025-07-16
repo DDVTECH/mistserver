@@ -293,7 +293,7 @@ namespace Mist{
       }
     }
     if (!receivedPacket){
-      Util::sleep(waitTime);
+      evLp.await(waitTime);
       count++;
     }
     return true;

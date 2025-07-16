@@ -4,7 +4,6 @@
 #include <mist/util.h>
 
 int main(int argc, char *argv[]){
-  Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
   ANALYSERTYPE::init(conf);
   if (conf.parseArgs(argc, argv)){

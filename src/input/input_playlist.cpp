@@ -70,7 +70,7 @@ namespace Mist{
         if (!seenValidEntry){
           HIGH_MSG("Parsed entire playlist without seeing a valid entry, waiting for any entry to "
                    "become available");
-          Util::sleep(1000);
+          evLp.await(1000);
         }
         playlistIndex = 0;
         seenValidEntry = false;
@@ -123,7 +123,7 @@ namespace Mist{
           config->is_active = false;
           break;
         }
-        Util::sleep(1000);
+        evLp.await(1000);
         if (reloadOn != 0xFFFF){
           time_t nowTime = time(0);
           wTime = localtime(&nowTime);

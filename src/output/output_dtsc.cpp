@@ -10,6 +10,8 @@
 #include <mist/http_parser.h>
 #include <sys/stat.h>
 
+bool handlingRequest = false;
+
 class crtAndKey {
   public:
     crtAndKey() {
@@ -104,13 +106,11 @@ namespace Mist{
     }
 
     setBlocking(true);
-    prep["cmd"] = "hi";
-    prep["version"] = APPIDENT;
-    prep["pack_method"] = 2;
-    salt = Secure::md5("mehstuff" + JSON::Value((uint64_t)time(0)).asString());
-    prep["salt"] = salt;
-    /// \todo Make this securererer.
-    sendCmd(prep);
+    sendCmd(JSONOBJECT({{"cmd", "hi"},
+                        {"version", APPIDENT},
+                        {"pack_method", 2},
+                        /// \todo Make this securererer.
+                        {"salt", Secure::md5("mehstuff" + JSON::Value((uint64_t)time(0)).asString())}}));
   }
 
 #ifdef SSL
@@ -242,28 +242,22 @@ namespace Mist{
   void OutDTSC::stats(bool force){
     unsigned long long int now = Util::epoch();
     if (now - lastActive > 1 && !pushing){
-      JSON::Value prep;
-      prep["cmd"] = "ping";
-      sendCmd(prep);
+      sendCmd(JSONOBJECT({{"cmd", "ping"}}));
       lastActive = now;
     }
     Output::stats(force);
   }
 
-  void OutDTSC::sendCmd(const JSON::Value &data){
+  void OutDTSC::sendCmd(const JSON::Value & data) {
     MEDIUM_MSG("Sending DTCM: %s", data.toString().c_str());
-    myConn.SendNow("DTCM");
-    char sSize[4] ={0, 0, 0, 0};
-    Bit::htobl(sSize, data.packedSize());
-    myConn.SendNow(sSize, 4);
+    char sSize[8] = {'D', 'T', 'C', 'M', 0, 0, 0, 0};
+    Bit::htobl(sSize + 4, data.packedSize());
+    myConn.SendNow(sSize, 8);
     data.sendTo(myConn);
   }
 
-  void OutDTSC::sendOk(const std::string &msg){
-    JSON::Value err;
-    err["cmd"] = "ok";
-    err["msg"] = msg;
-    sendCmd(err);
+  void OutDTSC::sendOk(const std::string & msg) {
+    sendCmd(JSONOBJECT({{"cmd", "ok"}, {"msg", msg}}));
   }
 
   void OutDTSC::init(Util::Config *cfg, JSON::Value & capa) {
@@ -357,7 +351,7 @@ namespace Mist{
     lastActive = Util::epoch();
     // If selectable tracks changed, set sentHeader to false to force it to send init data
     static uint64_t lastMeta = 0;
-    if (Util::epoch() > lastMeta + 5){
+    if (M.getLive() && Util::epoch() > lastMeta + 5) {
       lastMeta = Util::epoch();
       if (selectDefaultTracks()){
         INFO_MSG("Track selection changed - resending headers and continuing");
@@ -394,15 +388,12 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       selectedTracks.insert(it->first);
     }
-    M.send(myConn, true, selectedTracks, true);
+    M.send(myConn, M.getLive(), selectedTracks, true);
     if (M.getLive()){realTime = 0;}
   }
 
   void OutDTSC::onFail(const std::string &msg, bool critical){
-    JSON::Value err;
-    err["cmd"] = "error";
-    err["msg"] = msg;
-    sendCmd(err);
+    sendCmd(JSONOBJECT({{"cmd", "error"}, {"msg", msg}}));
     Output::onFail(msg, critical);
   }
 
@@ -417,13 +408,15 @@ namespace Mist{
         std::string dataPacket = myConn.Received().remove(rSize);
         DTSC::Scan dScan((char *)dataPacket.data(), rSize);
         HIGH_MSG("Received DTCM: %s", dScan.asJSON().toString().c_str());
+
         if (dScan.getMember("cmd").asString() == "ok"){
-          INFO_MSG("Remote OK: %s", dScan.getMember("msg").asString().c_str());
-          if (dScan.getMember("msg").asString() == "pong"){
+          if (dScan.getMember("msg").asString() == "Pong!") {
             if (selectDefaultTracks()){
               INFO_MSG("Track selection changed while idle - resending headers");
               sentHeader = false;
             }
+          } else {
+            INFO_MSG("Remote OK: %s", dScan.getMember("msg").asString().c_str());
           }
           continue;
         }
@@ -439,10 +432,6 @@ namespace Mist{
           sendOk("Pong!");
           continue;
         }
-        if (dScan.getMember("cmd").asString() == "ok"){
-          INFO_MSG("Ok: %s", dScan.getMember("msg").asString().c_str());
-          continue;
-        }
         if (dScan.getMember("cmd").asString() == "hi"){
           INFO_MSG("Connected to server running version %s", dScan.getMember("version").asString().c_str());
           continue;
@@ -454,6 +443,38 @@ namespace Mist{
         if (dScan.getMember("cmd").asString() == "reset"){
           userSelect.clear();
           sendOk("Internal state reset");
+          continue;
+        }
+        if (dScan.getMember("cmd").asString() == "getinfo") {
+          streamName = dScan.getMember("stream").asString();
+          initialize();
+          if (!M)
+            sendCmd(JSONOBJECT({{"cmd", "error"}, {"msg", "Cannot open stream " + streamName}}));
+          else
+            sendCmd(JSONOBJECT({{"cmd", "streaminfo"}, {"live", M.getLive()}, {"vod", M.getVod()}, {"uuid", M.getUUID()}}));
+          continue;
+        }
+        if (dScan.getMember("cmd").asString() == "get_track_media") {
+          // First clear any recently played entries
+          uint64_t nowTime = Util::bootMS();
+          for (auto it = recentlyPlayed.begin(); it != recentlyPlayed.end();) {
+            it = (it->second + 15000 < nowTime) ? recentlyPlayed.erase(it) : ++it;
+          }
+          std::pair<size_t, uint64_t> trkWithPage = {dScan.getMember("id").asInt() - 1, dScan.getMember("page").asInt()};
+          if (recentlyPlayed.count(trkWithPage)) {
+            HIGH_MSG("Ignoring request for track %zu page %" PRIu64 " as it was recently played", trkWithPage.first,
+                     trkWithPage.second);
+            continue;
+          }
+          if (!requestedPages.count(trkWithPage)) {
+            MEDIUM_MSG("Queueing request for track %zu page %" PRIu64, trkWithPage.first, trkWithPage.second);
+            requestedPages.insert(trkWithPage);
+            requestQueue.emplace_back(trkWithPage);
+          }
+          if (!handlingRequest && requestedPages.size()) {
+            MEDIUM_MSG("Directly handling request for track %zu page %" PRIu64, trkWithPage.first, trkWithPage.second);
+            handleTrackMedia(trkWithPage.first, trkWithPage.second);
+          }
           continue;
         }
         if (dScan.getMember("cmd").asString() == "check_key_duration"){
@@ -568,11 +589,52 @@ namespace Mist{
     }
   }
 
+  bool OutDTSC::onFinish() {
+    stop();
+    handlingRequest = false;
+    meta.removeLimiter();
+    if (requestQueue.empty()) return true;
+    MEDIUM_MSG("Finished parsing request for track %zu page %" PRIu32, requestQueue.at(0).first, requestQueue.at(0).second);
+
+    // There is an entry in the request queue which we just finished sending, inform the receiver and clear it
+    sendCmd(JSONOBJECT(
+      {{"cmd", "stop_track_media"}, {"id", requestQueue.at(0).first + 1}, {"firstkey", requestQueue.at(0).second}}));
+    requestedPages.erase(requestQueue.at(0));
+    recentlyPlayed[requestQueue.at(0)] = Util::bootMS();
+    requestQueue.pop_front();
+
+    // Check if there are any more requests after popping the one we just finished
+    if (requestQueue.size()) {
+      MEDIUM_MSG("Handling queue request for track %zu page %" PRIu32, requestQueue.at(0).first, requestQueue.at(0).second);
+      handleTrackMedia(requestQueue.front().first, requestQueue.front().second);
+    }
+    return true;
+  }
+
+  void OutDTSC::handleTrackMedia(size_t trkIdx, uint64_t page) {
+    targetParams["video"] = targetParams["audio"] = targetParams["meta"] = "none";
+    targetParams[M.getType(trkIdx)] = std::to_string(trkIdx);
+    selectDefaultTracks();
+    seek(M.getTimeForKeyIndex(trkIdx, page));
+    size_t pageNum = M.getPageNumberForKey(trkIdx, page);
+    size_t pageIdx = M.getPageIndexForKey(trkIdx, page);
+    const DTSC::Keys keys(M.keys(trkIdx));
+    uint64_t keyCount = M.pages(trkIdx).getInt("keycount", pageIdx);
+    uint64_t seekPos = keys.getTime(pageNum);
+    uint64_t stopPos = keys.getTime(pageNum + keyCount);
+    meta.applyLimiter(seekPos, stopPos);
+    sendCmd(JSONOBJECT({{"cmd", "start_track_media"}, {"id", trkIdx + 1}, {"firstkey", M.pages(trkIdx).getInt("firstkey", pageIdx)}}));
+    realTime = 0;
+    parseData = true;
+    handlingRequest = true;
+  }
+
   void OutDTSC::handlePlay(DTSC::Scan &dScan){
     streamName = dScan.getMember("stream").asString();
     // Put all arguments except for cmd and stream in the targetParams
+    // For serve we do not want to set parseData to true nor add it to targetParams
     dScan.forEachMember([this](const DTSC::Scan & m, const std::string & name) {
-      if (name == "cmd" || name == "stream") { return; }
+      if (name == "cmd" || name == "stream" || name == "serve") { return; }
       switch (m.getType()) {
         case DTSC_INT: targetParams[name] = m.asInt(); break;
         case DTSC_STR: targetParams[name] = m.asString(); break;
@@ -588,14 +650,9 @@ namespace Mist{
     reqUrl = qUrl.getUrl();
     if (targetParams.count("sync")) {
       setSyncMode(JSON::Value(targetParams["sync"]).asBool());
-      if (getSyncMode()) {
-        JSON::Value prep;
-        prep["cmd"] = "sync";
-        prep["sync"] = 1;
-        sendCmd(prep);
-      }
+      if (getSyncMode()) sendCmd(JSONOBJECT({{"cmd", "sync"}, {"sync", 1}}));
     }
-    parseData = true;
+    parseData = (dScan.hasMember("serve")) ? dScan.getMember("serve").asBool() : true;
     INFO_MSG("Handled play from %s for %s", myConn.getHost().c_str(), reqUrl.c_str());
     setBlocking(false);
   }
@@ -649,5 +706,4 @@ namespace Mist{
     if (dScan.getMember("sync").asBool()) { isSyncReceiver = true; }
     sendOk("You're cleared for pushing! DTSC_HEAD please?");
   }
-
 }// namespace Mist

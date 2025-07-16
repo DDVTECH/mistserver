@@ -11,6 +11,7 @@
 #include "controller_variables.h"
 
 #include <mist/auth.h>
+#include <mist/cache.h>
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/ev.h>
@@ -21,6 +22,7 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/triggers.h>
+#include <mist/urireader.h>
 #include <mist/util.h>
 
 #include <ctime>
@@ -677,6 +679,37 @@ int main_loop(int argc, char **argv){
     return (size_t)0;
   });
 
+  // Set up the cache in the event loop
+  Controller::E.addInterval([&]() {
+    std::string cachePath = ((const JSON::Value &)Controller::Storage)["config"]["cache"]["path"].asStringRef();
+
+    // Cache is running, and should be running
+    if (Controller::cachePid > 1 && Util::Procs::isRunning(Controller::cachePid)) {
+      if (cachePath.size()) return 1000;
+
+      // Cache is running, but should not be running
+      Util::Procs::Stop(Controller::cachePid);
+      Controller::cachePid = -1;
+      return 1000;
+    }
+
+    // Cache is not running, and should not be running
+    if (cachePath.empty()) return 1000;
+
+    // Cache is not running, but should be running, first check if the binary is available
+    cachePath = HTTP::localURIResolver().link(cachePath).getFilePath();
+    if (cachePath[cachePath.size() - 1] != '/') cachePath += '/';
+    struct stat st;
+    std::string bin = Util::getMyPath() + "MistUtilCache";
+    if (::stat(bin.c_str(), &st)) return 1000;
+
+    // All good, let us actually start the cache binary with the parameters
+    int err = STDERR_FILENO;
+    std::deque<std::string> args = {bin};
+    Controller::cachePid = Util::Procs::StartPiped(args, 0, 0, &err);
+    return 1000;
+  }, 0);
+
   Controller::E.addSocket(apiSock.getSocket(), [&](void *) {
     APIConn *aConn = new APIConn(Controller::E, apiSock, [&](Socket::Connection & C) {
 #ifdef SSL
@@ -952,4 +985,3 @@ int main(int argc, char **argv){
   }
   return 0;
 }
-

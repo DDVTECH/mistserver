@@ -1,6 +1,7 @@
 #include "input_buffer.h"
 
 #include <mist/bitfields.h>
+#include <mist/cache.h>
 #include <mist/defines.h>
 #include <mist/langcodes.h>
 #include <mist/procs.h>
@@ -318,6 +319,10 @@ namespace Mist{
     finalMillis = lastms;
     meta.setBufferWindow(lastms - firstms);
     meta.setLive(true);
+  }
+
+  void InputBuffer::postHeader() {
+    Cache::wipeStreamFromCache(streamName, true);
   }
 
   bool InputBuffer::keepRunning(bool updateActCtr) {

@@ -225,7 +225,7 @@ int main(int argc, char **argv){
                     char thisPageName[NAME_BUFFER_SIZE];
                     snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA,
                              argv[1], i, (uint32_t)pages.getInt("firstkey", j));
-                    IPC::sharedPage p(thisPageName, 0);
+                    IPC::sharedPage p(thisPageName, 0, false, false);
                     p.master = true;
                   }
                 }

@@ -1,10 +1,9 @@
 #pragma once
-#include <string>
-#include <sys/stat.h>
-
 #include "defines.h"
 
 #include <semaphore.h>
+#include <string>
+#include <sys/stat.h>
 
 #ifndef ACCESSPERMS
 #define ACCESSPERMS (S_IRWXU | S_IRWXG | S_IRWXO)
@@ -54,64 +53,32 @@ namespace IPC{
     semaphore *mySemaphore;
   };
 
-  ///\brief A class for managing shared files.
-  class sharedFile{
-  public:
-    sharedFile(const std::string &name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true);
-    sharedFile(const sharedFile &rhs);
-    ~sharedFile();
-    operator bool() const;
-    void init(const std::string &name_, uint64_t len_, bool master_ = false, bool autoBackoff = true);
-    void operator=(sharedFile &rhs);
-    bool operator<(const sharedFile &rhs) const{return name < rhs.name;}
-    void close();
-    void unmap();
-    bool exists();
-    ///\brief The fd handle of the opened shared file
-    int handle;
-    ///\brief The name of the opened shared file
-    std::string name;
-    ///\brief The size in bytes of the opened shared file
-    uint64_t len;
-    ///\brief Whether this class should unlink the shared file upon deletion or not
-    bool master;
-    ///\brief A pointer to the payload of the file file
-    char *mapped;
-  };
-
-#ifdef SHM_ENABLED
-  ///\brief A class for managing shared memory pages.
+  ///\brief A class for handling shared memory pages.
   class sharedPage{
   public:
-    sharedPage(const std::string &name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true);
+    sharedPage(const std::string & name = "", uint64_t len = 0, bool master = false, bool autoBackoff = true, bool cache = false);
     sharedPage(const sharedPage &rhs);
+    sharedPage(const int fd);
     ~sharedPage();
+
     operator bool() const;
-    void init(const std::string &name_, uint64_t len_, bool master_ = false, bool autoBackoff = true);
-    void operator=(sharedPage &rhs);
-    bool operator<(const sharedPage &rhs) const{return name < rhs.name;}
+    bool operator<(const sharedPage & rhs) const;
+    sharedPage & operator=(sharedPage && rhs);
+
+    void init(const std::string & name, uint64_t len, bool master = false, bool autoBackoff = true, bool cache = false);
+    void init(bool autoBackoff = true);
     void unmap();
     void close();
     bool exists();
-    ///\brief The fd handle of the opened shared memory page
-    int handle;
-    ///\brief The name of the opened shared memory page
+
+    int handle{-1};
     std::string name;
-    ///\brief The size in bytes of the opened shared memory page
-    uint64_t len;
-    ///\brief Whether this class should unlink the shared memory upon deletion or not
-    bool master;
-    ///\brief A pointer to the payload of the page
-    char *mapped;
+    uint64_t len{0};
+    bool master{false};
+    char *mapped{nullptr};
+    bool isCache() const { return cache; }
+
+  private:
+    bool cache{false};
   };
-#else
-  ///\brief A class for handling shared memory pages.
-  /// Uses shared files at its backbone, defined for portability
-  class sharedPage : public sharedFile{
-  public:
-    sharedPage(const std::string &name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true);
-    sharedPage(const sharedPage &rhs);
-    ~sharedPage();
-  };
-#endif
 }// namespace IPC

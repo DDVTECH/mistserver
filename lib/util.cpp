@@ -56,7 +56,7 @@ namespace Util{
 #endif
   }
 
-  bool createPathFor(const std::string &file){
+  bool createPathFor(const std::string & file, bool silent) {
     int pos = file.find_last_of('/');
 #if defined(_WIN32)
     // Windows also supports backslashes as directory separator
@@ -66,12 +66,12 @@ namespace Util{
       return true; // There is no parent
     }
     // Fail if we cannot create a parent
-    return createPath(file.substr(0, pos));
+    return createPath(file.substr(0, pos), silent);
   }
 
   /// Helper function that will attempt to create the given path if it not yet exists.
   /// Returns true if path exists or was successfully created, false otherwise.
-  bool createPath(const std::string &path){
+  bool createPath(const std::string & path, bool silent) {
 #if defined(_WIN32)
     int ret = _mkdir(path.c_str());
 #else
@@ -79,7 +79,7 @@ namespace Util{
     int ret = mkdir(path.c_str(), mode);
 #endif
     if (ret == 0){// Success!
-      INFO_MSG("Created directory: %s", path.c_str());
+      DEBUG_MSG(silent ? DLVL_VERYHIGH : DLVL_INFO, "Created directory: %s", path.c_str());
       return true;
     }
 
@@ -97,7 +97,7 @@ namespace Util{
         return false;
       }
       // Fail if we cannot create a parent
-      if (!createPath(path.substr(0, pos))) return false;
+      if (!createPath(path.substr(0, pos), silent)) return false;
 #if defined(_WIN32)
       ret = _mkdir(path.c_str());
 #else
@@ -387,7 +387,7 @@ namespace Util{
     // Local paths just write to file
     if (target.isLocalPath()) {
       int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-      int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
+      int mode = O_CREAT | O_RDWR | (append ? O_APPEND : O_TRUNC);
       std::string path = target.getFilePath();
       if (!Util::createPathFor(path)){
         ERROR_MSG("Cannot not create file %s: could not create parent folder", path.c_str());
@@ -455,40 +455,58 @@ namespace Util{
     return false;
   }
 
-  /// Writes the given contents to the given filename atomically.
-  /// Does so by creating a temporary file, writing to it, then renaming to the target filename.
+  /// Writes atomically to the filename using the provided callback.
+  /// Does so by creating a temporary file, calling the callback, then renaming to the target filename.
   /// Creates any needed subdirectories, if needed.
   /// Returns true on success, false on failure.
-  bool atomicWriteFile(const std::string & filename, const std::string & contents){
-    std::string path;
-
-    HTTP::URL tgt = HTTP::localURIResolver().link(filename);
+  bool atomicWriteFile(const std::string & file, std::function<bool(int)> cb) {
+    HTTP::URL tgt = HTTP::localURIResolver().link(file);
     std::string tmpFile = tgt.link("./XXXXXX").getFilePath();
     std::string tgtFile = tgt.getFilePath();
 
-    createPathFor(tgtFile);
+    if (!createPathFor(tgtFile, true)) {
+      WARN_MSG("Unable to create subdirectories for %s", tgtFile.c_str());
+      return false;
+    }
+
     int outFile = mkstemp((char*)tmpFile.c_str());
     if (outFile == -1){
       WARN_MSG("Unable to open a file handle to %s", tmpFile.c_str());
       return false;
     }
-    size_t i = 0;
-    while (i < contents.size()){
-      int ret = write(outFile, contents.data() + i, contents.size() - i);
-      if (ret == -1){
-        WARN_MSG("Could not write data to temp file %s", tmpFile.c_str());
-        close(outFile);
-        return false;
-      }
-      i += ret;
+
+    if (!cb(outFile)) {
+      WARN_MSG("Could not write data to temp file %s", tmpFile.c_str());
+      close(outFile);
+      unlink(tmpFile.c_str());
+      return false;
     }
+
+    if (fsync(outFile)) { WARN_MSG("Could not sync temp file %s: %s", tmpFile.c_str(), strerror(errno)); }
     close(outFile);
     if (chmod(tmpFile.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)){
       WARN_MSG("Could not set permissions of %s: %s", tmpFile.c_str(), strerror(errno));
     }
     if (!rename(tmpFile.c_str(), tgtFile.c_str())) { return true; }
     FAIL_MSG("Could not overwrite %s: %s", tgtFile.c_str(), strerror(errno));
+    unlink(tmpFile.c_str());
     return false;
+  }
+
+  /// Writes the given contents to the given filename atomically.
+  /// Does so by creating a temporary file, writing to it, then renaming to the target filename.
+  /// Creates any needed subdirectories, if needed.
+  /// Returns true on success, false on failure.
+  bool atomicWriteFile(const std::string & file, const std::string & contents) {
+    return atomicWriteFile(file, [&contents](int fd) -> bool {
+      size_t i = 0;
+      while (i < contents.size()) {
+        int ret = write(fd, contents.data() + i, contents.size() - i);
+        if (ret == -1) return false;
+        i += ret;
+      }
+      return true;
+    });
   }
 
   //Returns the time to wait in milliseconds for exponential back-off waiting.
@@ -1017,7 +1035,7 @@ namespace Util{
         case 3: size = *(uint16_t *)(p + offset + 1 + nameLen + 1); break;
         case 4: size = Bit::btoh24(p + offset + 1 + nameLen + 1); break;
         case 5: size = *(uint32_t *)(p + offset + 1 + nameLen + 1); break;
-        default: WARN_MSG("Unhandled field data size!"); break;
+        default: WARN_MSG("Unhandled field data size!");
         }
         fields[fieldName] = RelAccXFieldData(fieldType, size, dataOffset);
         DONTEVEN_MSG("Field %s: type %u, size %" PRIu32 ", offset %" PRIu64, fieldName.c_str(),
@@ -1133,6 +1151,28 @@ namespace Util{
     return 0; // Not an integer type, or not implemented
   }
 
+  /// Returns the boolean representation of the given field in the given record.
+  /// Returns 0 if the field does not exist or if the value is 0, "false", or empty.
+  bool RelAccX::getBool(const std::string & name, uint64_t recordNo) const {
+    std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
+    if (it == fields.end()) return false;
+    return getBool(it->second, recordNo);
+  }
+
+  bool RelAccX::getBool(const RelAccXFieldData & fd, uint64_t recordNo) const {
+    switch (fd.type & 0xF0) {
+      case RAX_INT:
+      case RAX_UINT: return getInt(fd, recordNo);
+      case RAX_STRING: {
+        std::string ptr(getPointer(fd, recordNo));
+        return !ptr.empty() && ptr != "false";
+      }
+      case 0x00: return false;
+      default: WARN_MSG("Unimplemented bool with type 0x%X", fd.type & 0xF0);
+    }
+    return false;
+  }
+
   std::string RelAccX::toPrettyString(size_t indent) const{
     std::stringstream r;
     uint64_t delled = getDeleted();
@@ -1169,15 +1209,18 @@ namespace Util{
           char *ptr = getPointer(it->first, i);
           size_t sz = getSize(it->first, i);
           size_t zeroCount = 0;
-          for (size_t j = 0; j < sz && j < 100 && zeroCount < 16; ++j){
-            r << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)ptr[j] << std::dec << " ";
+          for (size_t j = 0; j < sz && (sz < 256 || (j < 100 && zeroCount < 16)); ++j) {
+            if (!(j % 32)) { r << std::endl << std::string(indent + 6, ' '); }
+            r << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(ptr[j]) << " ";
+            if ((j % 4) == 3) { r << " "; }
+
             if (ptr[j] == 0x00){
               zeroCount++;
             }else{
               zeroCount = 0;
             }
           }
-          r << std::endl;
+          r << std::dec << std::endl;
           break;
         }
         case RAX_DTSC:{

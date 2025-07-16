@@ -128,6 +128,27 @@ namespace HTTP{
     return true;
   }
 
+  /// Checks if a specific HTTP::URL would theoretically work or not.
+  /// Is kept in sync with the corresponding URIReader::open function implemented below it
+  bool URIReader::isSupported(const HTTP::URL & U) {
+    // stdin reading always works, actual filenames must exist
+    if (!U.protocol.size() || U.protocol == "file") {
+      if (!U.path.size() || U.path == "-") return true;
+      struct stat fInfo;
+      if (stat(U.getFilePath().c_str(), &fInfo)) { return false; }
+      return true;
+    }
+
+    // For the following protocols, we assume they'll work as we don't know until we try to connect
+    if (U.protocol == "http") { return true; }
+#ifdef SSL
+    if (U.protocol == "s3+https" || U.protocol == "s3+http") { return true; }
+    if (U.protocol == "https") { return true; }
+#endif
+
+    return false;
+  }
+
   bool URIReader::open(const HTTP::URL &uri){
     close();
     myURI = uri;
@@ -331,6 +352,16 @@ namespace HTTP{
     dataLen = allData.size();
   }
 
+  /// Read all blocking function using our a resizable pointer as output buffer
+  void URIReader::readAll(Util::ResizeablePointer & out) {
+    if (getSize() != std::string::npos) { allData.allocate(getSize()); }
+    while (!isEOF()) {
+      if (!readSome(10046, *this)) { Util::sleep(50); }
+      bufPos = allData.size();
+    }
+    out.swap(allData);
+  }
+
   void httpBodyCallback(const char *ptr, size_t size){INFO_MSG("callback");}
 
   size_t URIReader::readSome(size_t (*dataCallback)(const char *data, size_t len), size_t wantedLen){
@@ -409,6 +440,13 @@ namespace HTTP{
     dataLen = allData.size() - bufPos;
     bufPos = allData.size();
     return dataLen;
+  }
+
+  /// Read blocking function that returns false if not exactly wantedLen bytes can be returned.
+  bool URIReader::readExact(char *& dataPtr, size_t wantedLen) {
+    size_t dataLen;
+    readSome(dataPtr, dataLen, wantedLen);
+    return (dataLen == wantedLen) ? dataLen : 0;
   }
 
   void URIReader::close(){

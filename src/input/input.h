@@ -76,7 +76,7 @@ namespace Mist {
     virtual bool openStreamSource(){return readHeader();}
     virtual void closeStreamSource(){}
     virtual void parseStreamHeader(){}
-    virtual void checkHeaderTimes(const HTTP::URL & streamFile);
+    virtual bool checkHeaderTimes(const HTTP::URL & streamFile, uint64_t streamTime = 0);
     virtual void removeUnused();
     virtual void convert();
     virtual void serve();
@@ -100,8 +100,7 @@ namespace Mist {
     virtual JSON::Value getSourceCapa(const std::string &){ return JSON::Value(); };
 
     virtual uint64_t getSettingUInt64(const DTSC::Scan & streamCfg, const std::string & setting, const std::string & option = "");
-
-    bool bufferFrame(size_t track, uint32_t keyNum);
+    virtual bool bufferFrame(size_t track, uint32_t keyNum);
     void doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason);
     bool exitAndLogReason();
     bool canCancelUnload;

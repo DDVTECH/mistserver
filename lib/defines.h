@@ -67,8 +67,8 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #define LOG_MSG(lvl, msg, ...)                                                                              \
   fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|" msg "\n", lvl, MIST_PROG, getpid(), __FILE__, __LINE__, \
           Util::streamName, ##__VA_ARGS__);
-#define DEBUG_MSG(lvl, msg, ...)                                                       \
-  if (Util::printDebugLevel >= lvl) { LOG_MSG(DBG_LVL_LIST[lvl], msg, ##__VA_ARGS__) }
+#define DEBUG_MSG(lvl, msg, ...)                                                         \
+  if (Util::printDebugLevel >= (lvl)) { LOG_MSG(DBG_LVL_LIST[lvl], msg, ##__VA_ARGS__) }
 
 #if !defined(HASEXECINFO) || defined(_WIN32) || defined(__CYGWIN__) || DEBUG < DLVL_DEVEL
 static inline void show_stackframe(){}
@@ -155,6 +155,10 @@ static inline void show_stackframe(){}
 #define SHM_STREAM_TRACK_ITEM 16 * 1024 * 1024
 #define SHM_STREAM_TRACK_LEN 4 * SHM_STREAM_TRACK_ITEM
 
+// Caching related defines
+#define CACHE_SCORE_HALFLIFE 259200000
+#define CACHE_CHECK_INTERVAL 3600000
+
 // Default values, these will scale up and down when needed, and are mainly used as starting values.
 #define DEFAULT_TRACK_COUNT 4
 #define DEFAULT_FRAGMENT_COUNT 60
@@ -171,7 +175,7 @@ static inline void show_stackframe(){}
 #define RAW_FRAME_COUNT 90
 
 /// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
-#define META_META_OFFSET 147
+#define META_META_OFFSET 154
 #define META_META_RECORDSIZE 613
 
 #define META_TRACK_OFFSET 148

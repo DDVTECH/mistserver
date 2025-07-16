@@ -2,6 +2,8 @@
 #include <iostream>
 #include <mist/timing.h>
 
+Event::Loop Analyser::evLp;
+
 /// Reads configuration and opens a passed filename replacing standard input if needed.
 Analyser::Analyser(Util::Config &conf){
   validate = conf.getBool("validate");
@@ -91,6 +93,8 @@ int Analyser::run(Util::Config &conf){
 /// Sets options common to all analysers.
 /// Should generally be called by the init function of each analyser.
 void Analyser::init(Util::Config &conf){
+  evLp.setup();
+  Util::redirectLogsIfNeeded();
   JSON::Value opt;
 
   opt["arg_num"] = 1;

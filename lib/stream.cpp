@@ -468,6 +468,10 @@ JSON::Value Util::getGlobalConfig(const std::string &optionName){
     return JSON::Value();
   }
   Util::RelAccXFieldData dataField = cfgData.getFieldData(optionName);
+  if (!dataField) {
+    INFO_MSG("Global configuration field missing: %s", optionName.c_str());
+    return JSON::Value();
+  }
   switch (dataField.type & 0xF0){
   case RAX_INT:
   case RAX_UINT:
@@ -888,7 +892,7 @@ void Util::optionsToArguments(const JSON::Value conf, const JSON::Value & capa, 
 }
 
 /// Sends a message to the local UDP API port
-void Util::sendUDPApi(JSON::Value & cmd){
+void Util::sendUDPApi(const JSON::Value & cmd) {
   HTTP::URL UDPAddr(getGlobalConfig("udpApi").asStringRef());
   if (UDPAddr.protocol != "udp"){
     FAIL_MSG("Local UDP API address not defined; can't send command to MistController!");
@@ -1856,8 +1860,13 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
     MEDIUM_MSG("Would select %zu out of %zu valid tracks: %s", result.size(), validTracks.size(), selected.str().c_str());
   }
 
+  // Warn if we have valid tracks (with at least one codec) but none are selected
   if (!result.size() && validTracks.size() && capa["codecs"][bestSoFar].size()){
-    WARN_MSG("Would select no tracks (%zu total) for stream!", validTracks.size());
+    for (size_t trackIdx : validTracks) {
+      if (M.getCodec(trackIdx).empty()) continue;
+      WARN_MSG("Would select no tracks (%zu total) for stream!", validTracks.size());
+      break;
+    }
   }
   return result;
 }

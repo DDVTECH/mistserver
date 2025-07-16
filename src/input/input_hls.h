@@ -164,7 +164,7 @@ namespace Mist{
     uint64_t getPacketID(uint64_t currentPlaylist, uint64_t trackId);
     virtual void finish();
     void injectLocalVars();
-    virtual void checkHeaderTimes(const HTTP::URL & streamFile);
+    virtual bool checkHeaderTimes(const HTTP::URL & streamFile, uint64_t streamTime = 0);
     // Used to immediately mark pages for removal when we're bursting through segments on initial boot
     bool isInitialRun;
   };

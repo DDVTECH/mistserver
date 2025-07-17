@@ -118,7 +118,9 @@ namespace Controller{
   void fillActive(JSON::Value &req, JSON::Value &rep);
   void fillHasStats(JSON::Value &req, JSON::Value &rep);
   void fillTotals(JSON::Value &req, JSON::Value &rep);
-  void SharedMemStats(Util::Config *config);
+  void initStats();
+  void deinitStats();
+  size_t runStats();
   void sessions_invalidate(const std::string &streamname);
   void sessions_shutdown(JSON::Iter &i);
   void sessId_shutdown(const std::string &sessId);

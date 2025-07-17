@@ -1,21 +1,24 @@
-#include "controller_capabilities.h"
-#include "controller_limits.h"
-#include "controller_push.h"
 #include "controller_statistics.h"
+
+#include "controller_api.h"
+#include "controller_capabilities.h"
+#include "controller_push.h"
 #include "controller_storage.h"
-#include <cstdio>
-#include <fstream>
-#include <sstream>
+
 #include <mist/bitfields.h>
 #include <mist/config.h>
 #include <mist/dtsc.h>
 #include <mist/procs.h>
 #include <mist/shared_memory.h>
 #include <mist/stream.h>
-#include <mist/url.h>
-#include <sys/statvfs.h> //for fstatvfs
 #include <mist/triggers.h>
+#include <mist/url.h>
+
+#include <cstdio>
+#include <fstream>
 #include <signal.h>
+#include <sstream>
+#include <sys/statvfs.h> //for fstatvfs
 
 #ifndef KILL_ON_EXIT
 #define KILL_ON_EXIT false
@@ -382,261 +385,264 @@ void Controller::sessions_shutdown(const std::string &streamname, const std::str
            streamname.c_str(), protocol.c_str());
 }
 
+static bool shiftWrites = true;
+static bool firstRun = true;
+
+void Controller::initStats() {
+  statComm.reload(true);
+  statCommActive = true;
+  shiftWrites = true;
+  firstRun = true;
+}
+
+void Controller::deinitStats() {
+  statCommActive = false;
+  if (Util::Config::is_restarting) {
+    statComm.setMaster(false);
+  } else {
+    if (Controller::killOnExit) {
+      WARN_MSG("Killing all connected clients to force full shutdown");
+      statComm.finishAll();
+    }
+  }
+}
+
 /// This function runs as a thread and roughly once per second retrieves
 /// statistics from all connected clients, as well as wipes
 /// old statistics that have disconnected over 10 minutes ago.
-void Controller::SharedMemStats(Util::Config * config){
-  Util::nameThread("SharedMemStats");
-  HIGH_MSG("Starting stats thread");
-  statComm.reload(true);
-  statCommActive = true;
-  Controller::initState();
-  bool shiftWrites = true;
-  bool firstRun = true;
-  while (config->is_active){
-    {
-      std::ifstream cpustat("/proc/stat");
-      if (cpustat.good()){
-        char line[300];
-        while (cpustat.getline(line, 300)){
-          static uint64_t cl_total = 0, cl_idle = 0;
-          uint64_t c_user, c_nice, c_syst, c_idle, c_total;
-          if (sscanf(line, "cpu %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &c_user, &c_nice, &c_syst, &c_idle) == 4){
-            c_total = c_user + c_nice + c_syst + c_idle;
-            if (c_total > cl_total){
-              cpu_use = (uint64_t)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
-            }else{
-              cpu_use = 0;
+size_t Controller::runStats() {
+  {
+    std::ifstream cpustat("/proc/stat");
+    if (cpustat.good()) {
+      char line[300];
+      while (cpustat.getline(line, 300)) {
+        static uint64_t cl_total = 0, cl_idle = 0;
+        uint64_t c_user, c_nice, c_syst, c_idle, c_total;
+        if (sscanf(line, "cpu %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &c_user, &c_nice, &c_syst, &c_idle) == 4) {
+          c_total = c_user + c_nice + c_syst + c_idle;
+          if (c_total > cl_total) {
+            cpu_use = (uint64_t)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
+          } else {
+            cpu_use = 0;
+          }
+          cl_total = c_total;
+          cl_idle = c_idle;
+          break;
+        }
+      }
+    }
+    cpustat.close();
+  }
+  {
+    std::lock_guard<std::mutex> guard(Controller::configMutex);
+    std::lock_guard<std::recursive_mutex> guard2(statsMutex);
+    // parse current users
+    statLeadIn();
+    COMM_LOOP(statComm, statOnActive(id), statOnDisconnect(id));
+    statLeadOut();
+
+    if (firstRun) {
+      firstRun = false;
+      servUpOtherBytes = 0;
+      servDownOtherBytes = 0;
+      servUpBytes = 0;
+      servDownBytes = 0;
+      servSeconds = 0;
+      servPackSent = 0;
+      servPackLoss = 0;
+      servPackRetrans = 0;
+      for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it) {
+        it->second.upBytes = 0;
+        it->second.downBytes = 0;
+        it->second.viewSeconds = 0;
+        it->second.packSent = 0;
+        it->second.packLoss = 0;
+        it->second.packRetrans = 0;
+      }
+      Util::RelAccX *strmStats = streamsAccessor();
+      if (!strmStats || !strmStats->isReady()) { strmStats = 0; }
+      if (strmStats) {
+        uint64_t startPos = strmStats->getDeleted();
+        uint64_t endPos = strmStats->getEndPos();
+        for (uint64_t cPos = startPos; cPos < endPos; ++cPos) {
+          std::string strm = strmStats->getPointer("stream", cPos);
+          std::string tags = strmStats->getPointer("tags", cPos);
+          if (strm.size() && tags.size() && streamStats.count(strm)) {
+            INFO_MSG("Restoring stream tags: %s -> %s", strm.c_str(), tags.c_str());
+            streamTotals & st = streamStats[strm];
+            while (tags.size()) {
+              size_t endPos = tags.find(' ');
+              if (!endPos) {
+                // extra space, ignore
+                tags.erase(0, 1);
+                continue;
+              }
+              if (endPos == std::string::npos) { endPos = tags.size(); }
+              st.tags.insert(tags.substr(0, endPos));
+              if (endPos == tags.size()) { break; }
+              tags.erase(0, endPos + 1);
             }
-            cl_total = c_total;
-            cl_idle = c_idle;
+          }
+        }
+      }
+    }
+    unsigned int tOut = Util::bootSecs() - STATS_DELAY;
+    unsigned int tIn = Util::bootSecs() - STATS_INPUT_DELAY;
+    auto oldStreamStats = streamStats;
+    if (streamStats.size()) {
+      for (auto & it : streamStats) {
+        it.second.currViews = 0;
+        it.second.currIns = 0;
+        it.second.currOuts = 0;
+        it.second.currUnspecified = 0;
+        it.second.currSessions = 0;
+      }
+    }
+    // wipe old statistics and set session type counters
+    if (sessions.size()) {
+      std::list<std::string> mustWipe;
+      // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
+      // Prevents wrapping around to high values close to system boot time.
+      uint64_t cutOffPoint = Util::bootSecs();
+      if (cutOffPoint > STAT_CUTOFF) {
+        cutOffPoint -= STAT_CUTOFF;
+      } else {
+        cutOffPoint = 0;
+      }
+      for (auto & it : sessions) {
+        std::string strm = it.second.getStreamName();
+        if (strm.size()) { streamStats[strm].currSessions++; }
+        // This part handles ending sessions, keeping them in cache for now
+        if (it.second.getEnd() < cutOffPoint) {
+          viewSecondsTotal += it.second.getConnTime();
+          mustWipe.push_back(it.first);
+          // Don't count this session as a viewer
+          continue;
+        }
+        if (strm.size()) {
+          // Recount input, output and viewer type sessions
+          switch (it.second.getSessType()) {
+            case SESS_UNSET: break;
+            case SESS_VIEWER:
+              if (it.second.hasDataFor(tOut)) { streamStats[it.second.getStreamName()].currViews++; }
+              servSeconds += it.second.getConnTime();
+              break;
+            case SESS_INPUT:
+              if (it.second.hasDataFor(tIn)) { streamStats[it.second.getStreamName()].currIns++; }
+              break;
+            case SESS_OUTPUT:
+              if (it.second.hasDataFor(tOut)) { streamStats[it.second.getStreamName()].currOuts++; }
+              break;
+            case SESS_UNSPECIFIED:
+              if (it.second.hasDataFor(tOut)) { streamStats[it.second.getStreamName()].currUnspecified++; }
+              break;
+          }
+        }
+      }
+      while (mustWipe.size()) {
+        sessions.erase(mustWipe.front());
+        mustWipe.pop_front();
+      }
+    }
+    Util::RelAccX *strmStats = streamsAccessor();
+    if (!strmStats || !strmStats->isReady()) { strmStats = 0; }
+    uint64_t strmPos = 0;
+    if (strmStats) {
+      if (shiftWrites || (strmStats->getEndPos() - strmStats->getDeleted() != streamStats.size())) {
+        shiftWrites = true;
+        strmPos = strmStats->getEndPos();
+      } else {
+        strmPos = strmStats->getDeleted();
+      }
+    }
+    std::set<std::string> inactiveStreams;
+    if (streamStats.size()) {
+      for (auto & it : streamStats) {
+        // Ignore blank stream name; these are generic and we don't track stream status for them
+        if (it.first.size()) {
+          uint8_t newState = Util::getStreamStatus(it.first);
+          uint8_t oldState = it.second.status;
+          if (newState != oldState) {
+            it.second.status = newState;
+            if (newState == STRMSTAT_READY) {
+              streamStarted(it.first);
+            } else {
+              if (oldState == STRMSTAT_READY) { streamStopped(it.first); }
+            }
+          }
+          // No active sessions? Mark it as inactive for cleanup.
+          if (!it.second.currSessions) { inactiveStreams.insert(it.first); }
+        }
+        std::string tags;
+        if (it.second.tags.size()) {
+          for (auto & t : it.second.tags) {
+            if (tags.size()) { tags += " "; }
+            tags += t;
+          }
+        }
+        if (strmStats) {
+          if (shiftWrites) { strmStats->setString("stream", it.first, strmPos); }
+          strmStats->setInt("status", it.second.status, strmPos);
+          strmStats->setInt("viewers", it.second.currViews, strmPos);
+          strmStats->setInt("inputs", it.second.currIns, strmPos);
+          strmStats->setInt("outputs", it.second.currOuts, strmPos);
+          strmStats->setInt("unspecified", it.second.currUnspecified, strmPos);
+          strmStats->setString("tags", tags, strmPos);
+          ++strmPos;
+        }
+        // If stats haven't changed, don't callStreams
+        if (oldStreamStats.count(it.first)) {
+          streamTotals & O = oldStreamStats[it.first];
+          if (O.status == it.second.status && O.currViews == it.second.currViews && O.currIns == it.second.currIns &&
+              O.currOuts == it.second.currOuts) {
+            continue;
+          }
+        }
+        // Otherwise, do callStreams
+        callStreams(it.first, it.second.status, it.second.currViews, it.second.currIns, it.second.currOuts, tags);
+      }
+    }
+    if (tagQueue.size()) {
+      bool updatedTagQueue = true;
+      while (updatedTagQueue) {
+        updatedTagQueue = false;
+        for (std::map<std::string, tagQueueItem>::iterator it = tagQueue.begin(); it != tagQueue.end(); ++it) {
+          if (it->second.lastChange + 60 < Util::bootSecs()) {
+            WARN_MSG("Erasing %zu not-applied tags for offline stream %s since it did not show up for a minute",
+                     it->second.tags.size(), it->first.c_str());
+            tagQueue.erase(it);
+            updatedTagQueue = true;
             break;
           }
         }
       }
-      cpustat.close();
     }
-    {
-      std::lock_guard<std::mutex> guard(Controller::configMutex);
-      std::lock_guard<std::recursive_mutex> guard2(statsMutex);
-      // parse current users
-      statLeadIn();
-      COMM_LOOP(statComm, statOnActive(id), statOnDisconnect(id));
-      statLeadOut();
-
-      if (firstRun){
-        firstRun = false;
-        servUpOtherBytes = 0;
-        servDownOtherBytes = 0;
-        servUpBytes = 0;
-        servDownBytes = 0;
-        servSeconds = 0;
-        servPackSent = 0;
-        servPackLoss = 0;
-        servPackRetrans = 0;
-        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
-             it != streamStats.end(); ++it){
-          it->second.upBytes = 0;
-          it->second.downBytes = 0;
-          it->second.viewSeconds = 0;
-          it->second.packSent = 0;
-          it->second.packLoss = 0;
-          it->second.packRetrans = 0;
-        }
-        Util::RelAccX *strmStats = streamsAccessor();
-        if (!strmStats || !strmStats->isReady()){strmStats = 0;}
-        if (strmStats){
-          uint64_t startPos = strmStats->getDeleted();
-          uint64_t endPos = strmStats->getEndPos();
-          for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
-            std::string strm = strmStats->getPointer("stream", cPos);
-            std::string tags = strmStats->getPointer("tags", cPos);
-            if (strm.size() && tags.size() && streamStats.count(strm)){
-              INFO_MSG("Restoring stream tags: %s -> %s", strm.c_str(), tags.c_str());
-              streamTotals & st = streamStats[strm];
-              while (tags.size()){
-                size_t endPos = tags.find(' ');
-                if (!endPos){
-                  //extra space, ignore
-                  tags.erase(0, 1);
-                  continue;
-                }
-                if (endPos == std::string::npos){endPos = tags.size();}
-                st.tags.insert(tags.substr(0, endPos));
-                if (endPos == tags.size()){break;}
-                tags.erase(0, endPos+1);
-              }
-            }
-          }
-        }
-      }
-      unsigned int tOut = Util::bootSecs() - STATS_DELAY;
-      unsigned int tIn = Util::bootSecs() - STATS_INPUT_DELAY;
-      if (streamStats.size()){
-        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
-             it != streamStats.end(); ++it){
-          it->second.currViews = 0;
-          it->second.currIns = 0;
-          it->second.currOuts = 0;
-          it->second.currUnspecified = 0;
-          it->second.currSessions = 0;
-        }
-      }
-      // wipe old statistics and set session type counters
-      if (sessions.size()){
-        std::list<std::string> mustWipe;
-        // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
-        // Prevents wrapping around to high values close to system boot time.
-        uint64_t cutOffPoint = Util::bootSecs();
-        if (cutOffPoint > STAT_CUTOFF){
-          cutOffPoint -= STAT_CUTOFF;
-        }else{
-          cutOffPoint = 0;
-        }
-        for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-          std::string strm = it->second.getStreamName();
-          if (strm.size()){streamStats[strm].currSessions++;}
-          // This part handles ending sessions, keeping them in cache for now
-          if (it->second.getEnd() < cutOffPoint){
-            viewSecondsTotal += it->second.getConnTime();
-            mustWipe.push_back(it->first);
-            // Don't count this session as a viewer
-            continue;
-          }
-          if (strm.size()){
-            // Recount input, output and viewer type sessions
-            switch (it->second.getSessType()){
-            case SESS_UNSET: break;
-            case SESS_VIEWER:
-              if (it->second.hasDataFor(tOut)){
-                streamStats[it->second.getStreamName()].currViews++;
-              }
-              servSeconds += it->second.getConnTime();
-              break;
-            case SESS_INPUT:
-              if (it->second.hasDataFor(tIn)){
-                streamStats[it->second.getStreamName()].currIns++;
-              }
-              break;
-            case SESS_OUTPUT:
-              if (it->second.hasDataFor(tOut)){
-                streamStats[it->second.getStreamName()].currOuts++;
-              }
-              break;
-            case SESS_UNSPECIFIED:
-              if (it->second.hasDataFor(tOut)){
-                streamStats[it->second.getStreamName()].currUnspecified++;
-              }
-              break;
-            }
-          }
-        }
-        while (mustWipe.size()){
-          sessions.erase(mustWipe.front());
-          mustWipe.pop_front();
-        }
-      }
-      Util::RelAccX *strmStats = streamsAccessor();
-      if (!strmStats || !strmStats->isReady()){strmStats = 0;}
-      uint64_t strmPos = 0;
-      if (strmStats){
-        if (shiftWrites || (strmStats->getEndPos() - strmStats->getDeleted() != streamStats.size())){
-          shiftWrites = true;
-          strmPos = strmStats->getEndPos();
-        }else{
-          strmPos = strmStats->getDeleted();
-        }
-      }
-      std::set<std::string> inactiveStreams;
-      if (streamStats.size()){
-        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
-             it != streamStats.end(); ++it){
-          // Ignore blank stream name; these are generic and we don't track stream status for them
-          if (it->first.size()){
-            uint8_t newState = Util::getStreamStatus(it->first);
-            uint8_t oldState = it->second.status;
-            if (newState != oldState){
-              it->second.status = newState;
-              if (newState == STRMSTAT_READY){
-                streamStarted(it->first);
-              }else{
-                if (oldState == STRMSTAT_READY){streamStopped(it->first);}
-              }
-            }
-            // No active sessions? Mark it as inactive for cleanup.
-            if (!it->second.currSessions){inactiveStreams.insert(it->first);}
-          }
-          if (strmStats){
-            if (shiftWrites){strmStats->setString("stream", it->first, strmPos);}
-            strmStats->setInt("status", it->second.status, strmPos);
-            strmStats->setInt("viewers", it->second.currViews, strmPos);
-            strmStats->setInt("inputs", it->second.currIns, strmPos);
-            strmStats->setInt("outputs", it->second.currOuts, strmPos);
-            strmStats->setInt("unspecified", it->second.currUnspecified, strmPos);
-            if (it->second.tags.size()){
-              std::string tags;
-              for (std::set<std::string>::iterator jt = it->second.tags.begin(); jt != it->second.tags.end(); ++jt){
-                if (tags.size()){tags += " ";}
-                tags += *jt;
-              }
-              strmStats->setString("tags", tags, strmPos);
-            }else{
-              strmStats->setString("tags", "", strmPos);
-            }
-            ++strmPos;
-          }
-        }
-      }
-      if (tagQueue.size()){
-        bool updatedTagQueue = true;
-        while (updatedTagQueue){
-          updatedTagQueue = false;
-          for (std::map<std::string, tagQueueItem>::iterator it = tagQueue.begin(); it != tagQueue.end(); ++it){
-            if (it->second.lastChange + 60 < Util::bootSecs()){
-              WARN_MSG("Erasing %zu not-applied tags for offline stream %s since it did not show up for a minute", it->second.tags.size(), it->first.c_str());
-              tagQueue.erase(it);
-              updatedTagQueue = true;
-              break;
-            }
-          }
-        }
-      }
-      if (strmStats && shiftWrites){
-        shiftWrites = false;
-        uint64_t prevEnd = strmStats->getEndPos();
-        strmStats->setEndPos(strmPos);
-        strmStats->setDeleted(prevEnd);
-      }
-      while (inactiveStreams.size()){
-        const std::string & streamName = *inactiveStreams.begin();
-        const streamTotals & stats = streamStats.at(streamName);
-        if(Triggers::shouldTrigger("STREAM_END", streamName)){
-          std::stringstream payload;
-          payload << streamName+"\n" << stats.downBytes << "\n" << stats.upBytes << "\n" << stats.viewers << "\n" << stats.inputs << "\n" << stats.outputs << "\n" << stats.viewSeconds;
-          Triggers::doTrigger("STREAM_END", payload.str(), streamName);
-        }
-        streamStats.erase(streamName);
-        inactiveStreams.erase(inactiveStreams.begin());
-        shiftWrites = true;
-      }
-      /*LTS-START*/
-      Controller::checkServerLimits();
-      /*LTS-END*/
+    if (strmStats && shiftWrites) {
+      shiftWrites = false;
+      uint64_t prevEnd = strmStats->getEndPos();
+      strmStats->setEndPos(strmPos);
+      strmStats->setDeleted(prevEnd);
     }
-    Util::wait(1000);
+    while (inactiveStreams.size()) {
+      const std::string & streamName = *inactiveStreams.begin();
+      const streamTotals & stats = streamStats.at(streamName);
+      if (Triggers::shouldTrigger("STREAM_END", streamName)) {
+        std::stringstream payload;
+        payload << streamName + "\n"
+                << stats.downBytes << "\n"
+                << stats.upBytes << "\n"
+                << stats.viewers << "\n"
+                << stats.inputs << "\n"
+                << stats.outputs << "\n"
+                << stats.viewSeconds;
+        Triggers::doTrigger("STREAM_END", payload.str(), streamName);
+      }
+      streamStats.erase(streamName);
+      inactiveStreams.erase(inactiveStreams.begin());
+      shiftWrites = true;
+    }
   }
-  statCommActive = false;
-  HIGH_MSG("Stopping stats thread");
-  if (Util::Config::is_restarting){
-    statComm.setMaster(false);
-  }else{/*LTS-START*/
-    if (Controller::killOnExit){
-      WARN_MSG("Killing all connected clients to force full shutdown");
-      statComm.finishAll();
-    }
-    /*LTS-END*/
-  }
-  Controller::deinitState(Util::Config::is_restarting);
+  return 1000;
 }
 
 /// Gets a complete list of all streams currently in active state, with optional stream matching
@@ -821,7 +827,7 @@ void Controller::statSession::finish(){
                 << ") from " << host << " ended after " << duration << "s, avg "
                 << getUp() / duration / 1024 << "KB/s up " << getDown() / duration / 1024 << "KB/s down.";
       if (tags.size()){accessStr << " Tags: " << tagStream.str();}
-      Controller::Log("ACCS", accessStr.str());
+      LOG_MSG("ACCS", "%s", accessStr.str().c_str());
     }else{
       static std::ofstream accLogFile;
       static std::string accLogFileName;

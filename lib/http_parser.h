@@ -24,7 +24,7 @@ namespace HTTP{
   class Parser{
   public:
     Parser();
-    bool Read(Socket::Connection &conn, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool Read(Socket::Connection & conn, std::function<void(const char *, size_t)> onData = 0);
     bool Read(std::string &strbuf);
     const std::string &GetHeader(const std::string &i) const;
     bool hasHeader(const std::string &i) const;
@@ -60,9 +60,9 @@ namespace HTTP{
     std::string method;
     std::string url;
     std::string protocol;
-    unsigned int length;
+    size_t length;
     bool knownLength;
-    unsigned int currentLength;
+    size_t currentLength;
     bool headerOnly; ///< If true, do not parse body if the length is a known size.
     bool bufferChunks;
     // this bool was private
@@ -76,7 +76,7 @@ namespace HTTP{
     bool getChunks;
     bool possiblyComplete;
     unsigned int doingChunk;
-    bool parse(std::string &HTTPbuffer, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool parse(std::string & HTTPbuffer, std::function<void(const char *, size_t)> onData = 0);
     std::string builder;
     std::string read_buffer;
     std::map<std::string, std::string> headers;

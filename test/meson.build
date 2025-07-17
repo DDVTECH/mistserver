@@ -1,7 +1,6 @@
 
 # Testing binaries that are not unit tests, but intended for manual use
 convertertest = executable('convertertest', 'converter.cpp', header_tgts, dependencies: libmist_dep)
-downloadertest = executable('downloadertest', 'downloader.cpp', header_tgts, dependencies: libmist_dep)
 urireadertest = executable('urireadertest', 'urireader.cpp', header_tgts, dependencies: libmist_dep)
 jsontest = executable('jsontest', 'json.cpp', header_tgts, dependencies: libmist_dep)
 resolvetest = executable('resolvetest', 'resolve.cpp', header_tgts, dependencies: libmist_dep)
@@ -12,6 +11,10 @@ websockettest = executable('websockettest', 'websocket.cpp', header_tgts, depend
 
 # Actual unit tests
 test('Redirecting log messages produces no error', exec_tgts.get('MistUtilLog'), suite:'Logs', args: ['BadBinary'], should_fail: true)
+
+downloadertest = executable('downloadertest', 'downloader.cpp', header_tgts, dependencies: libmist_dep)
+test('event-looped non-blocking', downloadertest, args: ['AUTO'], env: {'EVENTLOOP':'1'}, suite: 'Downloader')
+test('blocking', downloadertest, args: ['AUTO'], suite: 'Downloader')
 
 sockbuftest = executable('sockbuftest', 'socketbuffer.cpp', header_tgts, dependencies: libmist_dep)
 test('Socket buffer test 8KiB', sockbuftest, args: ['1024'])

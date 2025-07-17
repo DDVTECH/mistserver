@@ -10,7 +10,9 @@ static const std::string emptyString;
 namespace HTTP{
 
   Downloader::Downloader(){
-    progressCallback = 0;
+    evLoop = 0;
+    nbBlocking = false;
+    resetEventVars();
     connectedPort = 0;
     dataTimeout = 5;
     retryCount = 5;
@@ -79,10 +81,12 @@ namespace HTTP{
   }
 
   void Downloader::clean(){
+    resetEventVars();
+    nbBlocking = false;
     H.headerOnly = false;
     H.Clean();
-    getSocket().close();
-    getSocket().Received().clear();
+    S.close();
+    S.Received().clear();
     extraHeaders.clear();
   }
 
@@ -91,7 +95,10 @@ namespace HTTP{
     sPtr = socketPtr;
   }
 
-  Downloader::~Downloader(){S.close();}
+  Downloader::~Downloader() {
+    resetEventVars();
+    S.close();
+  }
 
   /// Prepares a request for the given URL, does not send anything
   void Downloader::prepareRequest(const HTTP::URL & link, const std::string & method, Socket::Connection & conn) {
@@ -106,9 +113,9 @@ namespace HTTP{
         connectedHost = link.host;
         connectedPort = link.getPort();
 #ifdef SSL
-        conn.open(connectedHost, connectedPort, true, needSSL);
+        conn.open(connectedHost, connectedPort, !nbBlocking, needSSL);
 #else
-        conn.open(connectedHost, connectedPort, true);
+        conn.open(connectedHost, connectedPort, !nbBlocking);
 #endif
       }
     }else{
@@ -117,7 +124,7 @@ namespace HTTP{
         conn.Received().clear();
         connectedHost = proxyUrl.host;
         connectedPort = proxyUrl.getPort();
-        conn.open(connectedHost, connectedPort, true);
+        conn.open(connectedHost, connectedPort, !nbBlocking);
       }
     }
     ssl = needSSL;
@@ -187,12 +194,10 @@ namespace HTTP{
       while (getSocket() && Util::bootMS() < reqTime + dataTimeout*1000){
         // No data? Wait for a second or so.
         if (!getSocket().spool()){
-          if (progressCallback != 0){
-            if (!progressCallback()){
-              WARN_MSG("Download aborted by callback");
-              clean();
-              return false;
-            }
+          if (progressCallback && !progressCallback()) {
+            WARN_MSG("Download aborted by callback");
+            clean();
+            return false;
           }
           Util::sleep(25);
           continue;
@@ -227,12 +232,10 @@ namespace HTTP{
         }
         // reset the data timeout
         if (reqTime+1000 < Util::bootMS()){
-          if (progressCallback != 0){
-            if (!progressCallback()){
-              WARN_MSG("Download aborted by callback");
-              clean();
-              return false;
-            }
+          if (progressCallback && !progressCallback()) {
+            WARN_MSG("Download aborted by callback");
+            clean();
+            return false;
           }
           if (getSocket().dataDown() > lastOff + 25600){
             reqTime = Util::bootMS();
@@ -257,8 +260,7 @@ namespace HTTP{
     return false;
   }
 
-  bool Downloader::getRangeNonBlocking(const HTTP::URL &link, size_t byteStart, size_t byteEnd,
-                                       Util::DataCallback &cb){
+  bool Downloader::getRangeNonBlocking(const HTTP::URL & link, size_t byteStart, size_t byteEnd) {
     char tmp[32];
     if (byteEnd <= 0){// get range from byteStart til eof
       sprintf(tmp, "bytes=%zu-", byteStart);
@@ -293,15 +295,88 @@ namespace HTTP{
 
   /// Downloads the given URL into 'H', returns true on success.
   /// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
-  bool Downloader::get(const HTTP::URL &link, uint8_t maxRecursiveDepth, Util::DataCallback &cb){
-    if (!getNonBlocking(link, maxRecursiveDepth)){return false;}
+  bool Downloader::get(const HTTP::URL & link, uint8_t maxRecursiveDepth, Util::DataCallback & cb) {
+    return get(link, [&cb]() { return cb.getDataCallbackPos(); },
+               [&cb](const char *ptr, size_t len) { cb.dataCallback(ptr, len); }, maxRecursiveDepth);
+  }
 
-    while (!continueNonBlocking(cb)){Util::sleep(100);}
+  bool Downloader::get(const HTTP::URL & link, std::function<size_t()> resumePos,
+                       std::function<void(const char *, size_t)> onData, uint8_t maxRecursiveDepth) {
+    if (!getNonBlocking(link, maxRecursiveDepth)) { return false; }
 
-    if (isComplete){return true;}
+    nbBlocking = getSocket().isBlocking();
+    getSocket().setBlocking(true);
+    while (!continueNonBlocking(resumePos, onData)) {}
+    getSocket().setBlocking(nbBlocking);
+
+    if (isComplete) { return true; }
 
     FAIL_MSG("Could not retrieve %s", link.getUrl().c_str());
     return false;
+  }
+
+  /// Downloads the given URL into 'H', returns true on success.
+  void Downloader::getEventLooped(Event::Loop & E, const HTTP::URL & link, uint8_t maxRecursiveDepth,
+                                  std::function<void()> success, std::function<void()> failure,
+                                  std::function<size_t()> resumePos, std::function<void(const char *, size_t)> onData) {
+    if (!getNonBlocking(link, maxRecursiveDepth)) {
+      failure();
+      return;
+    }
+    evSuccess = success;
+    evFailure = failure;
+    if (resumePos && onData) {
+      evResumePos = resumePos;
+      evOnData = onData;
+    } else {
+      evResumePos = [this]() { return H.body.size(); };
+      evOnData = [this](const char *ptr, size_t len) { H.body.append(ptr, len); };
+    }
+    evLoop = &E;
+    evTimerNo = E.addInterval([this]() {
+      continueEventLooped();
+      return evLoop ? 250 : 0;
+    }, 250);
+    evSockNo = getSocket().getSocket();
+    if (evSockNo != -1) {
+      E.remove(evSockNo);
+      E.addSocket(evSockNo, [this](void *) { continueEventLooped(); }, 0);
+    }
+  }
+
+  void Downloader::continueEventLooped() {
+    if (continueNonBlocking(evResumePos, evOnData)) {
+      if (isComplete) {
+        evSuccess();
+      } else {
+        evFailure();
+      }
+      resetEventVars();
+      return;
+    }
+    int newSock = getSocket().getSocket();
+    if (newSock != evSockNo) {
+      if (evSockNo != -1) {
+        evLoop->remove(evSockNo);
+        evSockNo = -1;
+      }
+      evSockNo = newSock;
+      if (evSockNo != -1) {
+        evLoop->addSocket(evSockNo, [this](void *) { continueEventLooped(); }, 0);
+      }
+    }
+  }
+
+  void Downloader::resetEventVars() {
+    if (evLoop) {
+      if (evSockNo != -1) { evLoop->remove(evSockNo); }
+      if (evTimerNo != -1) { evLoop->removeInterval(evTimerNo); }
+    }
+    evLoop = 0;
+    evSuccess = 0;
+    evFailure = 0;
+    evSockNo = -1;
+    evTimerNo = -1;
   }
 
   // prepare a request to be handled in a nonblocking fashion by the continueNonbBocking()
@@ -324,13 +399,12 @@ namespace HTTP{
 
   // continue handling a request, originally set up by the getNonBlocking() function
   // returns true if the request is complete
-  bool Downloader::continueNonBlocking(Util::DataCallback &cb){
+  bool Downloader::continueNonBlocking(std::function<size_t()> resumePos, std::function<void(const char *, size_t)> onData) {
     while (true){
       if (!getSocket() && !isComplete){
         if (nbLoop < 2){
-          FAIL_MSG("Exceeded retry limit while retrieving %s (%zu/%" PRIu32 ")",
-                   nbLink.getUrl().c_str(), retryCount - nbLoop + 1, retryCount);
-          Util::sleep(100);
+          FAIL_MSG("Exceeded retry limit while retrieving %s (%zu/%" PRIu32 ")", nbLink.getUrl().c_str(),
+                   retryCount - nbLoop + 1, retryCount);
           return true;
         }
         nbLoop--;
@@ -348,7 +422,7 @@ namespace HTTP{
         }
 
         if (H.hasHeader("Accept-Ranges") && getHeader("Accept-Ranges").size() > 0){
-          getRangeNonBlocking(nbLink, cb.getDataCallbackPos(), 0, cb);
+          getRangeNonBlocking(nbLink, resumePos(), 0);
           continue;
         }else{
           prepareRequest(nbLink, "", getSocket());
@@ -362,11 +436,9 @@ namespace HTTP{
 
       // No data? Return false to indicate retry later.
       if (!getSocket().spool() && getSocket()){
-        if (progressCallback != 0){
-          if (!progressCallback()){
-            WARN_MSG("Download aborted by callback");
-            return true;
-          }
+        if (progressCallback && !progressCallback()) {
+          WARN_MSG("Download aborted by callback");
+          return true;
         }
         if (Util::bootSecs() >= nbReqTime + dataTimeout){
           FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", nbLink.getUrl().c_str(),
@@ -379,11 +451,9 @@ namespace HTTP{
 
       // Reset the data timeout
       if (nbReqTime != Util::bootSecs()){
-        if (progressCallback != 0){
-          if (!progressCallback()){
-            WARN_MSG("Download aborted by callback");
-            return true;
-          }
+        if (progressCallback && !progressCallback()) {
+          WARN_MSG("Download aborted by callback");
+          return true;
         }
         if (getSocket().dataDown() > nbLastOff + 25600){
           nbReqTime = Util::bootSecs();
@@ -392,7 +462,7 @@ namespace HTTP{
       }
 
       //Attempt to parse the data we received
-      if (H.Read(getSocket(), cb)){
+      if (H.Read(getSocket(), onData)) {
         if (shouldContinue()){
           if (nbMaxRecursiveDepth == 0){
             FAIL_MSG("Maximum recursion depth reached");
@@ -472,12 +542,10 @@ namespace HTTP{
       while (s && Util::bootMS() < reqTime + dataTimeout*1000){
         // No data? Wait for a second or so.
         if (!s.spool()){
-          if (progressCallback != 0){
-            if (!progressCallback()){
-              WARN_MSG("Download aborted by callback");
-              s.close();
-              return false;
-            }
+          if (progressCallback && !progressCallback()) {
+            WARN_MSG("Download aborted by callback");
+            s.close();
+            return false;
           }
           Util::sleep(25);
           continue;
@@ -503,13 +571,13 @@ namespace HTTP{
         }
         // reset the data timeout
         if (reqTime+1000 < Util::bootMS()){
-          if (progressCallback != 0){
-            if (!progressCallback()){
-              uint64_t postresponse = Util::getMicros();
-              WARN_MSG("Post to %s aborted by callback after %.2f ms (%.2f ms upload, %.2f ms wait, %.2f ms download)", link.getUrl().c_str(), (postresponse-prerequest)/1000.0, (postrequest-prerequest)/1000.0, (preresponse-postrequest)/1000.0, (postresponse-preresponse)/1000.0);
-              s.close();
-              return false;
-            }
+          if (progressCallback && !progressCallback()) {
+            uint64_t postresponse = Util::getMicros();
+            WARN_MSG("Post to %s aborted by callback after %.2f ms (%.2f ms upload, %.2f ms wait, %.2f ms download)",
+                     link.getUrl().c_str(), (postresponse - prerequest) / 1000.0, (postrequest - prerequest) / 1000.0,
+                     (preresponse - postrequest) / 1000.0, (postresponse - preresponse) / 1000.0);
+            s.close();
+            return false;
           }
           if (s.dataDown() > lastOff + 25600){
             reqTime = Util::bootMS();

@@ -222,7 +222,7 @@ namespace Controller{
   }
 
   /// Reads the list of pushes from a pointer, assumed to end in four zeroes
-  void readPushList(){
+  void initPushCheck() {
     size_t recoverCount = 0;
     {
       std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
@@ -367,96 +367,94 @@ namespace Controller{
     return true;
   }
 
-  /// Loops, checking every second if any pushes need restarting.
-  void pushCheckLoop(){
-    Util::nameThread("pushCheckLoop");
-    IPC::sharedPage pushPage("/MstPush", 8 * 1024 * 1024, true, false);
-    while (Controller::conf.is_active){
-      // this scope prevents the configMutex from being locked constantly
-      {
-        std::lock_guard<std::mutex> guard(Controller::configMutex);
-        long long maxspeed = Controller::Storage["push_settings"]["maxspeed"].asInt();
-        long long waittime = Controller::Storage["push_settings"]["wait"].asInt();
-        long long curCount = 0;
-        jsonForEach(Controller::Storage["auto_push"], it){
-          // Ignore invalid entries
-          if (!it->isMember("stream") || !it->isMember("target")){continue;}
+  static IPC::sharedPage pushPage;
 
-          std::string stream = (*it)["stream"].asStringRef();
-          std::string target = (*it)["target"].asStringRef();
-          // Stop any auto pushes which have an elapsed end time
-          if (it->isMember("completetime") && (*it)["completetime"].asInt() < Util::epoch()){
-            INFO_MSG("Deleting autopush %s because end time passed", it.key().c_str());
-            stopActivePushes(stream, target);
-            removePush(it.key());
-            break;
-          }
-          // Stop any active push if conditions are not met
-          if (!checkPush(*it)){
-            if (isPushActive(stream, target)){
-              MEDIUM_MSG("Conditions of push %s evaluate to false. Stopping push...", it.key().c_str());
-              stopActivePushes(stream, target);
-            }
-            continue;
-          }
-          // We can continue if it is already running
-          if (isPushActive(stream, target)){continue;}
-          // Start the push if conditions are met
-          if (waittime || it->isMember("scheduletime")){
-            std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
-            if (activeStreams.size()){
-              for (std::set<std::string>::iterator jt = activeStreams.begin();
-                    jt != activeStreams.end(); ++jt){
-                std::string streamname = *jt;
-                if (!isPushActive(streamname, target)){
-                  if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)){
-                    waitingPushes[streamname].erase(target);
-                    if (!waitingPushes[streamname].size()){waitingPushes.erase(streamname);}
-                    MEDIUM_MSG("Conditions of push \"%s\" evaluate to true. Starting push...", it.key().c_str());
-                    std::string tmpTarget = target;
-                    startPush(streamname, tmpTarget);
-                    curCount++;
-                    // If no end time is given but there is a start time, remove the push after starting it
-                    if (it->isMember("scheduletime") && !it->isMember("completetime")){
-                      removePush(*it);
-                      break;
-                    }
-                  }
+  void deinitPushCheck() {
+    // keep the pushPage if we are restarting, so we can restore state from it
+    if (Util::Config::is_restarting) {
+      pushPage.master = false;
+      // forget about all pushes, so they keep running
+      std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
+      for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it) {
+        Util::Procs::forget(it->first);
+      }
+    }
+  }
+
+  /// Loops, checking every second if any pushes need restarting.
+  size_t runPushCheck() {
+    std::lock_guard<std::mutex> guard(Controller::configMutex);
+    long long maxspeed = Controller::Storage["push_settings"]["maxspeed"].asInt();
+    long long waittime = Controller::Storage["push_settings"]["wait"].asInt();
+    long long curCount = 0;
+    jsonForEach (Controller::Storage["auto_push"], it) {
+      // Ignore invalid entries
+      if (!it->isMember("stream") || !it->isMember("target")) { continue; }
+
+      std::string stream = (*it)["stream"].asStringRef();
+      std::string target = (*it)["target"].asStringRef();
+      // Stop any auto pushes which have an elapsed end time
+      if (it->isMember("completetime") && (*it)["completetime"].asInt() < Util::epoch()) {
+        INFO_MSG("Deleting autopush %s because end time passed", it.key().c_str());
+        stopActivePushes(stream, target);
+        removePush(it.key());
+        break;
+      }
+      // Stop any active push if conditions are not met
+      if (!checkPush(*it)) {
+        if (isPushActive(stream, target)) {
+          MEDIUM_MSG("Conditions of push %s evaluate to false. Stopping push...", it.key().c_str());
+          stopActivePushes(stream, target);
+        }
+        continue;
+      }
+      // We can continue if it is already running
+      if (isPushActive(stream, target)) { continue; }
+      // Start the push if conditions are met
+      if (waittime || it->isMember("scheduletime")) {
+        std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
+        if (activeStreams.size()) {
+          for (std::set<std::string>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt) {
+            std::string streamname = *jt;
+            if (!isPushActive(streamname, target)) {
+              if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)) {
+                waitingPushes[streamname].erase(target);
+                if (!waitingPushes[streamname].size()) { waitingPushes.erase(streamname); }
+                MEDIUM_MSG("Conditions of push \"%s\" evaluate to true. Starting push...", it.key().c_str());
+                std::string tmpTarget = target;
+                startPush(streamname, tmpTarget);
+                curCount++;
+                // If no end time is given but there is a start time, remove the push after starting it
+                if (it->isMember("scheduletime") && !it->isMember("completetime")) {
+                  removePush(*it);
+                  break;
                 }
               }
             }
           }
         }
-        //Check if any pushes have ended, clean them up
-        std::set<pid_t> toWipe;
-        {
-          std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
-          for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
-            if (!Util::Procs::isActive(it->first)){toWipe.insert(it->first);}
-          }
-        }
-        while (toWipe.size()){
-          removeActivePush(*toWipe.begin());
-          toWipe.erase(toWipe.begin());
-          mustWritePushList = true;
-        }
-        //write push list to shared memory, for restarting/crash recovery/etc
-        if (mustWritePushList && pushPage.mapped){
-          writePushList(pushPage.mapped);
-          mustWritePushList = false;
-        }
       }
-      Util::wait(1000); // wait at least a second
     }
-    // keep the pushPage if we are restarting, so we can restore state from it
-    if (Util::Config::is_restarting){
-      pushPage.master = false;
-      // forget about all pushes, so they keep running
+    // Check if any pushes have ended, clean them up
+    std::set<pid_t> toWipe;
+    {
       std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
-        Util::Procs::forget(it->first);
+        if (!Util::Procs::isActive(it->first)) { toWipe.insert(it->first); }
       }
     }
+    while (toWipe.size()) {
+      removeActivePush(*toWipe.begin());
+      toWipe.erase(toWipe.begin());
+      mustWritePushList = true;
+    }
+    // write push list to shared memory, for restarting/crash recovery/etc
+    if (!pushPage) { pushPage.init("/MstPush", 8 * 1024 * 1024, true, false); }
+    if (mustWritePushList && pushPage.mapped) {
+      writePushList(pushPage.mapped);
+      mustWritePushList = false;
+    }
+    return 1000;
   }
 
   /// Gives a list of all currently active pushes

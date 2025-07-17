@@ -1,6 +1,8 @@
 #pragma once
 #include "defines.h"
+
 #include <deque>
+#include <functional>
 #include <map>
 #include <stdint.h>
 #include <stdlib.h>
@@ -84,8 +86,9 @@ namespace Util{
     bool ro;
   };
 
-  void logParser(int in, int out, bool colored,
-                 void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool) = 0);
+  void logParser(
+    int in, int out, bool colored,
+    std::function<void(const std::string &, const std::string &, const std::string &, uint64_t, const std::string &, const std::string &)> callback = 0);
   void redirectLogsIfNeeded();
   pid_t startConverted(const std::deque<std::string> & args, Socket::Connection & conn);
   void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid);

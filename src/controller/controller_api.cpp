@@ -1,13 +1,15 @@
 #include "controller_api.h"
+
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
+#include "controller_external_writers.h"
+#include "controller_push.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
-#include "controller_external_writers.h"
-#include <dirent.h> //for browse API call
-#include <fstream>
-#include <sstream>
+#include "controller_updater.h"
+#include "controller_variables.h"
+
 #include <mist/auth.h>
 #include <mist/bitfields.h>
 #include <mist/config.h>
@@ -17,14 +19,104 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/url.h>
-#include <sys/stat.h> //for browse API call
-/*LTS-START*/
-#include "controller_limits.h"
-#include "controller_push.h"
-#include "controller_variables.h"
-#include "controller_updater.h"
-/*LTS-END*/
+
+#include <dirent.h> //for browse API call
+#include <fstream>
 #include <signal.h>
+#include <sstream>
+#include <sys/stat.h> //for browse API call
+
+std::set<APIConn *> reggedLoggers;
+std::set<APIConn *> reggedAccess;
+std::set<APIConn *> reggedStreams;
+
+void Controller::registerLogger(APIConn *aConn) {
+  reggedLoggers.insert(aConn);
+}
+
+void Controller::registerAccess(APIConn *aConn) {
+  reggedAccess.insert(aConn);
+}
+
+void Controller::registerStreams(APIConn *aConn) {
+  reggedStreams.insert(aConn);
+}
+
+void Controller::deregister(APIConn *aConn) {
+  reggedLoggers.erase(aConn);
+  reggedAccess.erase(aConn);
+  reggedStreams.erase(aConn);
+}
+
+void Controller::callLogger(uint64_t time, const std::string & kind, const std::string & message, const std::string & stream,
+                            uint64_t progPid, const std::string & exe, const std::string & line) {
+  std::set<APIConn *> toDel;
+  for (auto A : reggedLoggers) {
+    A->log(time, kind, message, stream, progPid, exe, line);
+    if (!A->C) { toDel.insert(A); }
+  }
+  for (auto A : toDel) { delete A; }
+}
+
+void Controller::callAccess(uint64_t time, const std::string & session, const std::string & stream, const std::string & connector,
+                            const std::string & host, uint64_t duration, uint64_t up, uint64_t down, const std::string & tags) {
+  std::set<APIConn *> toDel;
+  for (auto A : reggedAccess) {
+    A->access(time, session, stream, connector, host, duration, up, down, tags);
+    if (!A->C) { toDel.insert(A); }
+  }
+  for (auto A : toDel) { delete A; }
+}
+
+void Controller::callStreams(const std::string & stream, uint8_t status, uint64_t viewers, uint64_t inputs,
+                             uint64_t outputs, const std::string & tags) {
+  std::set<APIConn *> toDel;
+  for (auto A : reggedStreams) {
+    A->stream(stream, status, viewers, inputs, outputs, tags);
+    if (!A->C) { toDel.insert(A); }
+  }
+  for (auto A : toDel) { delete A; }
+}
+
+APIConn::APIConn(Event::Loop & evLp, Socket::Server & srv) : E(evLp) {
+  authorized = false;
+  attempts = 0;
+  isLocal = false;
+  isWebSocket = false;
+  W = 0;
+  authTime = 0;
+  C = srv.accept(true);
+
+  sock = C.getSocket();
+  if (sock >= 1024) {
+    FAIL_MSG("New incoming API connection %d rejected: select() only supports file descriptors under 1024", sock);
+    delete this;
+    return;
+  }
+  Util::Procs::socketList.insert(sock);
+  C.setBlocking(false);
+  E.addSendSocket(sock, [](void *c) {
+    APIConn *A = (APIConn *)c;
+    A->C.send(0, 0);
+    if (!A->C) { delete A; }
+  }, [](void *c) {
+    APIConn *A = (APIConn *)c;
+    return A->C.sendingBlocked(1);
+  }, this);
+  C.onClose([this](int s) { E.remove(s); });
+  E.addSocket(sock, [](void *c) {
+    APIConn *A = (APIConn *)c;
+    if (!Controller::handleAPIConnection(A)) { delete A; }
+  }, this);
+}
+
+APIConn::~APIConn() {
+  if (W) { delete W; }
+  C.close();
+  Util::Procs::socketList.erase(sock);
+  Controller::deregister(this);
+  E.remove(sock);
+}
 
 /// Returns the challenge string for authentication, given the socket connection.
 std::string getChallenge(Socket::Connection &conn){
@@ -143,7 +235,7 @@ bool Controller::authorize(JSON::Value &Request, JSON::Value &Response, Socket::
       }
     }
     if (Request["authorize"]["password"].asString() != ""){
-      Log("AUTH", "Failed login attempt " + UserID + " from " + conn.getHost());
+      LOG_MSG("AUTH", "Failed login attempt %s from %s", UserID.c_str(), conn.getHost().c_str());
     }
   }
   Response["authorize"]["status"] = "CHALL";
@@ -153,7 +245,7 @@ bool Controller::authorize(JSON::Value &Request, JSON::Value &Response, Socket::
     Response["authorize"]["status"] = "NOACC";
     if (Request["authorize"]["new_username"] && Request["authorize"]["new_password"]){
       // create account
-      Controller::Log("CONF", "Created account " + Request["authorize"]["new_username"].asString() + " through API");
+      LOG_MSG("CONF", "Created account %s through API", Request["authorize"]["new_username"].asString().c_str());
       Controller::Storage["account"][Request["authorize"]["new_username"].asString()]["password"] =
           Secure::md5(Request["authorize"]["new_password"].asString());
       Response["authorize"]["status"] = "ACC_MADE";
@@ -164,395 +256,343 @@ bool Controller::authorize(JSON::Value &Request, JSON::Value &Response, Socket::
   return false;
 }// Authorize
 
-class streamStat{
-public:
-  streamStat(){
-    status = 0;
-    viewers = 0;
-    inputs = 0;
-    outputs = 0;
-  }
-  streamStat(const Util::RelAccX &rlx, uint64_t entry){
-    status = rlx.getInt("status", entry);
-    viewers = rlx.getInt("viewers", entry);
-    inputs = rlx.getInt("inputs", entry);
-    outputs = rlx.getInt("outputs", entry);
-    tags = rlx.getPointer("tags", entry);
-  }
-  bool operator==(const streamStat &b) const{
-    return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs && tags == b.tags);
-  }
-  bool operator!=(const streamStat &b) const{return !(*this == b);}
-  uint8_t status;
-  uint64_t viewers;
-  uint64_t inputs;
-  uint64_t outputs;
-  std::string tags;
-};
+void APIConn::log(uint64_t time, const std::string & kind, const std::string & message, const std::string & stream,
+                  uint64_t progPid, const std::string & exe, const std::string & line) {
+  if (!isWebSocket || !W || !*W) { return; }
 
-void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C, bool authorized){
-  std::string logs = H.GetVar("logs");
-  std::string accs = H.GetVar("accs");
-  bool doStreams = H.GetVar("streams").size();
-  HTTP::Parser req = H;
-  H.Clean();
-  HTTP::Websocket W(C, req, H);
-  if (!W){return;}
-  
-  C.setBlocking(false);
-  if (authorized){
-    W.sendFrame("[\"auth\", true]");
-  }else{
-    W.sendFrame("[\"auth\", false]");
+  // If we have more than ~10k pending bytes to send, stop sending logs
+  if (C.sendingBlocked(10000)) { return; }
+
+  JSON::Value tmp;
+  tmp[0u] = "log";
+  tmp[1u].append(time);
+  tmp[1u].append(kind);
+  tmp[1u].append(message);
+  tmp[1u].append(stream);
+  tmp[1u].append(progPid);
+  tmp[1u].append(exe);
+  tmp[1u].append(line);
+  if (progPid) { tmp[1u].append(progPid); }
+  W->sendFrame(tmp.toString());
+}
+
+void APIConn::access(uint64_t time, const std::string & session, const std::string & stream, const std::string & connector,
+                     const std::string & host, uint64_t duration, uint64_t up, uint64_t down, const std::string & tags) {
+  if (!isWebSocket || !W || !*W) { return; }
+
+  // If we have more than ~10k pending bytes to send, stop sending logs
+  if (C.sendingBlocked(10000)) { return; }
+
+  JSON::Value tmp;
+  tmp[0u] = "access";
+  tmp[1u].append(time);
+  tmp[1u].append(session);
+  tmp[1u].append(stream);
+  tmp[1u].append(connector);
+  tmp[1u].append(host);
+  tmp[1u].append(duration);
+  tmp[1u].append(up);
+  tmp[1u].append(down);
+  tmp[1u].append(tags);
+  W->sendFrame(tmp.toString());
+}
+
+void APIConn::stream(const std::string & stream, uint8_t status, uint64_t viewers, uint64_t inputs, uint64_t outputs,
+                     const std::string & tags) {
+  if (!isWebSocket || !W || !*W) { return; }
+
+  // If we have more than ~10k pending bytes to send, stop sending logs
+  if (C.sendingBlocked(10000)) { return; }
+
+  JSON::Value tmp;
+  tmp[0u] = "stream";
+  tmp[1u].append(stream);
+  tmp[1u].append(status);
+  tmp[1u].append(viewers);
+  tmp[1u].append(inputs);
+  tmp[1u].append(outputs);
+  tmp[1u].append(tags);
+  W->sendFrame(tmp.toString());
+}
+
+void Controller::handleWebSocket(APIConn *aConn) {
+  // Not a websocket yet? Set it up!
+  if (!aConn->isWebSocket) {
+    aConn->logArg = aConn->H.GetVar("logs");
+    aConn->accsArg = aConn->H.GetVar("accs");
+    aConn->strmsArg = aConn->H.GetVar("streams");
+    HTTP::Parser req = aConn->H;
+    aConn->H.Clean();
+    aConn->W = new HTTP::Websocket(aConn->C, req, aConn->H);
+    if (!aConn->W) {
+      FAIL_MSG("Could not allocate WS handler: out of memory");
+      aConn->C.close();
+      return;
+    }
+    if (!*(aConn->W)) {
+      aConn->C.close();
+      return;
+    }
+    aConn->isWebSocket = true;
+    aConn->C.setBlocking(false);
+    if (aConn->authorized) {
+      aConn->W->sendFrame("[\"auth\", true]");
+    } else {
+      aConn->W->sendFrame("[\"auth\", false]");
+    }
+    aConn->authTime = Util::bootMS();
   }
-  uint64_t authTime = Util::bootMS();
-  while (!authorized && W){
-    if (W.readFrame()){
 
-      //only handle text frames
-      if (W.frameType != 1){continue;}
+  // No (valid) HTTP::Websocket? Abort and disconnect
+  if (!aConn->W || !*(aConn->W)) {
+    aConn->isWebSocket = false;
+    aConn->C.close();
+    return;
+  }
 
-      //Parse JSON and check command type
-      JSON::Value command = JSON::fromString(W.data, W.data.size());
-      if (command.isArray() && command[0u].asString() == "auth"){
+  // If we're not authorized (yet), only accept auth commands and nothing else
+  if (!aConn->authorized) {
+    if (aConn->W->readFrame()) {
+
+      // only handle text frames
+      if (aConn->W->frameType != 1) { return; }
+
+      // Parse JSON and check command type
+      JSON::Value command = JSON::fromString(aConn->W->data, aConn->W->data.size());
+      if (command.isArray() && command[0u].asString() == "auth") {
         std::lock_guard<std::mutex> guard(configMutex);
         JSON::Value req;
         req["authorize"] = command[1u];
-        authorized = authorize(req, req, C);
-        W.sendFrame("[\"auth\", "+req["authorize"].toString()+"]");
+        aConn->authorized = authorize(req, req, aConn->C);
+        aConn->W->sendFrame("[\"auth\", " + req["authorize"].toString() + "]");
       }
     }
-    Util::sleep(100);
-    if (Util::bootMS() > authTime + 10000){
-      W.sendFrame("[\"auth\",\"Too slow, sorry\"]");
-      C.close();
+    if (Util::bootMS() > aConn->authTime + 10000) {
+      aConn->W->sendFrame("[\"auth\",\"Too slow, sorry\"]");
+      aConn->C.close();
+      return;
     }
+    if (!aConn->authorized) { return; }
   }
-  if (!authorized || !W || !C){return;}
 
+  // Parse logArg if not yet parsed (set to empty after parsing)
+  if (aConn->logArg.size()) {
+    // Subscribe to log events
+    registerLogger(aConn);
+    Util::RelAccX *haveLog = Controller::logAccessor();
+    if (haveLog && haveLog->isReady()) {
+      Util::RelAccX & rlxLog = *haveLog;
+      Util::RelAccXFieldData fTime = rlxLog.getFieldData("time");
+      Util::RelAccXFieldData fKind = rlxLog.getFieldData("kind");
+      Util::RelAccXFieldData fMsg = rlxLog.getFieldData("msg");
+      Util::RelAccXFieldData fStrm = rlxLog.getFieldData("strm");
+      Util::RelAccXFieldData fPID = rlxLog.getFieldData("pid");
+      Util::RelAccXFieldData fExe = rlxLog.getFieldData("exe");
+      Util::RelAccXFieldData fLine = rlxLog.getFieldData("line");
 
-
-
-  IPC::sharedPage shmLogs(SHM_STATE_LOGS, 1024 * 1024);
-  IPC::sharedPage shmAccs(SHM_STATE_ACCS, 1024 * 1024);
-  IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 1024 * 1024);
-  Util::RelAccX rlxStreams(shmStreams.mapped);
-  Util::RelAccX rlxLog(shmLogs.mapped);
-  Util::RelAccX rlxAccs(shmAccs.mapped);
-  if (!rlxStreams.isReady()){doStreams = false;}
-  uint64_t logPos = 0;
-  bool doLog = false;
-  uint64_t accsPos = 0;
-  bool doAccs = false;
-  if (logs.size() && rlxLog.isReady()){
-    doLog = true;
-    logPos = rlxLog.getEndPos();
-    if (logs.substr(0, 6) == "since:"){
-      uint64_t startLogs = JSON::Value(logs.substr(6)).asInt();
-      logPos = rlxLog.getDeleted();
-      while (logPos < rlxLog.getEndPos() && rlxLog.getInt("time", logPos) < startLogs){++logPos;}
-    }else{
-      uint64_t numLogs = JSON::Value(logs).asInt();
-      if (logPos <= numLogs){
+      uint64_t logPos = rlxLog.getEndPos();
+      if (aConn->logArg.substr(0, 6) == "since:") {
+        uint64_t startLogs = JSON::Value(aConn->logArg.substr(6)).asInt();
         logPos = rlxLog.getDeleted();
-      }else{
-        logPos -= numLogs;
-      }
-    }
-  }
-  if (accs.size() && rlxAccs.isReady()){
-    doAccs = true;
-    accsPos = rlxAccs.getEndPos();
-    if (accs.substr(0, 6) == "since:"){
-      uint64_t startAccs = JSON::Value(accs.substr(6)).asInt();
-      accsPos = rlxAccs.getDeleted();
-      while (accsPos < rlxAccs.getEndPos() && rlxAccs.getInt("time", accsPos) < startAccs){
-        ++accsPos;
-      }
-    }else{
-      uint64_t numAccs = JSON::Value(accs).asInt();
-      if (accsPos <= numAccs){
-        accsPos = rlxAccs.getDeleted();
-      }else{
-        accsPos -= numAccs;
-      }
-    }
-  }
-  std::map<std::string, streamStat> lastStrmStat;
-  std::set<std::string> strmRemove;
-
-  while (W){
-    bool sent = false;
-    while (doLog && rlxLog.getEndPos() > logPos){
-      sent = true;
-      JSON::Value tmp;
-      tmp[0u] = "log";
-      tmp[1u].append(rlxLog.getInt("time", logPos));
-      tmp[1u].append(rlxLog.getPointer("kind", logPos));
-      tmp[1u].append(rlxLog.getPointer("msg", logPos));
-      tmp[1u].append(rlxLog.getPointer("strm", logPos));
-      W.sendFrame(tmp.toString());
-      logPos++;
-    }
-    while (doAccs && rlxAccs.getEndPos() > accsPos){
-      sent = true;
-      JSON::Value tmp;
-      tmp[0u] = "access";
-      tmp[1u].append(rlxAccs.getInt("time", accsPos));
-      tmp[1u].append(rlxAccs.getPointer("session", accsPos));
-      tmp[1u].append(rlxAccs.getPointer("stream", accsPos));
-      tmp[1u].append(rlxAccs.getPointer("connector", accsPos));
-      tmp[1u].append(rlxAccs.getPointer("host", accsPos));
-      tmp[1u].append(rlxAccs.getInt("duration", accsPos));
-      tmp[1u].append(rlxAccs.getInt("up", accsPos));
-      tmp[1u].append(rlxAccs.getInt("down", accsPos));
-      tmp[1u].append(rlxAccs.getPointer("tags", accsPos));
-      W.sendFrame(tmp.toString());
-      accsPos++;
-    }
-    if (doStreams){
-      for (std::map<std::string, streamStat>::iterator it = lastStrmStat.begin();
-           it != lastStrmStat.end(); ++it){
-        strmRemove.insert(it->first);
-      }
-      uint64_t startPos = rlxStreams.getDeleted();
-      uint64_t endPos = rlxStreams.getEndPos();
-      for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
-        std::string strm = rlxStreams.getPointer("stream", cPos);
-        strmRemove.erase(strm);
-        streamStat tmpStat(rlxStreams, cPos);
-        if (lastStrmStat[strm] != tmpStat){
-          lastStrmStat[strm] = tmpStat;
-          sent = true;
-          JSON::Value tmp;
-          tmp[0u] = "stream";
-          tmp[1u].append(strm);
-          tmp[1u].append(tmpStat.status);
-          tmp[1u].append(tmpStat.viewers);
-          tmp[1u].append(tmpStat.inputs);
-          tmp[1u].append(tmpStat.outputs);
-          tmp[1u].append(tmpStat.tags);
-          W.sendFrame(tmp.toString());
+        while (logPos < rlxLog.getEndPos() && rlxLog.getInt(fTime, logPos) < startLogs) { ++logPos; }
+      } else {
+        uint64_t numLogs = JSON::Value(aConn->logArg).asInt();
+        if (logPos <= numLogs) {
+          logPos = rlxLog.getDeleted();
+        } else {
+          logPos -= numLogs;
         }
       }
-      while (strmRemove.size()){
-        std::string strm = *strmRemove.begin();
-        sent = true;
-        JSON::Value tmp;
-        tmp[0u] = "stream";
-        tmp[1u].append(strm);
-        tmp[1u].append(0u);
-        tmp[1u].append(0u);
-        tmp[1u].append(0u);
-        tmp[1u].append(0u);
-        tmp[1u].append("");
-        W.sendFrame(tmp.toString());
-        strmRemove.erase(strm);
-        lastStrmStat.erase(strm);
+
+      // Send historical data
+      while (rlxLog.getEndPos() > logPos) {
+        aConn->log(rlxLog.getInt(fTime, logPos), rlxLog.getPointer(fKind, logPos), rlxLog.getPointer(fMsg, logPos),
+                   rlxLog.getPointer(fStrm, logPos), rlxLog.getInt(fPID, logPos), rlxLog.getPointer(fExe, logPos),
+                   rlxLog.getPointer(fLine, logPos));
+        logPos++;
       }
     }
-    W.readFrame();
-    if (!sent){Util::sleep(500);}
+    aConn->logArg.clear();
   }
+
+  // Parse accsArg if not yet parsed (set to empty after parsing)
+  if (aConn->accsArg.size()) {
+    // Subscribe to access log events
+    registerAccess(aConn);
+    Util::RelAccX *haveAccs = Controller::accesslogAccessor();
+    if (haveAccs && haveAccs->isReady()) {
+      Util::RelAccX & rlxAccs = *haveAccs;
+      Util::RelAccXFieldData fTime = rlxAccs.getFieldData("time");
+      Util::RelAccXFieldData fSess = rlxAccs.getFieldData("session");
+      Util::RelAccXFieldData fStrm = rlxAccs.getFieldData("stream");
+      Util::RelAccXFieldData fConn = rlxAccs.getFieldData("connector");
+      Util::RelAccXFieldData fHost = rlxAccs.getFieldData("host");
+      Util::RelAccXFieldData fDura = rlxAccs.getFieldData("duration");
+      Util::RelAccXFieldData fUp = rlxAccs.getFieldData("up");
+      Util::RelAccXFieldData fDown = rlxAccs.getFieldData("down");
+      Util::RelAccXFieldData fTags = rlxAccs.getFieldData("tags");
+
+      uint64_t accsPos = rlxAccs.getEndPos();
+      if (aConn->accsArg.substr(0, 6) == "since:") {
+        uint64_t startAccs = JSON::Value(aConn->accsArg.substr(6)).asInt();
+        accsPos = rlxAccs.getDeleted();
+        while (accsPos < rlxAccs.getEndPos() && rlxAccs.getInt(fTime, accsPos) < startAccs) { ++accsPos; }
+      } else {
+        uint64_t numAccs = JSON::Value(aConn->accsArg).asInt();
+        if (accsPos <= numAccs) {
+          accsPos = rlxAccs.getDeleted();
+        } else {
+          accsPos -= numAccs;
+        }
+      }
+
+      // Send historical data
+      while (rlxAccs.getEndPos() > accsPos) {
+        aConn->access(rlxAccs.getInt(fTime, accsPos), rlxAccs.getPointer(fSess, accsPos), rlxAccs.getPointer(fStrm, accsPos),
+                      rlxAccs.getPointer(fConn, accsPos), rlxAccs.getPointer(fHost, accsPos), rlxAccs.getInt(fDura, accsPos),
+                      rlxAccs.getInt(fUp, accsPos), rlxAccs.getInt(fDown, accsPos), rlxAccs.getPointer(fTags, accsPos));
+        accsPos++;
+      }
+    }
+    aConn->accsArg.clear();
+  }
+
+  if (aConn->strmsArg.size()) {
+    registerStreams(aConn);
+    Util::RelAccX *haveStrms = Controller::streamsAccessor();
+    if (haveStrms && haveStrms->isReady()) {
+      Util::RelAccX & rlxStreams = *haveStrms;
+      Util::RelAccXFieldData fStrm = rlxStreams.getFieldData("stream");
+      Util::RelAccXFieldData fStat = rlxStreams.getFieldData("status");
+      Util::RelAccXFieldData fView = rlxStreams.getFieldData("viewers");
+      Util::RelAccXFieldData fInpt = rlxStreams.getFieldData("inputs");
+      Util::RelAccXFieldData fOutp = rlxStreams.getFieldData("outputs");
+      Util::RelAccXFieldData fTags = rlxStreams.getFieldData("tags");
+
+      uint64_t startPos = rlxStreams.getDeleted();
+      uint64_t endPos = rlxStreams.getEndPos();
+      for (uint64_t cPos = startPos; cPos < endPos; ++cPos) {
+        aConn->stream(rlxStreams.getPointer(fStrm, cPos), rlxStreams.getInt(fStat, cPos), rlxStreams.getInt(fView, cPos),
+                      rlxStreams.getInt(fInpt, cPos), rlxStreams.getInt(fOutp, cPos), rlxStreams.getPointer(fTags, cPos));
+      }
+    }
+    aConn->strmsArg.clear();
+  }
+
+  // Ignore any incoming frames
+  while (aConn->W->readFrame()) {}
 }
 
 /// Handles a single incoming API connection.
 /// Assumes the connection is unauthorized and will allow for 4 requests without authorization before disconnecting.
-int Controller::handleAPIConnection(Socket::Connection &conn){
-  // set up defaults
-  unsigned int logins = 0;
-  bool authorized = false;
-  bool isLocal = false;
-  HTTP::Parser H;
-  // while connected and not past login attempt limit
-  while (conn && logins < 4){
-    if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
-      // Are we local and not forwarded? Instant-authorized.
-      if (!authorized && !H.hasHeader("X-Real-IP") && conn.isLocal()){
-        MEDIUM_MSG("Local API access automatically authorized");
-        isLocal = true;
-        authorized = true;
-      }
+bool Controller::handleAPIConnection(APIConn *aConn) {
+  if (aConn->isWebSocket) {
+    handleWebSocket(aConn);
+    if (aConn->isWebSocket) { return aConn->C; }
+  }
+  while (aConn->C.spool() && aConn->C.Received().size() && aConn->H.Read(aConn->C)) {
+    // Are we local and not forwarded? Instant-authorized.
+    if (!aConn->authorized && !aConn->H.hasHeader("X-Real-IP") && aConn->C.isLocal()) {
+      MEDIUM_MSG("Local API access automatically authorized");
+      aConn->isLocal = true;
+      aConn->authorized = true;
+    }
 #ifdef NOAUTH
-      // If auth is disabled, always allow access.
-      authorized = true;
+    // If auth is disabled, always allow access.
+    aConn->authorized = true;
 #endif
-      if (!authorized && H.hasHeader("Authorization")){
-        std::string auth = H.GetHeader("Authorization");
-        if (auth.substr(0, 5) == "json "){
-          INFO_MSG("Checking auth header");
-          JSON::Value req;
-          req["authorize"] = JSON::fromString(auth.substr(5));
-          if (Storage["account"]){
-            std::lock_guard<std::mutex> guard(configMutex);
-            if (!Controller::conf.is_active){return 0;}
-            authorized = authorize(req, req, conn);
-            if (!authorized){
-              H.Clean();
-              H.body = "Please login first or provide a valid token authentication.";
-              H.SetHeader("Server", APPIDENT);
-              H.SetHeader("WWW-Authenticate", "json " + req["authorize"].toString());
-              H.SendResponse("403", "Not authorized", conn);
-              H.Clean();
-              continue;
-            }
+    if (!aConn->authorized && aConn->H.hasHeader("Authorization")) {
+      std::string auth = aConn->H.GetHeader("Authorization");
+      if (auth.substr(0, 5) == "json ") {
+        INFO_MSG("Checking auth header");
+        JSON::Value req;
+        req["authorize"] = JSON::fromString(auth.substr(5));
+        if (Storage["account"]) {
+          std::lock_guard<std::mutex> guard(configMutex);
+          if (!Controller::conf.is_active) { return 0; }
+          aConn->authorized = authorize(req, req, aConn->C);
+          if (!aConn->authorized) {
+            aConn->H.Clean();
+            aConn->H.body = "Please login first or provide a valid token authentication.";
+            aConn->H.SetHeader("Server", APPIDENT);
+            aConn->H.SetHeader("WWW-Authenticate", "json " + req["authorize"].toString());
+            aConn->H.SendResponse("403", "Not authorized", aConn->C);
+            aConn->H.Clean();
+            continue;
           }
         }
       }
-      // Catch websocket requests
-      if (H.url == "/ws"){
-        handleWebSocket(H, conn, authorized);
-        H.Clean();
+    }
+    // Catch websocket requests
+    if (aConn->H.url == "/ws") {
+      handleWebSocket(aConn);
+      return aConn->C;
+    }
+    // Catch prometheus requests
+    if (Controller::prometheus.size()) {
+      if (aConn->H.url == "/" + Controller::prometheus) {
+        handlePrometheus(aConn->H, aConn->C, PROMETHEUS_TEXT);
+        aConn->H.Clean();
         continue;
       }
-      // Catch prometheus requests
-      if (Controller::prometheus.size()){
-        if (H.url == "/" + Controller::prometheus){
-          handlePrometheus(H, conn, PROMETHEUS_TEXT);
-          H.Clean();
-          continue;
-        }
-        if (H.url.substr(0, Controller::prometheus.size() + 6) == "/" + Controller::prometheus + ".json"){
-          handlePrometheus(H, conn, PROMETHEUS_JSON);
-          H.Clean();
-          continue;
-        }
+      if (aConn->H.url.substr(0, Controller::prometheus.size() + 6) == "/" + Controller::prometheus + ".json") {
+        handlePrometheus(aConn->H, aConn->C, PROMETHEUS_JSON);
+        aConn->H.Clean();
+        continue;
       }
-      JSON::Value Response;
-      JSON::Value Request;
-      std::string reqContType = H.GetHeader("Content-Type");
-      if (reqContType == "application/json"){
-        Request = JSON::fromString(H.body);
-      }else{
-        Request = JSON::fromString(H.GetVar("command"));
-      }
-      // invalid request? send the web interface, unless requested as "/api"
-      if (!Request.isObject() && H.url != "/api" && H.url != "/api2"){
+    }
+    JSON::Value Response;
+    JSON::Value Request;
+    std::string reqContType = aConn->H.GetHeader("Content-Type");
+    if (reqContType == "application/json") {
+      Request = JSON::fromString(aConn->H.body);
+    } else {
+      Request = JSON::fromString(aConn->H.GetVar("command"));
+    }
+    // invalid request? send the web interface, unless requested as "/api"
+    if (!Request.isObject() && aConn->H.url != "/api" && aConn->H.url != "/api2") {
 #include "server.html.h"
-        H.Clean();
-        H.SetHeader("Content-Type", "text/html");
-        H.SetHeader("X-Info", "To force an API response, request the file /api");
-        H.SetHeader("Server", APPIDENT);
-        H.SetHeader("Content-Length", server_html_len);
-        H.SetHeader("X-UA-Compatible", "IE=edge;chrome=1");
-        H.SendResponse("200", "OK", conn);
-        conn.SendNow(server_html, server_html_len);
-        H.Clean();
-        break;
-      }
-      if (H.url == "/api2"){Request["minimal"] = true;}
-      {// lock the config mutex here - do not unlock until done processing
-        std::lock_guard<std::mutex> guard(configMutex);
-        if (!Controller::conf.is_active){return 0;}
-        // if already authorized, do not re-check for authorization
-        if (authorized && Storage["account"]){
-          Response["authorize"]["status"] = "OK";
-          if (isLocal){Response["authorize"]["local"] = true;}
-        }else{
-          authorized |= authorize(Request, Response, conn);
-        }
-        if (authorized){
-          handleAPICommands(Request, Response);
-          Controller::checkServerLimits(); /*LTS*/
-        }
-      }// config mutex lock
-      if (!authorized){
-        // sleep a second to prevent bruteforcing.
-        // We need to make sure this happens _after_ unlocking the mutex!
-        Util::sleep(1000);
-        logins++;
-      }
-      // send the response, either normally or through JSONP callback.
-      std::string jsonp = "";
-      if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
-      if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
-      H.Clean();
-      H.SetHeader("Content-Type", "text/javascript");
-      H.setCORSHeaders();
-      if (jsonp == ""){
-        H.SetBody(Response.toString() + "\n\n");
-      }else{
-        H.SetBody(jsonp + "(" + Response.toString() + ");\n\n");
-      }
-      H.SendResponse("200", "OK", conn);
-      H.Clean();
-    }// if HTTP request received
-  }// while connected
-  return 0;
-}
-
-void Controller::handleUDPAPI() {
-  Util::nameThread("UDP_API");
-  Socket::UDPConnection uSock(true);
-  uint16_t boundPort = 0;
-  bool warned = false;
-  while (!boundPort && Controller::conf.is_active) {
-    HTTP::URL udpApiAddr("udp://localhost:4242");
-    if (getenv("UDP_API")) { udpApiAddr = HTTP::URL(getenv("UDP_API")); }
-    boundPort = uSock.bind(udpApiAddr.getPort(), udpApiAddr.host);
-    if (!boundPort) {
-      boundPort = uSock.bind(0, udpApiAddr.host);
-      if (!boundPort) {
-        std::stringstream newHost;
-        char ranNums[3];
-        Util::getRandomBytes(ranNums, 3);
-        newHost << "127." << (int)ranNums[0] << "." << (int)ranNums[1] << "." << (int)ranNums[2];
-        boundPort = uSock.bind(0, newHost.str());
-        if (!boundPort) {
-          WARN_MSG("Could not open local UDP API socket; scheduling retry");
-          warned = true;
-          size_t sleeps = 20;
-          while (sleeps && Controller::conf.is_active) {
-            Util::sleep(500);
-            --sleeps;
-          }
-        } else {
-          WARN_MSG("Could not open UDP API port on any port on %s - bound instead to %s", udpApiAddr.host.c_str(),
-                   uSock.getBoundAddr().toString().c_str());
-        }
-      } else {
-        WARN_MSG("Could not open local UDP API socket on %s:%" PRIu16 " - bound to ephemeral port %" PRIu16 " instead",
-                 udpApiAddr.host.c_str(), udpApiAddr.getPort(), boundPort);
-      }
-    } else {
-      if (warned) {
-        WARN_MSG("Local UDP API bound successfully on %s", uSock.getBoundAddr().toString().c_str());
-      } else {
-        INFO_MSG("Local UDP API bound on %s", uSock.getBoundAddr().toString().c_str());
-      }
+      aConn->H.Clean();
+      aConn->H.SetHeader("Content-Type", "text/html");
+      aConn->H.SetHeader("X-Info", "To force an API response, request the file /api");
+      aConn->H.SetHeader("Server", APPIDENT);
+      aConn->H.SetHeader("Content-Length", server_html_len);
+      aConn->H.SetHeader("X-UA-Compatible", "IE=edge;chrome=1");
+      aConn->H.SendResponse("200", "OK", aConn->C);
+      aConn->C.SendNow(server_html, server_html_len);
+      aConn->H.Clean();
+      break;
     }
-  }
-  if (!Controller::conf.is_active || !boundPort) { return; }
-  HTTP::URL boundAddr;
-  boundAddr.protocol = "udp";
-  boundAddr.setPort(boundPort);
-  boundAddr.host = uSock.getBoundAddr().host();
-  {
-    std::lock_guard<std::mutex> guard(configMutex);
-    udpApiBindAddr = boundAddr.getUrl();
-    Controller::writeConfig();
-  }
-  Util::Procs::socketList.insert(uSock.getSock());
-  uSock.allocateDestination();
-  while (Controller::conf.is_active) {
-    if (uSock.Receive()) {
-      MEDIUM_MSG("UDP API: %s", (const char *)uSock.data);
-      JSON::Value Request = JSON::fromString(uSock.data, uSock.data.size());
-      Request["minimal"] = true;
-      JSON::Value Response;
-      if (Request.isObject()) {
-        std::lock_guard<std::mutex> guard(configMutex);
-        Response["authorize"]["local"] = true;
-        handleAPICommands(Request, Response);
-        Response.removeMember("authorize");
-        uSock.SendNow(Response.toString());
+    if (aConn->H.url == "/api2") { Request["minimal"] = true; }
+    { // lock the config mutex here - do not unlock until done processing
+      std::lock_guard<std::mutex> guard(configMutex);
+      if (!Controller::conf.is_active) { return 0; }
+      // if already authorized, do not re-check for authorization
+      if (aConn->authorized && Storage["account"]) {
+        Response["authorize"]["status"] = "OK";
+        if (aConn->isLocal) { Response["authorize"]["local"] = true; }
       } else {
-        WARN_MSG("Invalid API command received over UDP: %s", (const char *)uSock.data);
+        aConn->authorized |= authorize(Request, Response, aConn->C);
       }
+      if (aConn->authorized) { handleAPICommands(Request, Response); }
+    } // config mutex lock
+    if (!aConn->authorized) { aConn->attempts++; }
+    // send the response, either normally or through JSONP callback.
+    std::string jsonp = "";
+    if (aConn->H.GetVar("callback") != "") { jsonp = aConn->H.GetVar("callback"); }
+    if (aConn->H.GetVar("jsonp") != "") { jsonp = aConn->H.GetVar("jsonp"); }
+    aConn->H.Clean();
+    aConn->H.SetHeader("Content-Type", "text/javascript");
+    aConn->H.setCORSHeaders();
+    if (jsonp == "") {
+      aConn->H.SetBody(Response.toString() + "\n\n");
     } else {
-      Util::sleep(500);
+      aConn->H.SetBody(jsonp + "(" + Response.toString() + ");\n\n");
     }
+    aConn->H.SendResponse("200", "OK", aConn->C);
+    aConn->H.Clean();
   }
+  return aConn->C;
 }
 
 /// Local-only helper function that checks for duplicate protocols and removes them
@@ -1131,8 +1171,11 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
 /// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
 ///
 #ifdef UPDATER
-  if (Request.isMember("autoupdate")){Controller::checkUpdates();}
-  if (Request.isMember("update") || Request.isMember("checkupdate") || Request.isMember("autoupdate")){
+  if (Request.isMember("autoupdate")) { Controller::rollingUpdate(); }
+  if (Request.isMember("abortupdate")) { Controller::abortUpdate(); }
+  if (Request.isMember("checkupdate")) { Controller::updaterCheck(); }
+  if (Request.isMember("update") || Request.isMember("checkupdate") || Request.isMember("autoupdate") ||
+      Request.isMember("abortupdate")) {
     Controller::insertUpdateInfo(Response["update"]);
   }
 #endif
@@ -1214,10 +1257,10 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
 
   if (Request.isMember("api_endpoint")){
     HTTP::URL url("http://localhost:4242");
-    url.host = Util::listenInterface;
+    url.host = Controller::conf.boundServer.host();
     if (url.host == "::"){url.host = "[::1]";}
     if (url.host == "0.0.0.0"){url.host = "127.0.0.1";}
-    url.port = JSON::Value(Util::listenPort).asString();
+    url.setPort(Controller::conf.boundServer.port());
     Response["api_endpoint"] = url.getUrl();
   }
 
@@ -1488,7 +1531,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   }
 
   // Variable related commands
-  if (Request.isMember("variable_list")){Controller::listCustomVariables(Response["variable_list"]);}
+  if (Request.isMember("variable_list")) { Response["variable_list"] = Storage["variables"]; }
   if (Request.isMember("variable_add")){Controller::addVariable(Request["variable_add"], Response["variable_list"]);}
   if (Request.isMember("variable_remove")){Controller::removeVariable(Request["variable_remove"], Response["variable_list"]);}
 
@@ -1522,7 +1565,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   Controller::writeConfig();
 
   if (Request.isMember("save")){
-    Controller::Log("CONF", "Writing config to file on request through API");
+    LOG_MSG("CONF", "Writing config to file on request through API");
     Controller::writeConfigToDisk(true);
   }
 

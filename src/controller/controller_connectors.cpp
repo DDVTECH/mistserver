@@ -178,16 +178,14 @@ namespace Controller{
       if (!capabilities.isMember("connectors") || !capabilities["connectors"].isMember(connName)){
         (*ait)["online"] = "Not installed";
         if ((*ait)["online"].asString() != prevOnline){
-          Log("WARN",
-              connName + " connector is enabled but doesn't exist on system! Ignoring connector.");
+          WARN_MSG("%s connector is enabled but doesn't exist on system! Ignoring connector.", connName.c_str());
         }
         continue;
       }
       if (capabilities["connectors"][connName].isMember("PUSHONLY")){
         (*ait)["online"] = "Push-only";
         if ((*ait)["online"].asString() != prevOnline){
-          Log("WARN",
-              connName + " connector is enabled but can only be used by the pushing system! Ignoring connector.");
+          WARN_MSG("%s connector is enabled but can only be used by the pushing system! Ignoring connector.", connName.c_str());
         }
         continue;
       }
@@ -205,7 +203,7 @@ namespace Controller{
             gotAll = false;
             (*ait)["online"] = "Invalid configuration";
             if ((*ait)["online"].asString() != prevOnline){
-              Log("WARN", connName + " connector is missing required parameter " + it.key() + "! Ignoring connector.");
+              WARN_MSG("%s connector is missing required parameter %s! Ignoring connector.", connName.c_str(), it.key().c_str());
             }
             break;
           }
@@ -237,7 +235,7 @@ namespace Controller{
       for (it = currentConnectors.begin(); it != currentConnectors.end(); it++){
         if (!runningConns.count(it->first)){
           if (Util::Procs::isActive(it->second)){
-            Log("CONF", "Stopping connector " + it->first);
+            LOG_MSG("CONF", "Stopping connector %s", it->first.c_str());
             action = true;
             Util::Procs::Stop(it->second);
             Triggers::doTrigger("OUTPUT_STOP", it->first); // LTS
@@ -253,7 +251,7 @@ namespace Controller{
     while (runningConns.size() && conf.is_active){
       if (!currentConnectors.count(*runningConns.begin()) ||
           !Util::Procs::isActive(currentConnectors[*runningConns.begin()])){
-        Log("CONF", "Starting connector: " + *runningConns.begin());
+        LOG_MSG("CONF", "Starting connector: %s", runningConns.begin()->c_str());
         action = true;
         // clear out old args
         for (i = 0; i < 15; i++){argarr[i] = 0;}

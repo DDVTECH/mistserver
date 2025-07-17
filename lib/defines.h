@@ -27,7 +27,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <string>
 
 //Declare as extern so we don't have to include the whole config.h header
 namespace Util{
@@ -48,7 +47,8 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 
 // Find program name best we can
 #if defined(__APPLE__) || defined(__MACH__)
-  #define MIST_PROG getprogname()
+#include <stdlib.h>
+#define MIST_PROG getprogname()
 #else
   #if defined(__GNUC__)
     #include <errno.h>
@@ -64,36 +64,28 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
   #endif
 #endif
 
-#if DEBUG >= DLVL_DEVEL
-// Compiled at 4 or higher default? Include line numbers.
-#define DEBUG_MSG(lvl, msg, ...) if (Util::printDebugLevel >= lvl){\
-    fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|" msg "\n",\
-      DBG_LVL_LIST[lvl], MIST_PROG, getpid(), __FILE__, __LINE__, Util::streamName, ##__VA_ARGS__);\
-  }
-#else
-// Under 4? Then don't include line numbers.
-#define DEBUG_MSG(lvl, msg, ...) if (Util::printDebugLevel >= lvl){\
-    fprintf(stderr, "%.8s|%.30s|%d||%.200s|" msg "\n",\
-      DBG_LVL_LIST[lvl], MIST_PROG, getpid(), Util::streamName, ##__VA_ARGS__);\
-  }
-#endif
+#define LOG_MSG(lvl, msg, ...)                                                                              \
+  fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|" msg "\n", lvl, MIST_PROG, getpid(), __FILE__, __LINE__, \
+          Util::streamName, ##__VA_ARGS__);
+#define DEBUG_MSG(lvl, msg, ...)                                                       \
+  if (Util::printDebugLevel >= lvl) { LOG_MSG(DBG_LVL_LIST[lvl], msg, ##__VA_ARGS__) }
 
 #if !defined(HASEXECINFO) || defined(_WIN32) || defined(__CYGWIN__) || DEBUG < DLVL_DEVEL
 static inline void show_stackframe(){}
 #else
 #include <execinfo.h>
-static inline void show_stackframe(){
-  void *trace[16];
-  char **messages = 0;
-  int i, trace_size = 0;
-  trace_size = backtrace(trace, 16);
-  messages = backtrace_symbols(trace, trace_size);
-  for (i = 1; i < trace_size; ++i){
-    size_t p = 0;
-    while (messages[i][p] != '(' && messages[i][p] != ' ' && messages[i][p] != 0){++p;}
-    DEBUG_MSG(0, "Backtrace[%d]: %s", i, messages[i] + p);
-  }
-}
+      static inline void show_stackframe() {
+        void *trace[16];
+        char **messages = 0;
+        int i, trace_size = 0;
+        trace_size = backtrace(trace, 16);
+        messages = backtrace_symbols(trace, trace_size);
+        for (i = 1; i < trace_size; ++i) {
+          size_t p = 0;
+          while (messages[i][p] != '(' && messages[i][p] != ' ' && messages[i][p] != 0) { ++p; }
+          DEBUG_MSG(0, "Backtrace[%d]: %s", i, messages[i] + p);
+        }
+      }
 #endif
 
 #else
@@ -310,6 +302,7 @@ static inline void show_stackframe(){}
 #define ER_CLEAN_INACTIVE "CLEAN_INACTIVE"
 #define ER_CLEAN_SIGNAL "CLEAN_SIGNAL"
 #define ER_CLEAN_EOF "CLEAN_EOF"
+#define ER_CLEAN_RESTART "CLEAN_RESTART"
 #define ER_READ_START_FAILURE "READ_START_FAILURE"
 #define ER_PROCESS_SPECIFIC "PROCESS_SPECIFIC"
 #define ER_FORMAT_SPECIFIC "FORMAT_SPECIFIC"

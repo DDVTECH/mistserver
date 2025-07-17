@@ -242,7 +242,6 @@ namespace Mist{
       return;
     }
     lstn.allocateDestination();
-    Socket::getSocketName(lstn.getSock(), Util::listenInterface, Util::listenPort);
     Util::Config::setServerFD(lstn.getSock());
     Event::Loop ev;
     ev.setup();
@@ -1487,7 +1486,7 @@ namespace Mist{
           it.second.lastStunCheck = nowMs;
         }
       }
-      return true;
+      return 500;
     }, 500);
 
     evLp.addSocket(mainSocket.getSock(), [this](void *) {
@@ -1632,7 +1631,7 @@ namespace Mist{
           it.second.lastStunCheck = nowMs;
         }
       }
-      return true;
+      return 500;
     }, 500);
 
     evLp.addSocket(mainSocket.getSock(), [this](void *) {

@@ -9,7 +9,6 @@ namespace Controller{
   // Functions for current pushes, start/stop/list
   void startPush(const std::string &streamname, std::string &target);
   void stopPush(unsigned int ID);
-  void readPushList();
   void listPush(JSON::Value &output);
   void pushLogMessage(uint64_t id, const JSON::Value & msg);
   void setPushStatus(uint64_t id, const JSON::Value & status);
@@ -19,10 +18,14 @@ namespace Controller{
   void addPush(const JSON::Value &request, JSON::Value &response);
   void removeAllPush(const std::string &streamname);
 
+  // Main loop related functions
+  void initPushCheck();
+  size_t runPushCheck();
+  void deinitPushCheck();
+
   // internal use only
   void removePush(const JSON::Value &pushInfo);
-  void doAutoPush(std::string &streamname);
-  void pushCheckLoop();
+  void doAutoPush(std::string & streamname);
   bool isPushActive(const std::string &streamname, const std::string &target);
   void stopActivePushes(const std::string &streamname, const std::string &target);
   bool checkCondition(const JSON::Value &currentValue, const uint8_t &comparisonOperator, const JSON::Value &matchedValue);

@@ -4375,11 +4375,13 @@ context_menu: function(){
             }
             $versioncheck.text("Updating.."+perc);
             add_logs(d.log);
-            setTimeout(function(){
-              mist.send(function(d){
-                update_progress(d);
-              },{update:true});
-            },1e3);
+            if (d.update.installing){
+              setTimeout(function(){
+                mist.send(function(d){
+                  update_progress(d);
+                },{update:true});
+              },1e3);
+            }
           }
           function add_logs(log) {
             var msgs = log.filter(function(a){return a[1] == "UPDR"});

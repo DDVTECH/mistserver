@@ -9,7 +9,6 @@ executables += {
            'controller_storage.cpp',
            'controller_connectors.cpp',
            'controller_statistics.cpp',
-           'controller_limits.cpp',
            'controller_capabilities.cpp',
            'controller_uplink.cpp',
            'controller_api.cpp',

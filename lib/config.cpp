@@ -57,9 +57,6 @@ void Util::logExitReason(const char* shortString, const char *format, ...){
   mRExitReason = (char*)shortString;
 }
 
-std::string Util::listenInterface;
-uint32_t Util::listenPort = 0;
-
 #ifdef DISKSERIAL
 
 #ifdef __CYGWIN__
@@ -488,104 +485,66 @@ struct callbackData{
   int (*cb)(Socket::Connection &);
 };
 
-static void callThreadCallback(void *cDataArg){
-  INSANE_MSG("Thread for %p started", cDataArg);
-  callbackData *cData = (callbackData *)cDataArg;
-  cData->cb(*(cData->sock));
-  cData->sock->close();
-  delete cData->sock;
-  delete cData;
-  INSANE_MSG("Thread for %p ended", cDataArg);
+/// Sets up the passed Socket::Server to listen on the configured address,
+/// re-uses file descriptor 0 if it is a socket instead,
+/// dups it to file descriptor 0 (if not zero already),
+/// sets boundServer address and adds the listening socket to the socket list.
+/// Returns true on success and false on failure.
+bool Util::Config::setupServerSocket(Socket::Server & s) {
+  if (Socket::checkTrueSocket(0)){
+    s = Socket::Server(0);
+  }else if (vals.isMember("socket")){
+    s = Socket::Server(Util::getTmpFolder() + getString("socket"));
+  }else if (vals.isMember("port") && vals.isMember("interface")){
+    s = Socket::Server(getInteger("port"), getString("interface"), false);
+  }
+  if (!s.connected()) {
+    FAIL_MSG("Failed to open listening socket");
+    return false;
+  }
+  serv_sock_fd = s.getSocket();
+  activate();
+  if (s.getSocket()) {
+    int oldSock = s.getSocket();
+    if (!dup2(oldSock, 0)){
+      s = Socket::Server(0);
+      close(oldSock);
+    }
+  }
+  Util::Procs::socketList.insert(s.getSocket());
+  boundServer = s.getBoundAddr();
+  return true;
 }
 
-int Util::Config::threadServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &)){
-  Util::Procs::socketList.insert(server_socket.getSocket());
-  while (is_active && server_socket.connected()){
+bool Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)) {
+  Socket::Server server_socket;
+  if (!setupServerSocket(server_socket)) { return false; }
+  while (is_active && server_socket.connected()) {
     Socket::Connection S = server_socket.accept();
-    if (S.connected()){// check if the new connection is valid
-      callbackData *cData = new callbackData;
-      cData->sock = new Socket::Connection(S);
-      cData->cb = callback;
+    if (S.connected()) { // check if the new connection is valid
+      Socket::Connection *sock = new Socket::Connection(S);
       // spawn a new thread for this connection
-      std::thread T(callThreadCallback, (void *)cData);
+      std::thread T([](Socket::Connection *sock, int (*callback)(Socket::Connection &)) {
+        callback(*sock);
+        sock->close();
+        delete sock;
+      }, sock, callback);
       // detach it, no need to keep track of it anymore
       T.detach();
       HIGH_MSG("Spawned new thread for socket %i", S.getSocket());
-    }else{
+    } else {
       Util::sleep(10); // sleep 10ms
     }
   }
   Util::Procs::socketList.erase(server_socket.getSocket());
   server_socket.close();
-  return 0;
-}
-
-int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
-  Socket::Server server_socket;
-  if (Socket::checkTrueSocket(0)){
-    server_socket = Socket::Server(0);
-  }else if (vals.isMember("socket")){
-    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  }else if (vals.isMember("port") && vals.isMember("interface")){
-    server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
-  }
-  if (!server_socket.connected()){
-    DEVEL_MSG("Failure to open socket");
-    return 1;
-  }
-  Socket::getSocketName(server_socket.getSocket(), Util::listenInterface, Util::listenPort);
-  serv_sock_fd = server_socket.getSocket();
-  activate();
-  if (server_socket.getSocket()){
-    int oldSock = server_socket.getSocket();
-    if (!dup2(oldSock, 0)){
-      server_socket = Socket::Server(0);
-      close(oldSock);
-    }
-  }
-  int r = threadServer(server_socket, callback);
   serv_sock_fd = -1;
-  return r;
+  return true;
 }
 
-int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
-  return serveCallbackSocket([&callback](Socket::Connection & C, Socket::Server & S) {
-    /// \todo This is not crossplatform compatible, use startpiped instead.
-    pid_t myid = fork();
-    if (myid == 0) { // if new child, start MAINHANDLER
-      S.drop();
-      callback(C);
-    } else { // otherwise, do nothing or output debugging text
-      HIGH_MSG("Forked new process %i for socket %i", (int)myid, S.getSocket());
-      S.drop();
-    }
-  });
-}
-
-int Util::Config::serveCallbackSocket(std::function<void(Socket::Connection &, Socket::Server &)> callback) {
+bool Util::Config::serveCallbackSocket(std::function<void(Socket::Connection &, Socket::Server &)> callback) {
   Socket::Server server_socket;
-  if (Socket::checkTrueSocket(0)){
-    server_socket = Socket::Server(0);
-  }else if (vals.isMember("socket")){
-    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  }else if (vals.isMember("port") && vals.isMember("interface")){
-    server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
-  }
-  if (!server_socket.connected()){
-    DEVEL_MSG("Failure to open socket");
-    return 1;
-  }
-  Socket::getSocketName(server_socket.getSocket(), Util::listenInterface, Util::listenPort);
-  serv_sock_fd = server_socket.getSocket();
-  activate();
-  if (server_socket.getSocket()){
-    int oldSock = server_socket.getSocket();
-    if (!dup2(oldSock, 0)){
-      server_socket = Socket::Server(0);
-      close(oldSock);
-    }
-  }
-  Util::Procs::socketList.insert(server_socket.getSocket());
+  if (!setupServerSocket(server_socket)) { return false; }
   while (is_active && server_socket.connected()) {
     Socket::Connection S = server_socket.accept();
     if (S.connected()) { // check if the new connection is valid
@@ -597,7 +556,7 @@ int Util::Config::serveCallbackSocket(std::function<void(Socket::Connection &, S
   Util::Procs::socketList.erase(server_socket.getSocket());
   if (!is_restarting) { server_socket.close(); }
   serv_sock_fd = -1;
-  return 0;
+  return true;
 }
 
 /// Activated the stored config. This will:

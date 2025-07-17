@@ -1,13 +1,15 @@
-#include <mist/defines.h>
-#include <mist/stream.h>
-#include <mist/util.h>
-#include <mist/config.h>
 #include <mist/auth.h>
 #include <mist/comms.h>
+#include <mist/config.h>
+#include <mist/defines.h>
+#include <mist/ev.h>
+#include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/util.h>
+
 #include <signal.h>
-#include <stdio.h>
 #include <sstream>
+#include <stdio.h>
 
 // Global counters
 uint64_t thisType = 0;
@@ -114,9 +116,12 @@ void userOnDisconnect(Comms::Connections & connections, size_t idx){
 
 int main(int argc, char **argv){
   Comms::Sessions sessions;
+  Event::Loop evLp;
+  evLp.setup();
   uint64_t lastSeen = Util::bootSecs();
   Util::redirectLogsIfNeeded();
   signal(SIGUSR1, handleSignal);
+
   // Init config and parse arguments
   Util::Config config = Util::Config("MistSession");
   JSON::Value option;
@@ -369,7 +374,7 @@ int main(int argc, char **argv){
       // Remember latest activity so we know when this session ends
       if (currentConnections){
       }
-      Util::wait(1000);
+      evLp.await(1000);
     }
     shouldSleep = connections.getExit();
     connections.setExit();
@@ -423,7 +428,7 @@ int main(int argc, char **argv){
     uint64_t sleepStart = Util::bootSecs();
     // Keep session invalidated for 10 minutes, or until the session stops
     while (config.is_active && Util::bootSecs() - sleepStart < SESS_TIMEOUT){
-      Util::sleep(1000);
+      evLp.await(1000);
       if (forceTrigger){break;}
     }
   }

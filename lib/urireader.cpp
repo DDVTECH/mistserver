@@ -1,13 +1,14 @@
-#include "defines.h"
-#include "shared_memory.h"
-#include "timing.h"
 #include "urireader.h"
-#include "util.h"
+
+#include "defines.h"
 #include "encode.h"
-#include <sys/mman.h>
-#include <sys/stat.h>
+#include "timing.h"
+#include "util.h"
+
 #include <cstdlib>
 #include <ctime>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 namespace HTTP{
 
@@ -340,7 +341,8 @@ namespace HTTP{
       // Note: this function returns true if the full read was completed only.
       // It's the reason this function returns void rather than bool.
       size_t prev = cb.getDataCallbackPos();
-      if (downer.continueNonBlocking(cb)){
+      if (downer.continueNonBlocking([&cb]() { return cb.getDataCallbackPos(); },
+                                     [&cb](const char *ptr, size_t len) { cb.dataCallback(ptr, len); })) {
         if (downer.getStatusCode() >= 400){
           WARN_MSG("Received error response code %" PRIu32 " (%s)", downer.getStatusCode(), downer.getStatusText().c_str());
           // cb.dataCallbackFlush();

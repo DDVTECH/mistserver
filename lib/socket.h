@@ -3,9 +3,12 @@
 /// Written by Jaron Vietor in 2010 for DDVTech
 
 #pragma once
+#include "util.h"
+
 #include <arpa/inet.h>
 #include <deque>
 #include <fcntl.h>
+#include <functional>
 #include <stdio.h>
 #include <string.h>
 #include <string>
@@ -13,7 +16,6 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include "util.h"
 
 #ifdef SSL
 #include <mbedtls/ctr_drbg.h>
@@ -40,8 +42,6 @@
 #endif
 
 #endif
-
-#include "util.h"
 
 // for being friendly with Socket::Connection down below
 namespace Buffer{
@@ -109,8 +109,8 @@ namespace Socket{
     std::string splitter; ///< String to automatically split on if encountered. \n by default
     Buffer();
     unsigned int size();
-    unsigned int bytes(unsigned int max);
-    unsigned int bytesToSplit();
+    unsigned int bytes(unsigned int max) const;
+    unsigned int bytesToSplit() const;
     void append(const std::string &newdata);
     void append(const char *newdata, const unsigned int newdatasize);
     void prepend(const std::string &newdata);
@@ -138,16 +138,19 @@ namespace Socket{
     std::string remotehost;         ///< Stores remote host address.
     std::string boundaddr;          ///< Stores bound interface address.
     struct sockaddr_in6 remoteaddr; ///< Stores remote host address.
+    std::deque<std::function<void(int)>> closeCallbacks;
     uint64_t up;
     uint64_t down;
     long long int conntime;
-    Buffer downbuffer;                                ///< Stores temporary data coming in.
+    Buffer downbuffer; ///< Stores received data (both in blocking and non-blocking modes)
+    Buffer upBuffer; ///< In non-blocking mode, buffers outgoing writes
     int iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
     bool iread(Buffer &buffer, int flags = 0); ///< Incremental write call that is compatible with Socket::Buffer.
     void setBoundAddr();
     std::string lastErr; ///< Stores last error, if any.
     bool isLocked;
     bool chunkedMode;
+    bool blocking;
 #ifdef SSL
     /// optional extension that uses mbedtls for SSL
     bool sslConnected;
@@ -186,6 +189,7 @@ namespace Socket{
     void drop();                                         ///< Close connection without shutdown.
     bool lock();
     void unlock();
+    void onClose(std::function<void(int)> cb);
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
     void setChunkedMode(bool isChunked) { chunkedMode = isChunked; }
@@ -205,10 +209,11 @@ namespace Socket{
     bool peek();                    ///< Clears the downbuffer and fills it with peek
     Buffer &Received();             ///< Returns a reference to the download buffer.
     const Buffer &Received() const; ///< Returns a reference to the download buffer.
-    void SendNow(const std::string &data); ///< Will not buffer anything but always send right away. Blocks.
-    void SendNow(const char *data); ///< Will not buffer anything but always send right away. Blocks.
-    void SendNow(const char *data,
-                 size_t len); ///< Will not buffer anything but always send right away. Blocks.
+    size_t sendingBlocked(size_t max) const;
+    void send(const char *data, size_t len);
+    void SendNow(const std::string & data);
+    void SendNow(const char *data);
+    void SendNow(const char *data, size_t len);
     void skipBytes(uint32_t byteCount);
     uint32_t skipCount;
     // unbuffered i/o methods
@@ -222,8 +227,7 @@ namespace Socket{
     void addUp(const uint32_t i);
     void addDown(const uint32_t i);
     friend class Server;
-    bool Error;    ///< Set to true if a socket error happened.
-    bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
+    bool Error; ///< Set to true if a socket error happened.
     // overloaded operators
     bool operator==(const Connection &B) const;
     bool operator!=(const Connection &B) const;
@@ -237,6 +241,8 @@ namespace Socket{
     int sock;           ///< Internally saved socket number.
     bool IPv6bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv6 socket
     bool IPv4bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv4 socket
+    Socket::Address bindAddr;
+
   public:
     Server();                 ///< Create a new base Server.
     Server(int existingSock); ///< Create a new Server from existing socket.
@@ -249,6 +255,7 @@ namespace Socket{
     void close();      ///< Close connection.
     void drop();       ///< Close connection without shutdown.
     int getSocket();   ///< Returns internal socket number.
+    const Socket::Address & getBoundAddr() const { return bindAddr; }
   };
 
   class UDPConnection{

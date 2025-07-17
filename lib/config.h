@@ -60,20 +60,15 @@ namespace Util{
     void fillEffectiveArgs(std::deque<std::string> & args, bool longForm = true);
     void activate();
     void installDefaultChildSignalHandler();
-    int threadServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));
-    int serveThreadedSocket(int (*callback)(Socket::Connection &));
-    int serveForkedSocket(int (*callback)(Socket::Connection &S));
-    int serveCallbackSocket(std::function<void(Socket::Connection &, Socket::Server &)> callback);
+    bool setupServerSocket(Socket::Server & s);
+    bool serveThreadedSocket(int (*callback)(Socket::Connection &));
+    bool serveCallbackSocket(std::function<void(Socket::Connection &, Socket::Server &)> callback);
+    Socket::Address boundServer;
     void addOptionsFromCapabilities(const JSON::Value &capabilities);
     void addBasicConnectorOptions(JSON::Value &capabilities);
     void addStandardPushCapabilities(JSON::Value &capabilities);
     void addConnectorOptions(int port, JSON::Value &capabilities);
   };
-
-  /// The interface address the current serveSocket function is listening on
-  extern std::string listenInterface;
-  /// The port the current serveSocket function is listening on
-  extern uint32_t listenPort;
 
   /// Gets the directory and name of the binary the executable is stored in.
   std::string getMyPathWithBin();

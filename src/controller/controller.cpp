@@ -1,6 +1,3 @@
-/// \file controller.cpp
-/// Contains all code for the controller executable.
-
 #include "controller_api.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
@@ -16,6 +13,7 @@
 #include <mist/auth.h>
 #include <mist/config.h>
 #include <mist/defines.h>
+#include <mist/ev.h>
 #include <mist/http_parser.h>
 #include <mist/procs.h>
 #include <mist/shared_memory.h>
@@ -30,6 +28,7 @@
 #include <iostream>
 #include <mutex>
 #include <signal.h>
+#include <sstream>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h> //for shm space check
@@ -67,7 +66,7 @@ void createAccount(std::string account){
     if (colon != std::string::npos && colon != 0 && colon != account.size()){
       std::string uname = account.substr(0, colon);
       std::string pword = account.substr(colon + 1, std::string::npos);
-      Controller::Log("CONF", "Created account " + uname + " through console interface");
+      LOG_MSG("CONF", "Created account %s through console interface", uname.c_str());
       Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
@@ -78,81 +77,68 @@ void createAccount(std::string account){
 /// 2 = Auto-write config to disk
 static int configrw;
 
-/// Status monitoring thread.
+/// Status monitoring runner.
 /// Checks status of "protocols" (listening outputs)
 /// Updates config from disk when changed
 /// Writes config to disk after some time of no changes
-void statusMonitor(){
-  Util::nameThread("statusMonitor");
-  Controller::loadActiveConnectors();
-  while (Controller::conf.is_active){
-
-    // Check configuration file last changed time
-    uint64_t confTime = Util::getFileUnixTime(Controller::conf.getString("configFile"));
-    if (Controller::Storage.isMember("config_split")){
-      jsonForEach(Controller::Storage["config_split"], cs){
-        if (cs->isString()){
-          uint64_t subTime = Util::getFileUnixTime(cs->asStringRef());
-          if (subTime && subTime > confTime){confTime = subTime;}
-        }
+size_t statusMonitor() {
+  // Check configuration file last changed time
+  uint64_t confTime = Util::getFileUnixTime(Controller::conf.getString("configFile"));
+  if (Controller::Storage.isMember("config_split")) {
+    jsonForEach (Controller::Storage["config_split"], cs) {
+      if (cs->isString()) {
+        uint64_t subTime = Util::getFileUnixTime(cs->asStringRef());
+        if (subTime && subTime > confTime) { confTime = subTime; }
       }
     }
-    // If we recently wrote, assume we know the contents since that time, too.
-    if (lastConfRead < Controller::lastConfigWrite){lastConfRead = Controller::lastConfigWrite;}
-    // If the config has changed, update Controller::lastConfigChange
-    {
-      JSON::Value currConfig;
-      Controller::getConfigAsWritten(currConfig);
-      if (Controller::lastConfigSeen != currConfig){
-        Controller::lastConfigChange = Util::epoch();
-        Controller::lastConfigSeen = currConfig;
-      }
+  }
+  // If we recently wrote, assume we know the contents since that time, too.
+  if (lastConfRead < Controller::lastConfigWrite) { lastConfRead = Controller::lastConfigWrite; }
+  // If the config has changed, update Controller::lastConfigChange
+  {
+    JSON::Value currConfig;
+    Controller::getConfigAsWritten(currConfig);
+    if (Controller::lastConfigSeen != currConfig) {
+      Controller::lastConfigChange = Util::epoch();
+      Controller::lastConfigSeen = currConfig;
     }
-    if (configrw & 1){
-      // Read from disk if they are newer than our last read
-      if (confTime && confTime > lastConfRead){
-        INFO_MSG("Configuration files changed - reloading configuration from disk");
-        std::lock_guard<std::mutex> guard(Controller::configMutex);
-        Controller::readConfigFromDisk();
-        lastConfRead = Controller::lastConfigChange;
-      }
-    }
-    if (configrw & 2){
-      // Write to disk if we have made no changes in the last 60 seconds and the files are older than the last change
-      if (Controller::lastConfigChange > Controller::lastConfigWrite && Controller::lastConfigChange < Util::epoch() - 60){
-        std::lock_guard<std::mutex> guard(Controller::configMutex);
-        Controller::writeConfigToDisk();
-        if (lastConfRead < Controller::lastConfigWrite){lastConfRead = Controller::lastConfigWrite;}
-      }
-    }
-
-    { // this scope prevents the configMutex from being locked constantly
+  }
+  if (configrw & 1) {
+    // Read from disk if they are newer than our last read
+    if (confTime && confTime > lastConfRead) {
+      INFO_MSG("Configuration files changed - reloading configuration from disk");
       std::lock_guard<std::mutex> guard(Controller::configMutex);
-      // checks online protocols, reports changes to status
-      if (Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities)){
-        Controller::writeProtocols();
-      }
-      // checks stream statuses, reports changes to status
-      Controller::CheckAllStreams(Controller::Storage["streams"]);
+      Controller::readConfigFromDisk();
+      lastConfRead = Controller::lastConfigChange;
     }
+  }
+  if (configrw & 2) {
+    // Write to disk if we have made no changes in the last 60 seconds and the files are older than the last change
+    if (Controller::lastConfigChange > Controller::lastConfigWrite && Controller::lastConfigChange < Util::epoch() - 60) {
+      std::lock_guard<std::mutex> guard(Controller::configMutex);
+      Controller::writeConfigToDisk();
+      if (lastConfRead < Controller::lastConfigWrite) { lastConfRead = Controller::lastConfigWrite; }
+    }
+  }
 
-    Util::sleep(3000); // wait at most 3 seconds
+  // checks online protocols, reports changes to status
+  if (Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities)) {
+    Controller::writeProtocols();
   }
-  if (Util::Config::is_restarting){
-    Controller::prepareActiveConnectorsForReload();
-  }else{
-    Controller::prepareActiveConnectorsForShutdown();
-  }
+  // checks stream status
+  jsonForEach (Controller::Storage["streams"], jit) { Controller::checkStream(jit.key(), *jit); }
+  return 3000;
 }
 
 void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
-  Controller::Log("CONF", "USR1 received - restarting controller");
+  LOG_MSG("CONF", "USR1 received - restarting controller");
+  Util::logExitReason(ER_CLEAN_RESTART, "USR1 received - restarting");
   Util::Config::is_restarting = true;
   raise(SIGINT); // trigger restart
 }
 
 void handleUSR1Parent(int signum, siginfo_t *sigInfo, void *ignore){
-  Controller::Log("CONF", "USR1 received - passing on to child");
+  LOG_MSG("CONF", "USR1 received - passing on to child");
   Util::Config::is_restarting = true;
 }
 
@@ -337,51 +323,45 @@ int main_loop(int argc, char **argv){
   
   // We need to do this before we start the log reader, since the log reader might parse messages
   // from pushes, which block if this list is not read yet.
-  Controller::readPushList();
+  Controller::initPushCheck();
 
-  {// spawn thread that reads stderr of process
+  int logInput = -1;
+  { // spawn thread that reads stderr of process
     std::string logPipe = Util::getTmpFolder() + "MstLog";
-    if (mkfifo(logPipe.c_str(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH) != 0){
-      if (errno != EEXIST){
-        ERROR_MSG("Could not create log message pipe %s: %s", logPipe.c_str(), strerror(errno));
-      }
+    if (mkfifo(logPipe.c_str(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH) != 0) {
+      if (errno != EEXIST) { ERROR_MSG("Could not create log message pipe %s: %s", logPipe.c_str(), strerror(errno)); }
     }
-    int inFD = -1;
-    if ((inFD = open(logPipe.c_str(), O_RDONLY | O_NONBLOCK)) == -1){
-      ERROR_MSG("Could not open log message pipe %s: %s; falling back to unnamed pipe",
-                logPipe.c_str(), strerror(errno));
+    if ((logInput = open(logPipe.c_str(), O_RDONLY | O_NONBLOCK)) == -1) {
+      ERROR_MSG("Could not open log message pipe %s: %s; falling back to unnamed pipe", logPipe.c_str(), strerror(errno));
       int pipeErr[2];
-      if (pipe(pipeErr) >= 0){
+      if (!pipe(pipeErr)) {
         dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
-        close(pipeErr[1]);               // close the unneeded pipe file descriptor
-        // Start reading log messages from the unnamed pipe
-        Util::Procs::socketList.insert(pipeErr[0]); // Mark this FD as needing to be closed before forking
-        std::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + pipeErr[0]));
-        msghandler.detach();
+        close(pipeErr[1]); // close the unneeded pipe file descriptor
+        logInput = pipeErr[0];
       }
-    }else{
+    } else {
       // Set the read end to blocking mode
-      int inFDflags = fcntl(inFD, F_GETFL, 0);
-      fcntl(inFD, F_SETFL, inFDflags & (~O_NONBLOCK));
+      int inFDflags = fcntl(logInput, F_GETFL, 0);
+      fcntl(logInput, F_SETFL, inFDflags & (~O_NONBLOCK));
 
       // Attempt to open and redirect log messages to named pipe
       int outFD = -1;
-      if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
-        ERROR_MSG(
-            "Could not open log message pipe %s for writing! %s; falling back to standard error",
-            logPipe.c_str(), strerror(errno));
-      }else{
+      if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1) {
+        ERROR_MSG("Can't write to log pipe %s: %s; falling back to standard error", logPipe.c_str(), strerror(errno));
+      } else {
         dup2(outFD, STDERR_FILENO); // cause stderr to write to the pipe
-        close(outFD);               // close the unneeded pipe file descriptor
+        close(outFD); // close the unneeded pipe file descriptor
       }
-
-      // Start reading log messages from the named pipe
-      Util::Procs::socketList.insert(inFD); // Mark this FD as needing to be closed before forking
-      std::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + inFD));
-      msghandler.detach();
     }
-    setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
   }
+  if (logInput == -1) {
+    FAIL_MSG("Could nog start logger; aborting run!");
+    return 3;
+  }
+  // Start reading log messages
+  Util::Procs::socketList.insert(logInput); // Mark this FD as needing to be closed before forking
+  std::thread logThread(Controller::handleMsg, logInput);
+  setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
 
 #ifdef __CYGWIN__
   // Wipe shared memory, unless NO_WIPE_SHM is set
@@ -390,7 +370,9 @@ int main_loop(int argc, char **argv){
     setenv("NO_WIPE_SHM", "1", 1);
   }
 #endif
-  
+
+  Controller::E.setup();
+
   Controller::readConfigFromDisk();
   Controller::writeConfig();
   if (!Controller::conf.is_active){return 0;}
@@ -399,7 +381,6 @@ int main_loop(int argc, char **argv){
   Controller::writeCapabilities();
   Controller::updateBandwidthConfig();
   createAccount(Controller::conf.getString("account"));
-  Controller::conf.activate(); // activate early, so threads aren't killed.
   Controller::conf.setMutexAborter(&Controller::configMutex);
 
 #if !defined(__CYGWIN__) && !defined(_WIN32)
@@ -482,31 +463,6 @@ int main_loop(int argc, char **argv){
     if (!interactiveFirstTimeSetup()){return 0;}
   }
 
-  // Check if we have a usable server, if not, print messages with helpful hints
-  {
-    std::string web_port = JSON::Value(Controller::conf.getInteger("port")).asString();
-    // check for username
-    if (!Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
-      Controller::Log("CONF",
-                      "No login configured. To create one, attempt to login through the web "
-                      "interface on port " +
-                          web_port + " and follow the instructions.");
-    }
-    // check for protocols
-    if (!Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") ||
-        Controller::Storage["config"]["protocols"].size() < 1){
-      Controller::Log("CONF", "No protocols enabled, remember to set them up through the web "
-                              "interface on port " +
-                                  web_port + " or API.");
-    }
-    // check for streams - regardless of logfile setting
-    if (!Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
-      Controller::Log("CONF", "No streams configured, remember to set up streams through the web "
-                              "interface on port " +
-                                  web_port + " or API.");
-    }
-  }
-
   // Generate instanceId once per boot.
   if (Controller::instanceId == ""){
     do{
@@ -528,82 +484,166 @@ int main_loop(int argc, char **argv){
     }
   }
 
-  // start stats thread
-  std::thread statsThread(Controller::SharedMemStats, &Controller::conf);
-  // start monitoring thread
-  std::thread monitorThread(statusMonitor);
-  // start UDP API thread
-  std::thread UDPAPIThread(Controller::handleUDPAPI);
-  // start monitoring thread /*LTS*/
-  std::thread uplinkThread(Controller::uplinkConnection); /*LTS*/
-  // start push checking thread
-  std::thread pushThread(Controller::pushCheckLoop);
-  // start variable checking thread
-  std::thread variableThread(Controller::variableCheckLoop);
-#ifdef UPDATER
-  // start updater thread
-  std::thread updaterThread(Controller::updateThread);
-#endif
+  // Listen on API port
+  Socket::Server apiSock;
+  if (!Controller::conf.setupServerSocket(apiSock)) {
+    Util::logExitReason(ER_READ_START_FAILURE, "Could not listen on API port - aborting");
+    return 0;
+  }
 
-  Controller::Log("CONF", "Controller started");
-  /*LTS-START*/
-#ifdef UPDATER
-  if (Controller::conf.getBool("update")){Controller::checkUpdates();}
-#endif
-  /*LTS-END*/
+  // Check if we have a usable server, if not, print messages with helpful hints
+  {
+    std::string msg;
+    // check for username
+    if (!Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1) {
+      msg += "No login configured. ";
+    }
+    // check for protocols
+    if (!Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") ||
+        Controller::Storage["config"]["protocols"].size() < 1) {
+      msg += "No protocols enabled. ";
+    }
+    // check for streams - regardless of logfile setting
+    if (!Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1) {
+      msg += "No streams configured. ";
+    }
+    if (msg.size()) {
+      msg += "This can be configured through the web interface on port " +
+        JSON::Value(Controller::conf.boundServer.port()).asString() + " or through the API";
+      LOG_MSG("CONF", "%s", msg.c_str());
+    }
+  }
 
-  // Init external writer config
+  Controller::initStats();
+  Controller::initStorage();
+  Controller::loadActiveConnectors();
   Controller::externalWritersToShm();
 
-  // start main loop
-  while (Controller::conf.is_active){
-    Controller::conf.serveThreadedSocket(Controller::handleAPIConnection);
-    // print shutdown reason
-    std::string shutdown_reason;
-    if (!Controller::conf.is_active){
-      shutdown_reason = "user request (received shutdown signal)";
-    }else{
-      shutdown_reason = "socket problem (API port closed)";
+  Controller::E.addInterval(Controller::runStats, 1000);
+  Controller::variableTimer = Controller::E.addInterval(Controller::variableRun, 750);
+  Controller::E.addInterval(Controller::runPushCheck, 1000);
+  Controller::E.addInterval(statusMonitor, 3000);
+  Controller::E.addSocket(apiSock.getSocket(), [&apiSock](void *) {
+    APIConn *aConn = new APIConn(Controller::E, apiSock);
+    if (!aConn) {
+      FAIL_MSG("Could not create new API connection: out of memory");
+      return;
     }
-    if (Util::Config::is_restarting){shutdown_reason = "restart (on request)";}
-/*LTS-START*/
-    if (Triggers::shouldTrigger("SYSTEM_STOP")){
-      if (!Triggers::doTrigger("SYSTEM_STOP", shutdown_reason)){
-        Controller::conf.is_active = true;
-        Util::Config::is_restarting = false;
-        Util::sleep(1000);
-      }else{
-        Controller::conf.is_active = false;
-        Controller::Log("CONF", "Controller shutting down because of " + shutdown_reason);
+  }, 0);
+
+  // Set up UDP API socket
+  Socket::UDPConnection uSock(true);
+  Util::Procs::socketList.insert(uSock.getSock());
+  uint16_t boundPort = 0;
+  bool warned = false;
+  auto attemptBind = [&]() {
+    Util::Procs::socketList.erase(uSock.getSock());
+    HTTP::URL udpApiAddr("udp://localhost:4242");
+    if (getenv("UDP_API")) { udpApiAddr = HTTP::URL(getenv("UDP_API")); }
+    boundPort = uSock.bind(udpApiAddr.getPort(), udpApiAddr.host);
+    if (!boundPort) {
+      boundPort = uSock.bind(0, udpApiAddr.host);
+      if (!boundPort) {
+        std::stringstream newHost;
+        char ranNums[3];
+        Util::getRandomBytes(ranNums, 3);
+        newHost << "127." << (int)ranNums[0] << "." << (int)ranNums[1] << "." << (int)ranNums[2];
+        boundPort = uSock.bind(0, newHost.str());
+        if (!boundPort) {
+          WARN_MSG("Could not open local UDP API socket; scheduling retry");
+          warned = true;
+          return 10000;
+        }
+        WARN_MSG("Could not open UDP API port on any port on %s - bound instead to %s", udpApiAddr.host.c_str(),
+                 uSock.getBoundAddr().toString().c_str());
+      } else {
+        WARN_MSG("Could not open local UDP API socket on %s:%" PRIu16 " - bound to ephemeral port %" PRIu16 " instead",
+                 udpApiAddr.host.c_str(), udpApiAddr.getPort(), boundPort);
       }
-    }else{
-      /*LTS-END*/
-      Controller::conf.is_active = false;
-      Controller::Log("CONF", "Controller shutting down because of " + shutdown_reason);
-      /*LTS-START*/
+    } else {
+      if (warned) {
+        WARN_MSG("Local UDP API bound successfully on %s", uSock.getBoundAddr().toString().c_str());
+      } else {
+        INFO_MSG("Local UDP API bound on %s", uSock.getBoundAddr().toString().c_str());
+      }
     }
-    /*LTS-END*/
-  }
-  // join all joinable threads
-  HIGH_MSG("Joining stats thread...");
-  statsThread.join();
-  HIGH_MSG("Joining monitor thread...");
-  monitorThread.join();
-  HIGH_MSG("Joining UDP API thread...");
-  UDPAPIThread.join();
-  HIGH_MSG("Joining uplink thread...");
-  uplinkThread.join();
-  HIGH_MSG("Joining push thread...");
-  pushThread.join();
-  HIGH_MSG("Joining variable thread...");
-  variableThread.join();
+    HTTP::URL boundAddr;
+    boundAddr.protocol = "udp";
+    boundAddr.setPort(boundPort);
+    boundAddr.host = uSock.getBoundAddr().host();
+    {
+      std::lock_guard<std::mutex> guard(Controller::configMutex);
+      Controller::udpApiBindAddr = boundAddr.getUrl();
+      Controller::writeConfig();
+    }
+    uSock.allocateDestination();
+    Util::Procs::socketList.insert(uSock.getSock());
+    Controller::E.addSocket(uSock.getSock(), [&](void *) {
+      while (uSock.Receive()) {
+        MEDIUM_MSG("UDP API: %s", (const char *)uSock.data);
+        JSON::Value Request = JSON::fromString(uSock.data, uSock.data.size());
+        Request["minimal"] = true;
+        JSON::Value Response;
+        if (Request.isObject()) {
+          std::lock_guard<std::mutex> guard(Controller::configMutex);
+          Response["authorize"]["local"] = true;
+          Controller::handleAPICommands(Request, Response);
+          Response.removeMember("authorize");
+          uSock.SendNow(Response.toString());
+        } else {
+          WARN_MSG("Invalid API command received over UDP: %s", (const char *)uSock.data);
+        }
+      }
+    }, 0);
+    return 0;
+  };
+  attemptBind();
+  // Retry bind every 10s if needed
+  if (!boundPort) { Controller::E.addInterval(attemptBind, 10000); }
+
+  Controller::conf.activate();
+
 #ifdef UPDATER
-  HIGH_MSG("Joining updater thread...");
-  updaterThread.join();
+  Controller::E.addInterval(Controller::updaterCheck, 3600000);
+  if (Controller::conf.getBool("update")) {
+    Controller::rollingUpdate();
+    Controller::updaterCheck();
+  }
 #endif
+
+  // start main event loop
+  LOG_MSG("CONF", "Controller started");
+  while (Controller::conf.is_active) {
+    // Handle events
+    Controller::E.await(5000);
+
+    // Catch up on logs
+    Controller::logParser();
+
+    // Check if we're shutting down, if so, check SYSTEM_STOP trigger and allow cancelling it
+    if (!Controller::conf.is_active) {
+      if (Triggers::shouldTrigger("SYSTEM_STOP")) {
+        if (!Triggers::doTrigger("SYSTEM_STOP", Util::exitReason)) {
+          Controller::conf.is_active = true;
+          Util::Config::is_restarting = false;
+          LOG_MSG("CONF", "Shutdown prevented by SYSTEM_STOP trigger");
+        }
+      }
+    }
+  }
+
+  INFO_MSG("Shutdown reason: %s", Util::exitReason);
+
+  Controller::deinitStats();
+  Controller::deinitPushCheck();
+  Controller::variableDeinit();
+  if (Util::Config::is_restarting) {
+    Controller::prepareActiveConnectorsForReload();
+  } else {
+    Controller::prepareActiveConnectorsForShutdown();
+  }
+
   // write config
-  std::lock_guard<std::mutex> guardLog(Controller::logMutex);
-  std::lock_guard<std::mutex> guardCnf(Controller::configMutex);
   Controller::writeConfigToDisk(true);
   // stop all child processes
   Util::Procs::StopAll();
@@ -611,15 +651,32 @@ int main_loop(int argc, char **argv){
   Util::wait(100);
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
   if (Util::Config::is_restarting){return 42;}
-  // close stderr to make the stderr reading thread exit
+
+  // close logInput to make the log reading thread exit, then join it
   close(STDERR_FILENO);
+  close(logInput);
+  logThread.join();
+
+  // Finally de-allocate storage - the log thread uses these structures
+  Controller::deinitStorage(Util::Config::is_restarting);
   return 0;
 }
 
-///\brief The controller angel process.
-/// Starts a forked main_loop in a loop. Yes, you read that right.
+/// Controller entry point - either starts main_loop or runs a child process that does.
 int main(int argc, char **argv){
-  Util::Procs::setHandler(); // set child handler
+  Controller::conf = Util::Config(argv[0]);
+  Util::Config::binaryType = Util::CONTROLLER;
+  Controller::conf.activate();
+  Controller::conf.setMutexAborter(&Controller::configMutex);
+
+  // If we're the child process _or_ we're running without angel process, go into the true main loop now.
+  if (getenv("ATHEIST") || getenv("CTRL_ATHEIST")) { return main_loop(argc, argv); }
+
+  // We're the angel process - set the environment variable indicating such and start child processes in a loop.
+  setenv("CTRL_ATHEIST", "1", 1);
+
+  // Handle signals as parent
+  Util::Procs::setHandler();
   {
     struct sigaction new_action;
     new_action.sa_sigaction = handleUSR1Parent;
@@ -628,12 +685,6 @@ int main(int argc, char **argv){
     sigaction(SIGUSR1, &new_action, NULL);
   }
 
-  Controller::conf = Util::Config(argv[0]);
-  Util::Config::binaryType = Util::CONTROLLER;
-  Controller::conf.activate();
-  Controller::conf.setMutexAborter(&Controller::configMutex);
-  if (getenv("ATHEIST") || getenv("CTRL_ATHEIST")) { return main_loop(argc, argv); }
-  setenv("CTRL_ATHEIST", "1", 1);
   uint64_t reTimer = 0;
   while (Controller::conf.is_active){
     pid_t pid = Util::Procs::StartPiped(argv);

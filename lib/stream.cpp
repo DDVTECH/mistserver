@@ -741,6 +741,9 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
 
   if (spawn_pid) { *spawn_pid = pid; }
+
+  if (overrides.count("dontWaitForStream")) { return true; }
+
   unsigned int waiting = 0;
   while (!streamAlive(streamname) && ++waiting < 240){
     Util::wait(250);

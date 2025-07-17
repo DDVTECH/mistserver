@@ -82,14 +82,6 @@ namespace Mist{
     bool getSyncMode() { return buffer.getSyncMode(); }
 
   private: // these *should* not be messed with in child classes.
-    /*LTS-START*/
-    void Log(std::string type, std::string message);
-    bool checkLimits();
-    bool isBlacklisted(std::string host, std::string streamName, int timeConnected);
-    std::string hostLookup(std::string ip);
-    bool onList(std::string ip, std::string list);
-    std::string getCountry(std::string ip);
-    /*LTS-END*/
     std::map<size_t, uint32_t> currentPage;
     void loadPageForKey(size_t trackId, size_t keyNum);
     uint64_t pageNumForKey(size_t trackId, size_t keyNum);

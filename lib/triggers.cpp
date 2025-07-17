@@ -83,7 +83,6 @@ namespace Triggers{
     }else{// send payload to stdin of newly forked process
       int fdIn = -1;
       int fdOut = -1;
-      int fdErr = 2;
 
       char *argv[3];
       argv[0] = (char *)value.c_str();
@@ -99,7 +98,8 @@ namespace Triggers{
       if (hrn.size()){
         setenv("MIST_NAME", hrn.c_str(), 1);
       }
-      pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr); // start new process and return stdin file desc.
+      uint64_t startTime = Util::bootMS();
+      pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, 0); // start new process and return stdin file desc.
       unsetenv("MIST_TRIGGER");
       unsetenv("MIST_TRIG_DEF");
       unsetenv("MIST_INSTANCE");
@@ -114,13 +114,19 @@ namespace Triggers{
       close(fdIn);
 
       if (sync){// if sync!=0 wait for response
-        uint64_t startTime = Util::bootMS();
+        Socket::Connection readConn(-1, fdOut);
+        readConn.setBlocking(false);
+        Util::ResizeablePointer ret;
         Event::Loop ev;
+        ev.addSocket(fdOut, [&](void *) {
+          while (readConn.spool()) { readConn.Received().remove(ret, readConn.Received().bytes(0xFFFFFFFFull)); }
+          if (!readConn) { ev.remove(fdOut); }
+        }, 0);
         bool warned = false;
-        while (Util::Procs::isActive(myProc) && startTime + 15000 > Util::bootMS()) {
-          ev.await(100);
+        while (readConn && startTime + 15000 > Util::bootMS()) {
+          ev.await(500);
           uint64_t now = Util::bootMS();
-          if (now >= startTime + 10000) {
+          if (now >= startTime + 10000 && Util::Procs::childRunning(myProc)) {
             if (!warned) {
               FAIL_MSG("Trigger taking too long - killing process");
               warned = true;
@@ -132,23 +138,14 @@ namespace Triggers{
             }
           }
         }
-        std::string ret;
-        FILE *outFile = fdopen(fdOut, "r");
-        char *fileBuf = 0;
-        size_t fileBufLen = 0;
-        while (!(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
-          ret += fileBuf;
-        }
-        fclose(outFile);
-        free(fileBuf);
-        close(fdOut);
+        if (Util::Procs::childRunning(myProc)) { Util::Procs::Murder(myProc); }
         if (warned && !ret.size()) {
           WARN_MSG("Using default trigger response: %s", defaultResponse.c_str());
           submitTriggerStat(trigger, tStartMs, false);
           return defaultResponse;
         }
         submitTriggerStat(trigger, tStartMs, true);
-        return ret;
+        return std::string(ret, ret.size());
       }
       close(fdOut);
       submitTriggerStat(trigger, tStartMs, true);

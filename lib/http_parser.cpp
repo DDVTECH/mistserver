@@ -500,10 +500,10 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 /// If a whole request could be read, it is removed from the front of the socket buffer and true
 /// returned. If not, as much as can be interpreted is removed and false returned. \param conn The
 /// socket to read from. \return True if a whole request or response was read, false otherwise.
-bool HTTP::Parser::Read(Socket::Connection &conn, Util::DataCallback &cb){
+bool HTTP::Parser::Read(Socket::Connection & conn, std::function<void(const char *, size_t)> onData) {
   // In this case, we might have a broken connection and need to check if we're done
   if (!conn.Received().size()){
-    return (parse(conn.Received().get(), cb) && (!possiblyComplete || !conn || !JSON::Value(url).asInt()));
+    return parse(conn.Received().get(), onData) && (!possiblyComplete || !conn || !JSON::Value(url).asInt());
   }
   while (conn.Received().size()){
     // Make sure the received data ends in a newline (\n).
@@ -523,12 +523,12 @@ bool HTTP::Parser::Read(Socket::Connection &conn, Util::DataCallback &cb){
     }
 
     // return true if a parse succeeds, and is not a request
-    if (parse(conn.Received().get(), cb) && (!possiblyComplete || !conn || !JSON::Value(url).asInt())){
+    if (parse(conn.Received().get(), onData) && (!possiblyComplete || !conn || !JSON::Value(url).asInt())) {
       return true;
     }
   }
   return false;
-}// HTTPReader::Read
+} // HTTPReader::Read
 
 /// Attempt to read a whole HTTP request or response from a std::string buffer.
 /// If a whole request could be read, it is removed from the front of the given buffer and true
@@ -542,7 +542,7 @@ bool HTTP::Parser::Read(std::string &strbuf){
 /// Returns zero if that doesn't make sense at the time or cannot be determined.
 uint8_t HTTP::Parser::getPercentage() const{
   if (!seenHeaders || length < 1){return 0;}
-  return ((body.length() * 100) / length);
+  return (currentLength * 100) / length;
 }
 
 /// Attempt to read a whole HTTP response or request from a data buffer.
@@ -550,7 +550,7 @@ uint8_t HTTP::Parser::getPercentage() const{
 /// from the data buffer.
 /// \param HTTPbuffer The data buffer to read from.
 /// \return True on success, false otherwise.
-bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
+bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char *, size_t)> onData) {
   size_t f;
   std::string tmpA, tmpB, tmpC;
   /// \todo Make this not resize HTTPbuffer in parts, but read all at once and then remove the
@@ -609,13 +609,12 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;
+          currentLength = 0;
           body.clear();
           knownLength = false;
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
-            if (!bodyCallback && (&cb == &Util::defaultDataCallback) && body.capacity() < length){
-              body.reserve(length);
-            }
+            if (!bodyCallback && !onData && body.capacity() < length) { body.reserve(length); }
             knownLength = true;
           }
           if (GetHeader("Transfer-Encoding") == "chunked"){
@@ -639,7 +638,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
         if ((code >= 100 && code < 200) || code == 204 || code == 304){return true;}
       }
       if (knownLength && !getChunks){
-        unsigned int toappend = length - body.length();
+        unsigned int toappend = length - currentLength;
 
         // limit the amount of bytes that will be appended to the amount there
         // is available
@@ -650,14 +649,12 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           // check if pointer callback function is set and run callback. remove partial data from buffer
           if (bodyCallback){
             bodyCallback(HTTPbuffer.data(), toappend);
-            length -= toappend;
             shouldAppend = false;
           }
 
           // check if reference callback function is set and run callback. remove partial data from buffer
-          if (&cb != &Util::defaultDataCallback){
-            cb.dataCallback(HTTPbuffer.data(), toappend);
-            length -= toappend;
+          if (onData) {
+            onData(HTTPbuffer.data(), toappend);
             shouldAppend = false;
           }
 
@@ -665,11 +662,11 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           HTTPbuffer.erase(0, toappend);
           currentLength += toappend;
         }
-        if (length == body.length()){
+        if (length == currentLength) {
           // parse POST body if the content type is URLEncoded
           if (method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded"){parseVars(body, vars);}
           return true;
-        }else{
+        } else {
           return false;
         }
       }else{
@@ -685,8 +682,8 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
               shouldAppend = false;
             }
 
-            if (&cb != &Util::defaultDataCallback){
-              cb.dataCallback(HTTPbuffer.data(), toappend);
+            if (onData) {
+              onData(HTTPbuffer.data(), toappend);
               shouldAppend = false;
             }
 
@@ -725,8 +722,8 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
             shouldAppend = false;
           }
 
-          if (&cb != &Util::defaultDataCallback){
-            cb.dataCallback(HTTPbuffer.data(), toappend);
+          if (onData) {
+            onData(HTTPbuffer.data(), toappend);
             shouldAppend = false;
           }
 
@@ -741,7 +738,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
     }
   }
   return possiblyComplete; // empty input
-}// HTTPReader::parse
+} // HTTPReader::parse
 
 /// HTTP variable parser to std::map<std::string, std::string> structure.
 /// Reads variables from data, decodes and stores them to storage.

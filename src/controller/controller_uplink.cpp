@@ -25,8 +25,8 @@ void Controller::uplinkConnection(){
     if (colon != std::string::npos && colon != 0 && colon != uplink_addr.size()){
       uplink_host = uplink_addr.substr(0, colon);
       uplink_port = atoi(uplink_addr.substr(colon + 1, std::string::npos).c_str());
-      Controller::Log("CONF", "Connection to uplink enabled on host " + uplink_host + " and port " +
-                                  uplink_addr.substr(colon + 1, std::string::npos));
+      LOG_MSG("CONF", "Connection to uplink enabled on host %s and port %s", uplink_host.c_str(),
+              uplink_addr.substr(colon + 1, std::string::npos).c_str());
     }
   }
   // cancel the whole thread if no uplink is set
@@ -112,7 +112,7 @@ void Controller::uplinkConnection(){
         lastSend = Util::epoch();
       }
     }else{
-      Controller::Log("UPLK", "Could not connect to uplink.");
+      LOG_MSG("UPLK", "Could not connect to uplink.");
     }
     Util::wait(2000); // wait for 2.5 seconds
   }

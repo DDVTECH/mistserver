@@ -100,8 +100,9 @@ namespace Controller{
   ///\brief Checks the validity of a stream, updates internal stream status.
   ///\param name The name of the stream
   ///\param data The corresponding configuration values.
+  /// Returns true if any changes were made
   void checkStream(std::string name, JSON::Value &data){
-    if (!data.isMember("name")){data["name"] = name;}
+    if (!data.isMember("name")) { data["name"] = name; }
     std::string prevState = data["error"].asStringRef();
     data["online"] = (std::string) "Checking...";
     data.removeMember("error");
@@ -141,7 +142,7 @@ namespace Controller{
     if (!URL.size()){
       data["error"] = "Stream offline: Missing source parameter!";
       if (data["error"].asStringRef() != prevState){
-        Log("STRM", "Error for stream " + name + "! Source parameter missing.");
+        LOG_MSG("STRM", "Error for stream %s! Source parameter missing.", name.c_str());
       }
       return;
     }
@@ -169,9 +170,10 @@ namespace Controller{
     if (data.isMember("always_on") && data["always_on"].asBool() &&
         (!inputProcesses.count(name) || !Util::Procs::isRunning(inputProcesses[name]))){
       INFO_MSG("Starting always-on input %s: %s", name.c_str(), URL.c_str());
-      std::map<std::string, std::string> empty_overrides;
+      std::map<std::string, std::string> overrides;
+      overrides["dontWaitForStream"] = "";
       pid_t program = 0;
-      Util::startInput(name, URL, true, false, empty_overrides, &program);
+      Util::startInput(name, URL, true, false, overrides, &program);
       if (program){inputProcesses[name] = program;}
     }
     // non-VoD stream
@@ -182,29 +184,13 @@ namespace Controller{
     if (stat(URL.c_str(), &fileinfo) != 0){
       data["error"] = "Stream offline: Not found: " + URL;
       if (data["error"].asStringRef() != prevState){
-        Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
+        LOG_MSG("BUFF", "Warning for VoD stream %s! File not found: %s", name.c_str(), URL.c_str());
       }
       return;
     }
     if (!data.isMember("error")){data["error"] = "Available";}
     data["online"] = 2;
     return;
-  }
-
-  ///\brief Checks all streams, restoring if needed.
-  ///\param data The stream configuration for the server.
-  ///\returns True if the server status changed
-  bool CheckAllStreams(JSON::Value &data){
-    jsonForEach(data, jit){checkStream(jit.key(), (*jit));}
-
-    // check for changes in config or streams
-    static JSON::Value strlist;
-    if (strlist["config"] != Storage["config"] || strlist["streams"] != Storage["streams"]){
-      strlist["config"] = Storage["config"];
-      strlist["streams"] = Storage["streams"];
-      return true;
-    }
-    return false;
   }
 
   ///
@@ -237,7 +223,7 @@ namespace Controller{
           out[jit.key()].removeNullMembers();
           out[jit.key()]["name"] = jit.key();
           checkParameters(out[jit.key()]);
-          Log("STRM", std::string("Updated stream ") + jit.key());
+          LOG_MSG("STRM", "Updated stream %s", jit.key().c_str());
         }
       }else{
         std::string checked = jit.key();
@@ -261,7 +247,7 @@ namespace Controller{
         out[jit.key()].removeNullMembers();
         out[jit.key()]["name"] = jit.key();
         checkParameters(out[jit.key()]);
-        Log("STRM", std::string("New stream ") + jit.key());
+        LOG_MSG("STRM", "New stream %s", jit.key().c_str());
       }
       Controller::writeStream(jit.key(), out[jit.key()]);
     }
@@ -400,7 +386,7 @@ namespace Controller{
                      cleaned.c_str(), strerror(errno), errno);
           }else{
             ++ret;
-            Log("STRM", "Deleting source file for stream " + cleaned + ": " + strmSource);
+            LOG_MSG("STRM", "Deleting source file for stream %s: %s", cleaned.c_str(), strmSource.c_str());
             // Delete dtsh, ignore failures
             if (!unlink((strmSource + ".dtsh").c_str())){++ret;}
           }
@@ -413,7 +399,7 @@ namespace Controller{
       if (!Triggers::doTrigger("STREAM_REMOVE", name, name)){return ret;}
     }
     /*LTS-END*/
-    Log("STRM", "Deleted stream " + name);
+    LOG_MSG("STRM", "Deleted stream %s", name.c_str());
     out.removeMember(name);
     Controller::writeStream(name, JSON::Value()); // Null JSON value = delete
     ++ret;

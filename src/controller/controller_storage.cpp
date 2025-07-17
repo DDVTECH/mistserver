@@ -1,19 +1,25 @@
-#include "controller_capabilities.h"
 #include "controller_storage.h"
-#include "controller_push.h" //LTS
-#include "controller_streams.h" //LTS
+
+#include "controller_api.h"
+#include "controller_capabilities.h"
+#include "controller_push.h"
+#include "controller_streams.h"
+
+#include <mist/auth.h>
+#include <mist/defines.h>
+#include <mist/shared_memory.h>
+#include <mist/timing.h>
+#include <mist/triggers.h>
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <mist/defines.h>
-#include <mist/auth.h>
-#include <mist/shared_memory.h>
-#include <mist/timing.h>
-#include <mist/triggers.h> //LTS
+#include <signal.h>
 #include <sys/stat.h>
 
 ///\brief Holds everything unique to the controller.
 namespace Controller{
+  Event::Loop E;
   std::string instanceId; /// instanceId (previously uniqId) is set in controller.cpp
   std::string prometheus;
   std::string accesslog;
@@ -25,6 +31,7 @@ namespace Controller{
   std::set<std::string> shmList;
   std::mutex shmListMutex;
   uint64_t logCounter = 0;
+  uint64_t logsParsed = 0;
   uint64_t lastConfigChange = 0;
   uint64_t lastConfigWrite = 0;
   bool isTerminal = false;
@@ -32,8 +39,18 @@ namespace Controller{
   uint32_t maxLogsRecs = 0;
   uint32_t maxAccsRecs = 0;
   uint64_t firstLog = 0;
+
+  void *logMemory = 0;
   IPC::sharedPage *shmLogs = 0;
   Util::RelAccX *rlxLogs = 0;
+  Util::RelAccXFieldData logFTime;
+  Util::RelAccXFieldData logFKind;
+  Util::RelAccXFieldData logFMsg;
+  Util::RelAccXFieldData logFStrm;
+  Util::RelAccXFieldData logFPID;
+  Util::RelAccXFieldData logFExe;
+  Util::RelAccXFieldData logFLine;
+
   IPC::sharedPage *shmAccs = 0;
   Util::RelAccX *rlxAccs = 0;
   IPC::sharedPage *shmStrm = 0;
@@ -50,46 +67,54 @@ namespace Controller{
 
   Util::RelAccX *streamsAccessor(){return rlxStrm;}
 
-  ///\brief Store and print a log message.
-  ///\param kind The type of message.
-  ///\param message The message to be logged.
-  void Log(const std::string &kind, const std::string &message, const std::string &stream, uint64_t progPid, bool noWriteToLog){
-    if (noWriteToLog){
-      std::lock_guard<std::mutex> guard(logMutex);
-      JSON::Value m;
-      uint64_t logTime = Util::epoch();
-      m.append(logTime);
-      m.append(kind);
-      m.append(message);
-      m.append(stream);
+  /// Parses the logs written to shared memory by the logging library
+  /// This function is called from the main thread
+  void logParser() {
+    std::lock_guard<std::mutex> guard(logMutex);
+    static JSON::Value m;
+    while (rlxLogs && logsParsed < logCounter) {
+      if (logsParsed < rlxLogs->getDeleted()) {
+        size_t skipped = rlxLogs->getDeleted() - logsParsed;
+        logsParsed += skipped;
+        WARN_MSG("Too many logs! Skipping %zu log lines to keep up", skipped);
+      }
+      const uint64_t time = rlxLogs->getInt(logFTime, logsParsed);
+      const char *kind = rlxLogs->getPointer(logFKind, logsParsed);
+      const char *msg = rlxLogs->getPointer(logFMsg, logsParsed);
+      const char *strm = rlxLogs->getPointer(logFStrm, logsParsed);
+      const uint64_t pid = rlxLogs->getInt(logFPID, logsParsed);
+      const char *exe = rlxLogs->getPointer(logFExe, logsParsed);
+      const char *line = rlxLogs->getPointer(logFLine, logsParsed);
+      ++logsParsed;
+      if (!time || !msg[0]) { continue; }
+
+      m[0u] = time;
+      m[1u] = kind;
+      m[2u] = msg;
+      m[3u] = strm;
+      m[4u] = pid;
+      m[5u] = exe;
+      m[6u] = line;
       Storage["log"].append(m);
       Storage["log"].shrink(100); // limit to 100 log messages
-      if (isPushActive(progPid)){pushLogMessage(progPid, m);} //LTS
-      if (isProcActive(progPid)){procLogMessage(progPid, m);} //LTS
-      logCounter++;
-      if (rlxLogs && rlxLogs->isReady()){
-        if (!firstLog){firstLog = logCounter;}
-        rlxLogs->setRCount(logCounter > maxLogsRecs ? maxLogsRecs : logCounter);
-        rlxLogs->setDeleted(logCounter > rlxLogs->getRCount() ? logCounter - rlxLogs->getRCount() : firstLog);
-        rlxLogs->setInt("time", logTime, logCounter - 1);
-        rlxLogs->setString("kind", kind, logCounter - 1);
-        rlxLogs->setString("msg", message, logCounter - 1);
-        rlxLogs->setString("strm", stream, logCounter - 1);
-        rlxLogs->setEndPos(logCounter);
+      if (pid) {
+        if (isPushActive(pid)) { pushLogMessage(pid, m); }
+        if (isProcActive(pid)) { procLogMessage(pid, m); }
       }
-    }else{
-      std::cerr << kind << "|MistController|" << getpid() << "|||" << message << "\n";
+      Controller::callLogger(time, kind, msg, strm, pid, exe, line);
     }
   }
 
   void logAccess(const std::string &sessId, const std::string &strm, const std::string &conn,
                  const std::string &host, uint64_t duration, uint64_t up, uint64_t down,
                  const std::string &tags){
+    uint64_t t = Util::epoch();
+    Controller::callAccess(t, sessId, strm, conn, host, duration, up, down, tags);
     if (rlxAccs && rlxAccs->isReady()){
       uint64_t newEndPos = rlxAccs->getEndPos();
       rlxAccs->setRCount(newEndPos + 1 > maxLogsRecs ? maxAccsRecs : newEndPos + 1);
       rlxAccs->setDeleted(newEndPos + 1 > maxAccsRecs ? newEndPos + 1 - maxAccsRecs : 0);
-      rlxAccs->setInt("time", Util::epoch(), newEndPos);
+      rlxAccs->setInt("time", t, newEndPos);
       rlxAccs->setString("session", sessId, newEndPos);
       rlxAccs->setString("stream", strm, newEndPos);
       rlxAccs->setString("connector", conn, newEndPos);
@@ -142,29 +167,7 @@ namespace Controller{
     return File.good();
   }
 
-  void initState(){
-    std::lock_guard<std::mutex> guard(logMutex);
-    shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024 * 1024, false, false); // max 1M of logs cached
-    if (!shmLogs || !shmLogs->mapped){
-      if (shmLogs){delete shmLogs;}
-      shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024 * 1024, true); // max 1M of logs cached
-    }
-    if (!shmLogs->mapped){
-      FAIL_MSG("Could not open memory page for logs buffer");
-      return;
-    }
-    rlxLogs = new Util::RelAccX(shmLogs->mapped, false);
-    if (rlxLogs->isReady()){
-      logCounter = rlxLogs->getEndPos();
-    }else{
-      rlxLogs->addField("time", RAX_64UINT);
-      rlxLogs->addField("kind", RAX_32STRING);
-      rlxLogs->addField("msg", RAX_512STRING);
-      rlxLogs->addField("strm", RAX_128STRING);
-      rlxLogs->setReady();
-    }
-    maxLogsRecs = (1024 * 1024 - rlxLogs->getOffset()) / rlxLogs->getRSize();
-
+  void initStorage() {
     shmAccs = new IPC::sharedPage(SHM_STATE_ACCS, 1024 * 1024, false, false); // max 1M of accesslogs cached
     if (!shmAccs || !shmAccs->mapped){
       if (shmAccs){delete shmAccs;}
@@ -212,7 +215,7 @@ namespace Controller{
     rlxStrm->setRCount((1024 * 1024 - rlxStrm->getOffset()) / rlxStrm->getRSize());
   }
 
-  void deinitState(bool leaveBehind){
+  void deinitStorage(bool leaveBehind) {
     std::lock_guard<std::mutex> guard(logMutex);
     if (!leaveBehind){
       if (rlxLogs){rlxLogs->setExit();}
@@ -244,9 +247,81 @@ namespace Controller{
     shmStrm = 0;
   }
 
-  void handleMsg(void *err){
-    Util::nameThread("handleMsg");
-    Util::logParser((long long)err, fileno(stdout), Controller::isColorized, &Log);
+  void handleMsg(int logFd) {
+    Util::nameThread("logHandler");
+
+    // Block most signals, so we don't catch them in this thread
+    sigset_t x;
+    sigemptyset(&x);
+    sigaddset(&x, SIGUSR1);
+    sigaddset(&x, SIGUSR2);
+    sigaddset(&x, SIGHUP);
+    sigaddset(&x, SIGINT);
+    sigaddset(&x, SIGTERM);
+    sigaddset(&x, SIGCONT);
+    sigaddset(&x, SIGPIPE);
+    sigprocmask(SIG_SETMASK, &x, 0);
+
+    {
+      const size_t logSize = 1024 * 1024;
+      std::lock_guard<std::mutex> guard(logMutex);
+      shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, logSize, false, false);
+      if (!shmLogs || !shmLogs->mapped) {
+        if (shmLogs) { delete shmLogs; }
+        shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, logSize, true);
+      }
+      if (shmLogs->mapped) {
+        rlxLogs = new Util::RelAccX(shmLogs->mapped, false);
+      } else {
+        FAIL_MSG("Could not open memory page for logs buffer; falling back to local memory");
+        logMemory = malloc(logSize);
+        if (!logMemory) {
+          FAIL_MSG("Failed to allocate local log memory as well; aborting logging!");
+          return;
+        }
+        rlxLogs = new Util::RelAccX((char *)logMemory, false);
+      }
+      if (rlxLogs->isReady()) {
+        logsParsed = logCounter = rlxLogs->getEndPos();
+      } else {
+        rlxLogs->addField("time", RAX_64UINT);
+        rlxLogs->addField("kind", RAX_32STRING);
+        rlxLogs->addField("msg", RAX_512STRING);
+        rlxLogs->addField("strm", RAX_128STRING);
+        rlxLogs->addField("pid", RAX_64UINT);
+        rlxLogs->addField("exe", RAX_32STRING);
+        rlxLogs->addField("line", RAX_64STRING);
+        rlxLogs->setReady();
+      }
+      logFTime = rlxLogs->getFieldData("time");
+      logFKind = rlxLogs->getFieldData("kind");
+      logFMsg = rlxLogs->getFieldData("msg");
+      logFStrm = rlxLogs->getFieldData("strm");
+      logFPID = rlxLogs->getFieldData("pid");
+      logFExe = rlxLogs->getFieldData("exe");
+      logFLine = rlxLogs->getFieldData("line");
+      maxLogsRecs = (logSize - rlxLogs->getOffset()) / rlxLogs->getRSize();
+      rlxLogs->setRCount(maxLogsRecs);
+    }
+
+    // Start parsing logs
+    Util::logParser(logFd, 1, Controller::isColorized,
+                    [](const std::string & kind, const std::string & message, const std::string & stream,
+                       uint64_t progPid, const std::string & exe, const std::string & line) {
+      uint64_t logTime = Util::epoch();
+      if (rlxLogs && rlxLogs->isReady()) {
+        if (rlxLogs->getPresent() >= maxLogsRecs) { rlxLogs->deleteRecords(1); }
+        rlxLogs->setInt(logFTime, logTime, logCounter);
+        rlxLogs->setString(logFKind, kind, logCounter);
+        rlxLogs->setString(logFMsg, message, logCounter);
+        rlxLogs->setString(logFStrm, stream, logCounter);
+        rlxLogs->setInt(logFPID, progPid, logCounter);
+        rlxLogs->setString(logFExe, exe, logCounter);
+        rlxLogs->setString(logFLine, line, logCounter);
+        rlxLogs->addRecords(1);
+      }
+      logCounter++;
+    });
   }
 
   void getConfigAsWritten(JSON::Value & conf){
@@ -398,7 +473,7 @@ namespace Controller{
       Controller::Storage["config"]["tknMode"] = SESS_TKN_DEFAULT_MODE;
     }
     if (!Controller::Storage.isMember("bandwidth") || !Controller::Storage["bandwidth"].isMember("exceptions") || !Controller::Storage["bandwidth"]["exceptions"].size()){
-      Controller::Log("CONF", "Adding default bandwidth exception ranges (local networks) because nothing is configured");
+      LOG_MSG("CONF", "Adding default bandwidth exception ranges (local networks) because nothing is configured");
       Controller::Storage["bandwidth"]["exceptions"].append("::1");
       Controller::Storage["bandwidth"]["exceptions"].append("127.0.0.0/8");
       Controller::Storage["bandwidth"]["exceptions"].append("10.0.0.0/8");
@@ -437,8 +512,25 @@ namespace Controller{
       if (edit && !foundCMAF){newVal.append(JSON::fromString("{\"connector\":\"CMAF\"}"));}
       if (edit){
         Controller::Storage["config"]["protocols"] = newVal;
-        Controller::Log("CONF", "Translated protocols to new versions");
+        LOG_MSG("CONF", "Translated protocols to new versions");
       }
+    }
+    // Update old variabels format to new variables format
+    if (Controller::Storage.isMember("variables") && Controller::Storage["variables"].isArray()) {
+      JSON::Value old = Controller::Storage["variables"];
+      Controller::Storage["variables"].null();
+      jsonForEach (old, it) {
+        JSON::Value & i = *it;
+        if (i.size() != 6) { continue; }
+        std::string name = i[0u];
+        JSON::Value & V = Controller::Storage["variables"][name];
+        if (i[1u]) { V["target"] = i[1u].asString(); }
+        if (i[2u]) { V["interval"] = i[2u].asDouble(); }
+        if (i[3u]) { V["lastunix"] = i[3u].asInt(); }
+        if (i[4u]) { V["value"] = i[4u].asString(); }
+        if (i[5u]) { V["waitTime"] = i[5u].asDouble(); }
+      }
+      LOG_MSG("CONF", "Translated custom variables to object-based format");
     }
     // Convert autopushes array into auto_push object
     // Only if auto_push does not exist yet and autopushes is non-empty
@@ -450,7 +542,7 @@ namespace Controller{
         if (tmp.isNull()){continue;} // Invalid entries
         aPush[Secure::md5(tmp.toString())] = tmp;
       }
-      Controller::Log("CONF", "Converted old-style autopushes to new-style auto_push");
+      LOG_MSG("CONF", "Converted old-style autopushes to new-style auto_push");
     }
 
     Controller::lastConfigChange = Controller::lastConfigWrite = Util::epoch();
@@ -562,7 +654,6 @@ namespace Controller{
 
   void writeStream(const std::string &sName, const JSON::Value &sConf){
     static std::map<std::string, JSON::Value> writtenStrms;
-    static std::map<std::string, IPC::sharedPage> pages;
     static std::set<std::string> skip;
     if (!skip.size()){
       skip.insert("online");
@@ -571,17 +662,19 @@ namespace Controller{
     }
     if (sConf.isNull()){
       writtenStrms.erase(sName);
-      pages.erase(sName);
+      IPC::sharedPage P;
+      char tmpBuf[NAME_BUFFER_SIZE];
+      snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, sName.c_str());
+      P.init(tmpBuf, 0, false, false);
+      if (P) { P.master = true; }
       return;
     }
     if (!writtenStrms.count(sName) || !writtenStrms[sName].compareExcept(sConf, skip)){
       writtenStrms[sName].assignFrom(sConf, skip);
-      IPC::sharedPage &P = pages[sName];
       std::string temp = writtenStrms[sName].toPacked();
-      P.close();
       char tmpBuf[NAME_BUFFER_SIZE];
       snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, sName.c_str());
-      P.init(tmpBuf, temp.size() + 100, false, false);
+      IPC::sharedPage P(tmpBuf, temp.size() + 100, false, false);
       if (P){
         Util::RelAccX tmpA(P.mapped, false);
         if (tmpA.isReady()){tmpA.setReload();}
@@ -591,9 +684,10 @@ namespace Controller{
       P.init(tmpBuf, temp.size() + 100, true, false);
       if (!P){
         writtenStrms.erase(sName);
-        pages.erase(sName);
         return;
       }
+      addShmPage(tmpBuf);
+      P.master = false;
       Util::RelAccX A(P.mapped, false);
       A.addField("dtsc_data", RAX_DTSC, temp.size());
       // write config

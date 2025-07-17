@@ -16,7 +16,6 @@
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iomanip>
 #include <iostream>
-#include <signal.h>
 #include <sstream>
 #include <stdio.h>
 #include <sys/stat.h> // stat
@@ -677,8 +676,8 @@ namespace Util{
   /// Parses log messages from the given file descriptor in, printing them to out, optionally
   /// calling the given callback for each valid message. Closes the file descriptor on read error
   void logParser(int in, int out, bool colored,
-                 void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool)){
-    if (getenv("MIST_COLOR")){colored = true;}
+                 std::function<void(const std::string &, const std::string &, const std::string &, uint64_t, const std::string &, const std::string &)> callback) {
+    if (getenv("MIST_COLOR")) { colored = true; }
     bool sysd_log = getenv("MIST_LOG_SYSTEMD");
     char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg,
         *WARN_msg, *INFO_msg;
@@ -779,7 +778,7 @@ namespace Util{
             // insert null byte for end of line
             buf[buf.size()-1] = 0;
             // print message
-            if (callback){callback(kind, message, strmNm, JSON::Value(progpid).asInt(), true);}
+            if (callback) { callback(kind, message, strmNm, JSON::Value(progpid).asInt(), progname, lineno); }
             color_msg = color_end;
             if (colored){
               if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}

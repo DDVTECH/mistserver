@@ -1,10 +1,13 @@
 #include <mist/config.h>
+#include <mist/ev.h>
 #include <mist/json.h>
-#include <mutex>
 #include <mist/util.h>
+
+#include <mutex>
 #include <string>
 
 namespace Controller{
+  extern Event::Loop E;
   extern std::string instanceId;     ///< global storage of instanceId (previously uniqID) is set in controller.cpp
   extern std::string prometheus;     ///< Prometheus access string
   extern std::string accesslog;      ///< Where to write the access log
@@ -26,12 +29,10 @@ namespace Controller{
   Util::RelAccX *accesslogAccessor();
   Util::RelAccX *streamsAccessor();
 
-  /// Store and print a log message.
-  void Log(const std::string &kind, const std::string &message, const std::string &stream = "", uint64_t progPid = 0,
-           bool noWriteToLog = false);
   void logAccess(const std::string &sessId, const std::string &strm, const std::string &conn,
                  const std::string &host, uint64_t duration, uint64_t up, uint64_t down,
                  const std::string &tags);
+  void logParser();
 
   void normalizeTrustedProxies(JSON::Value &tp);
 
@@ -42,9 +43,10 @@ namespace Controller{
   void writeConfigToDisk(bool forceWrite = false);
   void readConfigFromDisk();
 
-  void handleMsg(void *err);
-  void initState();
-  void deinitState(bool leaveBehind);
+  void handleMsg(int errFd);
+
+  void initStorage();
+  void deinitStorage(bool leaveBehind);
   void writeConfig();
   void writeStream(const std::string &sName, const JSON::Value &sConf);
   void writeCapabilities();

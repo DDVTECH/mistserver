@@ -16,7 +16,6 @@
 #endif
 
 #include "defines.h"
-#include "ev.h"
 #include "socket.h"
 #include "timing.h"
 
@@ -61,6 +60,23 @@ static const char *gai_strmagic(int errcode){
   }else{
     return gai_strerror(errcode);
   }
+}
+
+/// Internally used call to make an file descriptor blocking or not.
+static void setFDBlocking(int FD, bool blocking) {
+  int flags = fcntl(FD, F_GETFL, 0);
+  if (!blocking) {
+    flags |= O_NONBLOCK;
+  } else {
+    flags &= !O_NONBLOCK;
+  }
+  fcntl(FD, F_SETFL, flags);
+}
+
+/// Internally used call to make an file descriptor blocking or not.
+static bool isFDBlocking(int FD) {
+  int flags = fcntl(FD, F_GETFL, 0);
+  return !(flags & O_NONBLOCK);
 }
 
 Socket::Address::Address() {}
@@ -640,9 +656,9 @@ unsigned int Socket::Buffer::size(){
 }
 
 /// Returns either the amount of total bytes available in the buffer or max, whichever is smaller.
-unsigned int Socket::Buffer::bytes(unsigned int max){
+unsigned int Socket::Buffer::bytes(unsigned int max) const {
   unsigned int i = 0;
-  for (std::deque<std::string>::iterator it = data.begin(); it != data.end(); ++it){
+  for (std::deque<std::string>::const_iterator it = data.begin(); it != data.end(); ++it) {
     i += (*it).size();
     if (i >= max){return max;}
   }
@@ -650,9 +666,9 @@ unsigned int Socket::Buffer::bytes(unsigned int max){
 }
 
 /// Returns how many bytes to read until the next splitter, or 0 if none found.
-unsigned int Socket::Buffer::bytesToSplit(){
+unsigned int Socket::Buffer::bytesToSplit() const {
   unsigned int i = 0;
-  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+  for (std::deque<std::string>::const_reverse_iterator it = data.rbegin(); it != data.rend(); ++it) {
     i += (*it).size();
     if ((*it).size() >= splitter.size() && (*it).substr((*it).size() - splitter.size()) == splitter){
       return i;
@@ -790,13 +806,13 @@ void Socket::Buffer::remove(Util::ResizeablePointer & ptr, unsigned int count){
 
 /// Copies count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
-std::string Socket::Buffer::copy(unsigned int count){
+std::string Socket::Buffer::copy(unsigned int count) {
   size();
   if (!available(count)){return "";}
   unsigned int i = 0;
   std::string ret;
   ret.reserve(count);
-  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+  for (std::deque<std::string>::const_reverse_iterator it = data.rbegin(); it != data.rend(); ++it) {
     if (i + (*it).size() < count){
       ret.append(*it);
       i += (*it).size();
@@ -937,10 +953,12 @@ void Socket::Connection::open(int write, int read){
     sRecv = -1;
   }
   isTrueSocket = Socket::checkTrueSocket(sSend);
+  blocking = isFDBlocking(sSend);
   setBoundAddr();
 }
 
 void Socket::Connection::clear(){
+  blocking = true;
   chunkedMode = false;
   isLocked = false;
   sSend = -1;
@@ -981,25 +999,9 @@ void Socket::Connection::addDown(const uint32_t i){
   down += i;
 }
 
-/// Internally used call to make an file descriptor blocking or not.
-void setFDBlocking(int FD, bool blocking){
-  int flags = fcntl(FD, F_GETFL, 0);
-  if (!blocking){
-    flags |= O_NONBLOCK;
-  }else{
-    flags &= !O_NONBLOCK;
-  }
-  fcntl(FD, F_SETFL, flags);
-}
-
-/// Internally used call to make an file descriptor blocking or not.
-bool isFDBlocking(int FD){
-  int flags = fcntl(FD, F_GETFL, 0);
-  return !(flags & O_NONBLOCK);
-}
-
 /// Set this socket to be blocking (true) or nonblocking (false).
-void Socket::Connection::setBlocking(bool blocking){
+void Socket::Connection::setBlocking(bool _blocking) {
+  blocking = _blocking;
 #ifdef SSL
   if (sslConnected){
     if (server_fd->fd >= 0){setFDBlocking(server_fd->fd, blocking);}
@@ -1012,12 +1014,7 @@ void Socket::Connection::setBlocking(bool blocking){
 
 /// Set this socket to be blocking (true) or nonblocking (false).
 bool Socket::Connection::isBlocking(){
-#ifdef SSL
-  if (sslConnected){return isFDBlocking(server_fd->fd);}
-#endif
-  if (sSend >= 0){return isFDBlocking(sSend);}
-  if (sRecv >= 0){return isFDBlocking(sRecv);}
-  return false;
+  return blocking;
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
@@ -1034,14 +1031,19 @@ void Socket::Connection::close(){
 /// This function does *not* call shutdown, allowing continued use in other
 /// processes.
 void Socket::Connection::drop(){
+  upBuffer.clear();
 #ifdef SSL
   if (sslConnected){
+    sslConnected = false;
     DONTEVEN_MSG("SSL close");
     if (ssl){mbedtls_ssl_close_notify(ssl);}
     if (server_fd){
+      int prevFd = server_fd->fd;
       mbedtls_net_free(server_fd);
       delete server_fd;
       server_fd = 0;
+      for (auto cb : closeCallbacks) { cb(prevFd); }
+      closeCallbacks.clear();
     }
     if (ssl){
       mbedtls_ssl_free(ssl);
@@ -1063,23 +1065,27 @@ void Socket::Connection::drop(){
       delete entropy;
       entropy = 0;
     }
-    sslConnected = false;
     return;
   }
 #endif
   if (connected()){
     if (sSend != -1){
       HIGH_MSG("Socket %d closed", sSend);
+      int prevFd = sSend;
       errno = EINTR;
       while (::close(sSend) != 0 && errno == EINTR){}
       if (sRecv == sSend){sRecv = -1;}
       sSend = -1;
+      for (auto cb : closeCallbacks) { cb(prevFd); }
     }
     if (sRecv != -1){
+      int prevFd = sRecv;
       errno = EINTR;
       while (::close(sRecv) != 0 && errno == EINTR){}
       sRecv = -1;
+      for (auto cb : closeCallbacks) { cb(prevFd); }
     }
+    closeCallbacks.clear();
   }
 }// Socket::Connection::drop
 
@@ -1093,6 +1099,11 @@ void Socket::Connection::unlock() {
     flock(getSocket(), LOCK_UN | LOCK_NB);
     isLocked = false;
   }
+}
+
+/// Registers a callback function that will be called when the file descriptor(s) of this socket are closed
+void Socket::Connection::onClose(std::function<void(int)> cb) {
+  closeCallbacks.push_back(cb);
 }
 
 /// Returns internal socket number.
@@ -1150,6 +1161,7 @@ void Socket::Connection::open(std::string address, bool nonblock){
       flags |= O_NONBLOCK;
       fcntl(sSend, F_SETFL, flags);
     }
+    blocking = !nonblock;
   }else{
     lastErr = strerror(errno);
     FAIL_MSG("Could not connect to %s! Error: %s", address.c_str(), lastErr.c_str());
@@ -1190,6 +1202,7 @@ bool Socket::Connection::sslAccept(mbedtls_ssl_config * sslConf, mbedtls_ctr_drb
   // Inform mbedtls how we'd like to use the connection (uses default bio handlers)
   // We tell it to use non-blocking IO here
   mbedtls_net_set_nonblock(server_fd);
+  blocking = false;
   mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
   // do the SSL handshake
   while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
@@ -1268,8 +1281,9 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
   lastErr = "";
   for (rp = result; rp; rp = rp->ai_next){
     sSend = socket(rp->ai_family, SOCK_STREAM, rp->ai_protocol);
-    setFDBlocking(sSend, true);
     if (sSend < 0){continue;}
+    setFDBlocking(sSend, true);
+    blocking = true;
     //Ensure we can handle interrupted system call case
     int ret = 0;
     do{
@@ -1302,6 +1316,7 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     if (!ret){
       HIGH_MSG("Connect success!");
       memcpy(&remoteaddr, rp->ai_addr, rp->ai_addrlen);
+      setBlocking(!nonblock);
       break;
     }
     if (!waitTime){
@@ -1320,7 +1335,10 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     close();
     return;
   }
-  if (!nonblock){setFDBlocking(sSend, true);}
+  if (!nonblock) {
+    setFDBlocking(sSend, true);
+    blocking = false;
+  }
   int optval = 1;
   setsockopt(sSend, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
   setBoundAddr();
@@ -1432,21 +1450,59 @@ Socket::Buffer &Socket::Connection::Received(){
   return downbuffer;
 }
 
+size_t Socket::Connection::sendingBlocked(size_t max) const {
+  return upBuffer.bytes(max);
+}
+
 /// Returns a reference to the download buffer.
 const Socket::Buffer &Socket::Connection::Received() const{
   return downbuffer;
 }
 
-/// Will not buffer anything but always send right away. Blocks.
-/// Any data that could not be send will block until it can be send or the connection is severed.
-void Socket::Connection::SendNow(const char *data, size_t len){
-  bool bing = isBlocking();
-  if (!bing){setBlocking(true);}
+/// Sends (raw) data immediately if blocking, buffers it for later (if needed) when non-blocking.
+/// Does nothing if the socket is (no longer) connected
+void Socket::Connection::send(const char *data, size_t len) {
+  if (!blocking) {
+    // If we already have data in the buffer, attempt to write it first
+    while (upBuffer.size() && connected()) {
+      std::string & B = upBuffer.get();
+      size_t written = iwrite(B.data(), B.size());
+      if (!written) { break; }
+      B.erase(0, written);
+    }
+    // Abort if the connection isn't open (anymore), or we have nothing to write
+    if (!connected() || !len) { return; }
+    if (upBuffer.size()) {
+      INFO_MSG("%zu bytes left in buffer, buffering %zu more", (size_t)upBuffer.bytes(0xFFFFFFFFull), len);
+      upBuffer.splitter.clear();
+      upBuffer.append(data, len);
+      return;
+    }
+  }
+
+  // Let's not write nothing, shall we?
+  if (!len) { return; }
+
+  // Attempt to send the (new) data immediately without buffering
+  size_t i = 0;
+  do {
+    size_t written = iwrite(data + i, std::min(len - i, (size_t)SOCKETSIZE));
+    if (!written && !blocking) {
+      // Socket full? Buffer the rest, if non-blocking
+      INFO_MSG("Socket full - buffering %zu bytes", len - i);
+      upBuffer.append(data + i, len - i);
+      break;
+    }
+    i += written;
+  } while (i < len && connected());
+}
+
+/// Sends (potentially chunked) data immediately if blocking, buffers it for later (if needed) when non-blocking.
+void Socket::Connection::SendNow(const char *data, size_t len) {
   if (chunkedMode) {
     // No length? Send end-of-chunked-mode, and exit chunked mode
     if (!len) {
-      size_t i = 0;
-      do { i += iwrite(("0\r\n\r\n") + i, 5 - i); } while (i < 5 && connected());
+      send("0\r\n\r\n", 5);
       chunkedMode = false;
       return;
     }
@@ -1459,30 +1515,20 @@ void Socket::Connection::SendNow(const char *data, size_t len){
       t_size >>= 4;
     }
     // Send the string we generated with the hex length and newline
-    size_t i = 0;
-    do { i += iwrite(lenChars + offset + i, 10 - offset - i); } while (i < 10 - offset && connected());
+    send(lenChars + offset, 10 - offset);
   }
   // Send the actual data (both chunked and non-chunked mode)
-  {
-    size_t i = 0;
-    do { i += iwrite(data + i, std::min(len - i, (size_t)SOCKETSIZE)); } while (i < len && connected());
-  }
+  send(data, len);
   // Send the final newline if in chunked mode
-  if (chunkedMode) {
-    size_t i = 0;
-    do { i += iwrite(("\r\n") + i, 2 - i); } while (i < 2 && connected());
-  }
-  if (!bing){setBlocking(false);}
+  if (chunkedMode) { send("\r\n", 2); }
 }
 
-/// Will not buffer anything but always send right away. Blocks.
-/// Any data that could not be send will block until it can be send or the connection is severed.
+/// Sends (potentially chunked) data immediately if blocking, buffers it for later (if needed) when non-blocking.
 void Socket::Connection::SendNow(const char *data) {
   SendNow(data, strlen(data));
 }
 
-/// Will not buffer anything but always send right away. Blocks.
-/// Any data that could not be send will block until it can be send or the connection is severed.
+/// Sends (potentially chunked) data immediately if blocking, buffers it for later (if needed) when non-blocking.
 void Socket::Connection::SendNow(const std::string & data) {
   SendNow(data.data(), data.size());
 }
@@ -1542,9 +1588,9 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
   }
   int r;
   if (isTrueSocket){
-    r = send(sSend, buffer, len, 0);
+    r = ::send(sSend, buffer, len, 0);
   }else{
-    r = write(sSend, buffer, len);
+    r = ::write(sSend, buffer, len);
   }
   if (r < 0){
     switch (errno){
@@ -1866,7 +1912,10 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 500); // start listening, backlog of 500 allowed
     if (ret == 0){
-      DEVEL_MSG("IPv6 socket success @ %s:%i", hostname.c_str(), port);
+      bindAddr.reserve();
+      socklen_t alen = bindAddr.size();
+      if (getsockname(sock, bindAddr, &alen)) { WARN_MSG("Could not read bind address: %s", strerror(errno)); }
+      INFO_MSG("Socket bound to: %s", bindAddr.toString().c_str());
       return true;
     }else{
       errors = strerror(errno);
@@ -1920,7 +1969,10 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 500); // start listening, backlog of 500 allowed
     if (ret == 0){
-      DEVEL_MSG("IPv4 socket success @ %s:%i", hostname.c_str(), port);
+      bindAddr.reserve();
+      socklen_t alen = bindAddr.size();
+      if (getsockname(sock, bindAddr, &alen)) { WARN_MSG("Could not read bind address: %s", strerror(errno)); }
+      INFO_MSG("Socket bound to: %s", bindAddr.toString().c_str());
       return true;
     }else{
       errors = strerror(errno);
@@ -1963,6 +2015,9 @@ Socket::Server::Server(std::string address, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 500); // start listening, backlog of 500 allowed
     if (ret == 0){
+      bindAddr.reserve();
+      socklen_t alen = bindAddr.size();
+      if (getsockname(sock, bindAddr, &alen)) { WARN_MSG("Could not read bind address: %s", strerror(errno)); }
       return;
     }else{
       errors = strerror(errno);

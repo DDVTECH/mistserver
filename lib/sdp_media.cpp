@@ -1032,14 +1032,15 @@ namespace SDP{
   bool Answer::enableMedia(const std::string & type, const std::string & codecList, const std::string & localIceUfrag,
                            const std::string & localIcePwd) {
     Media *media = sdpOffer.getMediaForType(type);
-    if (!media){
-      INFO_MSG("Cannot enable %s codec; offer doesn't have %s media.", codecList.c_str(), type.c_str());
+    if (!media) {
+      INFO_MSG("Cannot enable %s: not in offer", type.c_str());
       return false;
     }
 
     std::vector<std::string> codecs = splitString(codecList, ',');
-    if (codecs.size() == 0){
-      FAIL_MSG("Failed to split the given codecList.");
+    if (!codecs.size() && type == "meta") { codecs.push_back("JSON"); }
+    if (!codecs.size()) {
+      FAIL_MSG("Cannot enable %s: there are no supported codecs", type.c_str());
       return false;
     }
 
@@ -1050,32 +1051,40 @@ namespace SDP{
     // an SDP contains multiple format-specs for H264
     SDP::MediaFormat *format = NULL;
     SDP::MediaFormat *backupFormat = NULL;
-    for (size_t i = 0; i < codecs.size(); ++i){
+    for (size_t i = 0; i < codecs.size(); ++i) {
       std::string codec = codecMist2RTP(codecs[i]);
       std::vector<SDP::MediaFormat *> formats = media->getFormatsForEncodingName(codec);
-      for (size_t j = 0; j < formats.size(); ++j){
-        if (codec == "H264"){
-          if (formats[j]->getPacketizationModeForH264() != 1){
+      for (size_t j = 0; j < formats.size(); ++j) {
+        if (codec == "H264") {
+          if (formats[j]->getPacketizationModeForH264() != 1) {
             MEDIUM_MSG("Skipping this H264 format because it uses a packetization mode we don't support.");
             continue;
           }
-          if (formats[j]->getProfileLevelIdForH264() != "42e01f"){
+          if (formats[j]->getProfileLevelIdForH264() != "42e01f") {
             MEDIUM_MSG("Skipping this H264 format because it uses an unsupported profile-level-id.");
-            //Store the best match so far, though - just in case we never find a proper match
-            if (!backupFormat){
+            // Store the best match so far, though - just in case we never find a proper match
+            if (!backupFormat) {
               backupFormat = formats[j];
-            }else{
+            } else {
               std::string ideal = "42e01f";
               std::string oProf = backupFormat->getProfileLevelIdForH264();
               std::string nProf = formats[j]->getProfileLevelIdForH264();
               size_t oScore = 0, nScore = 0;
-              for (size_t k = 0; k < 6 && k < oProf.size(); ++k){
-                if (oProf[k] == ideal[k]){++oScore;}else{break;}
+              for (size_t k = 0; k < 6 && k < oProf.size(); ++k) {
+                if (oProf[k] == ideal[k]) {
+                  ++oScore;
+                } else {
+                  break;
+                }
               }
-              for (size_t k = 0; k < 6 && k < nProf.size(); ++k){
-                if (nProf[k] == ideal[k]){++nScore;}else{break;}
+              for (size_t k = 0; k < 6 && k < nProf.size(); ++k) {
+                if (nProf[k] == ideal[k]) {
+                  ++nScore;
+                } else {
+                  break;
+                }
               }
-              if (nScore > oScore){backupFormat = formats[j];}
+              if (nScore > oScore) { backupFormat = formats[j]; }
             }
             continue;
           }
@@ -1083,15 +1092,15 @@ namespace SDP{
         format = formats[j];
         break;
       }
-      if (format){break;}
+      if (format) { break; }
     }
 
-    if (!format){
+    if (!format) {
       format = backupFormat;
       INFO_MSG("Picking non-perfect match for codec string");
     }
-    if (!format){
-      FAIL_MSG("Cannot enable %s; codec not found %s.", type.c_str(), codecList.c_str());
+    if (!format) {
+      INFO_MSG("Cannot enable %s; codec not found %s.", type.c_str(), codecList.c_str());
       return false;
     }
 
@@ -1116,7 +1125,6 @@ namespace SDP{
     outFormat->rtcpFormats.clear();
     outFormat->icePwd = localIcePwd;
     outFormat->iceUFrag = localIceUfrag;
-
     return true;
   }
 

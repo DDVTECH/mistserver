@@ -1124,7 +1124,7 @@ namespace Mist{
 
     // setup video WebRTC Track.
     if (vidTrack != INVALID_TRACK_ID){
-      if (sdpAnswer.enableMedia("video", M.getCodec(vidTrack), localIceUfrag, localIcePwd)) {
+      if (sdpAnswer.enableMedia("video", videoCodec, localIceUfrag, localIcePwd)) {
         WebRTCTrack & trk = webrtcTracks[vidTrack];
 
         trk.payloadType = sdpAnswer.answerVideoFormat.getPayloadType();
@@ -1147,7 +1147,7 @@ namespace Mist{
 
     // setup audio WebRTC Track
     if (audTrack != INVALID_TRACK_ID){
-      if (sdpAnswer.enableMedia("audio", M.getCodec(audTrack), localIceUfrag, localIcePwd)) {
+      if (sdpAnswer.enableMedia("audio", audioCodec, localIceUfrag, localIcePwd)) {
         WebRTCTrack & trk = webrtcTracks[audTrack];
 
         trk.payloadType = sdpAnswer.answerAudioFormat.getPayloadType();
@@ -1164,7 +1164,7 @@ namespace Mist{
 
     // setup meta WebRTC Track
     if (metaTrack != INVALID_TRACK_ID || sdpSession.getMediaForType("meta")){
-      if (sdpAnswer.enableMedia("meta", M.getCodec(metaTrack), localIceUfrag, localIcePwd)) {
+      if (sdpAnswer.enableMedia("meta", metaCodec, localIceUfrag, localIcePwd)) {
         WebRTCTrack & trk = webrtcTracks[metaTrack];
         trk.payloadType = sdpAnswer.answerMetaFormat.getPayloadType();
         trk.localIcePwd = localIcePwd;

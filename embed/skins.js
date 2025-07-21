@@ -332,6 +332,17 @@ MistSkins["default"] = {
     },
     video: function(){
       var MistVideo = this;
+
+      if (MistVideo.options.rotate) {
+        switch (MistVideo.options.rotate) {
+          case -1:
+          case 1:
+          case 2: {
+            MistVideo.video.setAttribute("data-mist-rotate",MistVideo.options.rotate);
+            break;
+          }
+        }
+      }
       
       //disable right click
       MistUtil.event.addListener(MistVideo.video,"contextmenu",function(e){
@@ -2453,6 +2464,17 @@ MistSkins["default"] = {
 
       var ele = document.createElement("div");
       var MistVideo = this;
+
+      if (MistVideo.options.rotate) {
+        switch (MistVideo.options.rotate) {
+          case -1:
+          case 1:
+          case 2: {
+            ele.setAttribute("data-mist-rotate",MistVideo.options.rotate);
+            break;
+          }
+        }
+      }
       
       var canvasses = [];
       for (var n = 0; n < 2; n++) {

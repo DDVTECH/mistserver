@@ -2,6 +2,13 @@
 .mistvideo-controls{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
 .mistvideo.novideo{overflow:visible}
 .mistvideo-video{overflow:hidden;outline:0}
+.mistvideo .mistvideo-maincontainer,.mistvideo .mistvideo-videocontainer{width:var(--width);height:var(--height)}
+.mistvideo[data-fullscreen] .mistvideo-maincontainer,.mistvideo[data-fullscreen] .mistvideo-videocontainer{width:100vw;height:100vh}
+[data-mist-rotate="-1"],[data-mist-rotate="1"]{width:var(--height)!important;height:var(--width)!important;transform-origin:bottom left;transform:translate(calc(var(--factor) * var(--width)),calc(var(--factor) * var(--height) - var(--width))) rotate(var(--rotate));object-fit:contain}
+.mistvideo[data-fullscreen] [data-mist-rotate="-1"],.mistvideo[data-fullscreen] [data-mist-rotate="1"]{width:100vh!important;height:100vw!important;transform-origin:bottom left;transform:translate(calc(var(--factor) * 100vw),calc(var(--factor) * 100vh - 100vw)) rotate(var(--rotate));object-fit:contain}
+[data-mist-rotate="1"]{--rotate:90deg;--factor:0}
+[data-mist-rotate="-1"]{--rotate:-90deg;--factor:1}
+[data-mist-rotate="2"]{transform:rotate(180deg);transform-origin:center center}
 .mistvideo svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
 .mistvideo [data-loading]{position:relative}
 .mistvideo [data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}

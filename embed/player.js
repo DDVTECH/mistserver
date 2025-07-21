@@ -30,7 +30,8 @@ function MistVideo(streamName,options) {
     setTracks: false,     //don't set tracks
     fillSpace: false,     //don't fill parent container
     width: false,         //no set width
-    height: false,        //no set height
+    height: false,        //no set height,
+    rotate: false,        //do not rotate; 1: rotate clockwise, -1: counter clockwise, 2: 180 degrees
     maxwidth: false,      //no max width (apart from targets dimensions)
     maxheight: false,     //no max height (apart from targets dimensions)
     ABR_resize: true,     //for supporting wrappers: when the player resizes, request a video track that matches the resolution best
@@ -376,6 +377,13 @@ function MistVideo(streamName,options) {
       }
       MistVideo.showError(e,{reload:true,hideTitle:true});
       return;
+    }
+
+    if (Math.abs(MistVideo.options.rotate) == 1) {
+      //switch width and height
+      var w = d.width;
+      MistVideo.info.width = d.height;
+      MistVideo.info.height = w;
     }
     
     //pre-show poster or other loading image
@@ -1064,6 +1072,8 @@ function MistVideo(streamName,options) {
               this.setSize(size);
               container.style.width = size.width+"px";
               container.style.height = size.height+"px";
+              container.style.setProperty("--width",size.width+"px");
+              container.style.setProperty("--height",size.height+"px");
               
               if ((MistVideo.options.fillSpace) && (!options || !options.reiterating)) {
                 //if this container is set to fill the available space

@@ -352,65 +352,69 @@ int main(int argc, char *argv[]){
     capa["hrn"] = "Executable: Matroska In/Out";
     capa["desc"] = "Pipe MKV in, expect MKV out. You choose the executable in between yourself.";
     addGenericProcessOptions(capa);
+    {
+      JSON::Value & genopts = capa["optional"]["general_process_options"]["options"];
 
-    capa["optional"]["source_mask"]["name"] = "Source track mask";
-    capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
-    capa["optional"]["source_mask"]["type"] = "select";
-    capa["optional"]["source_mask"]["select"][0u][0u] = "";
-    capa["optional"]["source_mask"]["select"][0u][1u] = "Keep original value";
-    capa["optional"]["source_mask"]["select"][1u][0u] = 255;
-    capa["optional"]["source_mask"]["select"][1u][1u] = "Everything";
-    capa["optional"]["source_mask"]["select"][2u][0u] = 4;
-    capa["optional"]["source_mask"]["select"][2u][1u] = "Processing tasks (not viewers, not pushes)";
-    capa["optional"]["source_mask"]["select"][3u][0u] = 6;
-    capa["optional"]["source_mask"]["select"][3u][1u] = "Processing and pushing tasks (not viewers)";
-    capa["optional"]["source_mask"]["select"][4u][0u] = 5;
-    capa["optional"]["source_mask"]["select"][4u][1u] = "Processing and viewer tasks (not pushes)";
-    capa["optional"]["source_mask"]["default"] = "";
+      genopts["track_select"]["name"] = "Source selector(s)";
+      genopts["track_select"]["help"] = "What tracks to select for the input. Defaults to audio=all&video=all.";
+      genopts["track_select"]["type"] = "string";
+      genopts["track_select"]["validate"][0u] = "track_selector";
+      genopts["track_select"]["default"] = "audio=all&video=all";
+      genopts["track_select"]["sort"] = "a";
 
-    capa["optional"]["target_mask"]["name"] = "Output track mask";
-    capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the output track(s)";
-    capa["optional"]["target_mask"]["type"] = "select";
-    capa["optional"]["target_mask"]["select"][0u][0u] = "";
-    capa["optional"]["target_mask"]["select"][0u][1u] = "Keep original value";
-    capa["optional"]["target_mask"]["select"][1u][0u] = 255;
-    capa["optional"]["target_mask"]["select"][1u][1u] = "Everything";
-    capa["optional"]["target_mask"]["select"][2u][0u] = 1;
-    capa["optional"]["target_mask"]["select"][2u][1u] = "Viewer tasks (not processing, not pushes)";
-    capa["optional"]["target_mask"]["select"][3u][0u] = 2;
-    capa["optional"]["target_mask"]["select"][3u][1u] = "Pushing tasks (not processing, not viewers)";
-    capa["optional"]["target_mask"]["select"][4u][0u] = 4;
-    capa["optional"]["target_mask"]["select"][4u][1u] = "Processing tasks (not pushes, not viewers)";
-    capa["optional"]["target_mask"]["select"][5u][0u] = 3;
-    capa["optional"]["target_mask"]["select"][5u][1u] = "Viewer and pushing tasks (not processing)";
-    capa["optional"]["target_mask"]["select"][6u][0u] = 5;
-    capa["optional"]["target_mask"]["select"][6u][1u] = "Viewer and processing tasks (not pushes)";
-    capa["optional"]["target_mask"]["select"][7u][0u] = 6;
-    capa["optional"]["target_mask"]["select"][7u][1u] = "Pushing and processing tasks (not viewers)";
-    capa["optional"]["target_mask"]["select"][8u][0u] = 0;
-    capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
-    capa["optional"]["target_mask"]["default"] = "3";
+      genopts["sink"]["name"] = "Target stream";
+      genopts["sink"]["help"] =
+        "What stream the encoded track should be added to. Defaults to source stream. May contain variables.";
+      genopts["sink"]["type"] = "string";
+      genopts["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
+      genopts["sink"]["sort"] = "b";
 
-    capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
-    capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
-    capa["optional"]["exit_unmask"]["default"] = false;
+      genopts["source_mask"]["name"] = "Source track mask";
+      genopts["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
+      genopts["source_mask"]["type"] = "select";
+      genopts["source_mask"]["select"][0u][0u] = 255;
+      genopts["source_mask"]["select"][0u][1u] = "Everything";
+      genopts["source_mask"]["select"][1u][0u] = 4;
+      genopts["source_mask"]["select"][1u][1u] = "Processing tasks (not viewers, not pushes)";
+      genopts["source_mask"]["select"][2u][0u] = 6;
+      genopts["source_mask"]["select"][2u][1u] = "Processing and pushing tasks (not viewers)";
+      genopts["source_mask"]["select"][3u][0u] = 5;
+      genopts["source_mask"]["select"][3u][1u] = "Processing and viewer tasks (not pushes)";
+      genopts["source_mask"]["default"] = "Keep original value";
+      genopts["source_mask"]["sort"] = "c";
+
+      genopts["target_mask"]["name"] = "Output track mask";
+      genopts["target_mask"]["help"] = "What internal processes should have access to the output track(s)";
+      genopts["target_mask"]["type"] = "select";
+      genopts["target_mask"]["select"][0u][0u] = 255;
+      genopts["target_mask"]["select"][0u][1u] = "Everything";
+      genopts["target_mask"]["select"][1u][0u] = 1;
+      genopts["target_mask"]["select"][1u][1u] = "Viewer tasks (not processing, not pushes)";
+      genopts["target_mask"]["select"][2u][0u] = 2;
+      genopts["target_mask"]["select"][2u][1u] = "Pushing tasks (not processing, not viewers)";
+      genopts["target_mask"]["select"][3u][0u] = 4;
+      genopts["target_mask"]["select"][3u][1u] = "Processing tasks (not pushes, not viewers)";
+      genopts["target_mask"]["select"][4u][0u] = 3;
+      genopts["target_mask"]["select"][4u][1u] = "Viewer and pushing tasks (not processing)";
+      genopts["target_mask"]["select"][5u][0u] = 5;
+      genopts["target_mask"]["select"][5u][1u] = "Viewer and processing tasks (not pushes)";
+      genopts["target_mask"]["select"][6u][0u] = 6;
+      genopts["target_mask"]["select"][6u][1u] = "Pushing and processing tasks (not viewers)";
+      genopts["target_mask"]["select"][7u][0u] = 0;
+      genopts["target_mask"]["select"][7u][1u] = "Nothing";
+      genopts["target_mask"]["default"] = "Keep original value";
+      genopts["target_mask"]["sort"] = "d";
+
+      genopts["exit_unmask"]["name"] = "Undo masks on process exit/fail";
+      genopts["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset "
+                                       "to defaults. (NOT to previous value, but to defaults!)";
+      genopts["exit_unmask"]["default"] = false;
+      genopts["exit_unmask"]["sort"] = "e";
+    }
 
     capa["required"]["exec"]["name"] = "Executable";
     capa["required"]["exec"]["help"] = "What to executable to run on the stream data";
     capa["required"]["exec"]["type"] = "string";
-
-    capa["optional"]["sink"]["name"] = "Target stream";
-    capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults "
-                                       "to source stream. May contain variables.";
-    capa["optional"]["sink"]["type"] = "string";
-    capa["optional"]["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
-
-    capa["optional"]["track_select"]["name"] = "Source selector(s)";
-    capa["optional"]["track_select"]["help"] =
-        "What tracks to select for the input. Defaults to audio=all&video=all.";
-    capa["optional"]["track_select"]["type"] = "string";
-    capa["optional"]["track_select"]["validate"][0u] = "track_selector";
-    capa["optional"]["track_select"]["default"] = "audio=all&video=all";
 
     std::cout << capa.toString() << std::endl;
     return -1;

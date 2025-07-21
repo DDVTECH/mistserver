@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g style="fill:white;stroke:black;stroke-width:2"> 
+    <rect x="5.5" y="5.5" width="35.333" height="35.333" style="fill:#ccc"/>
+    <rect id="a" x="40.834" y="5.5" width="17.667" height="17.667"/>
+    <use transform="translate(0,17.667)" xlink:href="#a"/>
+    <use transform="translate(0,35.333)" xlink:href="#a"/>
+    <use transform="translate(-17.667,35.333)" xlink:href="#a"/>
+    <use transform="translate(-35.333,35.333)" xlink:href="#a"/>
+  </g>
+</svg>

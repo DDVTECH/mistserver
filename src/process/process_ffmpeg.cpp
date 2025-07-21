@@ -272,53 +272,67 @@ int main(int argc, char *argv[]){
     capa["name"] = "FFMPEG";                                             // internal name of process
     capa["hrn"] = "Encoder: FFMPEG";                                     // human readable name
     capa["desc"] = "Use a local FFMPEG installed binary to do encoding"; // description
-    capa["sort"] = "sort"; // sort the parameters by this key
     addGenericProcessOptions(capa);
 
-    capa["optional"]["source_mask"]["name"] = "Source track mask";
-    capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
-    capa["optional"]["source_mask"]["type"] = "select";
-    capa["optional"]["source_mask"]["select"][0u][0u] = "";
-    capa["optional"]["source_mask"]["select"][0u][1u] = "Keep original value";
-    capa["optional"]["source_mask"]["select"][1u][0u] = 255;
-    capa["optional"]["source_mask"]["select"][1u][1u] = "Everything";
-    capa["optional"]["source_mask"]["select"][2u][0u] = 4;
-    capa["optional"]["source_mask"]["select"][2u][1u] = "Processing tasks (not viewers, not pushes)";
-    capa["optional"]["source_mask"]["select"][3u][0u] = 6;
-    capa["optional"]["source_mask"]["select"][3u][1u] = "Processing and pushing tasks (not viewers)";
-    capa["optional"]["source_mask"]["select"][4u][0u] = 5;
-    capa["optional"]["source_mask"]["select"][4u][1u] = "Processing and viewer tasks (not pushes)";
-    capa["optional"]["source_mask"]["default"] = "";
-    capa["optional"]["source_mask"]["sort"] = "dba";
+    {
+      JSON::Value & genopts = capa["optional"]["general_process_options"]["options"];
 
-    capa["optional"]["target_mask"]["name"] = "Output track mask";
-    capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the output track(s)";
-    capa["optional"]["target_mask"]["type"] = "select";
-    capa["optional"]["target_mask"]["select"][0u][0u] = "";
-    capa["optional"]["target_mask"]["select"][0u][1u] = "Keep original value";
-    capa["optional"]["target_mask"]["select"][1u][0u] = 255;
-    capa["optional"]["target_mask"]["select"][1u][1u] = "Everything";
-    capa["optional"]["target_mask"]["select"][2u][0u] = 1;
-    capa["optional"]["target_mask"]["select"][2u][1u] = "Viewer tasks (not processing, not pushes)";
-    capa["optional"]["target_mask"]["select"][3u][0u] = 2;
-    capa["optional"]["target_mask"]["select"][3u][1u] = "Pushing tasks (not processing, not viewers)";
-    capa["optional"]["target_mask"]["select"][4u][0u] = 4;
-    capa["optional"]["target_mask"]["select"][4u][1u] = "Processing tasks (not pushes, not viewers)";
-    capa["optional"]["target_mask"]["select"][5u][0u] = 3;
-    capa["optional"]["target_mask"]["select"][5u][1u] = "Viewer and pushing tasks (not processing)";
-    capa["optional"]["target_mask"]["select"][6u][0u] = 5;
-    capa["optional"]["target_mask"]["select"][6u][1u] = "Viewer and processing tasks (not pushes)";
-    capa["optional"]["target_mask"]["select"][7u][0u] = 6;
-    capa["optional"]["target_mask"]["select"][7u][1u] = "Pushing and processing tasks (not viewers)";
-    capa["optional"]["target_mask"]["select"][8u][0u] = 0;
-    capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
-    capa["optional"]["target_mask"]["default"] = "3";
-    capa["optional"]["target_mask"]["sort"] = "dca";
+      genopts["track_select"]["name"] = "Source selector(s)";
+      genopts["track_select"]["help"] = "What tracks to select for the input. Defaults to audio=all&video=all.";
+      genopts["track_select"]["type"] = "string";
+      genopts["track_select"]["validate"][0u] = "track_selector";
+      genopts["track_select"]["default"] = "audio=all&video=all";
+      genopts["track_select"]["sort"] = "a";
 
-    capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
-    capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
-    capa["optional"]["exit_unmask"]["default"] = false;
-    capa["optional"]["exit_unmask"]["sort"] = "dda";
+      genopts["sink"]["name"] = "Target stream";
+      genopts["sink"]["help"] =
+        "What stream the encoded track should be added to. Defaults to source stream. May contain variables.";
+      genopts["sink"]["type"] = "string";
+      genopts["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
+      genopts["sink"]["sort"] = "b";
+
+      genopts["source_mask"]["name"] = "Source track mask";
+      genopts["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
+      genopts["source_mask"]["type"] = "select";
+      genopts["source_mask"]["select"][0u][0u] = 255;
+      genopts["source_mask"]["select"][0u][1u] = "Everything";
+      genopts["source_mask"]["select"][1u][0u] = 4;
+      genopts["source_mask"]["select"][1u][1u] = "Processing tasks (not viewers, not pushes)";
+      genopts["source_mask"]["select"][2u][0u] = 6;
+      genopts["source_mask"]["select"][2u][1u] = "Processing and pushing tasks (not viewers)";
+      genopts["source_mask"]["select"][3u][0u] = 5;
+      genopts["source_mask"]["select"][3u][1u] = "Processing and viewer tasks (not pushes)";
+      genopts["source_mask"]["default"] = "Keep original value";
+      genopts["source_mask"]["sort"] = "c";
+
+      genopts["target_mask"]["name"] = "Output track mask";
+      genopts["target_mask"]["help"] = "What internal processes should have access to the output track(s)";
+      genopts["target_mask"]["type"] = "select";
+      genopts["target_mask"]["select"][0u][0u] = 255;
+      genopts["target_mask"]["select"][0u][1u] = "Everything";
+      genopts["target_mask"]["select"][1u][0u] = 1;
+      genopts["target_mask"]["select"][1u][1u] = "Viewer tasks (not processing, not pushes)";
+      genopts["target_mask"]["select"][2u][0u] = 2;
+      genopts["target_mask"]["select"][2u][1u] = "Pushing tasks (not processing, not viewers)";
+      genopts["target_mask"]["select"][3u][0u] = 4;
+      genopts["target_mask"]["select"][3u][1u] = "Processing tasks (not pushes, not viewers)";
+      genopts["target_mask"]["select"][4u][0u] = 3;
+      genopts["target_mask"]["select"][4u][1u] = "Viewer and pushing tasks (not processing)";
+      genopts["target_mask"]["select"][5u][0u] = 5;
+      genopts["target_mask"]["select"][5u][1u] = "Viewer and processing tasks (not pushes)";
+      genopts["target_mask"]["select"][6u][0u] = 6;
+      genopts["target_mask"]["select"][6u][1u] = "Pushing and processing tasks (not viewers)";
+      genopts["target_mask"]["select"][7u][0u] = 0;
+      genopts["target_mask"]["select"][7u][1u] = "Nothing";
+      genopts["target_mask"]["default"] = "Keep original value";
+      genopts["target_mask"]["sort"] = "d";
+
+      genopts["exit_unmask"]["name"] = "Undo masks on process exit/fail";
+      genopts["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset "
+                                       "to defaults. (NOT to previous value, but to defaults!)";
+      genopts["exit_unmask"]["default"] = false;
+      genopts["exit_unmask"]["sort"] = "e";
+    }
 
     capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
     capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
@@ -341,7 +355,7 @@ int main(int argc, char *argv[]){
     capa["optional"]["source_track"]["help"] =
         "Track ID, codec or language of the source stream to encode.";
     capa["optional"]["source_track"]["type"] = "string";
-    capa["optional"]["source_track"]["sort"] = "aaa";
+    capa["optional"]["source_track"]["sort"] = "aaaab";
     capa["optional"]["source_track"]["default"] = "automatic";
     capa["optional"]["source_track"]["validate"][0u] = "track_selector_parameter";
 
@@ -353,6 +367,7 @@ int main(int argc, char *argv[]){
     capa["required"]["codec"][0u]["select"][1u] = "VP9";
     capa["required"]["codec"][0u]["influences"][0u] = "crf";
     capa["required"]["codec"][0u]["sort"] = "aaab";
+    capa["required"]["codec"][0u]["value"] = "H264";
     capa["required"]["codec"][0u]["dependent"]["x-LSP-kind"] =
         "video"; // this field is only shown if x-LSP-kind is set to "video"
 
@@ -365,15 +380,8 @@ int main(int argc, char *argv[]){
     capa["required"]["codec"][1u]["select"][2u][1u] = "Opus";
     capa["required"]["codec"][1u]["influences"][0u] = "x-LSP-rate_or_crf";
     capa["required"]["codec"][1u]["sort"] = "aaab";
+    capa["required"]["codec"][1u]["value"] = "opus";
     capa["required"]["codec"][1u]["dependent"]["x-LSP-kind"] = "audio";
-
-    capa["optional"]["sink"]["name"] = "Target stream";
-    capa["optional"]["sink"]["help"] =
-        "What stream the encoded track should be added to. Defaults to source stream.";
-    capa["optional"]["sink"]["placeholder"] = "source stream";
-    capa["optional"]["sink"]["type"] = "str";
-    capa["optional"]["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
-    capa["optional"]["sink"]["sort"] = "daa";
 
     capa["optional"]["resolution"]["name"] = "resolution";
     capa["optional"]["resolution"]["help"] = "Resolution of the output stream, e.g. 1920x1080";

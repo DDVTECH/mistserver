@@ -1338,6 +1338,16 @@ int main(int argc, char *argv[]) {
     capa["optional"]["sourcesync"]["option"] = "--sourcesync";
     capa["optional"]["sourcesync"]["help"] = "Attempt to sync sources by UTC timestamps";
     capa["optional"]["sourcesync"]["type"] = "bool";
+    capa["optional"]["sourcesync"]["influences"].append("sourcesync_help");
+
+    {
+      JSON::Value & o = capa["optional"]["sourcesync_help"]; // sort after sourcesync
+      o["type"] = "help";
+      o["help"] = "You can use the timing tool available at <a href=\"https://mistserver.org/demos/timing.html\" "
+                  "target=\"_blank\">mistserver.org/demos/timing.html</a> to sync your sources. Make sure you show the "
+                  "timing QR code to each of your sources <b>using the same device</b>.";
+      o["dependent"]["sourcesync"] = "true";
+    }
 
     capa["optional"]["scaling"]["name"] = "Scaling algorithm";
     capa["optional"]["scaling"]["option"] = "--scaling";

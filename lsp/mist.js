@@ -296,8 +296,8 @@ context_menu: function(){
       var mh = $parent.height() - $ele.outerHeight();
       var mw = $parent.width() - $ele.outerWidth();
 
-      $ele.css('left',Math.min(pos.pageX - parpos.x,mw));
-      $ele.css('top',Math.min(pos.pageY - parpos.y,mh));
+      $ele.css('left',Math.min(pos.pageX - parpos.x + $parent.scrollLeft(),mw));
+      $ele.css('top',Math.min(pos.pageY - parpos.y + $parent.scrollTop(),mh));
     };
     this.show = function(html,pos){
       /*  
@@ -707,8 +707,13 @@ context_menu: function(){
       sortby: false, //initial index to sort by 
       sortdir: 1, //initial sorting direction
       container: item_container,
-      sortsave: false //name of the mist.stored variable where the last used sorting should be stored
+      sortsave: false, //name of the mist.stored variable where the last used sorting should be stored
+      //secondary_sortby: when the values of the sortby column are equavalent, sort by this column instead. False: do not use secondary sortby; Omitted: use options.sortby or controls.getAttribute("data-sortby")
+      secondary_sortdir: false //the direction the secondary sorting should be in: 1 or -1. False: use options.sortdir or controls.getAttribute("data-sortdir")
     },options);
+
+    options.sortdir = Math.sign(options.sortdir);
+    options.secondary_sortdir = Math.sign(options.secondary_sortdir);
 
     var lastsortby = options.sortby;
     var lastsortdir = options.sortdir;
@@ -728,6 +733,13 @@ context_menu: function(){
         }
       }
     }
+    if (!("secondary_sortby" in options)) {
+      options.secondary_sortby = lastsortby; 
+      if (!options.secondary_sortdir) {
+        options.secondary_sortdir = lastsortdir;
+      }
+    }
+
 
     if (options.sortsave) {
       var stored = mist.stored.get();
@@ -768,7 +780,11 @@ context_menu: function(){
           var row = options.container.children[i];
           var next = options.container.children[i+1];
           //console.warn("sorting: comparing",getVal.call(row,sortby),getVal.call(next,sortby))
-          if (sortdir * compare(getVal.call(row,sortby),getVal.call(next,sortby)) > 0) {
+        var comparisonResult = compare(getVal.call(row,sortby),getVal.call(next,sortby)) * sortdir;
+        if (options.secondary_sortby && (options.secondary_sortby != sortby) && (comparisonResult == 0)) {
+          comparisonResult = compare(getVal.call(row,options.secondary_sortby),getVal.call(next,options.secondary_sortby)) * options.secondary_sortdir;
+        }
+        if (comparisonResult > 0) {
             //the next row should be before the current one
             //put it before and then check if it needs to go up further
             options.container.insertBefore(next,row); 
@@ -889,33 +905,86 @@ context_menu: function(){
     var popup = {
       element: $('<dialog>').addClass('popup'),
       show: function(content) {
+        let me = this;
+        this.element[0].setAttribute("data-changed","no");
         this.element.html(
-          $('<button>').text('Close').addClass('close').click(function(){
-            popup.close();
+          $('<button>').attr("data-icon","cross").addClass('close').click(function(){
+            me.closeWithConfirm();
           })
         ).append(content);
         if (!this.element[0].open) {
           $('body').append(this.element);
           popup.element[0].showModal();
         }
-        popup.element.find('.field').first().focus();
+        let $fields = popup.element.find('.field');
+        if ($fields.length) $fields.first().focus();
+        else popup.element.find("button").last().focus();
       },
       close: function(){
         this.element[0].close();
+      },
+      closeWithConfirm: function(){
+        if (this.element[0].getAttribute("data-changed") == "yes") {
+          //if there is a save button in the dialog, ask for confirmation before closing
+          let savebuttons = this.element[0].querySelectorAll(".input_container button.save");
+          if (savebuttons.length) {
+            let me = this;
+            let p = UI.popup(
+              $("<div>").append(
+                $("<p>").text("Are you sure you want to close this window? Your settings have not been saved yet.")
+              ).append(
+                $("<div>").css("text-align","center").append(
+                  $("<button>").attr("data-icon","return").text("Don't close").click(function(){
+                    //only close the current popup
+                    p.close();
+                  })
+                ).append(
+                  $("<button>").attr("data-icon","trash").text("Close and discard").click(function(){
+                    p.close();
+                    me.close();
+                  })
+                ).append(
+                  savebuttons.length == 1 ? $("<button>").attr("data-icon","disk").text("Save and close").click(function(){
+                    //close the current popup and click the save button
+                    p.close();
+                    savebuttons[0].dispatchEvent(new Event("click"));
+                  }) : ""
+                )
+              ).children()
+            );
+            return;
+          }
+        }
+        
+        //no need to ask for confirmation, just close
+        this.close();
       }
     };
+
     //close modal when clicking on the modal backdrop
-    popup.element[0].addEventListener("mousedown",function(e){
+    popup.element[0].addEventListener("mouseup",function(e){ //use mouseup: click does not trigger for right or middle mouse clicks. mousedown fires before blur triggers an onchange event (to detect form changes)
       if (e.target == this) {
         //no children were clicked, but it might be on the padding
         let rect = this.getBoundingClientRect();
         let isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
     rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
         if (!isInDialog) {
-          popup.close();
+          popup.closeWithConfirm();
+          return;
+        }
+      }
+      //if context menu, hide
+      if (!e.defaultPrevented && !e.target.closest(".context_menu")) {
+        for (let menu of UI.elements.context_menu) {
+          menu.hide();
         }
       }
     });
+
+    popup.element[0].addEventListener("change",function(){
+      this.setAttribute("data-changed","yes");
+    });
+
     popup.element[0].addEventListener("close",function(){
       setTimeout(function(){
         popup.element.remove();
@@ -1648,8 +1717,8 @@ context_menu: function(){
     
     var $c = $('<div>').addClass('input_container');
     for (var i in elements) {
-      var e = elements[i];
-      if (e === false) { continue; }
+      let e = elements[i];
+      if ((e === null) || (e === false)) { continue; }
       if (e instanceof jQuery) {
         $c.append(e);
         continue;
@@ -1664,6 +1733,18 @@ context_menu: function(){
             $s.addClass(e.classes[j]);
           }
         }
+        if ("dependent" in e) {
+          for (var i in e.dependent) {
+            if (typeof e.dependent[i] == "string") e.dependent[i] = [e.dependent[i]];
+            $s.attr("data-dependent-"+i,"'"+e.dependent[i].join("' '")+"'");
+          }
+        }
+        if ("dependent_not" in e) {
+          for (var i in e.dependent_not) {
+            if (typeof e.dependent_not[i] == "string") e.dependent_not[i] = [e.dependent_not[i]]
+            $s.attr("data-dependent-not-"+i,"'"+e.dependent_not[i].join(" ")+"'");
+          }
+        }
         continue;
       }
       if (e.type == 'text') {
@@ -1674,10 +1755,7 @@ context_menu: function(){
         );
         continue;
       }
-      if (e.type == 'custom') {
-        $c.append(e.custom);
-        continue;
-      }
+
       if (e.type == 'buttons') {
         var $bc = $('<span>').addClass('button_container').on('keydown',function(e){
           e.stopPropagation();
@@ -1688,6 +1766,7 @@ context_menu: function(){
         $c.append($bc);
         for (var j in e.buttons) {
           var button = e.buttons[j];
+          if (!button) continue;
           var $b = $('<button>').text(button.label).data('opts',button);
           if ('css' in button) {
             $b.css(button.css);
@@ -1702,59 +1781,89 @@ context_menu: function(){
             case 'cancel':
               $b.addClass('cancel').attr("data-icon","cross").click(button['function']);
               break;
-            case 'save':
-              $b.addClass('save').attr("data-icon","check").click(function(e){
+            case 'save': {
+              $b.addClass('save').attr("data-icon","check").data("save",function(skipValidation){
                 var fn = $(this).data('opts')['preSave'];
                 if (fn) { fn.call(this); }
-                
+
                 var $ic = $(this).closest('.input_container');
-                
-                //ensure any grouped options (with non-default settings) are expanded
-                $ic.find(".itemgroup:has(.summary:not(:empty))").addClass("expanded");
+
+                //ensure any grouped options are expanded
+                var $collapsed = $ic.find(".itemgroup:not(:has(.expanded))");
+                $collapsed.addClass("expanded");
 
                 //skip any hidden fields
-                
-                //validate
-                var error = false;
-                $ic.find('.hasValidate:visible, input[type="hidden"].hasValidate').each(function(){
-                  var vf = $(this).data('validate');
-                  error = vf(this,true); //focus the field if validation failed
+
+                if (!skipValidation) {
+                  //validate
+                  var error = false;
+                  $ic.find('.hasValidate:visible, input[type="hidden"].hasValidate').each(function(){
+                    var vf = $(this).data('validate');
+                    error = vf(this,true); //focus the field if validation failed
+                    if (error) {
+                      error = this; //error now contains the field that failed validation
+                      return false; //break loop
+                    }
+                  });
+                  var fn = $(this).data('opts')['failedValidate'];
+                  if (fn) { fn.call(this); }
                   if (error) {
-                    return false; //break loop
+                    //validation failed
+
+                    //collapse grouped options that were collapsed before (but keep the one with the failed validation open)
+                    $collapsed.removeClass("expanded");
+                    var focus = $(error).closest(".itemgroup");
+                    if (focus.length) { focus.addClass("expanded") }
+
+                    return; 
                   }
-                });
-                var fn = $(this).data('opts')['failedValidate'];
-                if (fn) { fn.call(this); }
-                if (error) { return; } //validation failed
-                
+                }
+
                 //for all inputs
                 $ic.find('.isSetting:visible, input[type="hidden"].isSetting').each(function(){
                   var val = $(this).getval();
                   var pointer = $(this).data('pointer');
+                  let opts = $(this).data('opts')
                   
-                  if (val === '') {
-                    if ('default' in $(this).data('opts')) {
-                      val = $(this).data('opts')['default'];
+                  if ((val === '') || (val === null)) {
+                    if ('default' in opts) {
+                      val = opts['default'];
                     }
-                    else {
+                    else if (!("keepnull" in opts) || !opts.keepnull)  {
                       //this value was not entered
                       pointer.main[pointer.index] = null;
                       return true; //continue
                     }
                   }
-                  
+
                   //save
                   pointer.main[pointer.index] = val;
 
                   var fn = $(this).data('opts')['postSave'];
                   if (fn) { fn.call(this); }
-                  
+
+                  return true;
                 });
-                
+
+                $collapsed.removeClass("expanded"); //collapse grouped options that were collapsed before
+
+                return true; //indicate saving was successful
+              });
+              $b.click(function(e){
+                var success;
+                var fn = $(this).data('save');
+                if (fn) { success = fn.call(this); }
+
+                if (!success) {
+                  //validation failed
+                  return;
+                }
+
                 var fn = $(this).data('opts')['function'];
                 if (fn) { fn(this); }
               });
               break;
+            }
             default:
               $b.click(button['function']);
               break;
@@ -1944,18 +2053,14 @@ context_menu: function(){
               }
               else {
                 $option.val("CUSTOM");
-                if (!$select.data("input")) {
-                  $select.data("input",UI.buildUI([e.selectinput[i][0]]).children());
-                }
+                $select.data("input",UI.buildUI([e.selectinput[i][0]]).children());
+                $field.append($select.data("input"));
               }
             }
           }
-          if ($select.data("input")) {
-            $field.append($select.data("input"));
-          }
           $select.change(function(){
             if ($(this).val() == "CUSTOM") {
-              $(this).data("input").css("display","flex");
+              $(this).data("input").css("display","");
             }
             else {
               $(this).data("input").hide();
@@ -1966,10 +2071,14 @@ context_menu: function(){
         case "inputlist":
           function createField(e) {
             let $field = $('<div>').addClass('inputlist');
+            let context_menu = new UI.context_menu();
+            $fc.append(context_menu.ele);
             var newitem = function(){
-              var $part;
+              let $part;
               if ("input" in e) {
-                $part = UI.buildUI([e.input]).find(".field_container");
+                let i = e.input;
+                if (typeof i == "function") i = i();
+                $part = UI.buildUI([i]).find(".field_container").first();
                 //forward help container
                 $part.find(".field").data("help_container",function(){
                   return $field.data("help_container");
@@ -1980,25 +2089,24 @@ context_menu: function(){
                 delete o.validate;
                 delete o.pointer;
                 o.type = "str";
-                $part = UI.buildUI([o]).find(".field_container");
+                $part = UI.buildUI([o]).find(".field_container").first();
               }
+              $part = $part.first(); //there may be nested field_containers: only select the top level one
               $part.removeClass("isSetting");
               $part.addClass("listitem");
 
               var keyup = function(e){
                 let $item = $(this).find(".field");
                 if ($(this).is(":last-child")) {
-                  if ($item.getval() != "") {
+                  if ($item.first().getval()) {
                     $(this).after(newitem());
                   }
                   else if (e.which == 8) { //backspace
-                    $(this).prev().find(".field").focus();
+                    $(this).prev().find(".field").first().focus();
                   }
                 }
                 else {
-                  if ($item.getval() == "") {
-
-                    //focus on the previous item
+                  if (!$item.first().getval()) {
                     var $f = $(this).prev();
                     if (!$f.length) {
                       $f = $(this).next();
@@ -2013,7 +2121,14 @@ context_menu: function(){
                     }
 
                     //remove the current field
-                    $(this).remove();
+                    //$(this).remove();
+                    //for some reason, the jquery remove dispatches a change event which messes up stuff.. seems odd but we can just use vanilla
+                    try {
+                      if (this.parentNode) this.parentNode.removeChild(this);
+                    } catch(ex) { 
+                      //why does this fail somehow??? NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is no longer a child of this node. Perhaps it was moved in a 'blur' event handler?
+                      //maybe race condition with another remove call?
+                    }
 
                     //re-validate remaining field(s)
                     $field.find(".field").trigger('change');
@@ -2021,16 +2136,76 @@ context_menu: function(){
                 }
               };
 
-              $part.keyup(keyup);
+              $part.keyup(keyup).change(keyup);
+
+              $part.on("contextmenu",function(e){
+                let menu = [];
+                let $p = $part;
+                function findPart() {
+                  if (!$p.parent().length) {
+                    //$part has already been removed, possibly because of a setval.. attempt to replace self with same index
+                    let index = $p.attr("data-index");
+                    $p = $field.find(".listitem[data-index=\""+index+"\"]").first();
+                  }
+                }
+                if ($part.prev().length) {
+                  menu.push(["Move item up",function(){
+                    findPart();
+                    $p.after($p.prev());
+                    $p.after().trigger("change");
+                  },"up"]);
+                }
+                if ($part.next().length) {
+                  menu.push(["Move item down",function(){
+                    findPart();
+                    $p.before($p.next());
+                    $p.trigger("change");
+                  },"down"]);
+                }
+                if (menu.length) {
+                  //this is not the only $part
+                  menu.push(["Remove item",function(){
+                    findPart();
+                    $p.remove();
+                    $field.children().last().trigger("change");
+                  },"trash"]);
+                }
+                if ($part.next().length) {
+                  menu.splice(-1,0,["Add item",function(){
+                    findPart();
+                    $p.after(newitem());
+                    $p.after().trigger("change");
+                  },"plus"]);
+                }
+                if (menu.length) {
+                  e.preventDefault();
+
+                  //add header
+                  let val = $part.find(".field").first().getval();
+                  let str;
+                  try {
+                    str = val.toString();
+                  }
+                  catch(e){
+                    str = ""+val;
+                  }
+                  if (str == "[object Object]") str = JSON.stringify(val);
+                  else if (str == "null") str = ""; 
+                  if (str) {
+                    let $header = $("<div>").addClass("header").text(str);
+                    context_menu.show([$header,menu],e);
+                    return;
+                  }
+
+                  context_menu.show([menu],e);
+                }
+              });
+
               return $part;
             };
             $field.data("newitem",newitem);
 
             $field.append($field.data("newitem")());
-
-            $field.focus = function(){
-              return $(this).find(".listitem").first().find(".field").focus()
-            };
 
             return $field;
           }
@@ -2039,14 +2214,15 @@ context_menu: function(){
         case "sublist": {
           //saves an array with objects contain more settings
           $field = $("<div>").addClass("sublist");
-          var $curvals = $("<div>").addClass("curvals");
+          let $curvals = $("<div>").addClass("curvals");
           $curvals.append($("<span>").text("None."));
-          var $itemsettings = $("<div>").addClass("itemsettings");
-          var $newitembutton = $("<button>").text("New "+e.itemLabel);
-          var sublist = e.sublist;
-          var local_e = e;
-          var $local_field = $field;
-          var $local_e = $e;
+          let $itemsettings = $("<div>").addClass("itemsettings");
+          let $newitembutton = $("<button>").text("New "+e.itemLabel);
+          let sublist = e.sublist;
+          let local_e = e;
+          let $local_field = $field;
+          let $local_e = $e;
+          let keep_null = sublist.filter((a)=>!!a.keepnull).map((a)=>a.pointer?.index);
           $field.data("build",function(values,index){
             var savepos = index;
             
@@ -2057,50 +2233,36 @@ context_menu: function(){
               }
             }
             local_e.saveas = Object.assign(local_e.saveas,values);
+            //ensure the pointers are still pointy
+            for (let f of sublist) {
+              if (f.pointer) f.pointer.main = local_e.saveas;
+            }
             
-            var mode = "New";
+            let mode = "New";
             if (typeof index != "undefined") {
               mode = "Edit";
             }
-            //Object.assign(e.saveas,values);
-            var newUI = UI.buildUI(
+            let popup;
+            let newUI = UI.buildUI(
               [$("<h4>").text(mode+" "+local_e.itemLabel)].concat(
                 sublist
               ).concat([
                 {
-                  label: "Save first",
-                  type: "str",
-                  classes: ["onlyshowhelp"],
-                  validate: [function(){
-                    return {
-                      msg: "Did you want to save this "+local_e.itemLabel+"?",
-                      classes: ["red"]
-                    };
-                  }]
-                },{
                   type: "buttons",
                   buttons: [{
                     label: "Cancel",
                     type: "cancel",
                     "function": function(){
-                      $itemsettings.html("");
-                      $newitembutton.show();
-                      $local_e.show();
+                      popup.close();
                     }
                   },{
                     label: "Save "+local_e.itemLabel,
                     type: "save",
-                    preSave: function(){
-                      $(this).closest('.input_container').find(".onlyshowhelp").closest("label").hide();
-                    },
-                    failedValidate: function(){
-                      $(this).closest('.input_container').find(".onlyshowhelp").closest("label").show();
-                    },
                     "function": function(){
-                      var savelist = $local_field.getval();
-                      var save = Object.assign({},local_e.saveas);
-                      for (var i in save) {
-                        if (save[i] === null) {
+                      let savelist = $local_field.getval();
+                      let save = Object.assign({},local_e.saveas);
+                      for (let i in save) {
+                        if ((save[i] === null) && (keep_null.indexOf(i) == -1)) {
                           delete save[i];
                         }
                       }
@@ -2111,35 +2273,33 @@ context_menu: function(){
                         savelist[savepos] = save;
                       }
                       $local_field.setval(savelist);
-                      $itemsettings.html("");
-                      $newitembutton.show();
-                      $local_e.show();
+                      popup.close();
                     }
                   }]
                 }
               ])
             );
-            $itemsettings.html(newUI);
-            $newitembutton.hide();
-            $local_e.hide();
+            popup = UI.popup(newUI);
           });
-          var $sublistfield = $field;
+          let $sublistfield = $field;
           $newitembutton.click(function(){
             $sublistfield.data("build")({});
           });
-          sublist.unshift({
-            type: "str",
-            label: "Human readable name",
-            placeholder: "none",
-            help: "A convenient name to describe this "+e.itemLabel+". It won't be used by MistServer.",
-            pointer: {
-              main: e.saveas,
-              index: "x-LSP-name"
-            }
-          });
+          if (!("hrn" in e)) {
+            e.hrn = "x-LSP-name";
+            sublist.unshift({
+              type: "str",
+              label: "Human readable name",
+              placeholder: "none",
+              help: "A convenient name to describe this "+e.itemLabel+". It won't be used by MistServer.",
+              pointer: {
+                main: e.saveas,
+                index: "x-LSP-name"
+              }
+            });
+          }
           $field.data("savelist",[]);
           $field.append($curvals).append($newitembutton);
-          $c.append($itemsettings);
           break;
         }
         case "json": {
@@ -2184,7 +2344,7 @@ context_menu: function(){
         }
         case "group":{
           let $cont = $("<div>").addClass("itemgroup");
-          let children = e.options;
+          let children = e.options.slice(0); //copy
           let $summary = $("<ul>").addClass("summary");
           children.unshift($summary);
           if ("help" in e) {
@@ -2194,7 +2354,7 @@ context_menu: function(){
           }
           if ("label" in e) {
             children.unshift(
-              $("<b>").text(e.label).attr("tabindex",0).keydown(function(e){
+              $("<b>").text(e.label).addClass("clickable").attr("tabindex",0).keydown(function(e){
                 e.stopPropagation();
                 if (e.which == 13) {
                   //enter
@@ -2205,7 +2365,7 @@ context_menu: function(){
               }).attr("title","Click to show / hide these options")
             );
           }
-          if (e.expand || (!(e.expand === false) && Object.keys(e.options).length < 2)) {
+          if (e.expand || (!(e.expand === false) && Object.keys(e.options).length <= 2)) {
             //do not collapse fields on creation if expand: true is passed
             //always collapse fields if expand: false is passed
             //otherwise, collapse if group contains 2 fields or more
@@ -2250,7 +2410,24 @@ context_menu: function(){
           }).append(UI.buildUI(children)).trigger("change");
           $c.append($cont); //add this to input_container
           $e.remove(); //remove the created label UIelement from input_container
+          if ("dependent" in e) {
+            for (var i in e.dependent) {
+              if (typeof e.dependent[i] == "string") e.dependent[i] = [e.dependent[i]]
+              $cont.attr("data-dependent-"+i,"'"+e.dependent[i].join("' '")+"'");
+            }
+          }
+          if ("dependent_not" in e) {
+            for (var i in e.dependent_not) {
+              if (typeof e.dependent_not[i] == "string") e.dependent_not[i] = [e.dependent_not[i]]
+              $cont.attr("data-dependent-not-"+i,"'"+e.dependent_not[i].join(" ")+"'");
+            }
+          }
           continue; //continue for (var i in elements)
+          break;
+        }
+        case "custom": {
+          //requires a build key that is a function which returns an element
+          $field = e.build();
           break;
         }
         case "str": 
@@ -2264,7 +2441,14 @@ context_menu: function(){
           }
         }
       }
+      e._field = $field;
       $field.addClass('field').data('opts',e).data('uid',Math.random().toString().slice(2));
+      $field.on("focus",function(){
+        let focusable = "button, a, input, select, textarea, [tabindex]:not([tabindex=\"-1\"])";
+        if (!$(this).is(focusable)) {
+          $(this).find(focusable).first().focus();
+        }
+      });
 
       //add generic field options
       if ('pointer' in e) { $field.attr('name',e.pointer.index); }
@@ -2298,7 +2482,7 @@ context_menu: function(){
             if ("step" in e) {
               $field.attr("step",e.step / e.factor);
             }
-            if ("placeholder" in e) {
+            if (("placeholder" in e) && !isNaN(Number(e.placeholder))) {
               $field.attr("placeholder",e.placeholder / e.factor);
             }
 
@@ -2385,32 +2569,26 @@ context_menu: function(){
         $fc.append(
           $('<span>').addClass('unit').html(
             $('<button>').text('Copy').on('keydown',function(e){
-            e.stopPropagation();
-          }).click(function(){
-              var text = String($(this).closest('.field_container').find('.field').getval());
-              
-              var textArea = document.createElement("textarea");
-              textArea.value = text;
-              document.body.appendChild(textArea);
-              textArea.select();
-              var yay = false;
-              try {
-                yay = document.execCommand('copy');
-              } catch (err) {
-                
-              }
-              if (yay) {
-                $(this).text('Copied to clipboard!');
-                document.body.removeChild(textArea);
-                var me = $(this);
+              e.stopPropagation();
+            }).click(function(){
+              var field = $(this).closest('.field_container').find('.field');
+              var text = String(field.getval());
+              var me = $(this);
+
+              UI.copy(text).then(function(){
+                me.text('Copied!');
                 setTimeout(function(){
                   me.text('Copy');
                 },5e3);
-              }
-              else {
-                document.body.removeChild(textArea);
-                alert("Failed to copy:\n"+text);
-              }
+              }).catch(function(e){
+                  me.text(e+": manually copy instead");
+                  var $input = $("<input>").addClass("field").val(text);
+                  field.replaceWith($input);
+                  $input.select();
+                  setTimeout(function(){
+                    me.remove();
+                  },5e3);
+              });
             })
           )
         );
@@ -2420,7 +2598,14 @@ context_menu: function(){
       }
       if ("dependent" in e) {
         for (var i in e.dependent) {
-          $e.attr("data-dependent-"+i,e.dependent[i]);
+          if (typeof e.dependent[i] == "string") e.dependent[i] = [e.dependent[i]]
+          $e.attr("data-dependent-"+i,"'"+e.dependent[i].join("' '")+"'");
+        }
+      }
+      if ("dependent_not" in e) {
+        for (var i in e.dependent_not) {
+          if (typeof e.dependent_not[i] == "string") e.dependent_not[i] = [e.dependent_not[i]]
+          $e.attr("data-dependent-not-"+i,"'"+e.dependent_not[i].join(" ")+"'");
         }
       }
       
@@ -2435,56 +2620,50 @@ context_menu: function(){
             e.stopPropagation();
           });
           $fc.append($browse_button);
+          var allowfolders = e.filetypes ? e.filetypes.indexOf("/*/") >= 0 : false;
           $browse_button.click(function(){
             var $bc = $('<div>').addClass('browse_container');
             var $field = $(this).siblings(".field");
             var $fields;
             var $c = $(this).closest('.grouper');
             if ($c.length) {
-              $c.append($bc);
               $fields = $field;
             }
             else {
               //this browse field is probably part of an inputlist
               if ($(this).closest(".inputlist").length) {
-                $bc.insertAfter($(this).closest(".listitem"));
-                $fields = $bc.siblings(".field_container").find('.field');
+                $fields = $(this).closest(".inputlist").children(".field_container").find('.field');
               }
-              else{
+              else {
                 throw "Could not locate browse grouper container";
               }
             }
             $fields.attr('readonly','readonly').attr("disabled","disabled").css('opacity',0.5);
             var $browse_button = $(this);
-            var $cancel = $('<button>').text('Stop browsing').click(function(){
-                $bc.remove();
-                $fields.removeAttr('readonly').removeAttr("disabled").css('opacity',1);
-                $field.trigger("change");
-            });
             
             var $path = $('<span>').addClass('field');
             
             var $folder_contents = $('<div>').addClass('browse_contents');
-            var $folder = $('<a>').addClass('folder');
+            var $folder = $('<a>').attr("tabindex",0).addClass('folder');
             var filetypes = $field.data('filetypes');
             
             $bc.append(
               $('<label>').addClass('UIelement').append(
                 $('<span>').addClass('label').text('Current folder:')
               ).append(
-                $('<span>').addClass('field_container').append($path).append(
-                  $cancel
-                )
+                $('<span>').addClass('field_container').append($path)
               )
             ).append(
               $folder_contents
             );
             
+            let value = "";
             function browse(path){
               $folder_contents.text('Loading..');
               mist.send(function(d){
                 $path.text(d.browse.path[0]);
-                $field.setval(d.browse.path[0]+(d.browse.path[0].slice(-1) == '/' ? '' : '/')).trigger("keyup");
+                value = d.browse.path[0]+(d.browse.path[0].slice(-1) == '/' ? '' : '/');
+                //$field.setval(d.browse.path[0]+(d.browse.path[0].slice(-1) == '/' ? '' : '/')).trigger("keyup");
                 $folder_contents.html(
                   $folder.clone(true).text('..').attr('title','Folder up')
                 );
@@ -2502,7 +2681,7 @@ context_menu: function(){
                   for (var i in d.browse.files) {
                     var f = d.browse.files[i];
                     var src = $path.text()+(($path.text().slice(-1*seperator.length) == seperator ? '' : seperator))+f;
-                    var $file = $('<a>').text(f).addClass('file').attr('title',src);
+                    var $file = $('<a>').attr("tabindex",0).text(f).addClass('file').attr('title',src);
                     $folder_contents.append($file);
                     
                     if (filetypes) {
@@ -2521,14 +2700,15 @@ context_menu: function(){
                     
                     $file.click(function(){
                       var src = $(this).attr('title');
-                      
-                      $field.setval(src);
-                      $fields.removeAttr('readonly').removeAttr("disabled").css('opacity',1);
-                      $bc.remove();
-                      $field.trigger("keyup").trigger("change");
+                      popup.close();
+                      $field.setval(src).trigger("keyup").trigger("change");
+                      //$fields.removeAttr('readonly').removeAttr("disabled").css('opacity',1);
+                      //$bc.remove();
                     });
                   }
                 }
+                $filter.val("");
+                $bc.find("a").first().focus();
               },{browse:path});
             }
             
@@ -2561,6 +2741,86 @@ context_menu: function(){
             path = path.join(seperator);
             
             browse(path);
+
+            let $filter = $("<input>");
+            $filter.keyup(function(){
+              $bc.find("a").show();
+              let val = $filter.val();
+              if (val) $bc.find("a").filter((i,a)=>i == 0 || $(a).text().indexOf(val) < 0).hide();
+              $bc.find("a:visible").first().focus();
+            });
+
+            $bc.keydown(function(e){
+              e.stopPropagation();
+
+              if ((e.key.length == 1) || (e.key == "Backspace")) { //it's a letter, number, or symbol: forward to filter
+                $filter.focus();
+              }
+              switch (e.key) {
+                case "Enter": {
+                  $(e.target).click();
+                  break;
+                }
+                case "ArrowDown":
+                case "ArrowRight": {
+                  let index = Array.from(e.target.parentNode.children).indexOf(e.target);
+
+                  function getNext(index) {
+                    let next = index + 1;
+                    if (next >= e.target.parentNode.children.length) next = 0;
+                    if (!e.target.parentNode.children[next].checkVisibility()) return getNext(next);
+                    return next;
+                  }
+                  e.target.parentNode.children[getNext(index)].focus();
+                  break;
+                }
+                case "ArrowUp": {
+                  let index = Array.from(e.target.parentNode.children).indexOf(e.target);
+                  function getNext(index) {
+                    let next = index - 1;
+                    if (next < 0) next = e.target.parentNode.children.length - 1;
+                    if (!e.target.parentNode.children[next].checkVisibility()) return getNext(next);
+                    return next;
+                  }
+                  e.target.parentNode.children[getNext(index)].focus();
+                  break;
+                }
+                case "ArrowLeft": {
+                  $bc.find("a").first().click(); //folder up
+                }
+              }
+            });
+
+            let popup = new UI.popup(UI.buildUI([
+              $("<h3>").text("Select a file"+(allowfolders ? " or folder" : "")),
+              $bc,{
+                label: "Filter files and folders",
+                type: "custom",
+                help: "Type part of the file name here to filter the list above.",
+                build: function(){
+                  return $filter;
+                }
+              },{
+                type: "buttons",
+                buttons: [{
+                  type: "cancel",
+                  label: "Cancel",
+                  "function": function(){ popup.close(); }
+                }, allowfolders ? {
+                  type: "save",
+                  label: "Select folder",
+                  "function": function(){
+                    popup.close();
+                    $field.setval(value).trigger("keyup").trigger("change");
+                  }
+                } : null]
+              }
+            ]).css("margin","0"));
+            popup.element[0].addEventListener("close",function(){
+              $fields.removeAttr('readonly').removeAttr("disabled").css('opacity',1);
+              $field.trigger("change");
+            });
+
             
           });
           break;
@@ -2620,7 +2880,7 @@ context_menu: function(){
           $fc.data('subUI',subUI).addClass('limit_list').append(subUI.blackwhite).append(subUI.values);
           break;
       }
-     
+
       if ('value' in e) {
         $field.setval(e.value,["initial"]);
       }
@@ -2654,7 +2914,7 @@ context_menu: function(){
         $ihc.append(
           $('<span>').addClass('ih_balloon').html(e.help)
         );
-        $field.on('focusin mouseover',function(){
+        $fc.on('focusin mouseover',function(){
           $(this).closest('label').addClass('active');
         }).on('focusout mouseout',function(){
           $(this).closest('label').removeClass('active');
@@ -2745,7 +3005,8 @@ context_menu: function(){
                   //check for duplicate stream names
                   if (('streams' in mist.data) && (val in mist.data.streams)) {
                     //check that we're not simply editing the stream
-                    if ($(me).data('pointer').main.name != val) {
+                    let other = decodeURIComponent(location.hash)?.substring(1)?.split('@')?.[1]?.split('&')?.[1];
+                    if (other != val) {
                       return {
                         msg: 'This streamname already exists.<br>If you want to edit an existing stream, please click edit on the the streams tab.',
                         classes: ['red']
@@ -2898,8 +3159,24 @@ context_menu: function(){
       }
       
       if ('function' in e) {
-        $field.on('change keyup',e['function']);
-        $field.trigger('change');
+        $field.on("change keyup",function(ev){
+          let lastval = $(this).data("lastval");
+          let newval = $(this).getval();
+          e["function"].apply(this,[ev,newval,lastval]);
+          if (lastval != newval) {
+            $(this).data("lastval",newval);
+          }
+        });
+        $field.trigger("change");
+      }
+      if ("observe" in e) {
+        const observer = new IntersectionObserver((ev)=>{
+          e.observe.call(ev[0].target,ev[0].target.checkVisibility());
+        },{
+          rootMargin: "1000%"
+        });
+        observer.observe($e[0]);
+        e.observe.call($e[0],$e[0].checkVisibility());
       }
     }
     $c.on('keydown',function(e){
@@ -2907,7 +3184,9 @@ context_menu: function(){
       switch (e.which) {
         case 13:
           //enter
-          $button = $(this).find('button.save').first();
+          if (e.target.tagName != "BUTTON") {
+            $button = $(this).find('button.save').first();
+          }
           break;
         case 27:
           //escape
@@ -2916,7 +3195,10 @@ context_menu: function(){
       }
       if (($button) && ($button.length)) {
         $button.trigger('click');
-        e.stopPropagation();
+        //we did a thing, stop further propagation..
+        e.stopPropagation(); 
+        //..and also stop keypress from now triggering whatever has become the active element now
+        e.preventDefault(); 
       }
     });
     
@@ -4022,10 +4304,7 @@ context_menu: function(){
                 UI.navto('Login');
               }
             }]
-          },{
-            type: 'custom',
-            custom: $('<br>')
-          },{
+          },$('<br>'),{
             label: 'Desired username',
             type: 'str',
             validate: ['required'],
@@ -4186,15 +4465,18 @@ context_menu: function(){
             type: 'span',
             label: 'Server time',
             value: $servertime
-          },"license" in mist.data.config ? {
+          },
+          "license" in mist.data.config ? {
             type: 'span',
             label: 'Licensed to',
-            value:  mist.data.config.license.user
-          } : $(""),{
+            value: ("license" in mist.data.config ? mist.data.config.license.user : "")
+          } : null,
+          "license" in mist.data.config ? {
             type: 'span',
             label: 'Active licenses',
             value: $activeproducts
-          },{
+          } : null,
+          {
             type: 'span',
             label: 'Configured streams',
             value: (mist.data.streams ? Object.keys(mist.data.streams).length : 0)
@@ -4241,7 +4523,6 @@ context_menu: function(){
                 var file = new Blob([JSON.stringify(d.config_backup)], {type: "text/plain"});
                 var filename = "MistServer_config_"+(mist.data.config.serverid ? mist.data.config.serverid+"_" : "")+(new Date().toISOString())+".json";
                 function showErr(err) {
-                  console.warn(err);
                   var msg = "Download failed";
                   if (err.name == "AbortError") {
                     msg = "Download aborted";
@@ -4381,7 +4662,6 @@ context_menu: function(){
 
               if (window.showOpenFilePicker) {
                 function showErr(err) {
-                  console.warn(err);
                   var msg = "Upload failed";
                   if (err.name == "AbortError") {
                     msg = "Upload aborted";
@@ -4484,16 +4764,25 @@ context_menu: function(){
             }
           }
           
-          if ((!d.update) || (!('uptodate' in d.update))) {
-            
+          if (!("update" in d) || (d.update && !('uptodate' in d.update))) { 
             $versioncheck.text('Unknown, checking..');
-            setTimeout(function(){
               mist.send(function(d){
                 if ("update" in d) {
                   update_update(d);
                 }
+              },{update:true});
+            return;
+          }
+          else if (!d.update) {
+            $versioncheck.text('Unknown, checking..');
+              mist.send(function(d){
+                if (("update" in d) && (d.update)) {
+                  update_update(d);
+                }
+                else {
+                  $versioncheck.addClass('red').text("Failed to check for updates.");
+                }
               },{checkupdate:true});
-            },5e3);
             return;
           }
           else if (d.update.error) {
@@ -6275,8 +6564,28 @@ context_menu: function(){
                   e.stopPropagation();
                 })[0]);
 
+                stream.elements.activestream = UI.modules.stream.status(id,{
+                  thumbnail:false,
+                  tags: {
+                    readonly: true,
+                    onclick: function(e,id){
+                      if (this.getAttribute("data-type") > 0) {
+                        var $filter = $form.find(".field.filter");
+                        if ($filter.getval() == "#"+id) {
+                          var last = $filter.data("lastval");
+                          $filter.setval(last ? last : "");
+                        }
+                        else {
+                          $filter.data("lastval",$filter.getval());
+                          $filter.setval("#"+id);
+                        }
+                      }
+                      return;
+                    }
+                  }
+                })[0];
                 stream.insertBefore(
-                  UI.modules.stream.status(id,{thumbnail:false,tags:"readonly"})[0],
+                  stream.elements.activestream,
                   stream.children[1]
                 );
 
@@ -6629,7 +6938,8 @@ context_menu: function(){
             str = str.slice(1);
             for (var i = 0; i < this.children.length; i++) {
               var item = this.children[i];
-              if ((str in item._cells.tags.values) && (item._cells.tags.values[str] > 0)) {
+              var thetags = other == "thumbnails" ? item.elements.activestream.querySelector(".tags") : item._cells.tags;
+              if (thetags && (str in thetags.values) && (thetags.values[str] > 0)) {
                 item.classList.remove("hidden");
               }
               else {
@@ -6744,7 +7054,6 @@ context_menu: function(){
           }
 
           context_menu.show(menu,e);
-          context_menu.ele.find("[tabindex]").first().focus();
         };
 
         
@@ -6852,27 +7161,25 @@ context_menu: function(){
               $main.append(
                 $("<div>").addClass("err_balloon").addClass("orange").css({position:"static",width:"54.65em",margin:"2em 0 3em"}).html("Note:<br>You are editing the settings of <b>"+streamname+"</b>, which is the parent of wildcard stream <b>"+other+"</b>. This will also affect other children of <b>"+streamname+"</b>.")
               );
-            }
           }
+        }
 
-
-          //find existing stream keys
-          saveas.streamkeys = UI.findStreamKeys(other.split("+")[0]); //(even if source is not push://)
-          if (saveas.source && saveas.source.slice(0,7) == "push://") {
-            //if host "streamkey" is used, check the checkbox and clean from displayed source
-            if (saveas.source.match(/push:\/\/[^:@\/]*/)?.[0] == "push://invalid,host") {
-              saveas.streamkey_only = true;
-              saveas.source = saveas.source.replace("push://invalid,host","push://");
-            }
+        //find existing stream keys
+        saveas.streamkeys = UI.findStreamKeys(other.split("+")[0]); //(even if source is not push://)
+        if (saveas.source && saveas.source.slice(0,7) == "push://") {
+          //if host "streamkey" is used, check the checkbox and clean from displayed source
+          if (saveas.source.match(/push:\/\/[^:@\/]*/)?.[0] == "push://invalid,host") {
+            saveas.streamkey_only = true;
+            saveas.source = saveas.source.replace("push://invalid,host","push://");
           }
+        }
 
-          var filetypes = [];
-          var $source_datalist = $("<datalist>").attr("id","source_datalist");
-          var source_hinting = {};
-          var $source_info = $("<div>").addClass("source_info");
-          var dynamic_capa_rate_limit = false;
-          var dynamic_capa_source = false;
-
+        var filetypes = [];
+        var $source_datalist = $("<datalist>").attr("id","source_datalist");
+        var source_hinting = {};
+        var $source_info = $("<div>").addClass("source_info");
+        var dynamic_capa_rate_limit = false;
+        var dynamic_capa_source = false;
           function addSourceHint(input) {
             let prefill = "source_prefill" in input ? input.source_prefill : [];
             if (typeof prefill == "string") {
@@ -6891,254 +7198,282 @@ context_menu: function(){
             let input_override = input.name.toLowerCase()+":";
             if (!(input_override in source_hinting)) source_hinting[input_override] = [input];
           }
-          for (var i in mist.data.capabilities.inputs) {
-            for (var j in mist.data.capabilities.inputs[i].source_match) {
-              filetypes.push(mist.data.capabilities.inputs[i].source_match[j]);
-            }
-            addSourceHint(mist.data.capabilities.inputs[i]);
-          }
-          Object.defineProperty(source_hinting,"prefills",{
-            value: Object.keys(source_hinting).sort((a,b)=>{b.length-a.length}) //contain an array of the object keys, sorted by string length desc
-          }); //not enumerable
 
-          let $source_help = $("<div>").text("source_help");
-          function showHint(source,cursorpos) {
-            //show help text in the source help balloon and return type of input
-
-            $source_help.html(
-              $("<p>").html("Where MistServer can find the media data.<br>This help text will update as you type to provide more details.")
-            ).append(
-              $("<h3>").text("Video on Demand (VoD)")
-            ).append(
-              $("<p>").text("Please enter the path to your media file. This can be a file on your server (Use the 'browse'-button) or somewhere on the internet (enter the url).")
-            ).append(
-              $("<h3>").text("Live streaming")
-            ).append(
-              $("<h4>").text("Pulling from a device or server")
-            ).append(
-              $("<p>").html("If MistServer should pull the stream from somewhere - for example an IP camera - enter the protocol and address where it can be reached. This should be provided to you by the device or server.<br>For example: <b>rtsp://[user]:[password]@[hostname]</b>")
-            ).append(
-              $("<h4>").text("Pushing into MistServer")
-            ).append(
-              $("<p>").html("To set up MistServer to receive stream data from another application or server, enter <b>push://</b> and follow the instructions from there.")
+        for (var i in mist.data.capabilities.inputs) {
+          for (var j in mist.data.capabilities.inputs[i].source_match) {
+            filetypes.push(mist.data.capabilities.inputs[i].source_match[j]);
+            
+            $source_datalist.append(
+              $("<option>").val(mist.data.capabilities.inputs[i].source_match[j])
             );
+          }
+        }
+        var $inputoptions = $('<div>').addClass("inputoptions");
 
-            var type = UI.findInputBySource(source)?.index;
+        function addSourceHint(input) {
+          let prefill = "source_prefill" in input ? input.source_prefill : [];
+          if (typeof prefill == "string") {
+            prefill = [prefill];
+          }
+          for (var j in prefill) {
+            if (!(prefill[j] in source_hinting)) {
+              source_hinting[prefill[j]] = [];
+              $source_datalist.append(
+                $("<option>").val(prefill[j])
+              );
+            }
+            source_hinting[prefill[j]].push(input);
+          }
+          //also add the "<INPUT NAME>://" type syntax to the source_hinting, but not to the prefill
+          let input_override = input.name.toLowerCase()+":";
+          if (!(input_override in source_hinting)) source_hinting[input_override] = [input];
+        }
+        for (var i in mist.data.capabilities.inputs) {
+          for (var j in mist.data.capabilities.inputs[i].source_match) {
+            filetypes.push(mist.data.capabilities.inputs[i].source_match[j]);
+          }
+          addSourceHint(mist.data.capabilities.inputs[i]);
+        }
+        Object.defineProperty(source_hinting,"prefills",{
+          value: Object.keys(source_hinting).sort((a,b)=>{b.length-a.length}) //contain an array of the object keys, sorted by string length desc
+        }); //not enumerable
 
-            let syntaxes = {};
-            for (let prefill of source_hinting.prefills) {
-              if (source.startsWith(prefill)) {
-                //the entered source starts with this prefill: gather syntaxes to show in the help
-                let inputs = source_hinting[prefill];
-                for (let input of inputs) {
-                  if (type && (input.name == type)) {
-                    //the source string already matches an input type: this will be printed seperately
-                    
-                  }
+        let $source_help = $("<div>").text("source_help");
+        function showHint(source,cursorpos) {
+          //show help text in the source help balloon and return type of input
 
-                  let syntax = "source_syntax" in input ? input.source_syntax : [];
-                  if (typeof syntax == "string") syntax = [syntax];
-                  if (syntax.filter((a)=>a.startsWith(input.name.toLowerCase()+":")).length == 0) {
-                    //also insert generic syntax - if it has not already been included
-                    syntax.push(input.name.toLowerCase()+":[address]");
-                  }
-                  for (s of syntax) {
-                    //add this syntax only if it matches the used prefill
-                    if (s.startsWith(prefill)) {
-                      if (type && (input.name == type)) {
-                        syntaxes["_match"+s] = [input.name];
-                      }
-                      else {
-                        if (!(s in syntaxes)) syntaxes[s] = [];
-                        syntaxes[s].push(input.name);
-                      }
-                    }
-                  }
+          $source_help.html(
+            $("<p>").html("Where MistServer can find the media data.<br>This help text will update as you type to provide more details.")
+          ).append(
+            $("<h3>").text("Video on Demand (VoD)")
+          ).append(
+            $("<p>").text("Please enter the path to your media file. This can be a file on your server (Use the 'browse'-button) or somewhere on the internet (enter the url).")
+          ).append(
+            $("<h3>").text("Live streaming")
+          ).append(
+            $("<h4>").text("Pulling from a device or server")
+          ).append(
+            $("<p>").html("If MistServer should pull the stream from somewhere - for example an IP camera - enter the protocol and address where it can be reached. This should be provided to you by the device or server.<br>For example: <b>rtsp://[user]:[password]@[hostname]</b>")
+          ).append(
+            $("<h4>").text("Pushing into MistServer")
+          ).append(
+            $("<p>").html("To set up MistServer to receive stream data from another application or server, enter <b>push://</b> and follow the instructions from there.")
+          );
+
+          var type = UI.findInputBySource(source)?.index;
+
+          let syntaxes = {};
+          for (let prefill of source_hinting.prefills) {
+            if (source.startsWith(prefill)) {
+              //the entered source starts with this prefill: gather syntaxes to show in the help
+              let inputs = source_hinting[prefill];
+              for (let input of inputs) {
+                if (type && (input.name == type)) {
+                  //the source string already matches an input type: this will be printed seperately
+                  
                 }
-                $source_help.html(
-                  $("<p>").text("Where MistServer can find the media data.")
-                );
-                if (Object.keys(syntaxes).length) {
-                  let $ul = $("<ul>").addClass("syntaxes");
-                  $source_help.append($ul);
-                  for (let syntax in syntaxes) {
-                    let index = syntax;
-                    let is_match = (syntax.slice(0,6) == "_match");
-                    if (is_match) {
-                      syntax = syntax.slice(6);
-                    }
 
-                    let $syntax = $("<span>"); 
-
-                    //highlight cursor location in the syntax string
-                    let syntaxregex = syntax.replace(/\//g,"\\/").replace(/\[.*?\]/g,function(str){
-                      if (str[1].match(/[a-zA-Z0-9]/) === null) return "(\\"+str[1]+".*?)?";
-                      return "(.*?)?";
-                    })+"$";
-                    let source_withcursor = source.substring(0,cursorpos) + "🐁🐀🐁" + source.substring(cursorpos)
-                    let match = source_withcursor.match(syntaxregex);
-                    let highlighted = syntax;
-                    if ((match !== null) && (match.length > 1) && (typeof match[1] != "undefined")) {
-                      //find which group contains the mouse cursor
-                      for (let i = 1; i < match.length; i++) {
-                        if (match[i].includes("🐁🐀🐁")) {
-                          //make the same captured group bold
-                          let n = 0;
-                          highlighted = highlighted.replace(/(\[.*?\])/g,function(str){
-                            n++;
-                            if (n == i) return "<b>"+str+"</b>"; 
-                            else return str;
-                          })
-                          break;
-                        }
-                      }
-                    }
-                    $syntax.html(highlighted);
-
-                    //create a 'pretty' list of the inputs that apply for this syntax
-                    let names = [];
-                    for (let name of syntaxes[index]) {
-                      let input = name in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[name] : (name + ".exe" in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[name + ".exe"] : null);
-                      if (!input) return; //should not happen
-                      names.push("source_name" in input ? input.source_name : name);
-                    }
-                    if (names.length >= 2) {
-                      let last_two = names.splice(-2);
-                      names.push(last_two.join(" or "));
-                    }
-
-                    let $help = $("<div>").addClass("description");
-                    let $li = $("<li>").html(
-                      $("<div>").text(is_match ? "Matched input type: " : "Input type: ").append(
-                        $("<h4>").css("display","inline").text(names.join(", "))
-                      )
-                    ).append(
-                      $("<div>").text("Syntax: ").append($syntax) 
-                    ).append(
-                      $help
-                    );
-                    
-                    if (is_match) {
-                      $ul.prepend($li.attr("data-icon","check"));
+                let syntax = "source_syntax" in input ? input.source_syntax : [];
+                if (typeof syntax == "string") syntax = [syntax];
+                if (syntax.filter((a)=>a.startsWith(input.name.toLowerCase()+":")).length == 0) {
+                  //also insert generic syntax - if it has not already been included
+                  syntax.push(input.name.toLowerCase()+":[address]");
+                }
+                for (s of syntax) {
+                  //add this syntax only if it matches the used prefill
+                  if (s.startsWith(prefill)) {
+                    if (type && (input.name == type)) {
+                      syntaxes["_match"+s] = [input.name];
                     }
                     else {
-                      $ul.append($li);
-                    }
-
-                    //gather syntax help
-                    let help = [];
-                    for (let i of syntaxes[index]) {
-                      let input = i in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[i] : (i + ".exe" in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[i + ".exe"] : null);
-                      if (!input) return; //should not happen
-
-                      let h = input.desc;
-                      if ("source_help" in input) h = input.source_help;
-                      if (typeof h == "object") {
-                        //an object is used to show a specific help for a specific syntax
-                        if (syntax in h) {
-                          h = h[syntax];
-                        }
-                        else if ("default" in h) {
-                          h = h["default"];
-                        }
-                        else {
-                          //probably an invalid syntax, revert to desc
-                          h = input.desc;
-                        }
-                      }
-                      if (!help.includes(h)) help.push(h);
-                    }
-                    for (let h of help) {
-                      $help.append(
-                        $("<div>").css("white-space","pre-line").text(h)
-                      );
+                      if (!(s in syntaxes)) syntaxes[s] = [];
+                      syntaxes[s].push(input.name);
                     }
                   }
                 }
-                break;
               }
-            }
+              $source_help.html(
+                $("<p>").text("Where MistServer can find the media data.")
+              );
+              if (Object.keys(syntaxes).length) {
+                let $ul = $("<ul>").addClass("syntaxes");
+                $source_help.append($ul);
+                for (let syntax in syntaxes) {
+                  let index = syntax;
+                  let is_match = (syntax.slice(0,6) == "_match");
+                  if (is_match) {
+                    syntax = syntax.slice(6);
+                  }
 
-            return type ? type : null;
+                  let $syntax = $("<span>"); 
+
+                  //highlight cursor location in the syntax string
+                  let syntaxregex = syntax.replace(/\//g,"\\/").replace(/\[.*?\]/g,function(str){
+                    if (str[1].match(/[a-zA-Z0-9]/) === null) return "(\\"+str[1]+".*?)?";
+                    return "(.*?)?";
+                  })+"$";
+                  let source_withcursor = source.substring(0,cursorpos) + "🐁🐀🐁" + source.substring(cursorpos)
+                  let match = source_withcursor.match(syntaxregex);
+                  let highlighted = syntax;
+                  if ((match !== null) && (match.length > 1) && (typeof match[1] != "undefined")) {
+                    //find which group contains the mouse cursor
+                    for (let i = 1; i < match.length; i++) {
+                      if (match[i].includes("🐁🐀🐁")) {
+                        //make the same captured group bold
+                        let n = 0;
+                        highlighted = highlighted.replace(/(\[.*?\])/g,function(str){
+                          n++;
+                          if (n == i) return "<b>"+str+"</b>"; 
+                          else return str;
+                        })
+                        break;
+                      }
+                    }
+                  }
+                  $syntax.html(highlighted);
+
+                  //create a 'pretty' list of the inputs that apply for this syntax
+                  let names = [];
+                  for (let name of syntaxes[index]) {
+                    let input = name in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[name] : (name + ".exe" in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[name + ".exe"] : null);
+                    if (!input) return; //should not happen
+                    names.push("source_name" in input ? input.source_name : name);
+                  }
+                  if (names.length >= 2) {
+                    let last_two = names.splice(-2);
+                    names.push(last_two.join(" or "));
+                  }
+
+                  let $help = $("<div>").addClass("description");
+                  let $li = $("<li>").html(
+                    $("<div>").text(is_match ? "Matched input type: " : "Input type: ").append(
+                      $("<h4>").css("display","inline").text(names.join(", "))
+                    )
+                  ).append(
+                    $("<div>").text("Syntax: ").append($syntax) 
+                  ).append(
+                    $help
+                  );
+                  
+                  if (is_match) {
+                    $ul.prepend($li.attr("data-icon","check"));
+                  }
+                  else {
+                    $ul.append($li);
+                  }
+
+                  //gather syntax help
+                  let help = [];
+                  for (let i of syntaxes[index]) {
+                    let input = i in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[i] : (i + ".exe" in mist.data.capabilities.inputs ? mist.data.capabilities.inputs[i + ".exe"] : null);
+                    if (!input) return; //should not happen
+
+                    let h = input.desc;
+                    if ("source_help" in input) h = input.source_help;
+                    if (typeof h == "object") {
+                      //an object is used to show a specific help for a specific syntax
+                      if (syntax in h) {
+                        h = h[syntax];
+                      }
+                      else if ("default" in h) {
+                        h = h["default"];
+                      }
+                      else {
+                        //probably an invalid syntax, revert to desc
+                        h = input.desc;
+                      }
+                    }
+                    if (!help.includes(h)) help.push(h);
+                  }
+                  for (let h of help) {
+                    $help.append(
+                      $("<div>").css("white-space","pre-line").text(h)
+                    );
+                  }
+                }
+              }
+              break;
+            }
           }
 
-          var $inputoptions = $('<div>');
+          return type ? type : null;
+        }
 
-          function save(tab) {
-            var send = {};
+        function save(tab) {
+          var send = {};
 
-            if (!mist.data.streams) {
-              mist.data.streams = {};
-            }
+          if (!mist.data.streams) {
+            mist.data.streams = {};
+          }
 
-            mist.data.streams[saveas.name] = saveas;
-            if (saveas.source === null) saveas.source = "";
+          mist.data.streams[saveas.name] = saveas;
+          if (saveas.source === null) saveas.source = "";
 
-            send.addstream = {};
-            send.addstream[saveas.name] = saveas;
-            if (other != saveas.name) {
-              delete mist.data.streams[other];
-              send.deletestream = [other];
-            }
-            if ((saveas.stop_sessions) && (other != '')) {
-              send.stop_sessions = other;
-              delete saveas.stop_sessions;
-            }
+          send.addstream = {};
+          send.addstream[saveas.name] = saveas;
+          if (other != saveas.name) {
+            delete mist.data.streams[other];
+            send.deletestream = [other];
+          }
+          if ((saveas.stop_sessions) && (other != '')) {
+            send.stop_sessions = other;
+            delete saveas.stop_sessions;
+          }
 
-            if (saveas.source.slice(0,7) == "push://") {
-              send.streamkey_del = [];
-              send.streamkey_add = {};
-              let old = UI.findStreamKeys(other.split("+")[0]);
-              for (let key of old) {
-                if (saveas.streamkeys.indexOf(key) < 0) {
-                  //remove any stream keys that are no longer being saved
-                  send.streamkey_del.push(key);
-                }
-              }
-              for (let key of saveas.streamkeys) {
-                //add any stream keys that don't exist yet or that are not set to saveas.name (possible when renaming stream, otherwise should cause form to be invalid)
-                if (!mist.data.streamkeys || !(key in mist.data.streamkeys) || (mist.data.streamkeys[key] != saveas.name)) {
-                  send.streamkey_add[key] = saveas.name;
-                }
-              }
-              //when a stream is being renamed:
-              //- any old keys still in the array will be overwritten, so that they now point to the new stream name
-              //- when keys were removed from the form, they will also be removed from the old stream name
-              if (saveas.streamkey_only) {
-                //add "invalid,host" as host
-                saveas.source = saveas.source.replace(/push:\/\/[^:@\/]*/,"push://invalid,host");
-              }
-              else {
-                //remove invalid host if applicable
-                saveas.source = saveas.source.replace("push://invalid,host","push://");
+          if (saveas.source.slice(0,7) == "push://") {
+            send.streamkey_del = [];
+            send.streamkey_add = {};
+            let old = UI.findStreamKeys(other.split("+")[0]);
+            for (let key of old) {
+              if (saveas.streamkeys.indexOf(key) < 0) {
+                //remove any stream keys that are no longer being saved
+                send.streamkey_del.push(key);
               }
             }
-
-            var type = null;
-            for (var i in mist.data.capabilities.inputs) {
-              if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
-              if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,saveas.source)) {
-                type = i;
-                break;
+            for (let key of saveas.streamkeys) {
+              //add any stream keys that don't exist yet or that are not set to saveas.name (possible when renaming stream, otherwise should cause form to be invalid)
+              if (!mist.data.streamkeys || !(key in mist.data.streamkeys) || (mist.data.streamkeys[key] != saveas.name)) {
+                send.streamkey_add[key] = saveas.name;
               }
             }
-            if (type) {
-              //sanatize saveas, remove options not in capabilities
-              var input = mist.data.capabilities.inputs[type];
-              for (var i in saveas) {
-                if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes") || (i == "tags")) { continue; }
-                if (("optional" in input) && (i in input.optional)) { continue; }
-                if (("required" in input) && (i in input.required)) { continue; }
-                if ((i == "always_on") && ("always_match" in input) && (mist.inputMatch(input.always_match,saveas.source))) { continue; }
-                delete saveas[i];
-              }
+            //when a stream is being renamed:
+            //- any old keys still in the array will be overwritten, so that they now point to the new stream name
+            //- when keys were removed from the form, they will also be removed from the old stream name
+            if (saveas.streamkey_only) {
+              //add "invalid,host" as host
+              saveas.source = saveas.source.replace(/push:\/\/[^:@\/]*/,"push://invalid,host");
             }
+            else {
+              //remove invalid host if applicable
+              saveas.source = saveas.source.replace("push://invalid,host","push://");
+            }
+          }
 
-            mist.send(function(){
-              delete mist.data.streams[saveas.name].online;
-              delete mist.data.streams[saveas.name].error;
-              UI.navto(tab,(tab == 'Preview' ? (other.indexOf("+") < 0 ? saveas.name : other) : ''));
-            },send);
+          var type = null;
+          for (var i in mist.data.capabilities.inputs) {
+            if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
+            if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,saveas.source)) {
+              type = i;
+              break;
+            }
+          }
+          if (type) {
+            //sanatize saveas, remove options not in capabilities
+            var input = mist.data.capabilities.inputs[type];
+            for (var i in saveas) {
+              if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes") || (i == "tags")) { continue; }
+              if (("optional" in input) && (i in input.optional)) { continue; }
+              if (("required" in input) && (i in input.required)) { continue; }
+              if ((i == "always_on") && ("always_match" in input) && (mist.inputMatch(input.always_match,saveas.source))) { continue; }
+              delete saveas[i];
+            }
+          }
+
+          mist.send(function(){
+            delete mist.data.streams[saveas.name].online;
+            delete mist.data.streams[saveas.name].error;
+            UI.navto(tab,(tab == 'Preview' ? (other.indexOf("+") < 0 ? saveas.name : other) : ''));
+          },send);
 
 
           }
@@ -7191,6 +7526,9 @@ context_menu: function(){
             ]));
           }
           var $form = UI.buildUI([
+            UI.modules.templates("stream",saveas,false,{
+              ignoreFields: ["name"] /* when importing from the form, do not include these fields */
+            }),
             {
               label: 'Stream name',
               type: 'str',
@@ -7209,7 +7547,9 @@ context_menu: function(){
                 index: 'source'
               },
               help: $source_help,
-              'function': function(){
+              'function': function(event,newval,oldval){
+                if (newval === oldval) return;
+
                 var source = $(this).val();
                 var $source_field = $(this);
                 $style.remove();
@@ -7217,7 +7557,7 @@ context_menu: function(){
                 let type = showHint(source,this.selectionStart);
                 if (source == '') { return; }
                 if (type === null) {
-                  $inputoptions.html(
+                $inputoptions.attr("data-input","").html(
                     $('<h3>').text('Unrecognized input').addClass('red')
                   ).append(
                     $('<span>').text('Please edit the stream source.').addClass('red')
@@ -7259,318 +7599,1567 @@ context_menu: function(){
                       dynamic_capa_rate_limit = setTimeout(function(){
                         if (!("dynamic_capa_results" in input)) {
                           input.dynamic_capa_results = {};
+                      }
+                      input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
+                      mist.send(function(d){
+                        dynamic_capa_rate_limit = false;
+                        input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
+                        update_input_options(dynamic_capa_source);
+                      },{capabilities:dynamic_capa_source});
+                    },1e3); //one second rate limit
+
+
+                  }
+                  else {
+                    //we know them, apply
+                    delete input_options.desc;
+                    if (input.dynamic_capa_results[source]) {
+                      input_options = input.dynamic_capa_results[source];
+                    }
+                  }
+                }
+                $inputoptions.attr("data-input",input.name).html(
+                  $('<h3>').text("source_name" in input ? "Input options for "+(input.source_name).toLowerCase() : input.name+' Input options')
+                );
+                if (input.name == "Composer") {
+                  input_options = $.extend(true,{},input_options);
+                  if (input_options?.required?.sources) delete input_options.required.sources;
+                  if (input_options?.optional?.text) delete input_options.optional.text;
+                  if (saveas.sources) {
+                    for (let i in saveas.sources) {
+                      let source = saveas.sources[i];
+                      if (typeof source == "string") {
+                        saveas.sources[i] = {
+                          stream: source
                         }
-                        input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
-                        mist.send(function(d){
-                          dynamic_capa_rate_limit = false;
-                          input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
-                          update_input_options(dynamic_capa_source);
-                        },{capabilities:dynamic_capa_source});
-                      },1e3); //one second rate limit
+                        if (saveas?.text?.[i]) {
+                          saveas.sources[i].text = saveas.text[i];
+                        }
+                      }
+                    }
+                  }
+                }
+
+                var build = mist.convertBuildOptions(input_options,saveas);
+                if (input.name == "Composer") {
+                  //show specialized composer/multiview input options
+                  let newElement = {};
+                  build.splice(1,0,{
+                    type: "DOMfield",
+                    help: "The designer is a graphical interface to configure your composition layout.",
+                    DOMfield: $("<div>").addClass("bigbuttons").append(
+                      $("<button>").attr("data-icon","Edit").text("Open designer").click(function(){
+                        let settings = {
+                          sources: $("[data-input=\"Composer\"] .field[name=\"sources\"]").getval().map(a => Object.assign({},a)), //clone the objects in the array
+                          resolution: $("[data-input=\"Composer\"] .field[name=\"resolution\"]").getval(),
+                          layout: "equal",
+                          aspect: $("[data-input=\"Composer\"] .field[name=\"aspect\"]").getval()
+                        };
+                        if (settings.sources.length) {
+                          //if sources have x/y/w/h settings, set layout to none
+                          for (let a of settings.sources) {
+                            if ("x" in a || "y" in a || "w" in a || "y" in a) {
+                              settings.layout = "none";
+                              break;
+                            }
+                          }
+                        }
+
+                        let cellnav = UI.dynamic({
+                          create: function(){
+                            let $ele = $("<div>").addClass("cellnav").addClass("show-for-freestyle-layout").text("Select cell:");
+                            return $ele;
+                          },
+                          add: {
+                            create: function(id){
+                              let $ele = $("<button>").attr("data-id",id).click(function(){
+                                let id = $(this).attr("data-id");
+                                preview.sources._children[id].focus();
+                              });
+                              return $ele;
+                            },
+                            update: function(v){
+                              if (v.stream != this._stream) {
+                                let text = v.stream;
+                                if (v.stream[0] == "/") text = "../"+v.stream.split("/").pop();
+                                this.text(text);
+                                this._stream = v.stream;
+                              }
+                              this.attr("data-active",v._active);
+                            }
+                          }
+                        });
+
+                        let preview = UI.dynamic({
+                          create: function(){
+                            let $ele = $("<div>").addClass("multiview_preview");
+                            $ele.old = {};
+
+                            $ele.sources = UI.dynamic({
+                              create: function(){
+                                let $ele = $("<div>").addClass("sources").attr("data-aspect",settings.aspect);
+                                return $ele;
+                              },
+                              add: {
+                                create: function(id){
+                                  let $ele = $("<div>").addClass("source").attr("tabindex",0).attr("data-index",id);
+                                  $ele[0]._source = document.createTextNode("");
+                                  $ele[0]._source2 = document.createTextNode("");
+                                  $ele[0]._label = document.createTextNode("");
+                                  let $source = $("<span>").addClass("sourcename").addClass("fit-text").append(
+                                    $("<span>").append(
+                                      $("<span>").html($ele[0]._source)
+                                    )
+                                  ).append(
+                                    $("<span>").html($ele[0]._source2)
+                                  ); //it's a bit weird but it makes the text fit nicely
+                                  let $label = $("<span>").addClass("text")
+                                  $label[0].append($ele[0]._label);
+                                  $ele.append($source).append($label);
+
+                                  return $ele.focus(function(){
+                                    details._show(id);
+                                  }).mousemove(function(e){
+                                    if (this != e.target) { return; }
+                                    if (settings.layout == "none") {
+                                      if (this == document.activeElement) {
+                                        if (this._dragging) {
+                                          if (("buttons" in e) && (e.buttons == 0)) {
+                                            this._releaseListener();
+                                            return;
+                                          }
+                                        }
+                                        else {
+                                          let perc = 0.1;
+                                          let w = this.clientWidth;
+                                          let h = this.clientHeight;
+                                          if (e.offsetX < w*perc) {
+                                            if (e.offsetY < h*perc) {
+                                              //top left
+                                              this.style.cursor = "nwse-resize";
+                                              this._zone = {top:1,left:1};
+                                            }
+                                            else if (e.offsetY > h*(1-perc)) {
+                                              //bottom left
+                                              this.style.cursor = "nesw-resize";
+                                              this._zone = {bottom:1,left:1};
+                                            }
+                                            else {
+                                              //left
+                                              this.style.cursor = "ew-resize";
+                                              this._zone = {left:1};
+                                            }
+                                          }
+                                          else if (e.offsetX > w*(1-perc)) {
+                                            if (e.offsetY < h*perc) {
+                                              //top right
+                                              this.style.cursor = "nesw-resize";
+                                              this._zone = {top:1,right:1};
+                                            }
+                                            else if (e.offsetY > h*(1-perc)) {
+                                              //bottom right
+                                              this.style.cursor = "nwse-resize";
+                                              this._zone = {bottom:1,right:1};
+                                            }
+                                            else {
+                                              //right
+                                              this.style.cursor = "ew-resize";
+                                              this._zone = {right:1};
+                                            }
+                                          }
+                                          else {
+                                            if (e.offsetY < h*perc) {
+                                              //top
+                                              this.style.cursor = "ns-resize";
+                                              this._zone = {top:1};
+                                            }
+                                            else if (e.offsetY > h*(1-perc)) {
+                                              //bottom
+                                              this.style.cursor = "ns-resize";
+                                              this._zone = {bottom:1};
+                                            }
+                                            else {
+                                              //middle
+                                              this.style.cursor = "move";
+                                              this._zone = {middle:1};
+                                            }
+                                          }
+                                        }
+                                      }
+                                      else {
+                                        this.style.cursor = "pointer";
+                                      }
+                                    }
+                                    else {
+                                      this.style.cursor = "";
+                                    }
+                                  }).mousedown(function(e){
+                                    if (this._dragging) return;
+                                    this._dragging = true;
+
+                                    this._startDrag = {x: e.pageX, y: e.pageY};
+                                    let canvasSize = preview[0].getBoundingClientRect();
+                                    let sourceSize = this.getBoundingClientRect();
+
+                                    //////////////
+                                    // SNAPPING //
+                                    //////////////
+                                    //calculate delta positions where there's stuff to snap to
+                                    let snapTo = { x: [], y: [] };
+                                    for (let i in settings.sources) {
+                                      if (i == id) continue; //skip yourself
+                                      let s = settings.sources[i];
+                                      snapTo.x.push(s.x);
+                                      snapTo.y.push(s.y);
+                                      snapTo.x.push(s.x+s.w);
+                                      snapTo.y.push(s.y+s.h);
+                                    }
+                                    //remove duplicates
+                                    snapTo.x = [...new Set(snapTo.x)];
+                                    snapTo.y = [...new Set(snapTo.y)];
+                                    //skip canvas edges
+                                    let size = settings.resolution ? settings.resolution.split("x") : [1920,1080];
+                                    snapTo.x = snapTo.x.filter((a)=>a != 0 && a != size[0]);
+                                    snapTo.y = snapTo.y.filter((a)=>a != 0 && a != size[1]);
+                                    //convert from 'multiview px' to canvas px
+                                    snapTo.x = snapTo.x.map((a)=>a / size[0] * canvasSize.width);
+                                    snapTo.y = snapTo.y.map((a)=>a / size[1] * canvasSize.height);
+                                    //where are these compared to the top left corner of this source?
+                                    snapTo.x = snapTo.x.map((a)=>a - sourceSize.x + canvasSize.x);
+                                    snapTo.y = snapTo.y.map((a)=>a - sourceSize.y + canvasSize.y);
+
+                                    this._dragRange = {
+                                      x: [canvasSize.x - sourceSize.x,canvasSize.x - sourceSize.x + canvasSize.width - sourceSize.width], 
+                                      y: [canvasSize.y - sourceSize.y,canvasSize.y - sourceSize.y + canvasSize.height - sourceSize.height]
+                                    }; //save where the canvas edges are compared to the current position
+
+                                    let source = this;
+                                    this._moveListener = function(e){
+                                      if (!source._zone) return;
+
+                                      //how the mouse moved compared to its starting location
+                                      let delta = {
+                                        x: e.pageX - source._startDrag.x,
+                                        y: e.pageY - source._startDrag.y
+                                      };
+
+                                      //add the bottom right corner to the snap locations
+                                      let snapLocal = { x: [], y: [] };
+                                      if (source._zone.middle) {
+                                        //add all sides
+                                        snapLocal.x = snapLocal.x.concat(snapTo.x);
+                                        for (let s of snapTo.x) {
+                                          //at which delta.x would the right side snap?
+                                          snapLocal.x.push(s-sourceSize.width);
+                                        }
+                                        snapLocal.y = snapLocal.y.concat(snapTo.y);
+                                        for (let s of snapTo.y) {
+                                          snapLocal.y.push(s-sourceSize.height);
+                                        }
+                                      }
+                                      else {
+                                        //only add the relevant sides to the snaps
+                                        if (source._zone.left) {
+                                          snapLocal.x = snapLocal.x.concat(snapTo.x);
+                                        }
+                                        else if (source._zone.right) {
+                                          for (let s of snapTo.x) {
+                                            //at which delta.x would the right side snap?
+                                            snapLocal.x.push(s-sourceSize.width);
+                                          }
+                                        }
+                                        if (source._zone.top) {
+                                          snapLocal.y = snapLocal.y.concat(snapTo.y);
+                                        }
+                                        else if (source._zone.bottom) {
+                                          for (let s of snapTo.y) {
+                                            snapLocal.y.push(s-sourceSize.height);
+                                          }
+                                        }
+                                      }
+
+                                      //are we near a snap location? then snap to it
+                                      let near = 10; //snap when within 10 px
+                                      function snap(snapTo,delta) {
+                                        let nearTo = {};
+                                        for (let s of snapTo) {
+                                          if (Math.abs(delta - s) < near) {
+                                            //add the location if we're near it to a list
+                                            nearTo[s] = Math.abs(delta - s);
+                                          }
+                                        }
+                                        //sort the list by distance
+                                        let closest = Object.keys(nearTo).sort((a,b)=>nearTo[a]-nearTo[b]);
+                                        if (closest.length) {
+                                          //console.warn("oh snap",snapTo,closest[0]);
+                                          return closest[0];
+                                        }
+                                        return delta;
+                                      }
+
+                                      delta.x = snap(snapLocal.x,delta.x);
+                                      delta.y = snap(snapLocal.y,delta.y);
+
+                                      //note: --dx, --dy, --dwidth and --dheight are "canvas pixels" - when the mousebutton is released, they are converted to "multiview resolution pixels"
+                                      if (source._zone.middle) {
+                                        if (e.ctrlKey) {
+                                          //snap to only move x or y
+                                          if (Math.abs(delta.x) > Math.abs(delta.y)) {
+                                            delta.y = 0;
+                                          }
+                                          else {
+                                            delta.x = 0;
+                                          }
+                                        }
+
+                                        //cap delta at canvas edges
+                                        delta.x = Math.max(delta.x,source._dragRange.x[0]);
+                                        delta.x = Math.min(delta.x,source._dragRange.x[1]);
+                                        delta.y = Math.max(delta.y,source._dragRange.y[0]);
+                                        delta.y = Math.min(delta.y,source._dragRange.y[1]);
+                                        source.style.setProperty("--dx",delta.x+"px");
+                                        source.style.setProperty("--dy",delta.y+"px");
+                                      }
+                                      else {
+                                        if (!source._zone.left && !source._zone.right) {
+                                          delta.x = 0;
+                                        }
+                                        else if (!source._zone.top && !source._zone.bottom) {
+                                          delta.y = 0;
+                                        }
+
+                                        function processX() {
+                                          if (!delta.x) return;
+                                          if (source._zone.left) {
+                                            //cap delta at canvas edges
+                                            delta.x = Math.max(delta.x,source._dragRange.x[0]);
+                                            delta.x = Math.min(delta.x,source._dragRange.x[1]+sourceSize.width);
+                                            //cap delta at source width == 0
+                                            delta.x = Math.min(delta.x,sourceSize.width)
+                                            source.style.setProperty("--dx",delta.x+"px");
+                                            source.style.setProperty("--dwidth",(-1*delta.x)+"px");
+
+                                            if (e.shiftKey) {
+                                              //also move right
+                                              //cap delta so that width does not become negative
+                                              delta.x = Math.min(delta.x,sourceSize.width/2);
+                                              //and at opposite canvas edge
+                                              delta.x = Math.max(delta.x,-1*source._dragRange.x[1]);
 
 
+                                              source.style.setProperty("--dx",delta.x+"px");
+                                              source.style.setProperty("--dwidth",(-2*delta.x)+"px");
+                                            }
+                                            if (e.ctrlKey) {
+                                              let dy = delta.x / sourceSize.width * sourceSize.height;
+                                              if (source._zone.top) {
+                                                //move y to top
+                                                source.style.setProperty("--dy",dy+"px");
+                                                source.style.setProperty("--dheight",(-1*dy)+"px");
+                                              }
+                                              else if (source._zone.bottom) {
+                                                //move y to bottom
+                                                source.style.setProperty("--dy","0px");
+                                                source.style.setProperty("--dheight",(-1*dy)+"px");
+                                              }
+                                              else {
+                                                //move y half up half down
+                                                source.style.setProperty("--dy",(dy/2)+"px");
+                                                source.style.setProperty("--dheight",(-1*dy)+"px");
+                                              }
+                                              return true; //do not continue processing y
+                                            }
+                                          }
+                                          else if (source._zone.right) {
+                                            //cap delta at canvas edges
+                                            delta.x = Math.max(delta.x,source._dragRange.x[0]-sourceSize.width);
+                                            delta.x = Math.min(delta.x,source._dragRange.x[1]);
+                                            //cap delta so that width does not become negative
+                                            delta.x = Math.max(delta.x,-sourceSize.width);
+                                            source.style.setProperty("--dwidth",delta.x+"px");
+
+                                            if (e.shiftKey) {
+                                              //also move left
+                                              //cap delta so that width does not become negative
+                                              delta.x = Math.max(delta.x,-sourceSize.width/2);
+                                              //and at opposite canvas edge
+                                              delta.x = Math.min(delta.x,-1*source._dragRange.x[0]);
+
+                                              source.style.setProperty("--dx",(-1*delta.x)+"px");
+                                              source.style.setProperty("--dwidth",(2*delta.x)+"px");
+                                            }
+                                            if (e.ctrlKey) {
+                                              let dy = delta.x / sourceSize.width * sourceSize.height;
+                                              if (source._zone.top) {
+                                                //move y to top
+                                                source.style.setProperty("--dy",(-1*dy)+"px");
+                                                source.style.setProperty("--dheight",dy+"px");
+                                              }
+                                              else if (source._zone.bottom) {
+                                                //move y to bottom
+                                                source.style.setProperty("--dy","0px");
+                                                source.style.setProperty("--dheight",dy+"px");
+                                              }
+                                              else {
+                                                //move y half up half down
+                                                source.style.setProperty("--dy",(dy/-2)+"px");
+                                                source.style.setProperty("--dheight",dy+"px");
+                                              }
+                                              return true; //do not continue processing y
+                                            }
+                                          }
+                                          return false; //continue processing y
+                                        }
+
+                                        function processY() {
+                                          if (!delta.y) { return; } 
+                                          if (source._zone.top) {
+                                            //cap delta at canvas edges
+                                            delta.y = Math.max(delta.y,source._dragRange.y[0]);
+                                            delta.y = Math.min(delta.y,source._dragRange.y[1]+sourceSize.height);
+                                            //cap delta at source height == 0
+                                            delta.y = Math.min(delta.y,sourceSize.height);
+                                            source.style.setProperty("--dy",delta.y+"px");
+                                            source.style.setProperty("--dheight",(-1*delta.y)+"px");
+
+                                            if (e.shiftKey) {
+                                              //also move down
+                                              //cap delta so that height does not become negative
+                                              delta.y = Math.min(delta.y,sourceSize.height/2);
+                                              //and at opposite canvas edge
+                                              delta.y = Math.max(delta.y,-1*source._dragRange.y[1]);
+                                              source.style.setProperty("--dy",delta.y+"px");
+                                              source.style.setProperty("--dheight",(-2*delta.y)+"px");
+                                            }
+                                            if (e.ctrlKey) {
+                                              let dx = delta.y / sourceSize.height * sourceSize.width;
+                                              if (source._zone.left) {
+                                                //move x to left
+                                                source.style.setProperty("--dx",dx+"px");
+                                                source.style.setProperty("--dwidth",(-1*dx)+"px");
+                                              }
+                                              else if (source._zone.right) {
+                                                //move x to right
+                                                source.style.setProperty("--dx","0px");
+                                                source.style.setProperty("--dwidth",(-1*dx)+"px");
+                                              }
+                                              else {
+                                                //move x half left half right
+                                                source.style.setProperty("--dx",(dx/2)+"px");
+                                                source.style.setProperty("--dwidth",(-1*dx)+"px");
+                                              }
+                                              return true; //do not continue processing x
+                                            }
+
+                                          }
+                                          else if (source._zone.bottom) {
+                                            //cap delta at canvas edges
+                                            delta.y = Math.max(delta.y,source._dragRange.y[0]-sourceSize.height);
+                                            delta.y = Math.min(delta.y,source._dragRange.y[1]);
+                                            //cap delta so that height does not become negative
+                                            delta.y = Math.max(delta.y,-sourceSize.height);
+                                            source.style.setProperty("--dheight",(delta.y)+"px");
+
+
+                                            if (e.shiftKey) {
+                                              //also move up
+                                              //cap delta so that height does not become negative
+                                              delta.y = Math.max(delta.y,-sourceSize.height/2);
+                                              //and at opposite canvas edge
+                                              delta.y = Math.min(delta.y,-1*source._dragRange.y[0]);
+
+                                              source.style.setProperty("--dy",(-1*delta.y)+"px");
+                                              source.style.setProperty("--dheight",(2*delta.y)+"px");
+                                            }
+                                            if (e.ctrlKey) {
+                                              let dx = delta.y / sourceSize.height * sourceSize.width;
+                                              if (source._zone.left) {
+                                                //move x to left
+                                                source.style.setProperty("--dx",(-1*dx)+"px");
+                                                source.style.setProperty("--dwidth",dx+"px");
+                                              }
+                                              else if (source._zone.right) {
+                                                //move x to right
+                                                source.style.setProperty("--dx","0px");
+                                                source.style.setProperty("--dwidth",dx+"px");
+                                              }
+                                              else {
+                                                //move x half up half down
+                                                source.style.setProperty("--dx",(dx/-2)+"px");
+                                                source.style.setProperty("--dwidth",dx+"px");
+                                              }
+                                              return true; //do not continue processing x
+                                            }
+                                          }
+
+                                        }
+
+                                        //if width is larger than height, process x movement first
+                                        if (sourceSize.width > sourceSize.height) {
+                                          processX() || processY();
+                                        }
+                                        else {
+                                          processY() || processX();
+                                        }
+
+                                        
+                                      }
+                                    };
+                                    document.body.addEventListener("mousemove",this._moveListener);
+                                    this._keydownListener = function(e){
+                                      if (e.key == "Escape") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        //reset
+                                        source.style.setProperty("--dx","");
+                                        source.style.setProperty("--dy","");
+                                        source.style.setProperty("--dwidth","");
+                                        source.style.setProperty("--dheight","");
+                                        source._releaseListener();
+                                      }
+                                    };
+                                    document.addEventListener("keydown",this._keydownListener,true);
+                                    this._releaseListener = function(e){
+                                      if (e) e.stopPropagation();
+
+                                      source._dragging = false;
+                                      source._zone = {};
+
+                                      //apply new x/y/w/h
+                                      let s = settings.resolution.split("x");
+                                      let size = source.parentNode?.parentNode?.getBoundingClientRect();
+                                      function convertPx(px) {
+                                        //convert from "canvas pixels" to "multiview stream resolution pixels"
+                                        //round it because MistServer wants integers
+                                        px = Number(px.replace("px",""));
+                                        return Math.round(px * s[0] / size.width);
+                                      }
+                                      let dx = source.style.getPropertyValue("--dx");
+                                      if (dx) settings.sources[id].x = Number(settings.sources[id].x) + convertPx(dx);
+                                      let dy = source.style.getPropertyValue("--dy");
+                                      if (dy) settings.sources[id].y = Number(settings.sources[id].y) + convertPx(dy);
+                                      let dw = source.style.getPropertyValue("--dwidth");
+                                      if (dw) settings.sources[id].w = Number(settings.sources[id].w) + convertPx(dw);
+                                      let dh = source.style.getPropertyValue("--dheight");
+                                      if (dh) settings.sources[id].h = Number(settings.sources[id].h) + convertPx(dh);
+
+                                      //reset
+                                      source.style.setProperty("--dx","");
+                                      source.style.setProperty("--dy","");
+                                      source.style.setProperty("--dwidth","");
+                                      source.style.setProperty("--dheight","");
+                                      document.body.removeEventListener("mousemove",source._moveListener);
+                                      document.body.removeEventListener("mouseup",source._releaseListener,true);
+                                      source.removeEventListener("keydown",source._keydownListener);
+                                      $(source).trigger("mousemove");
+
+                                      //apply updated settings
+                                      preview.update(settings);
+                                      details._show(id);
+                                      preview[0].dispatchEvent(new Event("change",{bubbles:true})); //notify the popup a value has changed
+                                    };
+                                    document.body.addEventListener("mouseup",this._releaseListener,true);
+                                  }).on("contextmenu",function(e){
+                                    e.preventDefault();
+                                    let origin = e.target;
+                                    let target = popup.element.find("[name=\"sources\"] .listitem[data-index=\""+this.getAttribute("data-index")+"\"]");
+                                    //after the right click menu has loaded, modify it so the text makes sense
+                                    target.parent().on("contextmenu.1",function(){
+                                      origin.setAttribute("data-focussed","");
+                                      target.parent().off("contextmenu.1");
+                                      let $menu = popup.element.find("[name=\"sources\"]").parent().find(".context_menu");
+                                      $menu.find(".icon[data-icon=\"plus\"]").parent()?.remove();
+                                      let $up = $menu.find(".icon[data-icon=\"up\"]");
+                                      let $down = $menu.find(".icon[data-icon=\"down\"]");
+
+                                      //modify text+icons to make more sense
+                                      if ($up.length) {
+                                        $up.attr("data-icon","down");
+                                        $up.parent()[0].childNodes[1].nodeValue = "Move backward";
+                                      }
+                                      if ($down.length) {
+                                        //if this is the last cell, remove $down
+                                        if (!e.target.nextSibling) $down.parent().remove();
+                                        else {
+                                          $down.attr("data-icon","up");
+                                          $down.parent()[0].childNodes[1].nodeValue = "Move forward";
+                                          if ($up.length) $down.parent().insertBefore($up.parent()).focus();
+                                        }
+                                      }
+                                    });
+                                    target[0].dispatchEvent(new MouseEvent("contextmenu",e));
+                                  });
+                                },
+                                update: function(v){
+                                  let label = v.text === null ? v.stream : v.text;
+                                  if (label != this[0]._label.nodeValue) this[0]._label.nodeValue = label;
+                                  if (v.stream != this[0]._source.nodeValue) {
+                                    this[0]._source.nodeValue = v.stream;
+                                    this[0]._source2.nodeValue = v.stream;
+                                    this.attr("title",v.stream);
+
+                                    if (this[0]._thumbnail) this[0]._thumbnail?.remove();
+                                    try {
+                                      this[0]._thumbnail = UI.modules.stream.thumbnail(v.stream,{clone:false});
+                                      this.append(this[0]._thumbnail);
+                                    } catch (e) {}
+                                  }
+
+                                  this[0].style.setProperty("--x",v.x);
+                                  this[0].style.setProperty("--y",v.y);
+                                  this[0].style.setProperty("--width",v.w);
+                                  this[0].style.setProperty("--height",v.h);
+
+                                  this.attr("data-label",v.w+"x"+v.h);
+                                  this.attr("data-aspect",v.aspect);
+                                  this.removeAttr("data-focussed");
+
+                                  //if the source is very small, add an arrow that points to it
+                                  let w = preview[0].style.getPropertyValue("--total-width");
+                                  if ((v.w / w <= 0.02) || (v.h / preview[0].style.getPropertyValue("--total-height") <= 0.02)) {
+                                    this.attr("data-pointout",v.x / w > 0.5 ? "left" : "right");
+                                  }
+                                  else {
+                                    this.removeAttr("data-pointout");
+                                  }
+
+                                }
+                              }
+                            });
+                            $ele.append($ele.sources);
+
+                            return $ele;
+                          },
+                          update: function(values){
+                            let resolution = values.resolution || "1920x1080";
+                            if (resolution != this.old.resolution) {
+                              let s = resolution.split("x");
+                              let aspect = s[0] / s[1];
+                              this[0].style["aspect-ratio"] = aspect;
+                              //this.attr("data-label",resolution);
+                              this[0].style.setProperty("--total-width",s[0]);
+                              this[0].style.setProperty("--total-height",s[1]);
+
+                              //apply a max height of 75vh
+                              this[0].style.width = "";
+                              if (this[0].getBoundingClientRect().height > window.innerHeight*0.75) {
+                                this[0].style.width = aspect * window.innerHeight * 0.75 + "px";
+                              }
+                              this.old.resolution = resolution;
+                            }
+
+                            this.attr("data-layout",values.layout);
+
+                            if (JSON.stringify(values.sources) != this.sources.raw) {
+                              this.sources.update(values.sources);
+                              cellnav.update(values.sources);
+                            }
+
+                          }
+                        });
+                        
+                        function calculatePositions() {
+                          let n = settings.sources.length;
+                          if (n < 1) return;
+
+                          function placeEqual(sources) {
+                            let columns = Math.ceil(Math.sqrt(n));
+                            let rows = Math.ceil(n / columns);
+                            let resolution = (settings.resolution ? settings.resolution : "1920x1080").split("x");
+                            let width = resolution[0] / columns;
+                            let height = resolution[1] / rows;
+
+                            let x = 0;
+                            let y = 0;
+                            let column = 1;
+                            let row = 1;
+                            for (let i in sources) {
+                              let s = sources[i];
+                              s.x = Math.round(x);
+                              s.y = Math.round(y);
+                              s.w = Math.round(width*column-s.x);
+                              s.h = Math.round(height*row-s.y);
+
+                              column++;
+                              x += width;
+                              if (column > columns) {
+                                column = 1;
+                                x = 0;
+                                row++;
+                                y += height;
+                              }
+                            }
+                            return sources;
+                          }
+
+                          switch (settings.layout) {
+                            case "equal": {
+                              placeEqual(settings.sources);
+                              break;
+                            }
+                            case "focussed": {
+                              let nCells = n+3; //the focussed stream should take at least 4 spaces
+                              let columns = Math.ceil(Math.sqrt(nCells));
+                              let rows = Math.ceil((nCells) / columns);
+                              let resolution = (settings.resolution ? settings.resolution : "1920x1080").split("x");
+                              let width = resolution[0] / columns;
+                              let height = resolution[1] / rows;
+
+                              //calculate the rows+columns available to grow
+                              let slots = rows * columns - n + 1;
+                              let extra_h = Math.floor(Math.sqrt(slots));
+                              extra_w = Math.floor(slots / extra_h);
+                              //console.warn("slots",slots,",",extra_w,"x",extra_h);
+
+
+                              let x = 0;
+                              let y = 0;
+                              let column = 1;
+                              let row = 1;
+                              function nextCell(){
+                                if (column > columns) {
+                                  column = 1;
+                                  x = 0;
+                                  row++;
+                                  y += height;
+                                }
+                                if ((column <= extra_w) && (row <= extra_h)) {
+                                  column++;
+                                  x += width;
+                                  nextCell();
+                                }
+                              }
+                              for (let i = 0; i < settings.sources.length; i++) {
+                                let s = settings.sources[i];
+                                s.x = Math.round(x);
+                                s.y = Math.round(y);
+                                if (i == 0) {
+                                  s.w = Math.round(width*extra_w);
+                                  s.h = Math.round(height*extra_h);
+                                  column += extra_w;
+                                  x += width*extra_w;
+                                }
+                                else {
+                                  s.w = Math.round(width*column-s.x);
+                                  s.h = Math.round(height*row-s.y);
+                                  column++;
+                                  x += width;
+                                }
+
+                                nextCell();
+                              }
+                              break;
+                            }
+                            case "none": {
+                              //Freestyle! if x/y/w/h are set, keep them, otherwise, place according to grid
+                              //aka place as if grid first, then overwrite
+                              //note: using Array.fill with an object will pass the ref, not a new instance, that's why we're using Array.map instead
+                              let grid = placeEqual(Array(n).fill(null).map(()=>{ return {}; }));
+                              //note: the references must be kept intact or the details form will no longer work properly
+                              for (let i in settings.sources) {
+                                for (let j in grid[i]) {
+                                  let s = settings.sources[i];
+                                  if (!(j in s)) {
+                                    s[j] = grid[i][j];
+                                  }
+                                }
+                              }
+
+                            }
+                          }
+                        
+                          details._show();
+                        }
+
+                        let details = $("<div>").addClass("details_container").change(function(e){
+                          e.stopPropagation(); //prevent a loop
+                        });
+                        details._opts = $(this).closest(".input_container")?.find(".field[name=\"sources\"]")?.data("opts")?.sublist?.map(a => Object.assign({},a)); //this -> the open designer button
+                        if (details._opts) {
+                          details._opts.unshift($("<h3>").text("Details of the selected cell"));
+                        }
+                        details._show = function(index){
+                          if (index !== undefined) {
+                            for (let i in settings.sources) {
+                              settings.sources[i]._active = false;
+                            }
+                            settings.sources[index]._active = true;
+                            cellnav.update(settings.sources);
+                          }
+
+                          if (!details._opts) { return; } //something is wrong
+                          if (typeof index == "undefined") {
+                            index = details._index;
+                            if (JSON.stringify(settings.sources[index]) == details._values) return; //nothing to do
+                          }
+                          index = Number(index);
+                          if (!(index in settings.sources)) {
+                            index = -1;
+                          }
+                          if (index >= 0) {
+                            details._index = index;
+                            details._values = JSON.stringify(settings.sources[index]);
+                            details._opts[0].text("Details of the "+(index+1)+(index < 3 ? ["st","nd","rd"][index] : "th")+" source cell");
+                            for (let i = 1; i < details._opts.length; i++) {
+                              details._opts[i].pointer.main = settings.sources[index];
+                              details._opts[i]["function"] = function(e){
+                                details._opts[i].pointer.main[details._opts[i].pointer.index] = $(this).getval();
+                                if (this == e.currentTarget) details._values = JSON.stringify(settings.sources[index]); //also update _values, as only this field changed and there is no need to rebuild the details form
+                                switch (details._opts[i].pointer.index) {
+                                  case "stream":
+                                  case "text": {
+                                    popup.element?.find(".field[name=\"sources\"]")?.setval(settings.sources);
+                                    break;
+                                  }
+                                  default: {
+                                    //changing sources and labels already triggers preview.update
+                                    preview.update(settings);
+                                  }
+                                }
+                              }
+                            }
+                            details.html(UI.buildUI(details._opts));
+                          }
+                          else {
+                            details.html("");
+                          }
+                        }
+
+                        let popup = UI.popup(UI.buildUI([
+                          $("<h1>").text("Composition designer"),
+                          {
+                            type: "help",
+                            help: "The designer can be used to visually design a composer layout. Start by entering sources below."
+                          },{
+                            label: "Sources and labels",
+                            type: "inputlist",
+                            help: "Enter the name of the stream or the path to a .png file that should be displayed, and, optionally, a label for it. The last source will be printed on top. You can use the dot menu or right click to change the order.",
+                            input: function(){
+                              return {
+                                type: "custom",
+
+                                inputs: {
+                                  source: UI.buildUI([{
+                                    type: "custom",
+                                    build: function grabBrowseField() {
+                                      let $cont = UI.buildUI([{
+                                        label: "Source",
+                                        type: "browse",
+                                        filetypes: ["/*.png"]
+                                      }]);
+                                      this.input = $cont.find(".field");
+                                      this.button = $cont.find("button");
+                                      this.button.text("🗁");
+                                      return $("<span>").css("display","flex").append(this.input).append(this.button);
+                                    },
+                                    setval: function(val){
+                                      this.input.val(val);
+                                    },
+                                    getval: function(){
+                                      return this.input.val();
+                                    } 
+                                  }]).find(".field").first(),
+                                  label: UI.buildUI([{
+                                    label: "Label",
+                                    type: "selectinput",
+                                    selectinput: [
+                                      ["","Show stream name"],
+                                      ["empty_string","No label"],
+                                      [{ type: "str", label: "Text"},"Custom:"]
+                                    ],
+                                    getval: function(val){
+                                      //this is called after the 'default' getval was executed
+                                      switch (val) {
+                                        case "": return null;
+                                        case "empty_string": return "";
+                                        default: return val;
+                                      }
+                                    },
+                                    setval: function(val){
+                                      //this is called after the 'default' setval was executed
+                                      switch (val) {
+                                        case null: {
+                                          this._field.children("select").first().val("");
+                                          break;
+                                        }
+                                        case "": {
+                                          this._field.children("select").first().val("empty_string");
+                                          break;
+                                        }
+                                      }
+                                    }
+                                  }]).find(".field").first()//$("<input>").attr("placeholder","streamname")
+                                },
+                                build: function(){
+                                  return $("<div>").addClass("sources_and_labels").append(
+                                    this.inputs.source
+                                  ).append(
+                                    this.inputs.label.css("margin-right",0)
+                                  ).append(
+                                    $("<button>").text("…").attr("tabindex",-1).css({marginLeft:0,marginRight:"0.25em"}).click(function(e){ 
+                                      //Note: if button is first, clicking the main label wil trigger the button. Now instead, the first input field will be focussed. >_>
+                                      this.dispatchEvent(new MouseEvent("contextmenu",e));
+                                    })
+                                  )
+                                },
+                                setval: function(val){
+                                  val = val || {};
+                                  if (typeof val != "object") val = {};
+                                  this.inputs.source.setval(val.stream || "");
+                                  this.inputs.source._value = val;
+                                  this.inputs.label.setval("text" in val ? val.text : null);
+                                },
+                                getval: function(v,$field){
+                                  let val = {};
+                                  val.stream = this.inputs.source.getval();
+                                  val.text = this.inputs.label.getval();
+                                  val._value = this.inputs.source?._value;
+                                  val.toString = function(){
+                                    return this.stream;
+                                  };
+                                  return (val.stream == "") && (val.text === null) ? null : val;
+                                }
+                              }
+                            },
+                            pointer: { main: settings, index: "sources" },
+                            "function": function(){
+                              let newval = $(this).getval();
+                              //keep pointers and width/height/x/y settings intact
+                              for (let i = 0; i < newval.length; i++) {
+                                let entry = newval[i];
+                                if (entry === null) continue;
+                                let orig = entry._value;
+                                if (orig !== null) {
+                                  //import other values
+                                  entry = $.extend($.extend({},entry._value),entry);
+                                }
+                                else {
+                                  entry = $.extend({
+                                    x: 0,
+                                    y: 0,
+                                    w: settings.resolution ? settings.resolution.split("x")[0]*0.5 : 960, //enter some default
+                                    h: settings.resolution ? settings.resolution.split("x")[1]*0.5 : 540
+                                  },entry);
+                                }
+                                delete entry._value;
+                                newval[i] = entry;
+                              }
+                              for (let i = 0; i < newval.length; i++) {
+                                let entry = newval[i];
+                                if (entry === null) {
+                                  newval.splice(i,1);
+                                  continue;
+                                }
+                                //overwrite existing entry
+                                settings.sources[i] = $.extend(settings.sources[i],entry);
+                                //clear keys not in entry
+                                for (var key in settings.sources[i]) {
+                                  if (!(key in entry)) delete settings.sources[i][key]
+                                }
+                              }
+                              //snip to new length
+                              settings.sources.splice(newval.length);
+                              
+                              details._show();
+                            }
+                          },{
+                            label: "Composer resolution",
+                            type: "custom",
+                            inputs: {
+                              width: $("<input>").attr("type","number").attr("min",0).attr("placeholder","1920").keydown(function(e){
+                                switch (e.key) {
+                                  case "x": {
+                                    e.preventDefault();
+                                    let ele = $(e.target).parent().children().last();
+                                    ele.focus();
+                                    ele.select();
+                                    break;
+                                  }
+                                }
+                              }),
+                              height: $("<input>").attr("type","number").attr("min",0).attr("placeholder","1080").keydown(function(e){
+                                switch (e.key) {
+                                  case "Backspace": {
+                                    //if backspace is pressed when field is already empty, focus on previous field
+                                    if ((e.target.value == "") && e.target.checkValidity()) {
+                                      //checking field validity because if the number is invalid (eg 123e) the field is not empty but the .value does return ""
+                                      let ele = $(e.target).parent().children().first();
+                                      ele.focus();
+                                    }
+                                    break;
+                                  }
+                                }
+
+                              })
+                            },
+                            build: function(){
+                              return $("<div>").addClass("resolution").append(
+                                this.inputs.width
+                              ).append(
+                                $("<span>").text("×")
+                              ).append(
+                                this.inputs.height
+                              )
+                            },
+                            setval: function(val){
+                              if (val === null) { val = "1920x1080"; }
+                              this.inputs.width.val("");
+                              this.inputs.height.val("");
+                              if (typeof val == "string") {
+                                let amounts = val.split("x");
+                                if (amounts.length >= 1) this.inputs.width.val(amounts[0]);
+                                if (amounts.length >= 2) this.inputs.height.val(amounts[1]);
+
+                              }
+                            },
+                            getval: function(){
+                              return (this.inputs.width.val() || 1920)+"x"+(this.inputs.height.val() || 1080);
+                            },
+                            help: input.optional?.resolution?.help,
+                            pointer: { main: settings, index: "resolution" },
+                            "function": function(){ settings.resolution = $(this).getval(); }
+                          },{
+                            label: "Grid layout",
+                            type: "radioselect",
+                            classes: ["grid_layout"],
+                            help: "Choose your desired layout.<br>The 'standard grid' will create equal cells, using the same aspect ratio as the composer resolution.<br>The 'focussed' layout will allocate at least 2x2 cells for the first source.<br>When using the 'freestyle' layout, all cells can have a custom position and size.",
+                            radioselect: [
+                              ["equal",$("<div>").html(
+`
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g style="fill:white;stroke:black;stroke-width:2">
+  <rect x="5.5" y="5.5" width="17.667" height="17.667" style="fill:#ccc"/>
+  <rect id="a" x="23.167" y="5.5" width="17.667" height="17.667"/>
+  <use transform="translate(17.667)" xlink:href="#a"/>
+  <use transform="translate(17.667 17.776)" xlink:href="#a"/>
+  <use transform="translate(-17.667 17.667)" xlink:href="#a"/>
+  <use transform="translate(0 17.667)" xlink:href="#a"/>
+  <use transform="translate(-17.667 35.333)" xlink:href="#a"/>
+  <use transform="translate(0 35.333)" xlink:href="#a"/>
+  <use transform="translate(17.667 35.333)" xlink:href="#a"/>
+</g>
+</svg>
+`
+                              ).append(
+                                $("<span>").text("Standard grid")
+                              ).children()],
+                              ["focussed",$("<div>").html(
+`
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g style="fill:white;stroke:black;stroke-width:2"> 
+  <rect x="5.5" y="5.5" width="35.333" height="35.333" style="fill:#ccc"/>
+  <rect id="b" x="40.834" y="5.5" width="17.667" height="17.667"/>
+  <use transform="translate(0,17.667)" xlink:href="#b"/>
+  <use transform="translate(0,35.333)" xlink:href="#b"/>
+  <use transform="translate(-17.667,35.333)" xlink:href="#b"/>
+  <use transform="translate(-35.333,35.333)" xlink:href="#b"/>
+</g>
+</svg>
+`
+                              ).append(
+                                $("<span>").text("Focussed")
+                              ).children()],
+                              ["none",$("<div>").html(
+`
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"> 
+<g style="fill:white;stroke:black;stroke-width:2">
+  <use x="33" y="23" transform="translate(-29.401,-10.597)" xlink:href="#c"/>
+  <rect x="5.5" y="5.5" width="32" height="32" style="fill:#ccc"/>
+  <rect id="c" x="29.4" y="10.6" width="17.667" height="17.667" />
+  <use x="14.6" y="33" transform="translate(-29.401,-10.597)" xlink:href="#c"/>
+  <use x="28.7" y="39" transform="translate(-29.401,-10.597)" xlink:href="#c"/>
+</g>
+</svg>`
+                              ).append(
+                                $("<span>").text("Freestyle")
+                              ).children()]
+                            ],
+                            pointer: { main: settings, index: "layout" },
+                            //using radioselect is kinda hacky because it is fancy and returns [val1,val2]
+                            //I've done this because a normal radio selector is not implemented
+                            //*shrug*
+                            //this rewrites the array to a string and vice versa
+                            getval: function(val){ return val[0]; },
+                            setval: function(val){ 
+                              if (typeof val == "string") this._field.setval([val]);
+                            },
+                            "function": function(e,newval){
+                              if ((settings.layout == "none") && (newval != settings.layout) && (!confirm("Are you sure you want to select the '"+$(this).find("[value=\""+newval+"\"] + span > span").text()+"' layout? Your custom freestyle positions will be deleted."))) {
+                                $(this).setval("none");
+                                return;
+                              }
+                              settings.layout = $(this).getval();
+                            }
+                          },$("<div>").text("Preview:"),{
+                            type: "help",
+                            classes: ["show-for-freestyle-layout"],
+                            help: "When using the freestyle layout, you can click one of the source cells below to edit it. You can then move and resize it.<br>When moving, hold 'Shift' to lock its current x or y coordinate. When resizing, hold 'Shift' to keep the rectangle centered at its current position, or 'Ctrl' to lock its aspect ratio."
+                          },cellnav,preview,details,{
+                            type: "buttons",
+                            buttons: [{
+                              type: "cancel",
+                              label: "Discard",
+                              "function": function(){
+                                popup.close();
+                              }
+                            },{
+                              icon: "check",
+                              label: "Apply",
+                              type: "save",
+                              "function": function(){
+                                for (let i in settings.sources) {
+                                  delete settings.sources[i]._active;
+                                }
+                                if (settings.layout == "equal") {
+                                  //delete all x, y, w and h settings for cleanliness
+                                  for (let i in settings.sources) {
+                                    delete settings.sources[i].x;
+                                    delete settings.sources[i].y;
+                                    delete settings.sources[i].w;
+                                    delete settings.sources[i].h;
+                                  }
+                                }
+                                $("[data-input=\"Composer\"] .field[name=\"sources\"]").setval(settings.sources);
+                                $("[data-input=\"Composer\"] .field[name=\"resolution\"]").setval(settings.resolution);
+                                popup.close();
+                              }
+                            }]
+                          }
+                        ]).addClass("multiview_designer"));
+
+                        calculatePositions();
+                        preview.update(settings);
+                        popup.element.change(function(){
+                          calculatePositions();
+                          preview.update(settings);
+                        });
+
+                        popup.element.find(".field.isSetting[name=\"sources\"]").removeClass("isSetting"); //prevent the Sources and labels field from saving and thus overwriting x/y/w/h values
+                      })
+                    )
+                  });
+                  let sublist_fieldopts = [
+                    {
+                      label: "Source",
+                      type: "browse",
+                      filetypes: ["/*.png"],
+                      help: "The name of the stream or path to the image that should be displayed",
+                      validate: ["required"],
+                      pointer: {
+                        main: newElement,
+                        index: "stream"
+                      }
+                    },{
+                      label: "Label",
+                      type: "selectinput",
+                      selectinput: [
+                        ["","Use stream name"],
+                        ["empty_string","No label"],
+                        [{ type: "str", label: "Text"},"Custom text"]
+                      ],
+                      keepnull: true, //if the value is "" when saving, do not overwrite with null, and, for sublist, do not delete the entry when cleaning
+                      getval: function(val){
+                        let selectval = this._field.children("select").first().val();
+                        //this is called after the 'default' getval was executed
+                        switch (selectval) {
+                          case "":
+                            return null;
+                          case "empty_string":
+                            return "";
+                          case "CUSTOM":
+                          default: 
+                            return val;
+                        }
+                      },
+                      setval: function(val){
+                        //this is called after the 'default' setval was executed
+                        switch (val) {
+                          case null: {
+                            this._field.children("select").first().val("");
+                            break;
+                          }
+                          case "": {
+                            this._field.children("select").first().val("empty_string");
+                            break;
+                          }
+                        }
+                      },
+                      help: "The text label for this cell",
+                      placeholder: "streamname",
+                      pointer: {
+                        main: newElement,
+                        index: "text"
+                      }
+                    },{
+                      label: "X position",
+                      type: "int",
+                      help: "The x coordinate of the top left corner of this cell",
+                      unit: "px",
+                      classes: ["show-for-freestyle-layout"],
+                      pointer: {
+                        main: newElement,
+                        index: "x"
+                      }
+                    },{
+                      label: "Y position",
+                      type: "int",
+                      help: "The y coordinate of the top left corner of this cell",
+                      unit: "px",
+                      classes: ["show-for-freestyle-layout"],
+                      pointer: {
+                        main: newElement,
+                        index: "y"
+                      }
+                    },{
+                      label: "Width",
+                      type: "int",
+                      min: 0,
+                      help: "The width of this cell",
+                      unit: "px",
+                      classes: ["show-for-freestyle-layout"],
+                      pointer: {
+                        main: newElement,
+                        index: "w"
+                      }
+                    },{
+                      label: "Height",
+                      type: "int",
+                      min: 0,
+                      help: "The height of this cell",
+                      unit: "px",
+                      classes: ["show-for-freestyle-layout"],
+                      pointer: {
+                        main: newElement,
+                        index: "h"
+                      }
+                    },
+                  ];
+                  function addLocalGlobalOpts(){
+                    let opts = {};
+                    for (let option in input.optional) {
+                      if (input.optional[option].source_can_override) {
+                        opts[option] = Object.assign({},input.optional[option]);
+                        opts[option]["default"] = "Use composer setting";
+                      }
+                    }
+                    if (Object.keys(opts).length) {
+                      let out = mist.convertBuildOptions({ optional: opts },newElement);
+                      for (let i = 1; i < out.length; i++) {
+                        sublist_fieldopts.push(out[i]);
+                      }
+                    }
+                  }
+                  addLocalGlobalOpts();
+
+                  build.splice(2,0,{
+                    label: "Source cells",
+                    type: "sublist",
+                    itemLabel: "source cell",
+                    hrn: "stream",
+                    help: "These are the grid elements as they are saved. This is probably not the easiest way to configure them - you probably want to use the designer instead.",
+                    sublist: sublist_fieldopts,
+                    saveas: newElement,
+                    pointer: {
+                      main: saveas,
+                      index: "sources"
+                    }
+                  });
+                  build.splice(2,0,$("<h4>").text("Required parameters"));
+                }
+
+
+                if (('always_match' in input) && (mist.inputMatch(input.always_match,source))) {
+                  build.push({
+                    label: 'Always on',
+                    type: 'checkbox',
+                    help: 'Keep this input available at all times, even when there are no active viewers.',
+                    pointer: {
+                      main: saveas,
+                      index: 'always_on'
+                    },
+                    value: (other == "" && ((type == "TSSRT") || (type == "TSRIST") || (type == "RTSP") || (type == "TS")) ? true : false) //for new streams, if the input is TSSRT TSRIST RTSP or TS(= tsudp), put always_on true by default
+                  });
+                }
+                $inputoptions.append(UI.buildUI(build));
+                $source_info.html("");
+                if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
+                  //this input can enumerate supported devices, and the source string matches the specified static prefix
+
+                  function display_sources() {
+                    //add to source info container
+                    $source_info.html(
+                      $("<p>").text("Possible sources for "+input.name+": (click to set)")
+                    );
+                    var sources = input.enumerated_sources[input.enum_static_prefix];
+                    for (var i in sources) {
+                      var v = sources[i].split(" ")[0];
+                      $source_info.append(
+                        $("<div>").attr("data-source",v).text(sources[i]).click(function(){
+                          var t = $(this).attr("data-source");
+                          $source_field.val(t).trigger("change");                          
+                        }).addClass(v == source ? "active":"")
+                      );
+                    }
+
+                  }
+
+                  function apply_enumerated_sources() {
+                    if ((!("enumerated_sources" in input)) || (!(input.enum_static_prefix in input.enumerated_sources))) {
+                      if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                      input.enumerated_sources[input.enum_static_prefix] = []; //"reserve" the space so we won't make duplicate requests
+                      setTimeout(function(){
+                        //remove the reserved space so that we can collect new values
+                        delete input.enumerated_sources[input.enum_static_prefix];
+                      },10e3);
+                      mist.send(function(d){
+                        //save
+                        if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
+                        input.enumerated_sources[input.enum_static_prefix] = d.enumerate_sources;
+
+                        display_sources();
+
+                      },{enumerate_sources:source});
                     }
                     else {
-                      //we know them, apply
-                      delete input_options.desc;
-                      if (input.dynamic_capa_results[source]) {
-                        input_options = input.dynamic_capa_results[source];
-                      }
+                      display_sources();
                     }
                   }
-                  $inputoptions.html(
-                    $('<h3>').text("source_name" in input ? "Input options for "+(input.source_name).toLowerCase() : input.name+' Input options')
-                  );                
-                  var build = mist.convertBuildOptions(input_options,saveas);
-                  if (('always_match' in input) && (mist.inputMatch(input.always_match,source))) {
-                    build.push({
-                      label: 'Always on',
-                      type: 'checkbox',
-                      help: 'Keep this input available at all times, even when there are no active viewers.',
-                      pointer: {
-                        main: saveas,
-                        index: 'always_on'
-                      },
-                      value: (other == "" && ((type == "TSSRT") || (type == "TSRIST") || (type == "RTSP") || (type == "TS")) ? true : false) //for new streams, if the input is TSSRT TSRIST RTSP or TS(= tsudp), put always_on true by default
-                    });
-                  }
-                  $inputoptions.append(UI.buildUI(build));
-                  $source_info.html("");
-                  if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
-                    //this input can enumerate supported devices, and the source string matches the specified static prefix
-
-                    function display_sources() {
-                      //add to source info container
-                      $source_info.html(
-                        $("<p>").text("Possible sources for "+input.name+": (click to set)")
-                      );
-                      var sources = input.enumerated_sources[input.enum_static_prefix];
-                      for (var i in sources) {
-                        var v = sources[i].split(" ")[0];
-                        $source_info.append(
-                          $("<div>").attr("data-source",v).text(sources[i]).click(function(){
-                            var t = $(this).attr("data-source");
-                            $source_field.val(t).trigger("change");                          
-                          }).addClass(v == source ? "active":"")
-                        );
-                      }
-
-                    }
-
-                    function apply_enumerated_sources() {
-                      if ((!("enumerated_sources" in input)) || (!(input.enum_static_prefix in input.enumerated_sources))) {
-                        if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
-                        input.enumerated_sources[input.enum_static_prefix] = []; //"reserve" the space so we won't make duplicate requests
-                        setTimeout(function(){
-                          //remove the reserved space so that we can collect new values
-                          delete input.enumerated_sources[input.enum_static_prefix];
-                        },10e3);
-                        mist.send(function(d){
-                          //save
-                          if (!("enumerated_sources" in input)) { input.enumerated_sources = {}; }
-                          input.enumerated_sources[input.enum_static_prefix] = d.enumerate_sources;
-
-                          display_sources();
-
-                        },{enumerate_sources:source});
-                      }
-                      else {
-                        display_sources();
-                      }
-                    }
-                    apply_enumerated_sources();
-                  }
+                  apply_enumerated_sources();
                 }
+              }
 
-                if (input.name == 'Folder') {
-                  if (other.indexOf("+") < 0) { $main.append($style); }
-                }
+              if (input.name == 'Folder') {
+                if (other.indexOf("+") < 0) { $main.append($style); }
+              }
 
+              let streamname = $main.find('[name=name]').val();
+              UI.updateLiveStreamHint(
+                (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
+                $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
+                $livestreamhint,
+                input,
+                $main.find("[name=streamkeys]").getval()
+              );
+
+              update_input_options(source);
+            }
+          },$source_datalist,$source_info,{
+            label: "Persistent tags",
+            type: "inputlist",
+            help: "You can configure persistent tags that are applied to this stream when it starts. You can use tags to associate configuration or behavior with multiple streams.<br><br>Note that tags are not applied retroactively - if your stream is already active when you edit this field, changes will not take effect until the stream restarts.",
+            pointer: {
+              main: saveas,
+              index: "tags"
+            },
+            input: {
+              type: "str",
+              prefix: "#"
+            },
+            validate: [function(val,me){
+              val = val.join("");
+              if (val.indexOf(" ") > -1) {
+                return {
+                  msg: 'Spaces are not allowed in tag names.',
+                  classes: ['red']
+                };
+              }
+              if (val.indexOf("#") > -1) {
+                return {
+                  msg: 'You don\'t need to prefix these values with a #.',
+                  classes: ['orange'],
+                  "break": false
+                };
+              }
+            }]
+          },{
+            type: "group",
+            label: "Permissions for stream input",
+            options: [{
+              label: "Require stream key",
+              type: "checkbox",
+              help: "Check this box to block pushes using the stream name instead of a stream key.",
+              pointer: { main: saveas, index: "streamkey_only" },
+              "function": function(){
+                $main.find("[name=source]").trigger("change");
+              }
+            },{
+              type: "help",
+              help: "Stream keys are a method to bypass all security and allow an incoming push for the given stream. If a token that matches a stream is used it will be accepted."
+            },{
+              label: "Stream keys",
+              type: "inputlist",
+              pointer: { main: saveas, index: "streamkeys" },
+              help: "You may enter one or more stream keys. When none are entered, you can only push into this stream using the stream name.",
+              "function": function(){
                 let streamname = $main.find('[name=name]').val();
                 UI.updateLiveStreamHint(
                   (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
                   $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
                   $livestreamhint,
-                  input,
-                  $main.find("[name=streamkeys]").getval()
+                  false,
+                  $(this).getval()
                 );
-
-                update_input_options(source);
-              }
-            },$source_datalist,$source_info,{
-              label: "Persistent tags",
-              type: "inputlist",
-              help: "You can configure persistent tags that are applied to this stream when it starts. You can use tags to associate configuration or behavior with multiple streams.<br><br>Note that tags are not applied retroactively - if your stream is already active when you edit this field, changes will not take effect until the stream restarts.",
-              pointer: {
-                main: saveas,
-                index: "tags"
               },
               input: {
                 type: "str",
-                prefix: "#"
-              },
-              validate: [function(val,me){
-                val = val.join("");
-                if (val.indexOf(" ") > -1) {
-                  return {
-                    msg: 'Spaces are not allowed in tag names.',
-                    classes: ['red']
-                  };
-                }
-                if (val.indexOf("#") > -1) {
-                  return {
-                    msg: 'You don\'t need to prefix these values with a #.',
-                    classes: ['orange'],
-                    "break": false
-                  };
-                }
-              }]
-            },{
-              type: "group",
-              label: "Permissions for stream input",
-              options: [{
-                label: "Require stream key",
-                type: "checkbox",
-                help: "Check this box to block pushes using the stream name instead of a stream key.",
-                pointer: { main: saveas, index: "streamkey_only" },
-                "function": function(){
-                  $main.find("[name=source]").trigger("change");
-                }
-              },{
-                type: "help",
-                help: "Stream keys are a method to bypass all security and allow an incoming push for the given stream. If a token that matches a stream is used it will be accepted."
-              },{
-                label: "Stream keys",
-                type: "inputlist",
-                pointer: { main: saveas, index: "streamkeys" },
-                help: "You may enter one or more stream keys. When none are entered, you can only push into this stream using the stream name.",
-                "function": function(){
-                  let streamname = $main.find('[name=name]').val();
-                  UI.updateLiveStreamHint(
-                    (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
-                    $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
-                    $livestreamhint,
-                    false,
-                    $(this).getval()
-                  );
-                },
-                input: {
-                  type: "str",
-                  clipboard: true,
-                  maxlength: 256,
-                  validate: [function(val,me){
-                    if (mist.data.streamkeys && (val in mist.data.streamkeys) && (mist.data.streamkeys[val] != other.split("+")[0])) {
-                      //duplicates in the current field do not need to be tested - they're all for the same stream so it won't be an issue
-                      return {
-                        msg: "The key '"+val+"' is already in use (for the stream '"+mist.data.streamkeys[val]+"'). Duplicates are not allowed.",
-                        classes: ["red"]
-                      };
-                    }
-                    if (val.length && !val.match(/^[0-9a-z]+$/i)) {
-                      return {
-                        msg: "The key '"+val+"' contains special characters. We recommend not using these as some video streaming protocols do not accept them.",
-                        classes: ["orange"],
-                        "break": false
-                      }
-                    }
-                  }],
-                  unit: 
-                    //NB: because unit is a reference to a DOMelement here, when a new input is created to be added to the list, this button will /move/ to the last input field, it will not be duplicated. In this case this works fine, because the Generate button only makes sense for the last, empty, input anyway.
-                  $("<button>").text("Generate").click(function(){
-                    let $field = $(this).closest(".field_container").find(".field");
-
-                    function getRandomVals(n) {
-                      function getRandomVal() {
-                        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-                        return chars[Math.floor(Math.random()*chars.length)];
-                      }
-                      let str = "";
-                      while (str.length < n) {
-                        str += getRandomVal();
-                      }
-                      return str;
-                    }
-
-                    function apply() {
-                      $field.setval(getRandomVals(32));
-                      if ($field.data("validate")($field)) { 
-                        //the listitem is invalid
-                        apply();
-                      }
-                    }
-                    apply();
-
-                    $field.trigger("keyup");
-
-                  }),
-                }
-              },$("<div>").addClass("livestreamhint").html(
-                function(){
-                  let basestream = other.split("+")[0];
-
-                  let $c = $("<div>").addClass("description");
-                  let $text = $("<span>");
-                  function setText(){
-                    let bystream = {};
-                    //gather stream keys for base stream and children
-                    for (const key in mist.data.streamkeys) {
-                      const s = mist.data.streamkeys[key];
-                      if (s.split("+")[0] == basestream) {
-                        if (!(s in bystream)) {
-                          bystream[s] = [];
-                        }
-                        bystream[s].push(key);
-                      }
-                    }
-                    delete bystream[basestream];
-                    $text.text(Object.keys(bystream).length ? "Additionally, a total of "+Object.values(bystream).map(function(v){return v.length}).reduce(function(sum,v){return sum+v})+" stream keys for "+Object.keys(bystream).length+" wildcards of \""+basestream+"\" have been configured." : "You can also add stream keys for wildcard streams here:");
+                clipboard: true,
+                maxlength: 256,
+                validate: [function(val,me){
+                  if (mist.data.streamkeys && (val in mist.data.streamkeys) && (mist.data.streamkeys[val] != other.split("+")[0])) {
+                    //duplicates in the current field do not need to be tested - they're all for the same stream so it won't be an issue
+                    return {
+                      msg: "The key '"+val+"' is already in use (for the stream '"+mist.data.streamkeys[val]+"'). Duplicates are not allowed.",
+                      classes: ["red"]
+                    };
                   }
-                  setText();
-                  $c.append(
-                    $text
-                  ).append(
-                    $("<button>").css("float","right").attr("data-icon","key").text("Manage stream keys").click(function(){
-                      let popup = UI.popup(UI.modules.streamkeys(basestream,function(){
-                        //what to do after the add button is used
-                        popup.show(UI.modules.streamkeys(basestream,arguments.callee));
-                      }));
-                      popup.element[0].addEventListener("close",function(){
-                        //onclose update streamkeys field
-                        mist.send(function(){
-                          setText();
-                          $main.find("[name=\"streamkeys\"]").setval(UI.findStreamKeys(basestream));
-                        },{streamkeys: true})
-                      });
-                    })
-                  );
-                  return $c;
-                }()
-              )]
-            },$livestreamhint,$('<br>'),{
-              type: 'custom',
-              custom: $inputoptions
-            },$processes,{
-              label: 'Stop sessions',
-              type: 'checkbox',
-              help: 'When saving these stream settings, kill this stream\'s current connections.',
-              pointer: {
-                main: saveas,
-                index: 'stop_sessions'
+                  if (val.length && !val.match(/^[0-9a-z]+$/i)) {
+                    return {
+                      msg: "The key '"+val+"' contains special characters. We recommend not using these as some video streaming protocols do not accept them.",
+                      classes: ["orange"],
+                      "break": false
+                    }
+                  }
+                }],
+                unit: 
+                  //NB: because unit is a reference to a DOMelement here, when a new input is created to be added to the list, this button will /move/ to the last input field, it will not be duplicated. In this case this works fine, because the Generate button only makes sense for the last, empty, input anyway.
+                $("<button>").text("Generate").click(function(){
+                  let $field = $(this).closest(".field_container").find(".field");
+
+                  function getRandomVals(n) {
+                    function getRandomVal() {
+                      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                      return chars[Math.floor(Math.random()*chars.length)];
+                    }
+                    let str = "";
+                    while (str.length < n) {
+                      str += getRandomVal();
+                    }
+                    return str;
+                  }
+
+                  function apply() {
+                    $field.setval(getRandomVals(32));
+                    if ($field.data("validate")($field)) { 
+                      //the listitem is invalid
+                      apply();
+                    }
+                  }
+                  apply();
+
+                  $field.trigger("keyup");
+
+                }),
               }
-            },{
-              type: 'buttons',
-              buttons: [
-                {
-                  type: 'cancel',
-                  label: 'Cancel',
-                  'function': function(){
-                    UI.navto('Streams');
+            },$("<div>").addClass("livestreamhint").html(
+              function(){
+                let basestream = other.split("+")[0];
+
+                let $c = $("<div>").addClass("description");
+                let $text = $("<span>");
+                function setText(){
+                  let bystream = {};
+                  //gather stream keys for base stream and children
+                  for (const key in mist.data.streamkeys) {
+                    const s = mist.data.streamkeys[key];
+                    if (s.split("+")[0] == basestream) {
+                      if (!(s in bystream)) {
+                        bystream[s] = [];
+                      }
+                      bystream[s].push(key);
+                    }
                   }
-                },{
-                  type: 'save',
-                  label: 'Save',
-                  'function': function(){
-                    save('Streams');
-                  }
-                },{
-                  type: 'save',
-                  label: 'Save and Preview',
-                  'function': function(){
-                    save('Preview');
-                  },
-                  classes: ['saveandpreview']
+                  delete bystream[basestream];
+                  $text.text(Object.keys(bystream).length ? "Additionally, a total of "+Object.values(bystream).map(function(v){return v.length}).reduce(function(sum,v){return sum+v})+" stream keys for "+Object.keys(bystream).length+" wildcards of \""+basestream+"\" have been configured." : "You can also add stream keys for wildcard streams here:");
                 }
-              ]
+                setText();
+                $c.append(
+                  $text
+                ).append(
+                  $("<button>").css("float","right").attr("data-icon","key").text("Manage stream keys").click(function(){
+                    let popup = UI.popup(UI.modules.streamkeys(basestream,function(){
+                      //what to do after the add button is used
+                      popup.show(UI.modules.streamkeys(basestream,arguments.callee));
+                    }));
+                    popup.element[0].addEventListener("close",function(){
+                      //onclose update streamkeys field
+                      mist.send(function(){
+                        setText();
+                        $main.find("[name=\"streamkeys\"]").setval(UI.findStreamKeys(basestream));
+                      },{streamkeys: true})
+                    });
+                  })
+                );
+                return $c;
+              }()
+            )]
+          },$livestreamhint,
+          $('<br>'),
+          $inputoptions,
+          $processes,{
+            label: 'Stop sessions',
+            type: 'checkbox',
+            help: 'When saving these stream settings, kill this stream\'s current connections.',
+            pointer: {
+              main: saveas,
+              index: 'stop_sessions'
             }
-          ]);
-          let $streamkeys = $form.find(".itemgroup [name=\"streamkeys\"]").closest(".itemgroup");
-          if (saveas.source && saveas.source.slice(0,7) == "push://") {
-            $streamkeys.show();
+          },{
+            type: 'buttons',
+            buttons: [
+              {
+                type: 'cancel',
+                label: 'Cancel',
+                'function': function(){
+                  UI.navto('Streams');
+                }
+              },{
+                type: 'save',
+                label: 'Save',
+                'function': function(){
+                  save('Streams');
+                }
+              },{
+                type: 'save',
+                label: 'Save and Preview',
+                'function': function(){
+                  save('Preview');
+                },
+                classes: ['saveandpreview']
+              }
+            ]
           }
-          else {
-            $streamkeys.hide();
-          }
+        ]);
+        let $streamkeys = $form.find(".itemgroup [name=\"streamkeys\"]").closest(".itemgroup");
+        if (saveas.source && saveas.source.slice(0,7) == "push://") {
+          $streamkeys.show();
+        }
+        else {
+          $streamkeys.hide();
+        }
 
-          $main.append($form);
+        $main.append($form);
 
-          
-          //if the form contents have been changed, set a flag on the header: only ask for confirm to navigate away if there have been changes
-          $form.change(function(){
-            var $h = $main.find(".header");
-            if ($h.length) { $h.attr("data-changed","yes"); }
-          });
+        
+        //if the form contents have been changed, set a flag on the header: only ask for confirm to navigate away if there have been changes
+        $form.change(function(){
+          var $h = $main.find(".header");
+          if ($h.length) { $h.attr("data-changed","yes"); }
+        });
 
-          $main.find('[name=name]').keyup(function(){
-            let streamname = $(this).val();
-            UI.updateLiveStreamHint(
-              (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
-              $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
-              $livestreamhint,
-              false,
-              $main.find("[name=streamkeys]").getval()
-            );
-          }).trigger("keyup");
-          $main.find('[name="source"]').attr("list","source_datalist");
+        $main.find('[name=name]').keyup(function(){
+          let streamname = $(this).val();
+          UI.updateLiveStreamHint(
+            (other.indexOf("+") >= 0) && (streamname == other.split("+")[0]) ? other : streamname,
+            $main.find("[name=streamkey_only]").getval() ? $main.find('[name=source]')?.val()?.replace(/push:\/\/[^:@\/]*/,"push://invalid,host") : $main.find('[name=source]')?.val()?.replace("push://invalid,host","push://"),
+            $livestreamhint,
+            false,
+            $main.find("[name=streamkeys]").getval()
+          );
+        }).trigger("keyup");
+        $main.find('[name="source"]').attr("list","source_datalist");
 
 
         },{capabilities: true, streamkeys: true});
@@ -7622,23 +9211,30 @@ context_menu: function(){
         ).append($status).append($dashboard);
 
         var $findMist = UI.modules.stream.findMist(function(url){
+
+            window.mv = {};
+            var $preview = $("<div>");
+            $dashboard.append($preview);
+
           //MistServer was found and data contains player.js, jQuery should already have added it to the page
           if (typeof mistplayers == "undefined") {
-            throw "Player.js was not applied properly.";
+            $preview.replaceWith("Failed to load player: player.js was not applied properly.");
+            //throw "Player.js was not applied properly.";
           }
-
+          else {
+            $preview.replaceWith(UI.modules.stream.preview(other,window.mv));
+            $dashboard.append(
+              UI.modules.stream.playercontrols(window.mv,$preview)
+            );
+          }
           $status.replaceWith(UI.modules.stream.status(other,{tags:false,thumbnail:false,status:false,stats:false}));
 
-          window.mv = {};
-          $preview = UI.modules.stream.preview(other,window.mv);
-          $dashboard.append($preview);
           $dashboard.append(
-            UI.modules.stream.playercontrols(window.mv,$preview)
-          ).append(
             UI.modules.stream.logs(other)
           ).append(
             UI.modules.stream.metadata(other)
           );
+
 
         });
 
@@ -7787,6 +9383,7 @@ context_menu: function(){
               }
             }
           }
+
           var $additional_params = $("<div>").css("margin","1em 0");
           var $autopush = $("<div>");
           var push_parameters, full_list_of_push_parameters;
@@ -7961,6 +9558,7 @@ context_menu: function(){
             $autopush.find(".activewhen").trigger("change");
           }
           var build = [
+            UI.modules.templates("push",saveas),
             {
               label: 'Stream',
               type: 'str',
@@ -7976,7 +9574,13 @@ context_menu: function(){
               },
               validate: ['required',function(val,me){
                 if (val[0] == "#") {
-                  //it's a tag, we're good
+                  //it's a tag, do not permit spaces
+                  if (val.indexOf(" ") >= 0) {
+                    return {
+                      msg: "Spaces are not allowed in tag names.",
+                      classes: ['red'],
+                    }
+                  }
                   return false;
                 }
                 var shouldbestream = val.split('+');
@@ -8455,7 +10059,7 @@ context_menu: function(){
         var $triggerdesc = $("<div>").addClass("desc");
         var $params_help = $("<div>");
         
-        $main.append(UI.buildUI([{
+        $main.append(UI.buildUI([UI.modules.templates("trigger",saveas),{
           label: 'Trigger on',
           pointer: {
             main: saveas,
@@ -8647,7 +10251,6 @@ context_menu: function(){
         $logs.find("> h3").remove();
 
         $main.append($buttons).append($logs);
-
         break;
       }
       case 'Statistics':
@@ -9506,7 +11109,15 @@ context_menu: function(){
               $.ajax({
                 type: "GET",
                 url: url,
+                dataType: (url.slice(-9) == "player.js" ? "script" : "text"),
                 success: function(d){
+                  if (url.slice(-9) == "player.js") {
+                    if (typeof window.mistplayers == "undefined") {
+                      //the page was downloaded succesfully but not applied
+                      console.log("Warning: FindMist successfully downloaded "+url+" but mistplayers is still undefined.");
+                    }
+                  }
+
                   cont.hide();
                   on_success(urls[attempt],d);
                 },
@@ -9677,11 +11288,18 @@ context_menu: function(){
           livestreamhint: true,
           status: true,
           stats: true,
-          tags: true, //use "readonly" to omit editing tags
+          tags: {
+            readonly: false,
+            onclick: false
+          }, //use "readonly" to omit editing tags
           thumbnail: true
         };
         if (!options) {
           options = {};
+        }
+        if (options.tags == "readonly") { options.tags = { readonly: true }; }
+        if (typeof options.tags == "object") {
+          options.tags = Object.assign(defaultoptions.tags,options.tags);
         }
         options = Object.assign(defaultoptions,options);
 
@@ -9694,7 +11312,7 @@ context_menu: function(){
           outputs: options.stats? $("<span>").attr("beforeifnotempty","Outputs: ") : false,
           context_menu: false,
           tags: false,
-          addtag: options.tags && (options.tags != "readonly") ? $("<div>").addClass("input_container").attr("title","Add a tag to this stream's current tags.\nNote that tags added here will not be applied when the stream restarts. To do that, add the tag through the stream settings.").css("display","block").html(
+          addtag: options.tags && (!options.tags.readonly) ? $("<div>").addClass("input_container").attr("title","Add a tag to this stream's current tags.\nNote that tags added here will not be applied when the stream restarts. To do that, add the tag through the stream settings.").css("display","block").html(
             $("<span>").attr("showifstate","0").text("Transient tags can be added here once the stream is active.")
           ).append(
             $("<input>").attr("showifstate","1").attr("placeholder","Tag name").on("keydown",function(e){
@@ -9728,12 +11346,13 @@ context_menu: function(){
 
         activestream.tags = false;
         if (options.tags) {
-          if (options.tags != "readonly") {
+          if (!options.tags.readonly) {
             activestream.context_menu = new UI.context_menu();
           }
           activestream.tags = UI.modules.stream.tags({
             streamname: streamname,
-            readonly: (options.tags == "readonly"),
+            readonly: options.tags.readonly,
+            onclick: options.tags.onclick,
             context_menu: activestream.context_menu,
             getStreamstatus: function(){
               return this.closest("[data-state]").getAttribute("data-state");
@@ -9823,45 +11442,55 @@ context_menu: function(){
         );
       },
       thumbnail: function(streamname,options){
-        if (!UI.findOutput("JPG")) { return; }
-
-
         var image, stream;
-        
-        var jpg = $("<img>").hover(function(){
-          if (image && stream) {
-            $(this).attr("src",stream);
-          }
-        },function(){
-          if (image && stream) {
-            $(this).attr("src",image);
-          }
-        });
 
-        UI.sockets.ws.info_json.subscribe(function(data){
-          if (!data.source) return;
-          //find mjpg and jpg urls
-          for (var i in data.source) {
-            if (data.source[i].type == "html5/image/jpeg") {
-              var url = data.source[i].url;
-              if (url.indexOf(".mjpg") > -1) { stream = url; }
-              else { image = url; }
-              if (image && stream) { break; }
-            }
-          }
-          if (stream || image) {
-            if (!stream) stream = image;
-            else if (!image) image = stream;
-
-            jpg.attr("src",image);
-            if (clone) clone.attr("src",image);
-          }
-        },streamname);
-
+        var jpg = $("<img>");
+        var $cont = $("<section>").addClass("thumbnail");
         var clone;
         if (options && options.clone) clone = $("<img>").addClass("clone");
+
+
+        if (streamname[0] == "/") {
+          //it's probably a link to a .png file, but we can't show that
+          return;
+        }
+        else {
+
+          if (!UI.findOutput("JPG")) { return; }
+
+          jpg.hover(function(){
+            if (image && stream) {
+              $(this).attr("src",stream);
+            }
+          },function(){
+            if (image && stream) {
+              $(this).attr("src",image);
+            }
+          });
+
+          UI.sockets.ws.info_json.subscribe(function(data){
+            if (!data.source) return;
+            //find mjpg and jpg urls
+            for (var i in data.source) {
+              if (data.source[i].type == "html5/image/jpeg") {
+                var url = data.source[i].url;
+                if (url.indexOf(".mjpg") > -1) { stream = url; }
+                else { image = url; }
+                if (image && stream) { break; }
+              }
+            }
+            if (stream || image) {
+              if (!stream) stream = image;
+              else if (!image) image = stream;
+
+              jpg.attr("src",image);
+              $cont[0].style.setProperty("--src","url('"+image+"')");
+              if (clone) clone.attr("src",image);
+            }
+          },streamname);
+        }
         
-        return $("<section>").addClass("thumbnail").html(
+        return $cont.html(
           jpg
         ).append(clone);
       },
@@ -10108,19 +11737,19 @@ context_menu: function(){
                           var headers = {
                             audio: {
                               vheader: 'Audio',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Player track index','Track id']
                             },
                             video: {
                               vheader: 'Video',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Size','Framerate','Language','Track index','Has B-Frames']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Size','Framerate','Language','Player track index','Track id','Has B-Frames']
                             },
                             subtitle: {
                               vheader: 'Subtitles',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Language']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Language','Player track index','Track id']
                             },
                             meta: {
                               vheader: 'Metadata',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Track id']
                             }
                           };
                           table.headers = headers[id].labels;
@@ -10196,7 +11825,8 @@ context_menu: function(){
                                       track.channels,
                                       UI.format.addUnit(UI.format.number(track.rate),'Hz'),
                                       ('language' in track ? track.language : 'unknown'),
-                                      track.nth
+                                      track.nth,
+                                      track.trackid
                                     ]
                                   };
                                   break;
@@ -10213,6 +11843,7 @@ context_menu: function(){
                                       (track.fpks == 0 ? "variable" : UI.format.addUnit(UI.format.number(track.fpks/1000),'fps')),
                                       ('language' in track ? track.language : 'unknown'),
                                       track.nth,
+                                      track.trackid,
                                       ("bframes" in track ? "yes" : "no")
                                     ]
                                   }
@@ -10227,7 +11858,8 @@ context_menu: function(){
                                       peakoravg(track,"bps"),
                                       peakoravg(track,"maxbps"),
                                       ('language' in track ? track.language : 'unknown'),
-                                      (track.nth)
+                                      track.nth,
+                                      track.trackid
                                     ]
                                   }
                                   break;
@@ -10239,7 +11871,8 @@ context_menu: function(){
                                       displayDuration(track),
                                       UI.format.addUnit(UI.format.number(track.jitter),"ms"),
                                       peakoravg(track,"bps"),
-                                      peakoravg(track,"maxbps")
+                                      peakoravg(track,"maxbps"),
+                                      track.trackid
                                     ]
                                   }
                                   break;
@@ -10319,7 +11952,7 @@ context_menu: function(){
         });
 
         function ondata(data) {
-          if ($main.freeze) { return; }
+          if (!data || $main.freeze) { return; }
 
           if (data.error && (!$meta.rawdata || $meta.rawdata.type == "live")) {
             $meta.html("").attr("onempty",data.error+".");
@@ -10874,7 +12507,7 @@ context_menu: function(){
       },
       playercontrols: function(MistVideoObject,$video){
         var $controls = $("<section>").addClass("controls").addClass("mistvideo").addClass("input_container").html(
-          $("<h3>").text("MistPlayer")
+          $("<h3>").text("helloPlayer")
         ).append(
           $("<p>").text("Waiting for player..")
         );
@@ -12416,7 +14049,7 @@ context_menu: function(){
                         ]));
                         popup.element.find("textarea").select();
                       });
-
+                      return false;
                     },"copy","Copy the full target url to the clipboard."]);
                     if (push.deactivated) {
                       actions.push(["Enable",function(){
@@ -12430,7 +14063,7 @@ context_menu: function(){
                         },{
                           push_auto_add: o
                         });
-
+                        return false;
                       },"wake","Enable this automatic push"]);
                     }
                     else {
@@ -12444,6 +14077,7 @@ context_menu: function(){
                         },{
                           push_auto_add: o
                         });
+			return false;
                       },"sleep","Disable this automatic push: it will not start new pushes but will remain listed"]);
                     }
                     actions.push(["Remove",function(){
@@ -12459,6 +14093,7 @@ context_menu: function(){
                           context_menu.hide();
                         },{push_auto_remove:push.id});
                       }
+                      return false;
                     },"trash","Remove this automatic push."]);
                     if (options.stop_pushes) {
                       actions.push(["Stop pushes",function(e){
@@ -12497,6 +14132,7 @@ context_menu: function(){
                             push_stop: pushIds
                           });
                         }
+                        return false; //keep menu open
                       },"stop","Stop all active pushes "+(push.stream[0] == "#" ? "" : "matching '"+push.stream+"'")+" to '"+push.target+"'."]);
                       actions.push(["Stop & remove",function(e){
                         e.stopPropagation();
@@ -12533,6 +14169,7 @@ context_menu: function(){
                             push_auto_remove: push.id
                           });
                         }
+                        return false;
                       },"stop_remove","Stop all active pushes "+(push.stream[0] == "#" ? "" : "matching '"+push.stream+"'")+" to '"+push.target+"' and then remove this automatic push."]);
                     }
 
@@ -12583,7 +14220,6 @@ context_menu: function(){
                   }
                   return false;
                 }
-
                 if (Object.keys(values).length) {
                   if (!$table.parent().length) {
                     $cont.append($table);
@@ -12880,7 +14516,706 @@ context_menu: function(){
       ).append(
         $pushes
       );
+    },
+    templates: function(kind,saveas,$form,template_options){
+      return false; //disable templates UI
+      var t = mist.stored.get("templates");
+      var templates;
+      if (kind in t) { templates = t[kind]; }
+      else {
+        t[kind] = {};
+        templates = t[kind];
+      }
+      if (!template_options) template_options = {};
+      template_options = $.extend({
+        ignoreFields: [] /* when importing from the form, do not include these fields */
+      },template_options);
 
+      var $cont =  $("<div>").addClass("template").attr("data-templateinuse","false").append(
+        $("<h3>").text("Configuration templates").append(
+          $("<span>").addClass("info").text("i").hover(function(e){
+            UI.tooltip.show(e,[
+              $("<h3>").text("Configuration templates"),
+              $("<p>").css("max-width","30em").text("Configuration templates can be used to save settings, to auto-fill (parts of) configuration forms within the MistServer Management Interface. Using templates, you can:").append(
+                $("<ul>").append(
+                  $("<li>").append("speed up your workflow by saving often-used settings, which can be modified before saving")
+                ).append(
+                  $("<li>").append("migrate settings between MistServer instances")
+                ).append(
+                  $("<li>").css("text-decoration","line-through").append("apply configuration changes to several "+kind+"s at once - if they use the same template")
+                )
+              )
+            ]);
+          },function(){
+            UI.tooltip.hide();
+          })
+        )
+      );
+
+
+      //auto-expand load section when new TODO
+      //collapse load section when editing TODO
+      
+      var old_save = $.extend({},saveas);
+      var current_template = {};
+
+      function load(template) {
+        function customExtend(baseObj,addObj) {
+          function objIsEqual(a,b) {
+            if (typeof a != typeof b) { return false; }
+            if (Object.keys(a).length != Object.keys(b).length) { return false; }
+            for (var i in b) {
+              if (i in a) {
+                if (a[i] === b[i]) { continue; }
+                if (typeof a[i] != typeof b[i]) { return false; }
+                if (typeof a[i] == "object") {
+                  if (Array.isArray(a[i]) && Array.isArray(b[i])) {
+                    //both are arrays
+                    if ((a[i].length == b[i].length) && (objIsEqual(a[i],b[i]))) {
+                      continue;
+                    }
+                    else { return false; }
+                  }
+                  else {
+                    //both are "true" objects
+                    if (objIsEqual(a[i],b[i])) {
+                      continue;
+                    }
+                    else { return false; }
+
+                  }
+                }
+                else { return false; }
+              }
+              else { return false; }
+            }
+            return true;
+          }
+
+          //add the settings in addObj to baseObj
+          for (var i in addObj) {
+            var val = addObj[i];
+            if ((val !== null) && (typeof val == "object") && (i in baseObj)) {
+              if (Array.isArray(val) && Array.isArray(baseObj[i])) {
+                var baseArr = baseObj[i];
+                var addArr = val;
+                checkEachAddArr:
+                for (var j in addArr) {
+                  //if array value exists in baseArr, continue
+                  //otherwise: add value to baseArr
+                  if ((addArr[j] !== null) && (typeof addArr[j] == "object")) {
+                    findInBaseArr:
+                    for (var k in baseArr) {
+                      if (objIsEqual(baseArr[k],addArr[j])) { continue checkEachAddArr; }
+                    }
+                  }
+                  else {
+                    if (baseArr.indexOf(addArr[j]) >= 0) { continue; }
+                  }
+                  baseArr.push(addArr[j]);
+                }
+                continue;
+              }
+              else if ((baseObj[i] !== null) && (typeof baseObj[i] == "object") && !Array.isArray(baseObj[i])) {
+                //both addObj[i] and baseObj[i] are objects: extend the child object
+                customExtend(baseObj[i],addObj[i]);
+                continue;
+              }
+            }
+            baseObj[i] = val;
+          }
+          return baseObj;
+        }
+        customExtend(saveas,template.settings);
+        current_template = template;
+        apply();
+      }
+      function apply() {
+        $current._set(current_template.name ? current_template.name : false);
+        $current._setModified(false);
+        $restore.show();
+        $save.attr("data-icon","disk").text("Edit");
+        $form.data("filling",true);
+        $form.find(".isSetting").each(function(){
+          var pointer = $(this).data("pointer");
+          if (pointer && (pointer.index in pointer.main)) {
+            $(this).setval(pointer.main[pointer.index]);
+          }
+        });
+        $form.data("filling",false);
+      }
+      var $load = $("<div>").addClass("my-templates");
+      var menu = new UI.context_menu();
+      $cont.append(menu.ele);
+      function loadButton(key) {
+        var template = templates[key];
+        var $button = $("<button>").text(template.name).attr("title",JSON.stringify(template.settings,null,2));
+
+        $button.click(function(){
+          load(templates[key]);
+        });
+        $button.on("contextmenu",function(e){
+          e.preventDefault();
+          menu.show([[
+            $("<div>").addClass("header").append(
+              $("<div>").text(template.name)
+            ).append(
+              template.updated ? $("<div>").text("Modified: "+UI.format.dateTime(template.updated,"short")) : false
+            )
+          ],[
+            ["Modify",function(){
+              showSaveDialog(template);
+            },"Edit"],
+            ["Copy",function(e){
+              var me = this;
+              var text = JSON.stringify(template);
+              UI.copy(text).then(function(){
+                me._setText("Copied!")
+                setTimeout(function(){ menu.hide(); },300);
+              }).catch(function(e){
+                me._setText("Copy: "+e);
+                setTimeout(function(){ menu.hide(); },300);
+                
+                var popup =  UI.popup(UI.buildUI([
+                  $("<h1>").text("Export template"),{
+                    type: "help",
+                    help: "Automatic copying of the template to the clipboard failed ("+e+"). Instead you can manually copy from the field below."
+                  },{
+                    type: "textarea",
+                    label: "Template '"+key+"'",
+                    value: text,
+                    rows: Math.ceil(text.length/50+2)
+                  }
+                ]));
+                popup.element.find("textarea").select();
+
+              });
+              //return false; //TODO restore
+            },"copy"],
+            ["Delete",function(e){
+              if (confirm("Are you sure you would like to delete the template '"+template.name+"'?")) {
+                delete t[kind][key];
+                mist.stored.set("templates",t);
+                $button.remove();
+              }
+              else {
+                e.preventDefault();
+              }
+            },"trash"]
+          ]],e);
+        });
+
+        return $button;
+      }
+      for (var i in templates) {
+        $load.append(loadButton(i));
+      }
+      $cont.append(
+        $("<div>").attr("data-showiftemplate","false").addClass("load-templates").append(
+          $("<span>").text("Apply template:")
+        ).append(
+          $load
+        )
+      );
+      function showSaveDialog(save_template,opts) {
+        opts = $.extend({
+          overwrite: false,
+          action: "Save"
+        },opts);
+
+        if (!("settings" in save_template)) {
+          save_template.settings = {};
+        }
+        var settings = save_template.settings;
+        save_template["x-LSP-template-kind"] = kind;
+
+        var oldname = save_template.name;
+        var $err = $("<div>").addClass("err_balloon").addClass("orange").css({width:"54.65em",position:"static",margin:"2em 0 3em"}).hide();
+        $err.showErr = function(text){
+          $(this).html(text).removeClass("green").addClass("orange").show();
+        };
+
+        let $ic = UI.buildUI([
+          $("<h1>").text(opts.action+" "+kind+" template"),{
+            type: "help",
+            help: "A template can be used to save settings to prefill (part of) a form. They can even be exported to other MistServer instances via the clipboard.<br>To import, paste the template into this window."
+          },$err,{
+            label: "Template name",
+            help: "This name is for you, to recognise the template. Think of it as the template's file name. If this name is already used, that template will be overwritten.",
+            validate: ["required",function(val,me){
+              if (val in templates) {
+                return {
+                  msg: "This template name has already been used. You will overwrite the existing template.",
+                  classes: ["orange"],
+                  "break": false
+                };
+              }
+            }],
+            pointer: {
+              main: save_template,
+              index: "name"
+            },
+            "function": function(){
+              save_template.name = $(this).getval();
+            }
+          },{
+            type: "buttons",
+            css: { marginTop: "3em", justifyContent: "center" },
+            buttons: [{
+              label: "Import from form",
+              icon: "down",
+              "function": function(){
+                $err.hide();
+
+                var $save = $form.find("> .button_container .save");
+                //hide any fields that should be ignored
+                var $ignoredFields = [];
+                for (const field of template_options.ignoreFields) {
+                  if (typeof field == "string") {
+                    const $field = $form.find("[name=\""+field+"\"]");
+                    if ($field.length) { $ignoredFields.push($field); }
+                    delete saveas[field];
+                  }
+                }
+                if ($ignoredFields.length) {
+                  $ignoredFields.forEach(function($f){
+                    $f[0].style.display = "none";
+                  });
+                }
+                var success;
+                var fn = $save.data('save');
+                if (fn) { success = fn.call($save); }
+
+                if (!success) {  //validation failed
+                  if (!confirm("The form currently contains fields that do not pass validation. Would you like to continue with these values regardless?")) {
+                    //restore hidden fields
+                    $ignoredFields.forEach(function($f){
+                      $f[0].style.display = "";
+                    });
+                    return;
+                  }
+                  //apply saveas anyway
+                  fn.call($save,true); //save, skip validation
+                }
+
+                //restore hidden fields
+                $ignoredFields.forEach(function($f){
+                  $f[0].style.display = "";
+                });
+
+                updateSaveDialog($.extend(true,{},saveas),{showSaveEmpty: true});
+              }
+            },{
+              label: "Import from clipboard",
+              icon: "paste",
+              "function": function(){
+                $err.hide();
+
+                var $me = $(this);
+                function showErr(e) {
+                  $me.text("Paste: "+e).attr("data-icon","cross");
+                }
+
+                //try using the clipboard API
+                navigator.permissions.query({name:"clipboard-read"}).then(function(result){
+                  if (result.state === "granted" || result.state === "prompt") {
+                    navigator.clipboard.readText().then(function(text){
+                      try {
+                        var d = new DataTransfer();
+                        d.setData("text/plain",text);
+                        var pasteEvent = new ClipboardEvent("paste",{ clipboardData: d });
+                        pasteEvent.message = text;
+                        $ic[0].dispatchEvent(pasteEvent);
+                        $me.text("Pasted from clipboard").attr("data-icon","check");
+                      }
+                      catch(e) {
+                        showErr(e);
+                      }
+                    }).catch(function(){ showErr("Paste failed"); });
+                  }
+                  else {
+                    showErr("Not permitted: use ctrl+v");
+                  }
+                }).catch(showErr).finally(function(){
+                  setTimeout(function(){
+                    $me.text("Import from clipboard").attr("data-icon","paste");
+                  },5e3);
+                });
+              }
+            },{
+              label: "Export to clipboard",
+              icon: "copy",
+              "function": function(){
+                $err.hide();
+
+                var $me = $(this);
+                UI.copy(JSON.stringify(save_template)).then(function(){
+                  $me.text("Template copied").attr("data-icon","check");
+                }).catch(function(e){
+                  $me.text("Copy: e").attr("data-icon","cross");
+                }).finally(function(){
+                  setTimeout(function(){
+                    $me.text("Export to clipboard").attr("data-icon","copy");
+                  },5e3);
+                });
+              }
+            }]
+          },{
+            label: "Save empty fields",
+            type: "checkbox",
+            value: false,
+            classes: ["template-saveempty"],
+            help: "When checked, any empty fields will also be saved into the template. When you apply the template any of these fields will be blanked.",
+            "function": function(){
+              if (this.checked) {
+                var removed = $(this).data("removed");
+                console.warn("removed",removed);
+                if (removed) {
+                  function putBack(settings,removed) {
+                    for (var i in removed) {
+                      var val = removed[i];
+                      if ((val !== null) && (typeof val == "object") && (!Array.isArray(val))) {
+                        if (!(i in settings)) { settings[i] = {}; }
+                        putBack(settings[i],val);
+                        continue;
+                      }
+
+                      settings[i] = val;
+                    }
+                  }
+                  putBack(settings,removed);
+                  $(this).data("removed",{});
+                }
+                console.warn("settings",settings);
+              }
+              else {
+                var removed = {};
+                //Process the settings object settings, remove any entries which are null, false or [], recursively. Removed entries are placed into the 'removed' object.
+                function removeNulls(settings,removed) {
+                  for (var i in settings) {
+                    var setting = settings[i];
+                    if ((setting === null) || (setting === false)) {
+                      removed[i] = settings[i];
+                      delete settings[i];
+                      continue;
+                    }
+                    if (typeof setting == "object") {
+                      if (Array.isArray(setting)) {
+                        if (setting.length == 0) {
+                          removed[i] = settings[i];
+                          delete settings[i];
+                          continue;
+                        }
+                      }
+                      else {
+                        removed[i] = {};
+                        removeNulls(settings[i],removed[i]);
+                      }
+                    }
+                  }
+                }
+                removeNulls(settings,removed);
+                $(this).data("removed",removed);
+              }
+              updateJSON();
+            }
+          },{
+            label: "Settings object",
+            type: "textarea",
+            classes: ["template-json"],
+            css: {marginTop: "2em", marginBottom: "2em"},
+            help: "This is the JSON representation of the template that will be saved. You can make changes in this field if you like.<br>If you remove an entry, it will not be included in the template and when the template is loaded, it will not overwrite the corresponding field.",
+            "function": function(){
+
+              var vf = $(this).data('validate');
+              error = vf(this,true); 
+              if (!error) {
+                var val = $(this).getval();
+                if (val == "") return;
+                var tojson = JSON.parse(val);
+                for (var i in settings) {
+                  if (!(i in tojson)) {
+                    delete settings[i];
+                  }
+                }
+                $.extend(settings,tojson);
+              }
+
+            },
+            validate: ["required",function(val,me){
+              var tojson;
+              var error;
+              try {
+                tojson = JSON.parse(val);
+              }
+              catch (e) {
+                error = e;
+              }
+              if (!tojson) {
+                return {
+                  msg: "This does not appear to be valid json."+(error ? "<br>"+error : ""),
+                  classes: ["red"]
+                };
+              }
+
+              return false;
+            }],
+            unit: $("<button>").text("Clear").attr("data-icon","cross").click(function(){
+              $json.setval("{}").trigger("change");
+            })
+          },false && save_template.name ? {
+            label: "Update any "+kind+" currently using template '"+save_template.name+"'",
+            type: "checkbox",
+            pointer: { main: opts, index: "overwrite" }
+          } : null,{
+            type: "buttons",
+            buttons: [{
+              type: "cancel",
+              label: "Cancel",
+              "function": function(){
+                popup.close();
+              }
+            },{
+              type: "save",
+              label: "Save",
+              "function": function(){
+                save_template.updated = Math.floor(new Date().getTime()*1e-3);
+                if ((oldname in t[kind]) && (oldname != save_template.name)) {
+                  delete t[kind][oldname];
+                }
+                t[kind][save_template.name] = save_template;
+                mist.stored.set("templates",t);
+
+                $load.html("");
+                for (var i in templates) {
+                  $load.append(loadButton(i));
+                }
+
+                popup.close();
+              }
+            }]
+          }
+        ]).on("paste",function(e){
+          var text = false;
+          $err.hide();
+          try {
+            text = e.originalEvent.clipboardData.getData('text');
+            try {
+              var json = JSON.parse(text);
+            }
+            catch(e) {
+              throw "The data is not valid JSON";
+            }
+            if (!json) throw "The data is not valid JSON";
+            if (!("x-LSP-template-kind" in json)) throw "The data is not a template";
+            if (json["x-LSP-template-kind"] != kind) throw "The data is not a "+kind+" template";
+
+            updateSaveDialog(json.settings,{name: json.name});
+
+            $err.removeClass("orange").addClass("green").text("Import from clipboard applied succesfully").show();
+            e.preventDefault();
+            e.stopPropagation();
+
+          }
+          catch(e) {
+            $err.showErr(
+              $("<span>").text("The pasted data could not be processed: "+e).append(
+                text ? $("<span>").append($("<br>")).append("Pasted text:").append($("<pre>").append(
+                  $("<code>").text(text).css({display:"block",overflow:"hidden",textOverflow:"ellipsis",maxHeight:"15em",overflowY:"auto"})
+                )) : false
+              )
+            );
+          }
+        });
+
+        var $json = $ic.find("textarea.template-json");
+        function updateJSON() {
+          if (!$json) { return; }
+          var json = JSON.stringify(settings,null,2);
+          $json.setval(json);
+          var n = 3;
+          if (json && json.split("\n").length) {
+            n = Math.max(n,json.split("\n").length);
+          }
+          $json.attr("rows",n+1);
+          
+          //save_template.settings = settings;
+        }
+        updateJSON();
+
+        function updateSaveDialog(settingsobj,options) {
+          options = $.extend({
+            showSaveEmpty: false,
+            name: false
+          },options);
+
+          if (!settingsobj && current_template.name)  {
+            settingsobj = current_template.settings;
+            if (!options.name) { options.name = current_template.name; }
+          }
+          if (settingsobj) {
+            //set settings to settingsobj, but keep references intact
+            for (var i in settings) {
+              if (!(i in settingsobj)) {
+                delete settings[i];
+              }
+              //TODO technically this should also be deep, not just shallow
+            }
+            $.extend(true,settings,settingsobj);
+          }
+          if (options.name !== false) {
+            save_template.name = options.name;
+            $ic.find(".field[name=\"name\"]").setval(save_template.name);
+          }
+
+          var $saveempty = $ic.find("label.template-saveempty");
+          if (options.showSaveEmpty) {
+            $saveempty.show();
+            $saveempty.find(".field").trigger("change"); //also fires updateJSON();
+          }
+          else {
+            $saveempty.hide();
+            updateJSON();
+          }
+
+        }
+
+        updateSaveDialog();
+
+        let popup = new UI.popup($ic);
+      }
+
+      var $current = $("<span>").addClass("current").text("None.");
+      $current._set = function(v){ 
+        this._val = v;
+        this.text(v ? v : "None");
+        $cont.attr("data-templateinuse",!!v);
+      }
+      $current._setModified = function(v){
+        this._isModified = !!v;
+        if (v) this.addClass("modified");
+        else this.removeClass("modified");
+      }
+      var $restore = $("<button>").attr("data-icon","return").text("Restore").click(function(){
+        for (var i in current_template.settings) {
+          if (i in saveas) {
+            if (i in old_save) {
+              saveas[i] = old_save[i];
+            }
+            else {
+              delete saveas[i];
+            }
+          }
+        }
+        current_template = {};
+        apply();
+        $save.attr("data-icon","plus").text("Create");
+      }).hide();
+      var $save = $("<button>").attr("data-icon","plus").text("Create").click(function(){
+        showSaveDialog(current_template,{action:$(this).text()});
+      });
+
+      $cont.append(
+        $("<label>").attr("data-showiftemplate","true").append(
+          $("<span>").text("Current template:")
+        ).append(
+          $current
+        )
+      ).append(
+        $("<div>").addClass("button_container").append(
+        ).append($save)/*.append(
+          $("<button>").text("Add new").click(function(){
+            showSaveDialog({});
+          })
+        )*/.append($restore)
+      );
+
+      function init() {
+        if (!$form) {
+          var $p = $cont.closest(".input_container");
+          if (!$p.length) {
+            setTimeout(function(){
+              init();
+            },100);
+            return;
+          }
+          else {
+            $form = $p;
+          }
+        }
+        
+        //listen for changes: add "modified" if changes compared to saved template
+        $form.change(function(e){
+          if ($form.data("filling")) {
+            return;
+          }
+          if (!("name" in current_template)) { return; } //no template loaded
+
+          var templatejson = JSON.stringify(saveas);
+
+          function checkifintemplate(index) {
+            if (templatejson.indexOf('"'+index+'":') > -1) { //quick check: the template contains the pointer index
+              function findKey(index,settings) {
+                //this is still not good enough: technically index needs to exist in pointer.main. However, we don't know where pointer.main is without testing by saving the value. This is probably good enough.
+                for (var i in settings) {
+                  if (i == index) { return true; }
+                  if ((typeof settings[i] == "object") && (!Array.isArray(settings[i]))) {
+                    return findKey(index,settings[i]);
+                  }
+                }
+                return false;
+              }
+              return findKey(index,saveas);
+            }
+            return false;
+          }
+
+          function checkifequal($field) {
+            var pointer = $field.data("pointer");
+            var val = null;
+            if (pointer && (pointer.index in pointer.main)) {
+              if (!checkifintemplate(pointer.index)) {
+                //this field is not in the template, thus any modifications do not affect it
+                return true;
+              }
+              val = pointer.main[pointer.index];
+
+            }
+            else {
+              //this field does not have a pointer, thus cannot be in the template, thus can not be modified compared to the template
+              return true;
+            }
+            var myval = $field.closest(".isSetting").getval();
+            if ((myval === "") || (myval === false) || (Array.isArray(myval) && (myval.length == 0))) { 
+              if ('default' in $field.data('opts')) {
+                myval = $(this).data('opts')['default'];
+              }
+              else { myval = null; }
+            }
+            return myval == val;
+          }
+
+          if (!checkifequal($(e.target))) {
+            $current._setModified(true);
+          }
+          else {
+            //no (longer) modified - are there other changes on the form? if not, remove modified clas
+            var modified = false;
+            $form.find(".isSetting").each(function(){
+              if (!checkifequal($(this))) {
+                modified = true;
+                return false;
+              }
+            });
+            if (!modified) { $current._setModified(false); }
+
+          }
+        });
+
+      }
+      init();
+      
+      return $("<div>").addClass("button_container").html($cont);
     },
     streamkeys: function(streamname,onsave){
       if (!onsave) {
@@ -13937,9 +16272,15 @@ var mist = {
           case 'group': {
             obj.type = "group";
             obj.label = ele.name;
-            obj.options = mist.convertBuildOptions({
+            if ("dependent" in ele) obj.dependent = ele.dependent;
+            if ("expand" in ele) obj.expand = ele.expand;
+            let cobj = {
               optional: ele.options
-            },saveas);
+            };
+            if ("sort" in input) {
+              cobj.sort = input.sort;
+            }
+            obj.options = mist.convertBuildOptions(cobj,saveas);
             obj.options = obj.options.slice(1); //remove h4 "Optional parameters"
             break;
           }
@@ -13954,6 +16295,12 @@ var mist = {
           case 'inputlist': {
             obj.type = "inputlist";
             if ("input" in ele) obj.input = ele.input;
+            break;
+          }
+          case 'help': {
+            obj.type = "help";
+            obj.help = ele.help;
+            if ("dependent" in ele) obj.dependent = ele.dependent;
             break;
           }
           case 'json':
@@ -14000,19 +16347,27 @@ var mist = {
           else {
             style = style[0];
           }
-          style.innerHTML = '.UIelement[data-dependent-'+i+']:not([data-dependent-'+i+'~="'+$(this).getval()+'"]) { display: none; }'+"\n";
+          style.innerHTML = '[data-dependent-'+i+']:not([data-dependent-'+i+'~="\''+$(this).getval()+'\'"]) { display: none; }'+"\n"; //hide any labels that are dependent on this variable, but not this value
+          style.innerHTML += '[data-dependent-not-'+i+'~="\''+$(this).getval()+'\'"] { display: none; }'+"\n"; //hide any labels that have dependent_not on this variable with this value
           
           $(style).data("content",style.innerHTML);
+
+        };
+        obj.observe = function(isVisible){
+          //this.style.color = isVisible ? "green" : "red";
           //enable all styles
-          $("style.dependencies.hidden").each(function(){
+          $(this).find("style.dependencies.hidden").each(function(){
             $(this).html($(this).data("content")).removeClass("hidden");
           });
           //disable "hidden" styles
-          $(".UIelement:not(:visible) style.dependencies:not(.hidden)").each(function(){
-            $(this).addClass("hidden");
-            $(this).html("");
-          });
-        };
+          if (!isVisible) {
+            $(this).find("style.dependencies:not(.hidden)").each(function(){
+              $(this).addClass("hidden");
+              $(this).html("");
+            });
+          }
+        }
+
       }
       else if ("disable" in ele) {
         obj["function"] = function(){
@@ -14035,6 +16390,9 @@ var mist = {
       if ("dependent" in ele) {
         obj.dependent = ele.dependent;
       }
+      if ("dependent_not" in ele) {
+        obj.dependent_not = ele.dependent_not;
+      }
       if ("value" in ele) {
         obj.value = ele.value;
       }
@@ -14052,15 +16410,30 @@ var mist = {
     }
     
     for (var j in type) {
-      if (input[type[j]]) {
+      if (input[type[j]] && Object.keys(input[type[j]]).length) {
         build.push(
           $('<h4>').text(UI.format.capital(type[j])+' parameters')
         );
         var list = Object.keys(input[type[j]]); //array of the field names
         if ("sort" in input) {
           //sort by key input.sort
+          function getStr(key) {
+            let opts = input[type[j]][key];
+            if (Array.isArray(opts)) {
+              //if the input options variable is an array, check if the first entry has a sortable key and use that. If the array is empty, give up
+              if (opts.length) opts = opts[0]
+              else return "";
+            }
+            return ""+(input.sort in opts ? opts[input.sort] : key); //if the sortable key is not set on the input options object, sort by the key instead
+          }
           list.sort(function(a,b){
-            return (""+input[type[j]][a][input.sort]).localeCompare(input[type[j]][b][input.sort]);
+            return getStr(a).localeCompare(getStr(b));
+          });
+        }
+        else {
+          //unless sorting is specified, put groups last
+          list.sort(function(a,b){
+            return input[type[j]][a].type == "group" ? 1 : -1;
           });
         }
         //loop over the list of field names
@@ -14119,7 +16492,13 @@ var mist = {
     return out;
   },
   stored: {
-    get: function(){
+    get: function(key){
+      if (key) {
+        if (mist.data.ui_settings && (key in mist.data.ui_settings)) {
+          return $.extend(true,{},mist.data.ui_settings[key]);
+        }
+        return {};
+      }
       return mist.data.ui_settings || {};
     },
     set: function(name,val){
@@ -14208,11 +16587,15 @@ $.fn.getval = function(){
         break;
       case "inputlist":
         val = [];
-        $(this).find(".field").each(function(){
-          if ($(this).getval() != "") {
-            val.push($(this).getval());
-          }
+        $(this).find("> .listitem > .field").each(function(){
+          val.push($(this).getval());
         });
+        if (val.length) {
+          let last = val[val.length-1];
+          if ((last === "") || (last === null)) {
+            val.pop();
+          }
+        }
         break;
       case "sublist":
         val = $(this).data("savelist");
@@ -14236,6 +16619,12 @@ $.fn.getval = function(){
       }
     }
 
+    if ("getval" in opts) {
+      //val is passed to the override function to allow it to edit the default value (or ignore it and create its own)
+      val = opts.getval(val,this);
+    }
+
+
     if (("factor" in opts) && (val !== null) && (val != "")) {
       val *= opts.factor;
     }
@@ -14244,12 +16633,12 @@ $.fn.getval = function(){
   return val;
 }
 $.fn.setval = function(val,extraParameters){
+  var oldval = $(this).getval();
   var opts = $(this).data('opts');
   if (opts && ("factor" in opts) && (Number(val) != 0)) {
     val /= opts.factor;
   }
 
-  $(this).val(val);
   if ((opts) && ('type' in opts)) {
     var type = opts.type;
     switch (type) { //exceptions only
@@ -14259,6 +16648,10 @@ $.fn.setval = function(val,extraParameters){
       case 'checkbox':
         $(this).prop('checked',val);
         break;
+      case 'select': {
+        if (Array.from($(this)[0].options).filter(a=>a.value == val).length) $(this).val(val);
+        break;
+      }
       case 'geolimited':
       case 'hostlimited':
         var subUI = $(this).closest('.field_container').data('subUI');
@@ -14298,8 +16691,9 @@ $.fn.setval = function(val,extraParameters){
         break;
       case "selectinput":
         //check if val is one of the select options
-        if (val === null) {
-          val = "";
+        let localval = val;
+        if (localval === null) {
+          localval = "";
         }
         var found = false;
         for (var i in opts.selectinput) {
@@ -14310,14 +16704,14 @@ $.fn.setval = function(val,extraParameters){
           else if (typeof opts.selectinput[i][0] == "string") {
             compare = opts.selectinput[i][0];
           }
-          if (compare == val) {
-            $(this).children("select").first().val(val);
+          if (compare == localval) {
+            $(this).children("select").first().val(localval);
             found = true;
             break;
           }
         }
         if (!found) {
-          $(this).children("label").first().find(".field_container").children().first().setval(val).trigger("change",extraParameters);
+          $(this).children("label").first().find(".field_container").children().first().setval(localval).trigger("change",extraParameters);
           $(this).children("select").first().val("CUSTOM").trigger("change",extraParameters);
         }
         break;
@@ -14329,7 +16723,7 @@ $.fn.setval = function(val,extraParameters){
         //add children for all the values
         for (var i in val) {
           var $newitem = $(this).data("newitem")();
-          $newitem.find(".field").setval(val[i]);
+          $newitem.attr("data-index",i).find(".field").first().setval(val[i]);
           $(this).append($newitem);
         }
         $(this).append($(this).data("newitem")()); //add an empty input
@@ -14338,16 +16732,16 @@ $.fn.setval = function(val,extraParameters){
         break;
       }
       case "sublist":
-        var $field = $(this);
-        var $curvals = $(this).children(".curvals");
+        let $field = $(this);
+        let $curvals = $(this).children(".curvals");
         $curvals.html("");
         if (val && val.length) {
-          for (var i in val) {
-            var v = $.extend(true,{},val[i]);
+          for (let i in val) {
+            let v = $.extend(true,{},val[i]);
             
             //don't display any keys that are set to null
             function removeNull(v) {
-              for (var j in v) {
+              for (let j in v) {
                 if (j.slice(0,6) == "x-LSP-") {
                   delete v[j];
                 }
@@ -14357,30 +16751,30 @@ $.fn.setval = function(val,extraParameters){
               }
             }
             removeNull(v);
-            
+
             $curvals.append(
               $("<div>").addClass("subitem").append(
                 $("<span>").addClass("itemdetails").text(
-                  (val[i]["x-LSP-name"] ? val[i]["x-LSP-name"] : JSON.stringify(v))
+                  (val[i][opts.hrn] ? val[i][opts.hrn] : JSON.stringify(v))
                 ).attr("title",JSON.stringify(v,null,2))
               ).append(
                 $("<button>").addClass("move").text("^").attr("title","Move item up").click(function(){
-                  var i = $(this).parent().index();
+                  let i = $(this).parent().index();
                   if (i == 0) { return; }
-                  var savelist = $field.getval();
+                  let savelist = $field.getval();
                   savelist.splice(i - 1,0,savelist.splice(i,1)[0]);
                   $field.setval(savelist);
                 })
               ).append(
                 $("<button>").text("Edit").click(function(){
-                  var index = $(this).parent().index();
-                  var $field = $(this).closest(".field");
+                  let index = $(this).parent().index();
+                  let $field = $(this).closest(".field");
                   $field.data("build")(Object.assign({},$field.getval()[index]),index);
                 })
               ).append(
                 $("<button>").text("x").attr("title","Remove item").click(function(e){
-                  var i = $(this).parent().index();
-                  var savelist = $field.data("savelist");
+                  let i = $(this).parent().index();
+                  let savelist = $field.data("savelist");
                   savelist.splice(i,1);
                   $field.setval(savelist);
                   e.preventDefault(); //for some reason, if this is left out, the new item button gets activated when the last item is removed
@@ -14412,9 +16806,39 @@ $.fn.setval = function(val,extraParameters){
         }
         break;
       }
+      case "custom": {
+        break;
+      }
+      default: {
+        $(this).val(val);
+      }
     }
   }
+  else {
+    $(this).val(val);
+  }
+
+  if (opts && ("setval" in opts)) {
+    opts.setval(val,extraParameters,this);
+  }
+
   $(this).trigger('change',extraParameters);
+
+  if (extraParameters && extraParameters.indexOf("initial") < -1) {
+    var newval = $(this).getval();
+    if (oldval != newval) {
+      if (JSON.stringify(oldval) != JSON.stringify(newval)) {
+        var $label = $(this).closest("label.UIelement");
+        if ($label) {
+          $label.addClass("animate_changed");
+          setTimeout(function(){
+            $label.removeClass("animate_changed");
+          },100);
+        }
+      }
+    }
+  }
+
   return $(this);
 }
 function parseURL(url,set) {

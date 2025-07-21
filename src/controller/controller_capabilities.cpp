@@ -551,9 +551,9 @@ namespace Controller{
             JSON::Value & src = I["required"]["sources"];
             src["name"] = "Input stream name(s)";
             src["option"] = "--sources";
-            src["help"] = "Name(s) of the input(t) that should be displayed";
+            src["help"] = "Name(s) of the input(s) that should be displayed";
             src["type"] = "inputlist";
-            src["validation"].append("streamname_with_wildcard_and_variables");
+            src["input"]["validation"].append("streamname_with_wildcard_and_variables");
           }
         }
         if (C.size() < 1) { capabilities["processes"].removeMember(entry); }

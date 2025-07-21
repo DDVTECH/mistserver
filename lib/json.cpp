@@ -1276,6 +1276,23 @@ void JSON::Value::shrink(unsigned int size){
   }
 }
 
+/// For array and object JSON::Value objects, reduces them
+/// so they contain at most size elements, throwing away
+/// the last elements and keeping the first ones.
+/// Does nothing for other JSON::Value types, nor does it
+/// do anything if the size is already lower or equal to the
+/// given size.
+void JSON::Value::truncate(unsigned int size) {
+  while (arrVal.size() > size) {
+    delete arrVal.back();
+    arrVal.pop_back();
+  }
+  while (objVal.size() > size) {
+    delete objVal.rbegin()->second;
+    objVal.erase(--objVal.end());
+  }
+}
+
 /// For object JSON::Value objects, removes the member with
 /// the given name, if it exists. Has no effect otherwise.
 void JSON::Value::removeMember(const std::string &name){

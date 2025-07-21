@@ -103,6 +103,7 @@ namespace JSON{
     Value & append();
     void prepend(const Value &rhs);
     void shrink(uint32_t size);
+    void truncate(uint32_t size);
     void removeMember(const std::string &name);
     void removeMember(const std::deque<Value *>::iterator &it);
     void removeMember(const std::map<std::string, Value *>::iterator &it);

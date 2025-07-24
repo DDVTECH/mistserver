@@ -9551,12 +9551,12 @@ context_menu: function(){
                       //find minimum and maximum values of first and lastms
                       var bounds = {
                         firstms: {
-                          min: 1e9,
-                          max: -1e9
+                          min: 1e24,
+                          max: -1e24
                         },
                         lastms: {
-                          min: 1e9,
-                          max: -1e9
+                          min: 1e24,
+                          max: -1e24
                         }
                       };
                       for (var i in out) {
@@ -9971,7 +9971,7 @@ context_menu: function(){
           "Active for:": function(d){
             var since = new Date().setSeconds(new Date().getSeconds() - d.active_seconds);
             return $("<span>").append(
-              $("<span>").text(UI.format.duration(d.active_seconds))
+              $("<span>").html(UI.format.duration(d.active_seconds))
             ).append(
               $("<span>").addClass("description").text(" since "+UI.format.time(since/1e3))
             ); 

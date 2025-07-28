@@ -4815,7 +4815,7 @@ context_menu: function(){
                 ).append(
                   $("<th>").text("Latest value")
                 ).append(
-                  $("<th>").text("Command")
+                  $("<th>").text("Command or url")
                 ).append(
                   $("<th>").text("Check interval")
                 ).append(
@@ -4834,24 +4834,36 @@ context_menu: function(){
               ).append(
                 $("<td>").html(
                   $("<code>").text(
-                    typeof v == "string" ?
-                    JSON.stringify(v) :
-                    (v[2] > 0 ? JSON.stringify(v[3]) : "" )
+                    "target" in v ?
+                    (v.lastunix > 0 ? JSON.stringify(v.value) : "" ) :
+                    JSON.stringify(v.value)
                   )
                 )
               ).append(
-                $("<td>").text(typeof v == "string" ? "" : v[0])
+                $("<td>").html(
+                  "target" in v ?
+                  (v.target.match(/^http(s)?:\/\//) ? $("<a>").attr("target","_blank").attr("href",v.target).text(v.target) : v.target) :
+                  ""
+                )
               ).append(
-                $("<td>").html(typeof v == "string" ? "Never" : (v[1] == 0 ? "Once" : UI.format.duration(v[1])))
+                $("<td>").html("target" in v ? (v.interval == 0 ? "Once" : UI.format.duration(v.interval)) : "Never")
               ).append(
                 $("<td>").attr("title",
-                  v[2] > 0 ?
-                  (typeof v == "string" ? "" : "At "+UI.format.dateTime(new Date(v[2]),"long")) :
-                  "Not yet"
+                  "target" in v ?                  
+                  (
+                    v.lastunix > 0 ?
+                    "At "+UI.format.dateTime(new Date(v.lastunix),"long") :
+                    "Not yet"
+                  ) :
+                  ""
                 ).html(
-                  typeof v == "string" ?
-                  "" : 
-                  (v[2] > 0 ? UI.format.duration(new Date().getTime()*1e-3 - v[2])+" ago" : "Not yet")
+                  "target" in v ? 
+                  (
+                    v.lastunix > 0 ?
+                    UI.format.duration(new Date().getTime()*1e-3 - v.lastunix)+" ago" :
+                    "Not yet"
+                  ) :
+                  ""
                 )
               ).append(
                 $("<td>").html(
@@ -5210,10 +5222,10 @@ context_menu: function(){
             },{
               type: "select",
               label: "Type",
-              help: "What kind of variable is this? It can either be a static value that you can enter below, or a dynamic one that is returned by a command.",
+              help: "What kind of variable is this? It can either be a static value that you can enter below, or a dynamic one that is returned by a command or url.",
               select: [
                 ["value","Static value"],
-                ["command","Dynamic through command"]
+                ["command","Dynamic through command or url"]
               ],
               value: "value",
               pointer: {
@@ -5240,7 +5252,7 @@ context_menu: function(){
                     b = [{
                       type: "str",
                       label: "Command",
-                      help: "The command that should be executed to retrieve the value for this variable.<br>For example:<br><code>/usr/bin/date +%A</code><br>There is a character limit of 511 characters.",
+                      help: "The command that should be executed or the url that should be downloaded to retrieve the value for this variable.<br>For example:<br><code>/usr/bin/date +%A</code><br>There is a character limit of 511 characters.",
                       validate: ["required"],
                       pointer: {
                         main: saveas_dyn,
@@ -5250,6 +5262,7 @@ context_menu: function(){
                       type: "int",
                       min: 0,
                       max: 4294967295,
+                      step: 1e-3,
                       'default': 0,
                       label: "Checking interval",
                       unit: "s",
@@ -5262,6 +5275,7 @@ context_menu: function(){
                       type: "int",
                       min: 0,
                       max: 4294967295,
+                      step: 1e-3,
                       'default': 1,
                       label: "Wait time",
                       unit: "s",
@@ -5327,17 +5341,10 @@ context_menu: function(){
           mist.send(function(d){
             if (other in d.variable_list) {
               var v = d.variable_list[other];
+              v.type = "target" in v ? "command" : "value";
               build({
                 name: other
-              },(typeof v == "string" ? {
-                value: v,
-                type: "value"
-              } : {
-                target: v[0],
-                interval: v[1],
-                waitTime: v[4],
-                type: "command"
-              }));
+              },v);
             }
             else {
               $main.append('Variable "$'+other+'" does not exist.');

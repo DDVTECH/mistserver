@@ -2501,46 +2501,40 @@ namespace DTSC{
 
   /// Removes the first key from the memory structure and caches.
   bool Meta::removeFirstKey(size_t trackIdx){
-
-    IPC::semaphore resizeLock;
-
-    if (!isMemBuf){
-      const char * pageName = trackList.getPointer(trackPageField, trackIdx);
-      resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      if (!resizeLock.tryWait()){
-        MEDIUM_MSG("Metadata is busy, delaying deletion of key a bit");
-        resizeLock.close();
-        return false;
-      }
-      if (reloadReplacedPagesIfNeeded()){
-        MEDIUM_MSG("Metadata just got replaced, delaying deletion of key a bit");
-        return false;
-      }
+    if (!isMemBuf && reloadReplacedPagesIfNeeded()) {
+      MEDIUM_MSG("Metadata just got replaced, delaying deletion of key a bit");
+      return false;
     }
     Track &t = tracks[trackIdx];
+
+    // Remove the parts that go with this key
     uint64_t deletedPartCount = t.keys.getInt(t.keyPartsField, t.keys.getDeleted());
     DONTEVEN_MSG("Deleting parts: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", t.parts.getDeleted(), t.parts.getDeleted()+deletedPartCount, t.parts.getPresent());
     t.parts.deleteRecords(deletedPartCount);
+
+    // Remove the key itself
     uint64_t deletedKeyNum = t.keys.getDeleted();
     DONTEVEN_MSG("Deleting key: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", deletedKeyNum, deletedKeyNum+1, t.keys.getPresent());
     t.keys.deleteRecords(1);
+
+    // If the first fragment no longer has all keys available, delete that, too
     if (t.fragments.getInt(t.fragmentFirstKeyField, t.fragments.getDeleted()) < t.keys.getDeleted()){
       t.fragments.deleteRecords(1);
       setMissedFragments(trackIdx, getMissedFragments(trackIdx) + 1);
     }
-    // Note: pages are not deleted here, but instead deleted by Input::removeUnused (or a child-override)
-    // This is fine, as pages can (and will, at least temporarily) exist for data we no longer fully have in stream metadata
+
+    // Update the firstms field to match the new first timestamp
     setFirstms(trackIdx, t.keys.getInt(t.keyTimeField, t.keys.getDeleted()));
 
-    // Update page info
+    // Delete the first page if we no longer have any keys on it, or update it otherwise
     Util::RelAccX &tPages = pages(trackIdx);
     uint32_t firstPage = tPages.getDeleted();
     uint32_t keyCount = tPages.getInt("keycount", firstPage);
     uint32_t firstKey = tPages.getInt("firstkey", firstPage);
-    // Delete the page if this was the last key
     if (firstKey + keyCount <= deletedKeyNum + 1){
+      // Delete the page if this was the last key on it
       if (tPages.getInt("avail", firstPage)){
-        // Open the correct page
+        // Open the page itself
         char pageId[NAME_BUFFER_SIZE];
         snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx, firstKey);
         std::string pageName(pageId);
@@ -2549,14 +2543,14 @@ namespace DTSC{
         // Set the master flag so that the page will be destroyed once it leaves scope
         toErase.master = true;
       }
+      // Remove the page from the pages list
       tPages.deleteRecords(1);
     } else if (tPages.getInt("avail", firstPage) == 0){
+      // If not, then we need to update the page's info instead
       tPages.setInt("keycount", keyCount - 1, firstPage);
       tPages.setInt("parts", tPages.getInt("parts", firstPage) - deletedPartCount, firstPage);
       tPages.setInt("firstkey", deletedKeyNum + 1, firstPage);
     }
-
-    if (resizeLock){resizeLock.unlink();}
     return true;
   }
 

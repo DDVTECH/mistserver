@@ -417,11 +417,12 @@ namespace Mist{
     qUrl.pass = passString;
     qUrl.args = HTTP::argStr(args);
     reqUrl = qUrl.getUrl();
-    if (!checkStreamKey()) {
+    if (checkStreamKey()) {
       if (!streamName.size()) {
-        onFail("Stream key related: stream open failed");
+        onFinish();
         return;
       }
+    } else {
       Util::sanitizeName(streamName);
       Util::setStreamName(streamName);
       if (Triggers::shouldTrigger("PUSH_REWRITE")) {

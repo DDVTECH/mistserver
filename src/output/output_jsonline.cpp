@@ -11,11 +11,12 @@ namespace Mist{
     streamName = config->getString("streamname");
     wantRequest = true;
     parseData = false;
-    if (!checkStreamKey()) {
+    if (checkStreamKey()) {
       if (!streamName.size()) {
         onFinish();
         return;
       }
+    } else {
       if (Triggers::shouldTrigger("PUSH_REWRITE")) {
         std::string payload = "jsonline://" + myConn.getBoundAddress() + ":" + config->getOption("port").asString() +
           "\n" + getConnectedHost() + "\n" + streamName;

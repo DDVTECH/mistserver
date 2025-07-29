@@ -180,11 +180,12 @@ namespace Mist{
 
   void OutJSON::onWebsocketFrame(){
     if (!isPushing()){
-      if (!checkStreamKey()) {
+      if (checkStreamKey()) {
         if (!streamName.size()) {
           onFinish();
           return;
         }
+      } else {
         if (Triggers::shouldTrigger("PUSH_REWRITE")) {
           std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
           std::string newStream = streamName;

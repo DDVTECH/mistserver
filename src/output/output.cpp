@@ -192,9 +192,9 @@ namespace Mist{
   /// thus causing the process to exit cleanly.
   void Output::onFail(const std::string &msg, bool critical){
     if (critical){
-      FAIL_MSG("onFail '%s': %s", streamName.c_str(), msg.c_str());
+      FAIL_MSG("%s", msg.c_str());
     }else{
-      MEDIUM_MSG("onFail '%s': %s", streamName.c_str(), msg.c_str());
+      MEDIUM_MSG("%s", msg.c_str());
     }
     Util::logExitReason(ER_UNKNOWN, msg.c_str());
     isInitialized = false;
@@ -2754,18 +2754,16 @@ namespace Mist{
     if (meta) { strmSource = meta.getSource(); }
 
     if (!strmSource.size()) {
-      FAIL_MSG("Push rejected - stream %s not configured or unavailable", streamName.c_str());
+      onFail("Push rejected: stream " + streamName + " not configured or unavailable", true);
       pushing = false;
       sourceOverride.clear();
       streamName.clear();
-      return false;
     }
     if ((strmSource.size() >= 7 && strmSource.substr(0, 7) != "push://") || strmSource.find("INTERNAL_") != std::string::npos) {
-      FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s)", streamName.c_str(), strmSource.c_str());
+      onFail("Push rejected: stream " + streamName + " not a push-able stream", true);
       pushing = false;
       sourceOverride.clear();
       streamName.clear();
-      return false;
     }
 
     return true;

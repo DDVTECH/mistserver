@@ -1267,8 +1267,9 @@ namespace Mist{
       }
     }
 
-    if (!checkStreamKey()) {
+    if (checkStreamKey()) {
       if (!streamName.size()) { return false; }
+    } else {
       if (Triggers::shouldTrigger("PUSH_REWRITE")) {
         std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
         std::string newStream = streamName;

@@ -250,11 +250,12 @@ namespace Mist{
       }else if (accTypes == 2){//Only allow incoming
         srtConn->setBlocking(false);
         srtConn->direction = "input";
-        if (!checkStreamKey()) {
+        if (checkStreamKey()) {
           if (!streamName.size()) {
             onFinish();
             return;
           }
+        } else {
           Util::sanitizeName(streamName);
           Util::setStreamName(streamName);
           if (Triggers::shouldTrigger("PUSH_REWRITE")) {

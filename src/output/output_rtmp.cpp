@@ -1257,11 +1257,12 @@ namespace Mist {
           streamName = streamName.substr(0, streamName.find('/'));
         }
 
-        if (!checkStreamKey()) {
+        if (checkStreamKey()) {
           if (!streamName.size()) {
             onFinish();
             return;
           }
+        } else {
           if (Triggers::shouldTrigger("RTMP_PUSH_REWRITE")) {
             std::string payload = reqUrl + "\n" + getConnectedHost();
             std::string newUrl = reqUrl;

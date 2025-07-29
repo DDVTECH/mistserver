@@ -380,11 +380,12 @@ namespace Mist{
         continue;
       }
       if (HTTP_R.method == "ANNOUNCE"){
-        if (!checkStreamKey()) {
+        if (checkStreamKey()) {
           if (!streamName.size()) {
             onFinish();
             return;
           }
+        } else {
           if (Triggers::shouldTrigger("PUSH_REWRITE")) {
             HTTP::URL qUrl("rtsp://" + HTTP_R.GetHeader("Host") + "/" + HTTP_R.url);
             if (!qUrl.host.size()) { qUrl.host = myConn.getBoundAddress(); }

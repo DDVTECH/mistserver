@@ -175,7 +175,7 @@ bool interactiveFirstTimeSetup(){
         createAccount("test:test");
         if ((Controller::capabilities["connectors"].size()) &&
             (!Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") ||
-             Controller::Storage["config"]["protocols"].size() < 1)){
+             !Controller::Storage["config"]["protocols"].size())) {
           // create protocols
           jsonForEach(Controller::capabilities["connectors"], it){
             if (it->isMember("PUSHONLY")){continue;}
@@ -183,10 +183,12 @@ bool interactiveFirstTimeSetup(){
             if (!it->isMember("required")){
               JSON::Value newProtocol;
               newProtocol["connector"] = it.key();
+              newProtocol["debug"] = 4;
               Controller::Storage["config"]["protocols"].append(newProtocol);
             }
           }
         }
+        Controller::Storage["streams"]["live"]["source"] = "push://";
       }break;
       }
     }

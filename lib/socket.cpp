@@ -1282,8 +1282,8 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
   for (rp = result; rp; rp = rp->ai_next){
     sSend = socket(rp->ai_family, SOCK_STREAM, rp->ai_protocol);
     if (sSend < 0){continue;}
-    setFDBlocking(sSend, true);
-    blocking = true;
+    setFDBlocking(sSend, false);
+    blocking = false;
     //Ensure we can handle interrupted system call case
     int ret = 0;
     do{
@@ -1334,10 +1334,6 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     FAIL_MSG("Could not connect to %s! Error: %s", host.c_str(), lastErr.c_str());
     close();
     return;
-  }
-  if (!nonblock) {
-    setFDBlocking(sSend, true);
-    blocking = false;
   }
   int optval = 1;
   setsockopt(sSend, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));

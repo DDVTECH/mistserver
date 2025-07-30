@@ -91,7 +91,7 @@ srt_dep = declare_dependency(
 pkg = import('pkgconfig')
 pkg.generate(libraries : libsrt,
              subdirs : ['.', 'srt'],
-             version : '1.5.3',
+             version : '1.5.4',
              name : 'srt',
              filebase : 'srt',
              description : 'Haivision SRT library')

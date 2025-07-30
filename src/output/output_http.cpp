@@ -9,9 +9,9 @@
 #include <sstream>
 #include <sys/stat.h>
 
-const char * safenv(const char * name){
-  const char * r = getenv(name);
-  if (!r){return "";}
+const char *safenv(const char *name) {
+  const char *r = getenv(name);
+  if (!r) { return ""; }
   return r;
 }
 
@@ -154,7 +154,7 @@ namespace Mist{
           setenv("stream_raw", streamname.c_str(), 1);
           Util::sanitizeName(streamname);
           setenv("stream", streamname.c_str(), 1);
-        }else{
+        } else {
           unsetenv("stream");
           unsetenv("stream_raw");
         }
@@ -198,7 +198,7 @@ namespace Mist{
             setenv("stream_raw", streamname.c_str(), 1);
             Util::sanitizeName(streamname);
             setenv("stream", streamname.c_str(), 1);
-          }else{
+          } else {
             unsetenv("stream");
             unsetenv("stream_raw");
           }
@@ -300,9 +300,9 @@ namespace Mist{
     while (H.Read(myConn)){
       //First, figure out which handler we need to use
       std::string handler = getHandler();
-      if (handler != capa["name"].asStringRef() || streamName != safenv("stream")){
+      if (handler != capa["name"].asStringRef() || streamName != safenv("stream")) {
         INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), safenv("stream"));
-      }else{
+      } else {
         MEDIUM_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), safenv("stream"));
       }
       //None found? Abort the request with a 415 response status code.
@@ -373,9 +373,10 @@ namespace Mist{
       }
 
       //Check if we need to change binary and/or reconnect
-      if (handler != capa["name"].asStringRef() || streamName != safenv("stream") || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
-        MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
-                   streamName.c_str(), handler.c_str(), safenv("stream"));
+      if (handler != capa["name"].asStringRef() || streamName != safenv("stream") ||
+          (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))) {
+        MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(), streamName.c_str(),
+                   handler.c_str(), safenv("stream"));
         //Prepare switch
         disconnect();
         streamName = safenv("stream");

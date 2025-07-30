@@ -9,6 +9,12 @@
 #include <sstream>
 #include <sys/stat.h>
 
+const char * safenv(const char * name){
+  const char * r = getenv(name);
+  if (!r){return "";}
+  return r;
+}
+
 namespace Mist{
   HTTPOutput::HTTPOutput(Socket::Connection &conn) : Output(conn){
     //Websocket related
@@ -145,8 +151,12 @@ namespace Mist{
       }
       if (match){
         if (streamname.size()){
+          setenv("stream_raw", streamname.c_str(), 1);
           Util::sanitizeName(streamname);
-          H.SetVar("stream", streamname);
+          setenv("stream", streamname.c_str(), 1);
+        }else{
+          unsetenv("stream");
+          unsetenv("stream_raw");
         }
         return capa["name"].asStringRef();
       }
@@ -185,8 +195,12 @@ namespace Mist{
         }
         if (match){
           if (streamname.size()){
+            setenv("stream_raw", streamname.c_str(), 1);
             Util::sanitizeName(streamname);
-            H.SetVar("stream", streamname);
+            setenv("stream", streamname.c_str(), 1);
+          }else{
+            unsetenv("stream");
+            unsetenv("stream_raw");
           }
           return capa.getIndiceName(i);
         }
@@ -286,10 +300,10 @@ namespace Mist{
     while (H.Read(myConn)){
       //First, figure out which handler we need to use
       std::string handler = getHandler();
-      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
-        INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
+      if (handler != capa["name"].asStringRef() || streamName != safenv("stream")){
+        INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), safenv("stream"));
       }else{
-        MEDIUM_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
+        MEDIUM_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), safenv("stream"));
       }
       //None found? Abort the request with a 415 response status code.
       if (!handler.size()){
@@ -359,12 +373,12 @@ namespace Mist{
       }
 
       //Check if we need to change binary and/or reconnect
-      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
+      if (handler != capa["name"].asStringRef() || streamName != safenv("stream") || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
-                   streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
+                   streamName.c_str(), handler.c_str(), safenv("stream"));
         //Prepare switch
         disconnect();
-        streamName = H.GetVar("stream");
+        streamName = safenv("stream");
         userSelect.clear();
         trackSelectionChanged();
         if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}

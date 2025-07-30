@@ -1267,6 +1267,8 @@ namespace Mist{
       }
     }
 
+    char *rawStream = getenv("stream_raw");
+    if (rawStream) { streamName = rawStream; }
     if (checkStreamKey()) {
       if (!streamName.size()) { return false; }
     } else {

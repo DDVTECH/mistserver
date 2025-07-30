@@ -203,10 +203,14 @@ namespace Mist{
         std::string source = HTTP_R.url.substr(7);
         source = source.substr(0, std::min(source.find(':'), source.find('/')));
       }
+      std::string rawStreamName;
       size_t found = HTTP_R.url.find('/', 7);
-      if (found != std::string::npos && !streamName.size()){
-        streamName = HTTP_R.url.substr(found + 1, HTTP_R.url.substr(found + 1).find('/'));
-        Util::sanitizeName(streamName);
+      if (found != std::string::npos) {
+        rawStreamName = HTTP_R.url.substr(found + 1, HTTP_R.url.substr(found + 1).find('/'));
+        if (!streamName.size()) {
+          streamName = rawStreamName;
+          Util::sanitizeName(streamName);
+        }
       }
       if (streamName.size() && !sessName.size()){
         sessName = Secure::md5(HTTP_S.GetHeader("User-Agent") + getConnectedHost()) + "_" + streamName;
@@ -380,6 +384,7 @@ namespace Mist{
         continue;
       }
       if (HTTP_R.method == "ANNOUNCE"){
+        streamName = rawStreamName;
         if (checkStreamKey()) {
           if (!streamName.size()) {
             onFinish();

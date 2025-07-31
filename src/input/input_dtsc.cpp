@@ -6,11 +6,9 @@
 #include <mist/stream.h>
 #include <mist/util.h>
 
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <string>
 
 namespace Mist{
@@ -110,9 +108,15 @@ namespace Mist{
 
     // Open userSelect for all received tracks
     std::set<size_t> validTracks = M.getMySourceTracks(getpid());
+    if (!validTracks.size()) { return; }
     userSelect.clear();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it) {
       userSelect[*it].reload(streamName, *it, COMM_STATUS_ACTSOURCEDNT);
+    }
+    {
+      JSON::Value APIcall;
+      APIcall["tag_stream"][streamName] = "replicated";
+      Util::sendUDPApi(APIcall);
     }
   }
 
@@ -156,7 +160,17 @@ namespace Mist{
     return true;
   }
 
-  void InputDTSC::closeStreamSource(){srcConn.close();}
+  void InputDTSC::closeStreamSource() {
+    srcConn.close();
+  }
+
+  InputDTSC::~InputDTSC() {
+    if (streamName.size()) {
+      JSON::Value APIcall;
+      APIcall["untag_stream"][streamName] = "replicated";
+      Util::sendUDPApi(APIcall);
+    }
+  }
 
   bool InputDTSC::checkArguments(){
     if (!needsLock()){return true;}

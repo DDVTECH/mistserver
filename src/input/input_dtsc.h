@@ -25,6 +25,7 @@ namespace Mist{
   class InputDTSC : public Input{
   public:
     InputDTSC(Util::Config *cfg);
+    virtual ~InputDTSC();
     bool needsLock();
 
     virtual std::string getConnectedBinHost(){

@@ -296,8 +296,12 @@ namespace HTTP{
   /// Downloads the given URL into 'H', returns true on success.
   /// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
   bool Downloader::get(const HTTP::URL & link, uint8_t maxRecursiveDepth, Util::DataCallback & cb) {
-    return get(link, [&cb]() { return cb.getDataCallbackPos(); },
-               [&cb](const char *ptr, size_t len) { cb.dataCallback(ptr, len); }, maxRecursiveDepth);
+    if (&cb == &Util::defaultDataCallback) {
+      return get(link, [&]() { return H.body.size(); }, [&](const char *ptr, size_t len) { H.body.append(ptr, len); }, maxRecursiveDepth);
+    } else {
+      return get(link, [&cb]() { return cb.getDataCallbackPos(); },
+                 [&cb](const char *ptr, size_t len) { cb.dataCallback(ptr, len); }, maxRecursiveDepth);
+    }
   }
 
   bool Downloader::get(const HTTP::URL & link, std::function<size_t()> resumePos,

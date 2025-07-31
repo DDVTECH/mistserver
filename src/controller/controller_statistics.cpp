@@ -2032,18 +2032,21 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
 
       for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
            it != streamStats.end(); ++it){
-        resp["streams"][it->first]["tot"].append(it->second.viewers);
-        resp["streams"][it->first]["tot"].append(it->second.inputs);
-        resp["streams"][it->first]["tot"].append(it->second.outputs);
-        resp["streams"][it->first]["bw"].append(it->second.upBytes);
-        resp["streams"][it->first]["bw"].append(it->second.downBytes);
-        resp["streams"][it->first]["curr"].append(it->second.currViews);
-        resp["streams"][it->first]["curr"].append(it->second.currIns);
-        resp["streams"][it->first]["curr"].append(it->second.currOuts);
-        resp["streams"][it->first]["curr"].append(it->second.currUnspecified);
-        resp["streams"][it->first]["pkts"].append(it->second.packSent);
-        resp["streams"][it->first]["pkts"].append(it->second.packLoss);
-        resp["streams"][it->first]["pkts"].append(it->second.packRetrans);
+        JSON::Value & strm = resp["streams"][it->first];
+        uint8_t strmStat = Util::getStreamStatus(it->first);
+        strm["tot"].append(it->second.viewers);
+        strm["tot"].append(strmStat == STRMSTAT_READY ? it->second.inputs : 0);
+        strm["tot"].append(it->second.outputs);
+        strm["bw"].append(it->second.upBytes);
+        strm["bw"].append(it->second.downBytes);
+        strm["curr"].append(it->second.currViews);
+        strm["curr"].append(it->second.currIns);
+        strm["curr"].append(it->second.currOuts);
+        strm["curr"].append(it->second.currUnspecified);
+        strm["pkts"].append(it->second.packSent);
+        strm["pkts"].append(it->second.packLoss);
+        strm["pkts"].append(it->second.packRetrans);
+        if (it->second.tags.count("replicated")) { strm["rep"] = true; }
       }
       for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){
         resp["output_counts"][it->first] = it->second;

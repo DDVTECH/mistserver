@@ -51,6 +51,7 @@ struct streamDetails{
   uint64_t prevTotal;
   uint64_t bytesUp;
   uint64_t bytesDown;
+  bool rep;
 };
 
 class outUrl{
@@ -275,7 +276,7 @@ public:
   uint64_t source(const std::string &s, double lati, double longi, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu){
     if (!hostMutex){hostMutex = new std::mutex();}
     std::lock_guard<std::mutex> guard(*hostMutex);
-    if (s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
+    if (s.size() && (!streams.count(s) || !streams[s].inputs || streams[s].rep)) { return 0; }
     if (!ramMax || !availBandwidth){
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 1;
@@ -391,6 +392,7 @@ public:
           continue;
         }
         struct streamDetails &strm = streams[it.key()];
+        strm.rep = it->isMember("rep");
         strm.total = (*it)["curr"][0u].asInt();
         strm.inputs = (*it)["curr"][1u].asInt();
         strm.bytesUp = (*it)["bw"][0u].asInt();

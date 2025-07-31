@@ -7426,6 +7426,32 @@ context_menu: function(){
                 main: saveas,
                 index: "completetime"
               }
+            },{
+              label: "Inhibitor",
+              type: "inputlist",
+              help: "Optional list of tags and/or stream names: if any of them identify the stream, this push will not start.",
+              input: {
+                type: "str",
+                datalist: allthestreams,
+                validate: [function(val,me){
+                  if (val == "") return false;
+                  if (val[0] == "#") {
+                    //it's a tag, we're good
+                    return false;
+                  }
+                  var shouldbestream = val.split('+');
+                  shouldbestream = shouldbestream[0];
+                  if (shouldbestream in mist.data.streams) {
+                    return false;
+                  }
+                  return {
+                    msg: "'"+shouldbestream+"' is not a stream name.",
+                    classes: ['orange'],
+                    "break": false
+                  };
+                }]
+              },
+              pointer: { main: saveas, index: "inhibit" }
             }],saveas));
             $autopush.find(".activewhen").trigger("change");
           }
@@ -7461,15 +7487,7 @@ context_menu: function(){
               }],
               datalist: allthestreams,
               value: prev[1] != "" ? prev[1] : "" //if we came here from a page where other exists (like the Status tab) prefill it, it's probably a stream
-            },other == "auto" ? {
-              label: "Enabled",
-              type: "checkbox",
-              help: "When an automatic push is disabled, it will not start new pushes.",
-              pointer: { 
-                main: saveas,
-                index: "enabled"
-              }
-            } : $(""),{
+            },{
               label: 'Target',
               type: 'str',
               help: 'Where the stream will be pushed to.<br>\
@@ -7620,7 +7638,15 @@ context_menu: function(){
 
                 $additional_params.append(UI.buildUI(capaform)); 
               }
-            },{
+            },other == "auto" ? {
+              label: "Enabled",
+              type: "checkbox",
+              help: "When an automatic push is disabled, it will not start new pushes.",
+              pointer: { 
+                main: saveas,
+                index: "enabled"
+              }
+            } : $(""),{
               label: "Notes",
               type: "textarea",
               rows: 4,

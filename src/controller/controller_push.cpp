@@ -88,6 +88,7 @@ namespace Controller{
         ret["end_rule"][1u] = input["endVariableOperator"];
         ret["end_rule"][2u] = input["endVariableValue"];
       }
+      if (input.isMember("inhibit")) { ret["inhibit"] = input["inhibit"]; }
       return ret;
     }
     ret.null();
@@ -414,12 +415,29 @@ namespace Controller{
       if (waittime || it->isMember("scheduletime")) {
         std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
         if (activeStreams.size()) {
-          for (std::set<std::string>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt) {
-            std::string streamname = *jt;
+          for (const std::string & streamname : activeStreams) {
             if (!isPushActive(streamname, target)) {
               if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)) {
                 waitingPushes[streamname].erase(target);
                 if (!waitingPushes[streamname].size()) { waitingPushes.erase(streamname); }
+
+                // If the inhibitor matches, do _not_ start the push after all
+                if (it->isMember("inhibit")) {
+                  if ((*it)["inhibit"].isString() && (*it)["inhibit"].asStringRef().size()) {
+                    if (Controller::streamMatches(streamname, (*it)["inhibit"].asStringRef())) { continue; }
+                  }
+                  if ((*it)["inhibit"].isArray()) {
+                    bool noMatch = false;
+                    jsonForEachConst ((*it)["inhibit"], ii) {
+                      if (Controller::streamMatches(streamname, ii->asStringRef())) {
+                        noMatch = true;
+                        break;
+                      }
+                    }
+                    if (noMatch) { continue; }
+                  }
+                }
+
                 MEDIUM_MSG("Conditions of push \"%s\" evaluate to true. Starting push...", it.key().c_str());
                 std::string tmpTarget = target;
                 startPush(streamname, tmpTarget);
@@ -555,17 +573,34 @@ namespace Controller{
       // Skip if scheduled in the future
       if (it->isMember("scheduletime") && (*it)["scheduletime"].asInt() < Util::epoch()){continue;}
       // Check if the stream name matches
-      if (Controller::streamMatches(streamname, (*it)["stream"].asStringRef())){
-        // Clean up the stream name if needed
-        std::string stream = streamname;
-        Util::sanitizeName(stream);
-        // Check variable conditions if they exist
-        if(it->isMember("end_rule") && checkPushRule(stream, (*it)["end_rule"])){continue;}
-        if(it->isMember("start_rule") && !checkPushRule(stream, (*it)["start_rule"])){continue;}
-        // Actually do the push; use a temp target as it might be rewritten
-        std::string target = (*it)["target"].asStringRef();
-        startPush(stream, target);
+      if (!Controller::streamMatches(streamname, (*it)["stream"].asStringRef())) { continue; }
+
+      // If the inhibitor matches, do _not_ start the push after all
+      if (it->isMember("inhibit")) {
+        if ((*it)["inhibit"].isString() && (*it)["inhibit"].asStringRef().size()) {
+          if (Controller::streamMatches(streamname, (*it)["inhibit"].asStringRef())) { continue; }
+        }
+        if ((*it)["inhibit"].isArray()) {
+          bool noMatch = false;
+          jsonForEachConst ((*it)["inhibit"], ii) {
+            if (Controller::streamMatches(streamname, ii->asStringRef())) {
+              noMatch = true;
+              break;
+            }
+          }
+          if (noMatch) { continue; }
+        }
       }
+
+      // Clean up the stream name if needed
+      std::string stream = streamname;
+      Util::sanitizeName(stream);
+      // Check variable conditions if they exist
+      if (it->isMember("end_rule") && checkPushRule(stream, (*it)["end_rule"])) { continue; }
+      if (it->isMember("start_rule") && !checkPushRule(stream, (*it)["start_rule"])) { continue; }
+      // Actually do the push; use a temp target as it might be rewritten
+      std::string target = (*it)["target"].asStringRef();
+      startPush(stream, target);
     }
   }
 

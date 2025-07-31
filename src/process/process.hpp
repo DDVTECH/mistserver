@@ -37,6 +37,12 @@ void addGenericProcessOptions(JSON::Value & capa){
     grp["track_inhibit"]["validate"][0u] = "track_selector";
     grp["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
 
+    grp["tags_inhibit"]["name"] = "Tag inhibitor(s)";
+    grp["tags_inhibit"]["help"] =
+      "Optional list of tags, if any of them are set on the stream, this process does not start.";
+    grp["tags_inhibit"]["type"] = "inputlist";
+    grp["tags_inhibit"]["default"] = "";
+
     grp["inconsequential"]["name"] = "Inconsequential process";
     grp["inconsequential"]["help"] = "If set, this process need not be running for a stream to be considered fully active.";
     grp["inconsequential"]["default"] = false;

@@ -691,6 +691,29 @@ namespace Mist{
         // No match - skip this process
         if (!wouldSelect.size()){continue;}
       }
+      // If tags_inhibit is set, prevent the process from starting
+      if (tmp.isMember("tags_inhibit")) {
+        std::set<std::string> T = Util::streamTags(streamName);
+        auto matchesTag = [&T](const JSON::Value & J) {
+          if (!J.isString()) { return false; }
+          const std::string & tag = J.asStringRef();
+          if (tag.size() && tag[0] == '#') { return T.count(tag.substr(1)) > 0; }
+          return T.count(tag) > 0;
+        };
+        JSON::Value & inhib = tmp["tags_inhibit"];
+        if (inhib.isString()) {
+          if (matchesTag(inhib)) { continue; }
+        } else if (inhib.isArray()) {
+          bool hasMatch = false;
+          jsonForEachConst (inhib, tagIt) {
+            if (matchesTag(*tagIt)) {
+              hasMatch = true;
+              break;
+            }
+          }
+          if (hasMatch) { continue; }
+        }
+      }
       if (tmp.isMember("track_inhibit")){
         std::set<size_t> wouldSelect = Util::wouldSelect(
             M, std::string("audio=none&video=none&subtitle=none&meta=none&") + tmp["track_inhibit"].asStringRef());

@@ -272,7 +272,6 @@ void APIConn::log(uint64_t time, const std::string & kind, const std::string & m
   tmp[1u].append(progPid);
   tmp[1u].append(exe);
   tmp[1u].append(line);
-  if (progPid) { tmp[1u].append(progPid); }
   W->sendFrame(tmp.toString());
 }
 

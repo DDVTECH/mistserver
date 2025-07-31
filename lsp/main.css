@@ -1758,36 +1758,61 @@ section.processes table div.logs {
   overflow: hidden auto;
   font-size: 0.9em;
 }
-main[data-tab="Status"] section.logs > div.logs > * > *:not(:last-child):not(:empty),
-main[data-tab="Preview"] section.logs > div.logs > * > *:not(:last-child):not(:empty),
+/*main[data-tab="Status"] section.logs > div.logs > * > *:not(:last-child):not(:empty),
+main[data-tab="Preview"] section.logs > div.logs > * > *:not(:last-child):not(:empty),*/
 main[data-tab="Status"] section.accesslogs > div.accesslogs > * > *:not(:last-child):not(:empty),
 main[data-tab="Preview"] section.accesslogs > div.accesslogs > * > *:not(:last-child):not(:empty) {
   padding-right: 0.5em;
 }
-main[data-tab="Status"] section.logs > div.logs > * > *:nth-child(2):not(:empty):before,
-main[data-tab="Preview"] section.logs > div.logs > * > *:nth-child(2):not(:empty):before {
-  content: '[';
-  opacity: 0.5;
+div.logs .message:not([data-debuglevel="FAIL"]) :is(.debuglevel,.message) {
+  color: var(--highlightedColor);
 }
-main[data-tab="Status"] section.logs > div.logs > * > *:nth-child(2):not(:empty):after,
-main[data-tab="Preview"] section.logs > div.logs > * > *:nth-child(2):not(:empty):after {
-  content: ']';
-  opacity: 0.5;
+div.logs .message :is(.time,.binary,.pid) {
+  color: var(--secondaryTextColor);
 }
-div.logs > [data-debuglevel="WARN"],
-div.logs > [data-debuglevel="ERROR"],
-div.logs > [data-debuglevel="FAIL"] {
+div.logs .message:is([data-debuglevel="WARN"],[data-debuglevel="ERROR"],[data-debuglevel="FAIL"]) :is(.debuglevel,.message) {
   font-weight: bold;
+}
+div.logs .message[data-debuglevel="WARN"] :is(.debuglevel,.message) {
   color: darkorange;
 }
-div.logs > [data-debuglevel="ERROR"] {
+div.logs .message[data-debuglevel="ERROR"] :is(.debuglevel,.message) {
   color: var(--red);
 }
-div.logs > [data-debuglevel="FAIL"] > * {
+div.logs .message[data-debuglevel="FAIL"] > * {
   color: white;
   background: var(--red);
   outline: 2px solid var(--red);
 }
+div.logs .message .copy_but_hide { position: absolute; opacity: 0; pointer-events: none; }
+section.logs { position: relative; }
+section.logs button.down {
+  position: absolute;
+  right: 1em;
+  bottom: 1em;
+  opacity: 0.8;
+}
+section.logs:has(.logs[data-scrolling="true"]) button.down {
+  display: none;
+}
+
+main[data-tab="Logs"] {
+  max-height: 100%;
+  overflow: hidden;
+  min-height: 30em;
+  flex-shrink: 1;
+  display: grid;
+  grid-template-columns: 100%;
+  grid-template-rows: auto auto 1fr;
+}
+main[data-tab="Logs"] .buttons { text-align: right; }
+main[data-tab="Logs"] section.logs { display: contents; }
+main[data-tab="Logs"] section.logs > div.logs {
+  max-height: 100%;
+  overflow: auto;
+}
+main[data-tab="Logs"] .buttons button:after { content: ' (for saving and copying)'; }
+
 main[data-tab="Status"] div.accesslogs > * > *[title],
 main[data-tab="Preview"] div.accesslogs > * > *[title] {
   overflow: hidden;

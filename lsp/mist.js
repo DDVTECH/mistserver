@@ -8135,104 +8135,16 @@ context_menu: function(){
         $('[name=triggeron]').trigger('change');
         
         break;
-      case 'Logs':
-        var $refreshbutton = $('<button>').text('Refresh now').click(function(){
-          $(this).text('Loading..');
-          mist.send(function(){
-            buildLogsTable();
-            $refreshbutton.text('Refresh now');
-          });
-        }).css('padding','0.2em 0.5em').css('flex-grow',0);
-        
-        $main.append(UI.buildUI([{
-          type: 'help',
-          help: 'Here you have an overview of all edited settings within MistServer and possible warnings or errors MistServer has encountered. MistServer stores up to 100 logs at a time.'
-        },{
-          label: 'Refresh every',
-          type: 'select',
-          select: [
-            [10,'10 seconds'],
-            [30,'30 seconds'],
-            [60,'minute'],
-            [300,'5 minutes']
-          ],
-          value: 30,
-          'function': function(){
-            UI.interval.clear();
-            UI.interval.set(function(){
-              mist.send(function(){
-                buildLogsTable();
-              });
-            },$(this).val()*1e3);
-          },
-          help: 'How often the table below should be updated.'
-        },{
-          label: '..or',
-          type: 'DOMfield',
-          DOMfield: $refreshbutton,
-          help: 'Instantly refresh the table below.'
-        }]));
-        
-        $main.append(
-          $('<button>').text('Purge logs').click(function(){
-            mist.send(function(){
-              mist.data.log = [];
-              UI.navto('Logs');
-            },{clearstatlogs:true});
-          })
-        );
-        var $tbody = $('<tbody>').css('font-size','0.9em');
-        $main.append(
-          $('<table>').addClass('logs').append($tbody)
-        );
-        
-        function color(string){
-          var $s = $('<span>').text(string);
-          switch (string) {
-            case 'WARN':
-              $s.addClass('orange');
-              break;
-            case 'ERROR':
-            case 'FAIL':
-              $s.addClass('red');
-              break;
-          }
-          return $s;
-        }
-        function buildLogsTable(){
-          var logs = mist.data.log;
-          if (!logs) { return; }
-          
-          if ((logs.length >= 2) && (logs[0][0] < logs[logs.length-1][0])){
-            logs.reverse();
-          }
-          
-          $tbody.html('');
-          for (var index in logs) {
-            var $content = $('<span>').addClass('content');
-            if ((logs[index].length >= 4) && (logs[index][3] != "")) $content.append($("<span>").text("["+logs[index][3]+"] "));
-            var split = logs[index][2].split('|');
-            for (var i in split) {
-              $content.append(
-                $('<span>').text(split[i])
-              );
-            }
-            
-            
-            $tbody.append(
-              $('<tr>').html(
-                $('<td>').text(UI.format.dateTime(logs[index][0],'long')).css('white-space','nowrap')
-              ).append(
-                $('<td>').html(color(logs[index][1])).css('text-:align','center')
-              ).append(
-                $('<td>').html($content).css('text-align','left')
-              )
-            );
-          }
-        }
-        buildLogsTable();
-        
+      case 'Logs': {
+        let $buttons = $("<div>").addClass("buttons");
+        let $logs = UI.modules.logs();
+        $buttons.append($logs.find("> button").first());
+        $logs.find("> h3").remove();
+
+        $main.append($buttons).append($logs);
+
         break;
+      }
       case 'Statistics':
         var $UI = $('<span>').text('Loading..');
         $main.append($UI);
@@ -10250,62 +10162,7 @@ context_menu: function(){
         });
       },
       logs: function(streamname){
-        var $logs = $("<div>").attr("onempty","None.").addClass("logs");
-
-        var tab = false;
-
-        UI.sockets.ws.active_streams.subscribe(function(type,data){
-          if (type == "log") {
-            var scroll = ($logs[0].scrollTop >= $logs[0].scrollHeight - $logs[0].clientHeight); //scroll to bottom unless scrolled elsewhere
-
-            if (data[3] != "" && data[3] != streamname.split("+")[0]) { //filter out messages about other streams
-              return;
-            }
-            if (data[1] == "ACCS") { return; } //the access log has its own container
-
-            var $msg = $("<div>").attr("data-debuglevel",data[1]).html(
-              $("<span>").addClass("description").text(UI.format.dateTime(data[0]))
-            ).append(
-              $("<span>").text(data[3]) //stream, if any
-            ).append(
-              $("<span>").text(data[1]+":") //debug level
-            ).append(
-              $("<span>").text(data[2]) //message
-            );
-            $logs.append($msg);
-
-            if (scroll) $logs[0].scrollTop = $logs[0].scrollHeight; 
-
-            if (tab) {
-              try {
-              var scroll = (tab.document.scrollingElement.scrollTop >= tab.document.scrollingElement.scrollHeight - tab.document.scrollingElement.clientHeight);
-              tab.document.write($msg[0].outerHTML);
-              if (scroll) tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
-              }
-              catch (e) {}
-            }
-
-          }
-          else if (type == "error") {
-            var $msg = $("<div>").text(data);
-            $logs.append($msg);
-          }
-        });
-        
-        return $("<section>").addClass("logs").append(
-          $("<h3>").text("MistServer logs")
-        ).append(
-          $("<button>").text("Open raw").click(function(){
-            tab = window.open("", "MistServer logs for "+streamname);
-            tab.document.write(
-              "<html><head><title>MistServer logs for '"+streamname+"'</title><meta http-equiv=\"content-type\" content=\"application/json; charset=utf-8\"><style>body{padding-left:2em;text-indent:-2em;}body>*>*:not(:last-child):not(:empty){padding-right:.5em;}.description{font-size:.9em;color:#777}</style></head><body>"
-            );
-            tab.document.write($logs[0].innerHTML);
-            tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
-          })
-        ).append(
-          $logs
-        );
+        return UI.modules.logs(streamname);
       },
       accesslogs: function(streamname){
         var $accesslogs = $("<div>").attr("onempty","None.").addClass("accesslogs");
@@ -11377,6 +11234,117 @@ context_menu: function(){
           )
         )
       }
+    },
+    logs: function(streamname){
+      var scroll = true;
+      var $logs = $("<div>").attr("onempty","None.").attr("data-scrolling",scroll).addClass("logs").on("scroll",function(){
+        //scroll to bottom unless scrolled elsewhere
+        if (this.scrollTop + this.clientHeight >= this.scrollHeight - 5) {
+          scroll = true;
+        }
+        else {
+          scroll = false;
+        }
+        $logs.attr("data-scrolling",scroll);
+      });
+
+      var tab = false;
+
+      UI.sockets.ws.active_streams.subscribe(function(type,data){
+        if (type == "log") {
+          if (streamname && (data[3] != "") && (data[3] != streamname.split("+")[0])) { //filter out messages about other streams
+            return;
+          }
+          if (data[1] == "ACCS") { return; } //the access log has its own container
+
+          var $msg = $("<div>").addClass("message").attr("data-debuglevel",data[1]).html(
+            $("<span>").addClass("time").html(
+              $("<span>").append(
+                $("<span>").addClass("description").text("[")
+              ).append(
+                $("<span>").text(UI.format.dateTime(data[0]))
+              ).append(
+                $("<span>").addClass("description").text("] ")
+              ).children()
+            )
+          ).append(
+            $("<span>").addClass("binary").attr("title","binary name").text(data[5])
+          ).append(
+            $("<span>").addClass("stream").attr("title","stream name").html(
+              data[3] ? $("<span>").append(
+                $("<span>").addClass("description").text(":")
+              ).append(
+                $("<span>").text(data[3])
+              ).children() : ""
+            )
+          ).append(
+            $("<span>").addClass("pid").attr("title","pid").html(
+              data[4] ? $("<span>").append(
+                $("<span>").addClass("description").text(" (")
+              ).append(
+                $("<span>").text(data[4])
+              ).append(
+                $("<span>").addClass("description").text(")")
+              ).children() : ""
+            )
+          ).append(
+            $("<span>").addClass("debuglevel").attr("title","debug level").html(
+              $("<span>").append(
+                $("<span>").addClass("description").text(" [")
+              ).append(
+                $("<span>").text(data[1])
+              ).append(
+                $("<span>").addClass("description").text("]")
+              ).children() 
+            )
+          ).append(
+            $("<span>").addClass("message").text(" "+data[2])
+          ).append(
+            $("<span>").addClass("line").addClass("copy_but_hide").attr("title","line number").html(data[6] ? "&nbsp;("+data[6]+")" : "")
+          );
+          $logs.append($msg);
+
+          if ($logs.children().length > 1000) {
+            $logs.children().first().remove();
+          }
+
+          if (scroll) $logs[0].scrollTop = $logs[0].scrollHeight; 
+
+          if (tab) {
+            try {
+              let s = (tab.document.scrollingElement.scrollTop >= tab.document.scrollingElement.scrollHeight - tab.document.scrollingElement.clientHeight);
+              tab.document.write($msg[0].outerHTML);
+              if (s) tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+            }
+            catch (e) {}
+          }
+
+        }
+        else if (type == "error") {
+          var $msg = $("<div>").text(data);
+          $logs.append($msg);
+        }
+      });
+
+      return $("<section>").addClass("logs").append(
+        $("<h3>").text("MistServer logs")
+      ).append(
+        $("<button>").text("Open raw").click(function(){
+          tab = window.open("", "MistServer logs"+(streamname ? " for "+streamname : ""));
+          tab.document.write(
+            "<html><head><title>MistServer logs"+(streamname ? " for '"+streamname+"'" : "")+"</title><meta http-equiv=\"content-type\" content=\"application/json; charset=utf-8\"><style>body{padding-left:2em;text-indent:-2em;font-family:monospace}.description,.message :is(.time,.binary,.pid,.line){font-size:.9em;color:#777}.message:is([data-debuglevel=\"WARN\"],[data-debuglevel=\"ERROR\"],[data-debuglevel=\"FAIL\"]){font-weight:bold;}</style></head><body>"
+          );
+          tab.document.write($logs[0].innerHTML);
+          tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+        })
+      ).append(
+        $logs
+      ).append(
+        $("<button>").addClass("down").attr("data-icon","down").attr("title","Snap to bottom").click(function(){
+          scroll = true;
+          $logs[0].scrollTop = $logs[0].scrollHeight;
+        })
+      );
     },
     pushes: function(options){
       if (!options) {

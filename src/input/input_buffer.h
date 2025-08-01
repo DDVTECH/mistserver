@@ -58,6 +58,7 @@ namespace Mist{
 
     std::set<size_t> generatePids;
     std::map<size_t, size_t> sourcePids;
+    size_t lastBPS; ///< Used for STREAM_BANDWIDTH trigger
   };
 }// namespace Mist
 

@@ -153,51 +153,42 @@ namespace Triggers{
     }
   }
 
-  static std::string usually_empty;
-
-  ///\brief returns true if a trigger of the specified type should be handled for a specified stream
-  ///(, or entire server) \param type Trigger event type. \param streamName the stream to be handled
-  ///\return returns true if so
-  /// calls doTrigger with dryRun set to true
-  /// returns true if a trigger of the specified type should be
-  /// handled for a specified stream (, or entire server)
-  bool shouldTrigger(const std::string &type, const std::string &streamName,
-                     bool paramsCB(const char *, const void *), const void *extraParam){
-    usually_empty.clear();
-    return doTrigger(type, empty, streamName, true, usually_empty, paramsCB, extraParam);
+  /// Returns true if a trigger of the specified type should be handled for a specified stream (or entire server)
+  /// Calls doTrigger with dryRun set to true
+  /// \param type Trigger event type.
+  /// \param streamName the stream to be handled
+  bool shouldTrigger(const std::string & type, const std::string & streamName, std::function<bool(const char *)> paramsCB) {
+    std::string unused;
+    return doTrigger(type, empty, streamName, true, unused, paramsCB);
   }
 
-  ///\brief handles triggers for a specific trigger event type, with a payload, for a specified
-  /// stream, and/or server-wide \param type Trigger event type. \param payload Trigger
-  /// type-specific data \param streamName The name of a stream. \returns Boolean, false if further
-  /// processing should be aborted.
-  /// calls doTrigger with dryRun set to false
-  bool doTrigger(const std::string &type, const std::string &payload, const std::string &streamName){
-    usually_empty.clear();
-    return doTrigger(type, payload, streamName, false, usually_empty);
+  /// Handles triggers for a specific trigger event type, with a payload, for a specified stream, and/or server-wide.
+  /// Calls doTrigger with dryRun set to false
+  /// \param type Trigger event type.
+  /// \param payload Trigger type-specific data
+  /// \param streamName The name of a stream.
+  /// \returns Boolean, false if further processing should be aborted.
+  bool doTrigger(const std::string & type, const std::string & payload, const std::string & streamName) {
+    std::string unused;
+    return doTrigger(type, payload, streamName, false, unused);
   }
 
-  ///\brief
-  ///\param type Trigger event type
-  ///\param payload Trigger type-specific data
-  ///\param streamName Name of a stream to check for stream-specific triggers
-  ///\param dryRun determines the mode of operation for this function
-  ///\param response Returns the last received response by reference
-  ///\returns Boolean, false if further processing should be aborted
   /// This function attempts to open and parse a shared memory page with the config for a trigger
   /// event type, in order to parse the triggers defined for that trigger event type. The function
-  /// can be used for two separate purposes, determined by the value of dryRun
-  ///-if this function is called with dryRun==true (for example, from a handleTrigger function), the
-  /// return value will be true, if at least one trigger should be handled for the requested
-  /// type/stream.
-  /// this can be used to make sure a payload is only generated if at least one trigger should be
-  /// handled.
-  ///-if this function is called with dryRun==false (for example, from one of the overloaded
-  /// doTrigger functions), handleTrigger is called for all configured triggers. In that case, the
-  /// return value does not matter, it will probably be false in all cases.
-  bool doTrigger(const std::string &type, const std::string &payload, const std::string &streamName,
-                 bool dryRun, std::string &response, bool paramsCB(const char *, const void *),
-                 const void *extraParam){
+  /// can be used for two separate purposes, determined by the value of dryRun:
+  /// If this function is called with dryRun=true, returns true if at least one trigger would fire.
+  /// This can be used to make sure a payload is only generated if needed.
+  /// If this function is called with dryRun=false, handleTrigger is called for all configured triggers.
+  /// In that case, the return value is determined by the result of the trigger(s) that were ran.
+  /// \param type Trigger event type
+  /// \param payload Trigger type-specific data
+  /// \param streamName Name of a stream to check for stream-specific triggers
+  /// \param dryRun determines the mode of operation for this function
+  /// \param response Returns the last received response by reference
+  /// \param paramsCB Callback function that gets the configured parameter for triggers that take one
+  ///\returns Boolean, false if further processing should be aborted
+  bool doTrigger(const std::string & type, const std::string & payload, const std::string & streamName, bool dryRun,
+                 std::string & response, std::function<bool(const char *)> paramsCB) {
     // open SHM page for this type:
     char thisPageName[NAME_BUFFER_SIZE];
     snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRIGGER, type.c_str());
@@ -228,46 +219,68 @@ namespace Triggers{
 
     size_t splitter = streamName.find_first_of("+ ");
     bool retVal = true;
+    bool gotTags = false;
+    std::set<std::string> tags;
 
-    for (uint32_t i = 0; i < trigs.getRCount(); ++i){
+    for (uint32_t i = 0; i < trigs.getRCount(); ++i) {
       std::string uri = std::string(trigs.getPointer("url", i));
       uint8_t sync = trigs.getInt("sync", i);
 
       char *strPtr = trigs.getPointer("streams", i);
-      uint32_t pLen = trigs.getSize("streams");
-      uint32_t bPos = 0;
+      size_t pLen = trigs.getSize("streams");
 
+      // By default match if no stream name is set
       bool isHandled = !streamName.size();
-      while (bPos + 4 < pLen){
-        uint32_t stringLen = ((unsigned int *)(strPtr + bPos))[0];
-        if (bPos + 4 + stringLen > pLen || !stringLen){break;}
-        if ((streamName.size() == stringLen || splitter == stringLen) &&
-            strncmp(strPtr + bPos + 4, streamName.data(), stringLen) == 0){
-          isHandled = true;
-          break;
+      bool onlyNegative = true;
+      for (size_t bPos = 0; bPos + 4 < pLen; bPos += *(unsigned int *)(strPtr + bPos) + 4) {
+        size_t stringLen = *(unsigned int *)(strPtr + bPos);
+        if (bPos + 4 + stringLen > pLen || !stringLen) { break; }
+        const char *currPtr = strPtr + bPos + 4;
+
+        // Check if the entry starts with an exclamation point
+        bool negated = currPtr[0] == '!';
+        if (negated) {
+          // negative matching
+          ++currPtr;
+          --stringLen;
+          negated = true;
+          if (!stringLen) { break; }
+        } else {
+          onlyNegative = false;
+        }
+
+        // Stream (base)name match
+        if ((streamName.size() == stringLen || splitter == stringLen) && strncmp(currPtr, streamName.data(), stringLen) == 0) {
+          isHandled = !negated;
+          onlyNegative = false; // Prevent catch-all matching since anything matched
+          continue;
         }
         // Tag-based? Check tags for this stream
-        if (strPtr[bPos + 4] == '#'){
-          std::set<std::string> tags = Util::streamTags(streamName);
-          if (tags.count(std::string(strPtr + bPos + 5, stringLen - 1))){
-            isHandled = true;
-            break;
+        if (currPtr[0] == '#') {
+          if (!gotTags) { tags = Util::streamTags(streamName); }
+          if (tags.count(std::string(currPtr + 1, stringLen - 1))) {
+            isHandled = !negated;
+            onlyNegative = false; // Prevent catch-all matching since anything matched
+            continue;
           }
         }
-        bPos += stringLen + 4;
       }
-      // no streams explicitly defined for this trigger, return true for all streams.
-      if (bPos <= 4){isHandled = true;}
+      // If all entries were negative, match unless rejected
+      if (onlyNegative) { isHandled = true; }
 
-      if (isHandled && paramsCB){
-        isHandled = paramsCB(trigs.getPointer("params", i), extraParam);
-      }
-      std::string defaultResponse = trigs.getPointer("default", i);
-      if (!defaultResponse.size()){defaultResponse = "true";}
+      // Check callback if needed
+      if (isHandled && paramsCB) { isHandled = paramsCB(trigs.getPointer("params", i)); }
 
       if (isHandled){
         VERYHIGH_MSG("%s trigger handled by %s", type.c_str(), uri.c_str());
-        if (dryRun){return true;}
+        if (dryRun) {
+          unsetenv("MIST_TUUID");
+          unsetenv("MIST_TIME");
+          unsetenv("MIST_DATE");
+          return true;
+        }
+        std::string defaultResponse = trigs.getPointer("default", i);
+        if (!defaultResponse.size()) { defaultResponse = "true"; }
         if (sync){
           response = handleTrigger(type, uri, payload, sync, defaultResponse); // do it.
           retVal &= Util::stringToBool(response);
@@ -281,11 +294,6 @@ namespace Triggers{
     unsetenv("MIST_TUUID");
     unsetenv("MIST_TIME");
     unsetenv("MIST_DATE");
-
-    if (dryRun){
-      return false;
-    }else{
-      return retVal;
-    }
+    return !dryRun && retVal;
   }
 }// namespace Triggers

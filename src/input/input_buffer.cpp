@@ -26,6 +26,7 @@
 
 namespace Mist{
   InputBuffer::InputBuffer(Util::Config *cfg) : Input(cfg){
+    lastBPS = 0;
     firstProcTime = 0;
     lastProcTime = 0;
     allProcsRunning = false;
@@ -166,14 +167,6 @@ namespace Mist{
     }
   }
 
-  /*LTS-START*/
-  static bool liveBW(const char *param, const void *bwPtr){
-    if (!param || !bwPtr){return false;}
-    INFO_MSG("Comparing %s to %" PRIu32, param, *((uint32_t *)bwPtr));
-    return JSON::Value(param).asInt() <= *((uint32_t *)bwPtr);
-  }
-  /*LTS-END*/
-
   /// \triggers
   /// The `"STREAM_BUFFER"` trigger is stream-specific, and is ran whenever the buffer changes state
   /// between playable (FULL) or not (EMPTY). It cannot be cancelled. It is possible to receive
@@ -192,8 +185,7 @@ namespace Mist{
     }
     static bool wentDry = false;
     static uint64_t lastFragCount = 0xFFFFull;
-    static uint32_t lastBPS = 0; /*LTS*/
-    uint32_t currBPS = 0;
+    size_t currBPS = 0;
     uint64_t firstms = 0xFFFFFFFFFFFFFFFFull;
     uint64_t lastms = 0;
     uint64_t fragCount = 0xFFFFull;
@@ -218,10 +210,13 @@ namespace Mist{
       if (M.getFirstms(i) < firstms){firstms = M.getFirstms(i);}
       if (M.getLastms(i) > lastms){lastms = M.getLastms(i);}
     }
-    /*LTS-START*/
     if (currBPS != lastBPS){
       lastBPS = currBPS;
-      if (Triggers::shouldTrigger("LIVE_BANDWIDTH", streamName, liveBW, &lastBPS)){
+      if (Triggers::shouldTrigger("LIVE_BANDWIDTH", streamName, [this](const char *param) {
+        if (!param) { return false; }
+        DONTEVEN_MSG("Comparing %s to %zu", param, lastBPS);
+        return JSON::Value(param).asInt() <= lastBPS;
+      })) {
         std::stringstream pl;
         pl << streamName << "\n" << lastBPS;
         std::string payload = pl.str();
@@ -252,7 +247,6 @@ namespace Mist{
       wentDry = stream_details.isMember("issues");
       lastFragCount = fragCount;
     }
-    /*LTS-END*/
     finalMillis = lastms;
     meta.setBufferWindow(lastms - firstms);
     meta.setLive(true);

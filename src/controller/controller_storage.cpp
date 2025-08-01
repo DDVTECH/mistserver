@@ -879,6 +879,7 @@ namespace Controller{
                     namesArray.append(shIt->asString());
                   }
                   if (namesArray.size()){
+                    namesArray.append("\000\000\000\000", 4);
                     memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));
                   }
                 }

@@ -199,7 +199,25 @@ namespace MP4{
       initBox = vEntryBox.getPASP();
       if (initBox.isType("av1C")){initData.assign(initBox.payload(), initBox.payloadSize());}
     }
-    if (sType == "mp4a" || sType == "aac " || sType == "ac-3"){
+    if (sType == "vp08") {
+      codec = "VP8";
+      isCompatible = true;
+      MP4::VisualSampleEntry & vEntryBox = (MP4::VisualSampleEntry &)sEntryBox;
+      if (!vidWidth) {
+        vidWidth = vEntryBox.getWidth();
+        vidHeight = vEntryBox.getHeight();
+      }
+    }
+    if (sType == "vp09") {
+      codec = "VP9";
+      isCompatible = true;
+      MP4::VisualSampleEntry & vEntryBox = (MP4::VisualSampleEntry &)sEntryBox;
+      if (!vidWidth) {
+        vidWidth = vEntryBox.getWidth();
+        vidHeight = vEntryBox.getHeight();
+      }
+    }
+    if (sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "Opus") {
       MP4::AudioSampleEntry &aEntryBox = (MP4::AudioSampleEntry &)sEntryBox;
       audRate = aEntryBox.getSampleRate();
       audChannels = aEntryBox.getChannelCount();
@@ -227,6 +245,12 @@ namespace MP4{
               initData = esdsBox.getInitData();
             }
           }
+        }
+        if (codingBox.getType() == "dOps") {
+          MP4::DOPS & dopsBox = (MP4::DOPS &)codingBox;
+          codec = "opus";
+          isCompatible = true;
+          initData = dopsBox.toInit();
         }
       }
     }

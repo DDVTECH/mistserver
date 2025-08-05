@@ -224,6 +224,12 @@ namespace MP4{
     std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class VPCC : public fullBox {
+    public:
+      VPCC();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class Descriptor{
   public:
     Descriptor();
@@ -297,6 +303,13 @@ namespace MP4{
     char getFrameSizeCode();                           // 6bits
     void setFrameSizeCode(char newVal);                // 6bits
     std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class DOPS : public Box {
+    public:
+      DOPS(const std::string & initData);
+      std::string toInit() const;
+      std::string toPrettyString(uint32_t indent = 0);
   };
 
   class FTYP : public Box{
@@ -841,6 +854,12 @@ namespace MP4{
     std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class Opus : public AudioSampleEntry {
+    public:
+      Opus();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class HEV1 : public VisualSampleEntry{
   public:
     HEV1();
@@ -863,6 +882,18 @@ namespace MP4{
   public:
     AV01();
     std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class VP08 : public VisualSampleEntry {
+    public:
+      VP08();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class VP09 : public VisualSampleEntry {
+    public:
+      VP09();
+      std::string toPrettyString(uint32_t indent = 0);
   };
 
   class FIEL : public Box{

@@ -267,11 +267,16 @@ namespace MP4{
       return ((MP4A *)this)->toPrettyString(indent);
       break;
     case 0x64616333: return ((DAC3 *)this)->toPrettyString(indent); break;
+    case 0x644f7073: return ((DOPS *)this)->toPrettyString(indent); break;
     case 0x61616320: return ((AAC *)this)->toPrettyString(indent); break;
+    case 0x4f707573: return ((Opus *)this)->toPrettyString(indent); break;
     case 0x68766331:
     case 0x68657631: return ((HEV1 *)this)->toPrettyString(indent); break;
     case 0x61763031: return ((AV01 *)this)->toPrettyString(indent); break;
     case 0x61763143: return ((AV1C *)this)->toPrettyString(indent); break;
+    case 0x76703038: return ((VP08 *)this)->toPrettyString(indent); break;
+    case 0x76703039: return ((VP09 *)this)->toPrettyString(indent); break;
+    case 0x76706343: return ((VPCC *)this)->toPrettyString(indent); break;
     case 0x61766331:
     case 0x656E6376: // encv
       return ((AVC1 *)this)->toPrettyString(indent);

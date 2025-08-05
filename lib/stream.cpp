@@ -128,6 +128,9 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
     /// https://aomediacodec.github.io/av1-isobmff/#av1codecconfigurationbox-syntax
     return r.str();
   }
+  if (codec == "opus") { return "opus"; }
+  if (codec == "VP8") { return "vp8"; }
+  if (codec == "VP9") { return "vp9.00.00.08"; }
   return "";
 }
 

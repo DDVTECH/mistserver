@@ -908,6 +908,35 @@ namespace MP4{
     memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
   }
 
+  VPCC::VPCC() {
+    memcpy(data + 4, "vpcC", 4);
+    setVersion(1);
+    setFlags(0);
+    setInt8(0, 4); // Profile 0
+    setInt8(0, 5); // Level 0
+    setInt8(0x80, 6); // Bit depth 8, Chroma 0, regular range
+    setInt8(2, 7); // Color prims 2
+    setInt8(2, 8); // Transfer Charas 2
+    setInt8(2, 9); // Matrix Coeffs 2
+    setInt16(0, 10); // No init data
+  }
+
+  std::string VPCC::toPrettyString(uint32_t indent) {
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[vpcC] VP Init Data (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "Profile: " << (int)getInt8(4) << std::endl;
+    r << std::string(indent + 1, ' ') << "Level: " << (int)getInt8(5) << std::endl;
+    r << std::string(indent + 1, ' ') << "Bitdepth: " << (int)((getInt8(6) & 0b11110000) >> 4) << std::endl;
+    r << std::string(indent + 1, ' ') << "Chroma Subsampling: " << (int)(getInt8(6) & 0x00001110) << std::endl;
+    r << std::string(indent + 1, ' ') << "Full Range Flag: " << (int)(getInt8(6) & 0x00000001) << std::endl;
+    r << std::string(indent + 1, ' ') << "Color Primaries: " << (int)getInt8(7) << std::endl;
+    r << std::string(indent + 1, ' ') << "Transfer Characs: " << (int)getInt8(8) << std::endl;
+    r << std::string(indent + 1, ' ') << "Matrix Coeffs: " << (int)getInt8(9) << std::endl;
+    r << std::string(indent + 1, ' ') << "Init data length: " << (int)getInt16(10) << std::endl;
+    return r.str();
+  }
+
   Descriptor::Descriptor(){
     data = (char *)malloc(2);
     data[0] = 0;
@@ -1275,6 +1304,46 @@ namespace MP4{
     r << std::string(indent + 1, ' ') << "ACMOD: " << (int)getAudioConfigMode() << std::endl;
     r << std::string(indent + 1, ' ') << "LFEON: " << (int)getLowFrequencyEffectsChannelOn() << std::endl;
     r << std::string(indent + 1, ' ') << "FrameSizeCode: " << (int)getFrameSizeCode() << std::endl;
+    return r.str();
+  }
+
+  DOPS::DOPS(const std::string & initData) {
+    memcpy(data + 4, "dOps", 4);
+    setInt8(0, 0); // Version 0
+    // If the init data size looks good, we copy it as-is.
+    if (initData.size() > 19 && initData[18] && initData.size() == 21 + initData[9]) {
+      for (size_t i = 9; i < initData.size(); ++i) { setInt8(initData[i], i - 8); }
+    } else {
+      // If not, copy the first 19 bytes (if available)
+      for (size_t i = 9; i < initData.size() && i < 19; ++i) { setInt8(initData[i], i - 8); }
+      // Then add zeroes until we have 19 bytes
+      for (size_t i = initData.size(); i < 19; ++i) { setInt8(0, i - 8); }
+      // And ensure we set the last byte (channel map) to zero
+      setInt8(0, 10);
+    }
+    setInt32(48000, 4); // Override sample rate in case it is corrupt
+  }
+
+  std::string DOPS::toInit() const {
+    std::string r("OpusHead\001", 9);
+    r.append(data + payloadOffset + 1, payloadSize() - 1);
+    return r;
+  }
+
+  std::string DOPS::toPrettyString(uint32_t indent) {
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[dOps] Opus specific box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "Version: " << (unsigned int)getInt8(0) << std::endl;
+    r << std::string(indent + 1, ' ') << "Output channel count: " << (unsigned int)getInt8(1) << std::endl;
+    r << std::string(indent + 1, ' ') << "Preskip: " << getInt16(2) << std::endl;
+    r << std::string(indent + 1, ' ') << "Input sample rate: " << getInt32(4) << std::endl;
+    r << std::string(indent + 1, ' ') << "Output gain: " << getInt16(8) << std::endl;
+    r << std::string(indent + 1, ' ') << "Channel mapping family: " << (unsigned int)getInt8(10) << std::endl;
+    if (getInt8(10)) {
+      r << std::string(indent + 2, ' ') << "Stream count: " << (unsigned int)getInt8(11) << std::endl;
+      r << std::string(indent + 2, ' ') << "Coupled count: " << (unsigned int)getInt8(12) << std::endl;
+      r << std::string(indent + 2, ' ') << (unsigned int)getInt8(1) << "b channel map data" << std::endl;
+    }
     return r.str();
   }
 
@@ -2813,6 +2882,16 @@ namespace MP4{
       av1cBox.setPayload(M.getInit(idx));
       setCLAP(av1cBox);
     }
+    if (tCodec == "VP8") {
+      setCodec("vp08");
+      MP4::VPCC vpccBox;
+      setCLAP(vpccBox);
+    }
+    if (tCodec == "VP9") {
+      setCodec("vp09");
+      MP4::VPCC vpccBox;
+      setCLAP(vpccBox);
+    }
     MP4::PASP paspBox;
     setPASP(paspBox);
   }
@@ -2979,15 +3058,17 @@ namespace MP4{
     setSampleRate(M.getRate(idx));
     setChannelCount(M.getChannels(idx));
     setSampleSize(M.getSize(idx));
-    if (tCodec == "AAC" || tCodec == "MP3"){
-      setCodec("mp4a");
-      setSampleSize(16);
-    }
-    if (tCodec == "AC3"){setCodec("ac-3");}
     if (tCodec == "AC3"){
+      setCodec("ac-3");
       MP4::DAC3 dac3Box(M.getRate(idx), M.getChannels(idx));
       setCodecBox(dac3Box);
-    }else{// other codecs use the ESDS box
+    } else if (tCodec == "opus") {
+      setCodec("Opus");
+      MP4::DOPS dopsBox(M.getInit(idx));
+      setCodecBox(dopsBox);
+    } else { // other codecs use the ESDS box
+      setCodec("mp4a");
+      setSampleSize(16);
       MP4::ESDS esdsBox(M, idx);
       setCodecBox(esdsBox);
     }
@@ -3344,6 +3425,14 @@ namespace MP4{
     return toPrettyAudioString(indent, "[aac ] Advanced Audio Codec");
   }
 
+  Opus::Opus() {
+    memcpy(data + 4, "Opus", 4);
+  }
+
+  std::string Opus::toPrettyString(uint32_t indent) {
+    return toPrettyAudioString(indent, "[Opus] Opus Audio");
+  }
+
   HEV1::HEV1(){memcpy(data + 4, "hev1", 4);}
 
   std::string HEV1::toPrettyString(uint32_t indent){
@@ -3366,6 +3455,22 @@ namespace MP4{
 
   std::string AV01::toPrettyString(uint32_t indent){
     return toPrettyVisualString(indent, "[av01] AV1 Video");
+  }
+
+  VP08::VP08() {
+    memcpy(data + 4, "vp08", 4);
+  }
+
+  std::string VP08::toPrettyString(uint32_t indent) {
+    return toPrettyVisualString(indent, "[vp08] VP8 Video");
+  }
+
+  VP09::VP09() {
+    memcpy(data + 4, "vp09", 4);
+  }
+
+  std::string VP09::toPrettyString(uint32_t indent) {
+    return toPrettyVisualString(indent, "[vp09] VP9 Video");
   }
 
   FIEL::FIEL(){memcpy(data + 4, "fiel", 4);}

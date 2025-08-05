@@ -1,4 +1,5 @@
 #include "output_mp4.h"
+
 #include <mist/bitfields.h>
 #include <mist/checksum.h>
 #include <mist/defines.h>
@@ -7,10 +8,10 @@
 #include <mist/mp4_dash.h>
 #include <mist/mp4_encryption.h>
 #include <mist/mp4_generic.h>
-#include <mist/stream.h> /* for `Util::codecString()` when streaming mp4 over websockets and playback using media source extensions. */
 #include <mist/nal.h>
+#include <mist/stream.h> /* for `Util::codecString()` when streaming mp4 over websockets and playback using media source extensions. */
+
 #include <inttypes.h>
-#include <fstream>
 
 std::set<std::string> supportedAudio;
 std::set<std::string> supportedVideo;
@@ -127,9 +128,12 @@ namespace Mist{
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("AV1");
+    capa["codecs"][0u][0u].append("VP8");
+    capa["codecs"][0u][0u].append("VP9");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("opus");
     jsonForEach(capa["codecs"][0u][0u], i){supportedVideo.insert(i->asStringRef());}
     jsonForEach(capa["codecs"][0u][1u], i){supportedAudio.insert(i->asStringRef());}
     capa["methods"][0u]["handler"] = "http";
@@ -245,6 +249,7 @@ namespace Mist{
     }
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
       const std::string tType = M.getType(it->first);
+      const std::string codec = M.getCodec(it->first);
       uint64_t tmpRes = 0;
       DTSC::Keys keys = M.getKeys(it->first);
       DTSC::Parts parts(M.parts(it->first));
@@ -268,22 +273,39 @@ namespace Mist{
 
       // Type-specific boxes
       if (tType == "video"){
-        tmpRes += 20                                 // VMHD Box
-                  + 16                               // STSD
-                  + 86                               // AVC1
-                  + 16                               // PASP
-                  + 8 + M.getInit(it->first).size(); // avcC
+        tmpRes += 20 // VMHD Box
+          + 16 // STSD
+          + 86 // VisualSampleEntry
+          + 16; // PASP
+        if (codec == "H264" || codec == "HEVC" || codec == "AV1") {
+          // avcC/hvcc/av1c boxes merely are the init data with an 8b header in front
+          tmpRes += 8 + M.getInit(it->first).size();
+        } else if (codec == "VP8" || codec == "VP9") {
+          // the vpcc box is always 20 bytes long
+          tmpRes += 20;
+        } else {
+          FAIL_MSG("Unimplemented size calculation for %s!", codec.c_str());
+        }
         if (!fragmented){
           tmpRes += 16 + (keys.getValidCount() * 4); // STSS
         }
       }
-      if (tType == "audio"){
-        tmpRes += 16   // SMHD Box
-                  + 16 // STSD
-                  + 36 // MP4A
-                  + 35;
-        if (M.getInit(it->first).size()){
-          tmpRes += 2 + M.getInit(it->first).size(); // ESDS - Content expansion
+      if (tType == "audio") {
+        tmpRes += 16 // SMHD Box
+          + 16 // STSD
+          + 36; // AudioSampleEntry
+        if (codec == "AAC" || codec == "MP3") {
+          tmpRes += 35; // ESDS
+          if (M.getInit(it->first).size()) {
+            tmpRes += 2 + M.getInit(it->first).size(); // ESDS - Content expansion
+          }
+        } else if (codec == "opus") {
+          // Normally the dOps box is the same size as the init data, but it may need normalisation.
+          // Rather than duplicating the code, we just make a temp box and measure its size.
+          MP4::DOPS dopsBox(M.getInit(it->first));
+          tmpRes += dopsBox.boxedSize();
+        } else {
+          FAIL_MSG("Unimplemented size calculation for %s!", codec.c_str());
         }
       }
 

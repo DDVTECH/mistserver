@@ -55,10 +55,13 @@ namespace Mist{
     capa["codecs"]["video"].append("H264");
     capa["codecs"]["video"].append("H263");
     capa["codecs"]["video"].append("VP6");
+    capa["codecs"]["video"].append("VP8");
+    capa["codecs"]["video"].append("VP9");
     capa["codecs"]["video"].append("AV1");
     capa["codecs"]["audio"].append("AAC");
     capa["codecs"]["audio"].append("AC3");
     capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("opus");
     readPos = 0;
     nextBox = 0;
   }
@@ -238,6 +241,7 @@ namespace Mist{
         if (sawParts && !parsedInitial){
           for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); ++it){
             tNumber = M.trackIDToIndex(it->trackId);
+            if (tNumber == INVALID_TRACK_ID) { continue; }
             for (uint64_t partNo = 0; partNo < it->size(); ++partNo){
               uint64_t prtBpos = 0, prtTime = 0;
               uint32_t prtBlen = 0;
@@ -272,6 +276,7 @@ namespace Mist{
         for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); it++){
           if (!it->compatible()){continue;}
           tNumber = M.trackIDToIndex(it->trackId);
+          if (tNumber == INVALID_TRACK_ID) { continue; }
           for (uint64_t partNo = 0; partNo < it->size(); ++partNo){
             uint64_t prtBpos = 0, prtTime = 0;
             uint32_t prtBlen = 0;
@@ -308,6 +313,7 @@ namespace Mist{
     if (!parsedInitial){
       for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); ++it){
         tNumber = M.trackIDToIndex(it->trackId);
+        if (tNumber == INVALID_TRACK_ID) { continue; }
         for (uint64_t partNo = 0; partNo < it->size(); ++partNo){
           uint64_t prtBpos = 0, prtTime = 0;
           uint32_t prtBlen = 0;
@@ -372,6 +378,7 @@ namespace Mist{
         }
         nextBox += boxSize;
       }
+      if (!curPositions.size()) { return; }
     }
 
     // pop uit set

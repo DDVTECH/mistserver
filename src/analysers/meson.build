@@ -8,6 +8,7 @@ analysers = [
     {'name': 'TS', 'format': 'ts'},
     {'name': 'MP4', 'format': 'mp4'},
     {'name': 'H264', 'format': 'h264'},
+    {'name': 'AV1', 'format': 'av1'},
     {'name': 'HLS', 'format': 'hls'},
     {'name': 'RIFF', 'format': 'riff'},
     {'name': 'RTSP', 'format': 'rtsp'},

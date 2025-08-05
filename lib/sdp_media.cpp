@@ -16,32 +16,34 @@ namespace SDP{
       return "VP8";
     }else if (codec == "VP9"){
       return "VP9";
-    }else if (codec == "AC3"){
+    } else if (codec == "AV1") {
+      return "AV1";
+    } else if (codec == "AC3") {
       return "AC3";
-    }else if (codec == "PCMA"){
+    } else if (codec == "PCMA") {
       return "ALAW";
-    }else if (codec == "PCMU"){
+    } else if (codec == "PCMU") {
       return "ULAW";
-    }else if (codec == "L8"){
+    } else if (codec == "L8") {
       return "PCM";
-    }else if (codec == "L16"){
+    } else if (codec == "L16") {
       return "PCM";
-    }else if (codec == "L20"){
+    } else if (codec == "L20") {
       return "PCM";
-    }else if (codec == "L24"){
+    } else if (codec == "L24") {
       return "PCM";
-    }else if (codec == "MPA"){
+    } else if (codec == "MPA") {
       // can also be MP2, the data should be inspected.
       return "MP3";
-    }else if (codec == "MPEG4-GENERIC"){
+    } else if (codec == "MPEG4-GENERIC") {
       return "AAC";
-    }else if (codec == "OPUS"){
+    } else if (codec == "OPUS") {
       return "opus";
-    }else if (codec == "WEBRTC-DATACHANNEL"){
+    } else if (codec == "WEBRTC-DATACHANNEL") {
       return "JSON";
-    }else if (codec == "ULPFEC"){
+    } else if (codec == "ULPFEC") {
       return "";
-    }else if (codec == "RED"){
+    } else if (codec == "RED") {
       return "";
     }
     ERROR_MSG("%s support not implemented", codec.c_str());
@@ -57,29 +59,31 @@ namespace SDP{
       return "VP8";
     }else if (codec == "VP9"){
       return "VP9";
-    }else if (codec == "AC3"){
+    } else if (codec == "AV1") {
+      return "AV1";
+    } else if (codec == "AC3") {
       return "AC3";
-    }else if (codec == "ALAW"){
+    } else if (codec == "ALAW") {
       return "PCMA";
-    }else if (codec == "ULAW"){
+    } else if (codec == "ULAW") {
       return "PCMU";
-    }else if (codec == "PCM"){
+    } else if (codec == "PCM") {
       return "L24";
-    }else if (codec == "MP2"){
+    } else if (codec == "MP2") {
       return "MPA";
-    }else if (codec == "MP3"){
+    } else if (codec == "MP3") {
       return "MPA";
-    }else if (codec == "AAC"){
+    } else if (codec == "AAC") {
       return "MPEG4-GENERIC";
-    }else if (codec == "JSON"){
+    } else if (codec == "JSON") {
       return "WEBRTC-DATACHANNEL";
-    }else if (codec == "subtitle"){
+    } else if (codec == "subtitle") {
       return "WEBRTC-DATACHANNEL";
-    }else if (codec == "opus"){
+    } else if (codec == "opus") {
       return "OPUS";
-    }else if (codec == "ULPFEC"){
+    } else if (codec == "ULPFEC") {
       return "";
-    }else if (codec == "RED"){
+    } else if (codec == "RED") {
       return "";
     }
     ERROR_MSG("%s support not implemented", codec.c_str());
@@ -197,6 +201,8 @@ namespace SDP{
     }else if (encodingName == "VP8"){
       return 90000;
     }else if (encodingName == "VP9"){
+      return 90000;
+    } else if (encodingName == "AV1") {
       return 90000;
     }
 

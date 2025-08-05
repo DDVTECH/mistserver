@@ -9,18 +9,19 @@
 #include "util.h"
 #include <sys/socket.h>
 
-//Dynamic types we hardcode:
-//96 = AAC
-//97 = H264
-//98 = VP8
-//99 = VP9
-//100 = AC3
-//101 = ALAW (non-standard properties)
-//102 = opus
-//103 = PCM (non-standard properties)
-//104 = HEVC
-//105 = ULAW (non-standard properties)
-//106+ = unused
+// Dynamic types we hardcode:
+// 96 = AAC
+// 97 = H264
+// 98 = VP8
+// 99 = VP9
+// 100 = AC3
+// 101 = ALAW (non-standard properties)
+// 102 = opus
+// 103 = PCM (non-standard properties)
+// 104 = HEVC
+// 105 = ULAW (non-standard properties)
+// 106 = AV1
+// 107+ = unused
 
 namespace SDP{
 
@@ -136,11 +137,12 @@ namespace SDP{
                 << "a=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\n"
                 << "a=control:track" << tid << "\r\n";
     }else if (codec == "VP9"){
-      mediaDesc << "m=video " << port << " RTP/AVP 99\r\n"
-                   "a=rtpmap:99 VP8/90000\r\n"
+      mediaDesc << "m=video " << port
+                << " RTP/AVP 99\r\n"
+                   "a=rtpmap:99 VP9/90000\r\n"
                    "a=cliprect:0,0,"
-                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:99 "
-                << M.getWidth(tid) << '-' << M.getHeight(tid) << "\r\n"
+                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:99 " << M.getWidth(tid) << '-'
+                << M.getHeight(tid) << "\r\n"
                 << "a=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\n"
                 << "a=control:track" << tid << "\r\n";
     }else if (codec == "MPEG2"){
@@ -215,6 +217,20 @@ namespace SDP{
                    "a=rtpmap:102 opus/"
                 << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n"
                 << "a=control:track" << tid << "\r\n";
+    } else if (codec == "AV1") {
+      mediaDesc << "m=video " << port
+                << " RTP/AVP 106\r\n"
+                   "a=rtpmap:106 AV1/90000\r\n"
+                   "a=cliprect:0,0,"
+                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:99 " << M.getWidth(tid) << '-'
+                << M.getHeight(tid) << "\r\n"
+                << "a=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\n"
+                << "a=control:track" << tid << "\r\n";
+      if (init.size()) {
+        mediaDesc << "a=fmtp:106 profile=" << (int)((init[1] & 0xE0) >> 5) << "; "
+                  << "level-idx=" << (int)(init[1] & 0x1F) << "; "
+                  << "tier=" << (int)((init[2] & 0x80) >> 7) << ";\r\n";
+      }
     }
     return mediaDesc.str();
   }
@@ -321,7 +337,9 @@ namespace SDP{
       }
     }else if (codec == "opus"){
       pack = RTP::Packet(102, 1, 0, mySSRC);
-    }else{
+    } else if (codec == "AV1") {
+      pack = RTP::Packet(106, 1, 0, mySSRC);
+    } else {
       ERROR_MSG("Unsupported codec %s for RTSP on track %zu", codec.c_str(), tid);
       return false;
     }

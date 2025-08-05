@@ -304,6 +304,7 @@ namespace Mist{
     totalPkts = 0;
     totalLoss = 0;
     totalRetrans = 0;
+    lastSR = 0;
     setPacketOffset = false;
     packetOffset = 0;
     lastRecv = Util::bootMS();
@@ -540,6 +541,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("VP8");
     capa["codecs"][0u][0u].append("VP9");
+    capa["codecs"][0u][0u].append("AV1");
     capa["codecs"][0u][1u].append("opus");
     capa["codecs"][0u][1u].append("ALAW");
     capa["codecs"][0u][1u].append("ULAW");
@@ -561,7 +563,7 @@ namespace Mist{
     capa["optional"]["preferredvideocodec"]["help"] =
         "Comma separated list of video codecs you want to support in preferred order. e.g. "
         "H264,VP8";
-    capa["optional"]["preferredvideocodec"]["default"] = "H264,VP9,VP8";
+    capa["optional"]["preferredvideocodec"]["default"] = "H264,AV1,VP9,VP8";
     capa["optional"]["preferredvideocodec"]["type"] = "str";
     capa["optional"]["preferredvideocodec"]["option"] = "--webrtc-video-codecs";
     capa["optional"]["preferredvideocodec"]["short"] = "V";
@@ -1222,7 +1224,7 @@ namespace Mist{
     capa["codecs"].null();
 
     if (sdpSession.getMediaForType("video")) {
-      for (const std::string c : {"H264", "VP9", "VP8"}) {
+      for (const std::string c : {"H264", "AV1", "VP9", "VP8"}) {
         if (sdpSession.getMediaFormatByEncodingName("video", c)) { capa["codecs"][0u][0u].append(c); }
       }
     }
@@ -1249,12 +1251,12 @@ namespace Mist{
 
     if (!udpPort) { setupIncomingMainSocket(); }
 
-    std::string prefVideoCodec = "VP9,VP8,H264";
+    std::string prefVideoCodec = "VP9,VP8,H264,AV1";
     if (config && config->hasOption("preferredvideocodec")){
       prefVideoCodec = config->getString("preferredvideocodec");
       if (prefVideoCodec.empty()){
         WARN_MSG("No preferred video codec value set; resetting to default.");
-        prefVideoCodec = "VP9,VP8,H264";
+        prefVideoCodec = "H264,AV1,VP9,VP8";
       }
     }
 

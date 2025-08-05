@@ -78,6 +78,7 @@ namespace Mist{
     capa["codecs"][0u][10u].append("+PCM");
     capa["codecs"][0u][11u].append("+opus");
     capa["codecs"][0u][12u].append("+MP2");
+    capa["codecs"][0u][13u].append("+AV1");
 
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";

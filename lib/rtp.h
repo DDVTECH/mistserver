@@ -87,7 +87,9 @@ namespace RTP{
     void sendTS(void *socket, const char *payload, unsigned int payloadlen);
     void sendH264(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen,
                   bool lastOfAccessUnit);
+    void sendAV1(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
     void sendVP8(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
+    void sendVP9(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
     void sendH265(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
     void sendMPEG2(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen);
     void sendData(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen,

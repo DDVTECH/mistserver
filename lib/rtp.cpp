@@ -1,11 +1,14 @@
+#include "rtp.h"
+
 #include "adts.h"
+#include "av1.h"
 #include "bitfields.h"
 #include "defines.h"
 #include "h264.h"
 #include "mpeg.h"
-#include "rtp.h"
 #include "sdp.h"
 #include "timing.h"
+
 #include <arpa/inet.h>
 
 namespace RTP{
@@ -324,6 +327,89 @@ namespace RTP{
     }
   }
 
+  void Packet::sendAV1(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen) {
+    // Spec: https://aomediacodec.github.io/av1-rtp-spec/
+    size_t payloadOffset = 0;
+    size_t rtpPacketSize = 0;
+    uint32_t headerSize = getHsize();
+    bool isKeyframe = false;
+
+    // Loop over payload, check for keyframe status
+    while (!isKeyframe && payloadOffset < payloadlen) {
+      AV1::OBU obu(payload + payloadOffset, payloadlen - payloadOffset);
+      isKeyframe |= obu.isKeyframe();
+      payloadOffset += obu.getSize();
+    }
+    // Reset payloadOffset so we can re-use it below
+    payloadOffset = 0;
+
+    // Set up first packet
+    data[1] &= 0x7F; // unset marker bit
+    data[headerSize] = 0x00; // reset aggregation header
+    // Set keyframe flag if this is indeed a keyframe
+    if (isKeyframe) { data[headerSize] |= 0x08; }
+    rtpPacketSize = headerSize + 1;
+
+    while (payloadlen > 0) {
+      size_t OBUSize = AV1::OBU(payload + payloadOffset, payloadlen).getSize();
+      DONTEVEN_MSG("RTP-packing AV1 OBU (T=%" PRIu32 "): %s", getTimeStamp(),
+                   AV1::OBU(payload + payloadOffset, payloadlen).toString().c_str());
+
+      payloadlen -= OBUSize;
+
+      // Get the string encoding the full OBU length
+      std::string obuSizeBytes = AV1::leb128(OBUSize);
+
+      // Close to a full packet and this won't fit? Send now to encourage OBU alignment.
+      if (rtpPacketSize + maxDataLen / 3 > maxDataLen && rtpPacketSize + OBUSize > maxDataLen) {
+        callBack(data, rtpPacketSize);
+        increaseSequence();
+        sentBytes += rtpPacketSize;
+        sentPackets++;
+        // prepare new packet
+        data[headerSize] = 0x00; // reset aggregation header
+        rtpPacketSize = headerSize + 1;
+      }
+
+      // Write to packet and potentially send as long as we have more data to write
+      while (OBUSize) {
+        size_t writeLen = OBUSize;
+        if (rtpPacketSize + writeLen + 4 > maxDataLen) { writeLen = maxDataLen - rtpPacketSize - 4; }
+
+        // Copy in OBU size
+        obuSizeBytes = AV1::leb128(writeLen);
+        memcpy(data + rtpPacketSize, obuSizeBytes.data(), obuSizeBytes.size());
+        rtpPacketSize += obuSizeBytes.size();
+        // Copy in OBU payload
+        memcpy(data + rtpPacketSize, payload + payloadOffset, writeLen);
+        payloadOffset += writeLen;
+        rtpPacketSize += writeLen;
+
+        // Not a finished write? Send the packet and prepare a new one
+        if (writeLen != OBUSize) {
+          data[headerSize] |= 0x40; // mark last OBU incomplete
+          callBack(data, rtpPacketSize);
+          increaseSequence();
+          sentBytes += rtpPacketSize;
+          sentPackets++;
+          // prepare new packet
+          data[headerSize] = 0x00; // reset aggregation header
+          data[headerSize] |= 0x80; // Not OBU aligned
+          rtpPacketSize = headerSize + 1;
+        }
+
+        OBUSize -= writeLen;
+      } // send loop within single OBU
+    } // loop over each OBU
+
+    // Send final packet
+    data[1] |= 0x80; // set marker bit, we completed a frame
+    callBack(data, rtpPacketSize);
+    increaseSequence();
+    sentBytes += rtpPacketSize;
+    sentPackets++;
+  }
+
   void Packet::sendVP8(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen){
 
     bool isKeyframe = ((payload[0] & 0x01) == 0) ? true : false;
@@ -339,19 +425,56 @@ namespace RTP{
       data[1] = (0 != payloadlen) ? (data[1] & 0x7F) : (data[1] | 0x80); // marker bit, 1 for last chunk.
       data[headerSize] = 0x00;                                           // reset
       data[headerSize] |= (isStartOfPartition) ? 0x10 : 0x00; // first chunk is always start of a partition.
-      data[headerSize] |= (isKeyframe) ? 0x00 : 0x20; // non-reference frame. 0 = frame is needed, 1 = frame can be disgarded.
+      data[headerSize] |= (isKeyframe) ? 0x00 : 0x20; // non-reference frame. 0 = frame is needed, 1 = frame can be discarded.
 
       memcpy(data + headerSize + 1, payload + bytesWritten, chunkSize);
       callBack(data, headerSize + 1 + chunkSize);
       increaseSequence();
-      // INFO_MSG("chunk: %zu, sequence: %u", chunkSize, getSequence());
 
       isStartOfPartition = false;
       bytesWritten += chunkSize;
       sentBytes += headerSize + 1 + chunkSize;
       sentPackets++;
     }
-    // WARN_MSG("KEYFRAME: %c", (isKeyframe) ? 'y' : 'n');
+  }
+
+  void Packet::sendVP9(std::function<void(const char *, size_t)> callBack, const char *pl, unsigned int len) {
+    // Spec: https://datatracker.ietf.org/doc/html/rfc9628
+
+    bool isKeyframe = false;
+    if ((pl[0] & 0x30) == 0x30) {
+      // profile 3 has an extra bit
+      // show existing frame == 0 && frame_type == 0, then keyframe!
+      isKeyframe = (!(pl[0] & 0x04) && !(pl[0] & 0x02));
+    } else {
+      // show existing frame == 0 && frame_type == 0, then keyframe!
+      isKeyframe = (!(pl[0] & 0x08) && !(pl[0] & 0x04));
+    }
+    bool isStartOfPartition = true;
+    size_t chunkSize = MAX_SEND;
+    size_t bytesWritten = 0;
+    uint32_t headerSize = getHsize();
+
+    while (len > 0) {
+      chunkSize = std::min<size_t>(1200, len);
+      len -= chunkSize;
+
+      data[1] = len ? (data[1] & 0x7F) : (data[1] | 0x80); // marker bit, 1 for last chunk.
+      data[headerSize] = 0x00; // reset VP9 payload descriptor
+      if (isStartOfPartition) { data[headerSize] |= 0x08; } // Begin of frame flag (B)
+      if (!len) { data[headerSize] |= 0x04; } // End of frame flag (E)
+      if (!isKeyframe) { data[headerSize] |= 0x40; } // Predicted frame flag (P)
+      data[headerSize] |= (isKeyframe) ? 0x00 : 0x40; // predicted frame flag. 0 = no references, 1 = has references.
+
+      memcpy(data + headerSize + 1, pl + bytesWritten, chunkSize);
+      callBack(data, headerSize + 1 + chunkSize);
+      increaseSequence();
+
+      isStartOfPartition = false;
+      bytesWritten += chunkSize;
+      sentBytes += headerSize + 1 + chunkSize;
+      sentPackets++;
+    }
   }
 
   void Packet::sendH265(std::function<void(const char *, size_t)> callBack, const char *payload, unsigned int payloadlen){
@@ -463,12 +586,16 @@ namespace RTP{
       if (lastPtr){sendH264(callBack, lastPtr, lastLen, true);}
       return;
     }
+    if (codec == "AV1") {
+      sendAV1(callBack, payload, payloadlen);
+      return;
+    }
     if (codec == "VP8"){
       sendVP8(callBack, payload, payloadlen);
       return;
     }
     if (codec == "VP9"){
-      sendVP8(callBack, payload, payloadlen);
+      sendVP9(callBack, payload, payloadlen);
       return;
     }
     if (codec == "HEVC"){

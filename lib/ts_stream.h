@@ -5,11 +5,10 @@
 #include <map>
 #include <set>
 
-#include "shared_memory.h"
 #define TS_PTS_ROLLOVER 95443718
 
 namespace TS{
-  enum codecType{
+  enum codecType {
     H264 = 0x1B,
     AAC = 0x0F,
     AC3 = 0x81,
@@ -19,13 +18,9 @@ namespace TS{
     MPEG2 = 0x02,
     MP2 = 0x03,
     META = 0x06,
-    OPUS = 0x060001
   };
 
-  enum rawDataType{
-    NONE = 0,
-    JSON
-  };
+  enum rawDataType { NONE = 0x060000, OPUS, JSON, AV1 };
 
   class ADTSRemainder{
   private:

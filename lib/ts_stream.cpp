@@ -1,14 +1,17 @@
+#include "ts_stream.h"
+
+#include "av1.h"
 #include "defines.h"
 #include "h264.h"
 #include "h265.h"
 #include "mp4_generic.h"
 #include "mpeg.h"
 #include "nal.h"
-#include "ts_stream.h"
+#include "opus.h"
+
+#include <mutex>
 #include <stdint.h>
 #include <sys/stat.h>
-#include <mutex>
-#include "opus.h"
 
 std::recursive_mutex tMutex;
 
@@ -282,6 +285,7 @@ namespace TS{
         case MP2:
         case MPEG2:
         case OPUS:
+        case AV1:
         case META:{
           pidToCodec[pid] = sType;
           std::string & init = metaInit[pid];
@@ -295,7 +299,13 @@ namespace TS{
               pidToCodec[pid] = JSON;
             }else if (rParser == JSON){
               pidToCodec[pid] = JSON;
-            }else{
+            } else if (reg == "AV01") {
+              pidToCodec[pid] = AV1;
+            } else if (rParser == AV1) {
+              pidToCodec[pid] = AV1;
+            } else if (rParser == OPUS) {
+              pidToCodec[pid] = OPUS;
+            } else {
               pidToCodec.erase(pid);
             }
           }
@@ -494,7 +504,7 @@ namespace TS{
       }
 
       // Check for valid PES lead-in
-      if (pesHeader[0] != 0 || pesHeader[1] != 0x00 || pesHeader[2] != 0x01){
+      if (pesHeader[0] || pesHeader[1] || pesHeader[2] != 0x01) {
         INFO_MSG("Invalid PES Lead in on track %zu, discarding it", tid);
         break;
       }
@@ -686,6 +696,65 @@ namespace TS{
         out.back().genericFill(timeStamp, timeOffset, tid, pesPayload+offset, packSize, bPos, 0);
         timeStamp += Opus::Opus_getDuration(pesPayload+offset);
         offset += packSize;
+      }
+    }
+    if (thisCodec == AV1) {
+      out.push_back(DTSC::Packet());
+      DTSC::Packet & p = out.back();
+      bool hasStartCode = (realPayloadSize >= 3 && !pesPayload[0] && !pesPayload[1] && pesPayload[2] == 1);
+      if (hasStartCode) {
+        // Starts with 000001 -> start code based format: https://aomediacodec.github.io/av1-mpeg2-ts/#start-code-based-format
+        p.genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
+        p.setKeyFrame(false);
+        char *ptrStart = (char *)pesPayload + 3;
+        size_t ptrCount = 0;
+        while (ptrStart + ptrCount + 2 < pesPayload + realPayloadSize) {
+          if (!ptrStart[ptrCount] && !ptrStart[ptrCount + 1]) {
+            if (ptrStart[ptrCount + 2] == 3) {
+              // We found an emulation prevention byte.
+              // Copy what we have so far including 0x0000, skip the third byte, and continue.
+              p.appendData(ptrStart, ptrCount + 2);
+              // Move current position past the byte.
+              ptrStart += ptrCount + 3;
+              ptrCount = 0;
+            } else if (ptrStart[ptrCount + 2] == 1) {
+              // Start of next OBU
+              // Copy what we have so far excluding 0x0000, skip the three bytes, and continue.
+              p.appendData(ptrStart, ptrCount);
+              // Move current position past the byte.
+              ptrStart += ptrCount + 3;
+              ptrCount = 0;
+            } else {
+              ++ptrCount;
+            }
+          } else {
+            ++ptrCount;
+          }
+        }
+        // Append any remainder we may have left.
+        ptrCount = pesPayload + realPayloadSize - ptrStart;
+        if (ptrCount) { out.back().appendData(ptrStart, ptrCount); }
+      } else {
+        // Otherwise, assume AV1 is in there "raw"
+        p.genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize, bPos, true);
+        p.setKeyFrame(false);
+      }
+
+      char *dPtr = 0;
+      size_t dLen = 0;
+      p.getString("data", dPtr, dLen);
+      bool isKey = false;
+      DONTEVEN_MSG("Encountered AV1 %s start code, %" PRIu64 " bytes -> %zu bytes", hasStartCode ? "with" : "without",
+                   realPayloadSize, dLen);
+      for (size_t i = 0; i < dLen;) {
+        AV1::OBU obu(dPtr + i, 10000000);
+        DONTEVEN_MSG("OBU: %s", obu.toString().c_str());
+        if (!isKey && obu.isKeyframe()) {
+          p.setKeyFrame(true);
+          isKey = true;
+        }
+        if (!obu) { break; }
+        i += obu.getSize();
       }
     }
     if (thisCodec == H264 || thisCodec == H265){
@@ -1077,6 +1146,18 @@ namespace TS{
         type = "meta";
         codec = "JSON";
       }break;
+      case AV1: {
+        addNewTrack = true;
+        type = "video";
+        codec = "AV1";
+        init = TS::ProgramDescriptors(metaInit[it->first].data(), metaInit[it->first].size()).getTag(0x80);
+        if (init.size() >= 8) {
+          uint16_t div = Bit::btohs(init.data() + 6);
+          if (!div) { div = 1; }
+          fpks = Bit::btohs(init.data() + 4) * 1000 / div;
+          init.erase(4);
+        }
+      } break;
       case OPUS:{
         addNewTrack = true;
         type = "audio";
@@ -1213,6 +1294,7 @@ namespace TS{
             case MP2:
             case MPEG2:
             case OPUS:
+            case AV1:
             case META: result.insert(entry.getElementaryPid()); break;
             default: break;
             }

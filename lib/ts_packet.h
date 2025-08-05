@@ -116,6 +116,7 @@ namespace TS{
   class ProgramDescriptors{
   public:
     ProgramDescriptors(const char *data, const uint32_t len);
+    std::string getTag(uint8_t tag) const;
     std::string getLanguage() const;
     std::string getRegistration() const;
     std::string getExtension() const;

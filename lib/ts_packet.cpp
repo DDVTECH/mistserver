@@ -1156,38 +1156,29 @@ namespace TS{
   ProgramDescriptors::ProgramDescriptors(const char *data, const uint32_t len)
       : p_data(data), p_len(len){}
 
-  /// Returns the ISO-629 language code, or "und" if unknown.
-  std::string ProgramDescriptors::getLanguage() const{
+  std::string ProgramDescriptors::getTag(uint8_t tag) const {
     for (uint32_t p = 0; p + 1 < p_len; p += p_data[p + 1] + 2){
-      if (p_data[p] == 0x0A){// language tag
-        // We assume the first one is the only interesting one
-        return std::string(p_data + p + 2, 3);
-      }
+      if (p_data[p] == tag) { return std::string(p_data + p + 2, p_data[p + 1]); }
     }
-    // No tag found! Undetermined by default.
-    return "und";
+    // No tag found! Empty string by default.
+    return "";
+  }
+
+  /// Returns the ISO-629 language code, or "und" if unknown.
+  std::string ProgramDescriptors::getLanguage() const {
+    std::string ret = getTag(0x0A);
+    if (!ret.size()) { ret = "und"; }
+    return ret;
   }
 
   /// Returns the registration field, or an empty string if none present.
   std::string ProgramDescriptors::getRegistration() const{
-    for (uint32_t p = 0; p + 1 < p_len; p += p_data[p + 1] + 2){
-      if (p_data[p] == 0x05){// registration
-        return std::string(p_data + p + 2, 4);
-      }
-    }
-    // No tag found! Empty string.
-    return "";
+    return getTag(0x05);
   }
 
   /// Returns the extension field, or an empty string if none present.
   std::string ProgramDescriptors::getExtension() const{
-    for (uint32_t p = 0; p + 1 < p_len; p += p_data[p + 1] + 2){
-      if (p_data[p] == 0x7F){// extension
-        return std::string(p_data + p + 2, p_data[p+1]);
-      }
-    }
-    // No tag found! Empty string.
-    return "";
+    return getTag(0x7F);
   }
 
   /// Prints all descriptors we understand in a readable format, the others in raw hex.
@@ -1381,7 +1372,8 @@ namespace TS{
       if (codec == "ID3" || codec == "RAW"){sectionLen += M.getInit(*it).size();}
       if (codec == "AAC"){sectionLen += 4;} // length of AAC descriptor
       if (codec == "opus"){sectionLen += 10;} // 6 bytes registration desc, 4 bytes opus desc
-      if (codec == "JSON"){sectionLen += 6;} // 6 bytes registration desc, 4 bytes opus desc
+      if (codec == "JSON") { sectionLen += 6; } // 6 bytes registration desc
+      if (codec == "AV1") { sectionLen += 12; } // 6 bytes registration desc, 6 bytes AV1 desc
       std::string lang = M.getLang(*it);
       if (lang.size() == 3 && lang != "und"){
         sectionLen += 6; // language descriptor
@@ -1429,12 +1421,20 @@ namespace TS{
       }else if (codec == "JSON"){
         entry.setStreamType(0x06);
         es_info.append("\005\004JSON", 6);//registration descriptor
-      }else if (codec == "AC3"){
+      } else if (codec == "AV1") {
+        entry.setStreamType(0x06);
+        es_info.append("\005\004AV01", 6); // registration descriptor
+        std::string init = M.getInit(*it);
+        while (init.size() < 4) { init += (char)0; }
+        if (init.size() > 4) { init.erase(4); }
+        es_info.append("\200\004", 2); // AV1 descriptor
+        es_info.append(init);
+      } else if (codec == "AC3") {
         entry.setStreamType(0x81);
-      }else if (codec == "ID3"){
+      } else if (codec == "ID3") {
         entry.setStreamType(0x15);
         entry.setESInfo(M.getInit(*it));
-      }else if (codec == "RAW"){
+      } else if (codec == "RAW") {
         entry.setStreamType(0x06);
         entry.setESInfo(M.getInit(*it));
       }

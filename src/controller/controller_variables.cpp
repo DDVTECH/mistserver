@@ -74,7 +74,7 @@ namespace Controller{
           uint32_t interval = varAccX.getInt(fInterval, i);
           uint64_t lastRun = varAccX.getInt(fLastRun, i);
           uint32_t waitTime = varAccX.getInt(fWaitTime, i);
-          if (!lastRun || (interval && (lastRun + interval < now))) {
+          if (!lastRun || (interval && (lastRun + interval <= now))) {
             // Set the wait time to the interval, or 1 second if it is less than 1 second
             if (!waitTime) { waitTime = interval; }
             if (waitTime < 1000) { waitTime = 1000; }
@@ -82,6 +82,7 @@ namespace Controller{
               if (interval && now + interval < nextCheck) { nextCheck = now + interval; }
             }
           } else {
+            // Set the wait time to the next run for this variable (if less than current wait time)
             if (interval && lastRun + interval < nextCheck) { nextCheck = lastRun + interval; }
           }
         }

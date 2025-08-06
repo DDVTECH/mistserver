@@ -89,7 +89,8 @@ namespace Controller{
     }
     // Write variables from the server config to shm if any data has changed
     if (mutateShm) { writeToShm(); }
-    return nextCheck;
+    if (nextCheck < now){nextCheck = now;}
+    return nextCheck - now;
   }
 
   void variableDeinit() {

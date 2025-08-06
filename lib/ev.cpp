@@ -154,7 +154,7 @@ namespace Event{
       std::set<int> toErase;
       for (auto & S : recvSockets) {
         if (S.first < 1024 && fcntl(S.first, F_GETFD) < 0) {
-          FAIL_MSG("File descriptor %d (returning %zu) became invalid; removing from list", S.first, S.second.retVal);
+          WARN_MSG("File descriptor %d (returning %zu) became invalid; removing from list", S.first, S.second.retVal);
           toErase.insert(S.first);
         }
       }
@@ -162,7 +162,7 @@ namespace Event{
       toErase.clear();
       for (auto & S : sendSockets) {
         if (S.first < 1024 && fcntl(S.first, F_GETFD) < 0) {
-          FAIL_MSG("File descriptor %d (returning %zu) became invalid; removing from list", S.first, S.second.retVal);
+          WARN_MSG("File descriptor %d (returning %zu) became invalid; removing from list", S.first, S.second.retVal);
           toErase.insert(S.first);
         }
       }

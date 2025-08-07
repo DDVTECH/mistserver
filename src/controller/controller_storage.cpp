@@ -260,7 +260,7 @@ namespace Controller{
     sigaddset(&x, SIGTERM);
     sigaddset(&x, SIGCONT);
     sigaddset(&x, SIGPIPE);
-    sigprocmask(SIG_SETMASK, &x, 0);
+    pthread_sigmask(SIG_SETMASK, &x, 0);
 
     {
       const size_t logSize = 1024 * 1024;

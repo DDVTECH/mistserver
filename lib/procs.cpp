@@ -130,6 +130,8 @@ void exit_handler(){
            (int)listcopy.size());
   waiting = 0;
   // wait up to 10 seconds for applications to shut down
+  Event::Loop evLp;
+  evLp.setup();
   while (!listcopy.empty() && waiting <= 50*Util::Procs::kill_timeout){
     bool doWait = true;
     for (it = listcopy.begin(); it != listcopy.end(); it++){
@@ -146,7 +148,7 @@ void exit_handler(){
           kill(*it, SIGINT);
         }
       }
-      Util::wait(20);
+      evLp.await(20);
       ++waiting;
     }
   }
@@ -209,7 +211,7 @@ void grim_reaper(){
   sigaddset(&x, SIGINT);
   sigaddset(&x, SIGCONT);
   sigaddset(&x, SIGPIPE);
-  sigprocmask(SIG_SETMASK, &x, 0);
+  pthread_sigmask(SIG_SETMASK, &x, 0);
 
   VERYHIGH_MSG("Grim reaper start");
   while (thread_handler){

@@ -150,7 +150,7 @@ namespace Mist{
     tcpCon.open(url.host, url.getPort(), false);
     mainConn = &tcpCon;
     if (!tcpCon){
-      Util::logExitReason(ER_READ_START_FAILURE, "Opening TCP socket `%s:%s` failed", url.host.c_str(), url.getPort());
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening TCP socket %s:%" PRIu16 " failed", url.host.c_str(), url.getPort());
       return false;
     }
     return true;

@@ -54,7 +54,7 @@ int main(int argc, char *argv[]){
       new_action.sa_flags = 0;
       sigaction(SIGUSR1, &new_action, NULL);
     }
-    Socket::Connection S(fileno(stdout), fileno(stdin));
+    Socket::Connection S(STDOUT_FILENO, STDIN_FILENO);
     mistOut tmp(S);
     return tmp.run();
   }

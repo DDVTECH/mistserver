@@ -1806,14 +1806,31 @@ namespace Mist{
     /*LTS-END*/
     DONTEVEN_MSG("MistOut client handler started");
     evLp.setup();
+    int mainSock = -1;
+    int addiSock = -1;
     if (!isRecordingToFile && myConn){
-      int sock = myConn.getSocket();
-      evLp.addSocket(1, sock);
-      if (sock == 1){evLp.addSocket(1, 0);}
+      mainSock = myConn.getSocket();
+      evLp.addSocket(1, mainSock);
+      if (mainSock == 1 && !Socket::checkTrueSocket(mainSock)) {
+        addiSock = 0;
+        evLp.addSocket(1, addiSock);
+      }
     }
     maxWait = 2000;
     size_t suggestedWait = 0;
-    if (keepGoing() && wantRequest && myConn.Received().size()){requestHandler(false);}
+    if (keepGoing() && wantRequest && myConn.Received().size()) {
+      requestHandler(false);
+      if (mainSock != -1 && !myConn) {
+        if (mainSock != -1) {
+          evLp.remove(mainSock);
+          mainSock = -1;
+        }
+        if (addiSock != -1) {
+          evLp.remove(addiSock);
+          addiSock = -1;
+        }
+      }
+    }
 
     size_t prepFalse = 0;
     size_t loops = 0;
@@ -1872,6 +1889,16 @@ namespace Mist{
       thisBootMs = Util::bootMS();
       stats();
       requestHandler((task == 1));
+      if (mainSock != -1 && !myConn) {
+        if (mainSock != -1) {
+          evLp.remove(mainSock);
+          mainSock = -1;
+        }
+        if (addiSock != -1) {
+          evLp.remove(addiSock);
+          addiSock = -1;
+        }
+      }
       //if (task == std::string::npos){} // Continue signal received; no special handling needed
       if (parseData && (!realTime || !nTime || nTime <= targetTime())) {
         if (!isInitialized){

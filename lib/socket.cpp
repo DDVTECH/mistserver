@@ -947,12 +947,13 @@ void Socket::Connection::open(int write, int read){
   drop();
   clear();
   sSend = write;
-  if (write != read){
+  isTrueSocket = Socket::checkTrueSocket(sSend);
+  // If read/write ends mismatch and the write end is not a network socket, track separately
+  if (write != read && !isTrueSocket) {
     sRecv = read;
-  }else{
+  } else {
     sRecv = -1;
   }
-  isTrueSocket = Socket::checkTrueSocket(sSend);
   blocking = isFDBlocking(sSend);
   setBoundAddr();
 }

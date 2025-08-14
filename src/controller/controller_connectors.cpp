@@ -28,7 +28,7 @@ namespace Controller{
 
   /// Updates the shared memory page with active connectors
   void saveActiveConnectors(bool forceOverride){
-    IPC::sharedPage f("/MstCnns", 4096, forceOverride, false);
+    IPC::sharedPage f(SHM_CONNECTORS, 128 * 1024, forceOverride, false);
     if (!f.mapped){
       if (!forceOverride){
         saveActiveConnectors(true);
@@ -42,24 +42,24 @@ namespace Controller{
     memset(f.mapped, 0, 32);
     Util::RelAccX A(f.mapped, false);
     if (!A.isReady()){
-      A.addField("cmd", RAX_128STRING);
+      A.addField("cmd", RAX_512STRING);
       A.addField("pid", RAX_64UINT);
       A.setReady();
     }
+    A.setRCount(currentConnectors.size());
     uint32_t count = 0;
-    std::map<std::string, pid_t>::iterator it;
-    for (it = currentConnectors.begin(); it != currentConnectors.end(); ++it){
-      A.setString("cmd", it->first, count);
-      A.setInt("pid", it->second, count);
+    for (const auto & it : currentConnectors){
+      A.setString("cmd", it.first, count);
+      A.setInt("pid", it.second, count);
       ++count;
     }
-    A.setRCount(count);
+    A.addRecords(count);
     f.master = false; // Keep the shm page around, don't kill it
   }
 
   /// Reads active connectors from the shared memory pages
   void loadActiveConnectors(){
-    IPC::sharedPage f("/MstCnns", 4096, false, false);
+    IPC::sharedPage f(SHM_CONNECTORS, 4096, false, false);
     const Util::RelAccX A(f.mapped, false);
     if (A.isReady()){
       INFO_MSG("Reloading existing connectors to complete rolling restart");
@@ -77,7 +77,7 @@ namespace Controller{
   /// Deletes the shared memory page with connector information
   /// in preparation of shutdown.
   void prepareActiveConnectorsForShutdown(){
-    IPC::sharedPage f("/MstCnns", 4096, false, false);
+    IPC::sharedPage f(SHM_CONNECTORS, 4096, false, false);
     if (f){f.master = true;}
   }
 
@@ -85,10 +85,7 @@ namespace Controller{
   /// in preparation of reload.
   void prepareActiveConnectorsForReload(){
     saveActiveConnectors();
-    std::map<std::string, pid_t>::iterator it;
-    for (it = currentConnectors.begin(); it != currentConnectors.end(); ++it){
-      Util::Procs::forget(it->second);
-    }
+    for (const auto & it : currentConnectors) { Util::Procs::forget(it.second); }
     currentConnectors.clear();
   }
 

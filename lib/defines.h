@@ -144,6 +144,8 @@ static inline void show_stackframe(){}
 /// Does not affect live streams.
 #define FLIP_MIN_DURATION 20000
 
+#define SHM_CONNECTORS "/MstCnns"
+
 // New meta
 #define SHM_STREAM_META "/MstMeta%s" //%s stream name
 #define SHM_STREAM_META_LEN 8 * 1024 * 1024

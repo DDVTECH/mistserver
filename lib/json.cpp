@@ -1,14 +1,20 @@
 /// \file json.cpp Holds all JSON-related code.
 
+#include "json.h"
+
 #include "bitfields.h"
 #include "defines.h"
-#include "json.h"
+
 #include <arpa/inet.h> //for htonl
 #include <fstream>
+#include <iomanip> // for printing doubles correctly
+#include <limits> // for printing doubles correctly
 #include <sstream>
 #include <stdint.h> //for uint64_t
 #include <stdlib.h>
 #include <string.h> //for memcpy
+
+const JSON::Value nullObj;
 
 /// Construct from a root Value to iterate over.
 JSON::Iter::Iter(Value &root){
@@ -842,13 +848,16 @@ const JSON::Value &JSON::Value::operator[](const std::string &i) const{
 
 /// Retrieves the JSON::Value at this position in the object.
 /// Fails horribly if that values does not exist.
-const JSON::Value &JSON::Value::operator[](const char *i) const{
-  return *objVal.find(i)->second;
+const JSON::Value & JSON::Value::operator[](const char *i) const {
+  std::map<std::string, JSON::Value *>::const_iterator found = objVal.find(i);
+  if (found == objVal.end()) { return nullObj; }
+  return *found->second;
 }
 
 /// Retrieves the JSON::Value at this position in the array.
 /// Fails horribly if that values does not exist.
-const JSON::Value &JSON::Value::operator[](uint32_t i) const{
+const JSON::Value & JSON::Value::operator[](uint32_t i) const {
+  if (arrVal.size() <= i) { return nullObj; }
   return *arrVal[i];
 }
 
@@ -1108,8 +1117,8 @@ std::string JSON::Value::toString() const{
   }
   case DOUBLE:{
     std::stringstream st;
-    st.precision(10);
-    st << std::fixed << dblVal;
+    int precision = std::numeric_limits<double>::max_digits10;
+    st << std::setprecision(precision - 1) << dblVal;
     return st.str();
   }
   case BOOL:{
@@ -1493,4 +1502,15 @@ JSON::Value JSON::fromDTMI2(const char *data, uint64_t len, uint32_t &i){
   JSON::Value ret;
   fromDTMI2(data, len, i, ret);
   return ret;
+}
+
+std::ostream & operator<<(std::ostream & o, const JSON::Value & a) {
+  if (a.isNull()) {
+    o << "null";
+  } else if (a.isString()) {
+    o << a.asStringRef();
+  } else {
+    o << a.asString();
+  }
+  return o;
 }

@@ -56,7 +56,6 @@ std::map<std::string, Controller::triggerLog> Controller::triggerStats; ///< Hol
 bool Controller::killOnExit = KILL_ON_EXIT;
 std::recursive_mutex statsMutex;
 uint64_t Controller::statDropoff = 0;
-static uint64_t cpu_use = 0;
 
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
@@ -411,28 +410,6 @@ void Controller::deinitStats() {
 /// statistics from all connected clients, as well as wipes
 /// old statistics that have disconnected over 10 minutes ago.
 size_t Controller::runStats() {
-  {
-    std::ifstream cpustat("/proc/stat");
-    if (cpustat.good()) {
-      char line[300];
-      while (cpustat.getline(line, 300)) {
-        static uint64_t cl_total = 0, cl_idle = 0;
-        uint64_t c_user, c_nice, c_syst, c_idle, c_total;
-        if (sscanf(line, "cpu %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &c_user, &c_nice, &c_syst, &c_idle) == 4) {
-          c_total = c_user + c_nice + c_syst + c_idle;
-          if (c_total > cl_total) {
-            cpu_use = (uint64_t)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
-          } else {
-            cpu_use = 0;
-          }
-          cl_total = c_total;
-          cl_idle = c_idle;
-          break;
-        }
-      }
-    }
-    cpustat.close();
-  }
   {
     std::lock_guard<std::mutex> guard(Controller::configMutex);
     std::lock_guard<std::recursive_mutex> guard2(statsMutex);
@@ -1813,29 +1790,8 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
   }
 
   // Collect core server stats
-  uint64_t mem_total = 0, mem_free = 0, mem_bufcache = 0;
   uint64_t bw_up_total = 0, bw_down_total = 0;
   {
-    std::ifstream meminfo("/proc/meminfo");
-    if (meminfo){
-      char line[300];
-      while (meminfo.good()){
-        meminfo.getline(line, 300);
-        if (meminfo.fail()){
-          // empty lines? ignore them, clear flags, continue
-          if (!meminfo.eof()){
-            meminfo.ignore();
-            meminfo.clear();
-          }
-          continue;
-        }
-        long long int i;
-        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){mem_total = i;}
-        if (sscanf(line, "MemFree : %lli kB", &i) == 1){mem_free = i;}
-        if (sscanf(line, "Buffers : %lli kB", &i) == 1){mem_bufcache += i;}
-        if (sscanf(line, "Cached : %lli kB", &i) == 1){mem_bufcache += i;}
-      }
-    }
     std::ifstream netUsage("/proc/net/dev");
     while (netUsage){
       char line[300];
@@ -1851,18 +1807,6 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       }
     }
   }
-#if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__APPLE__)
-  uint64_t shm_total = 0, shm_free = 0;
-  {
-    struct statvfs shmd;
-    IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
-    if (tmpCapa.mapped && tmpCapa.handle){
-      fstatvfs(tmpCapa.handle, &shmd);
-      shm_free = (shmd.f_bfree * shmd.f_frsize) / 1024;
-      shm_total = (shmd.f_blocks * shmd.f_frsize) / 1024;
-    }
-  }
-#endif
 
   if (mode == PROMETHEUS_TEXT){
     std::stringstream response;
@@ -1871,21 +1815,21 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     response << "mist_logs " << Controller::logCounter << "\n\n";
     response << "# HELP mist_cpu Total CPU usage in tenths of percent.\n";
     response << "# TYPE mist_cpu gauge\n";
-    response << "mist_cpu " << cpu_use << "\n\n";
+    response << "mist_cpu " << getCpuUse() << "\n\n";
     response << "# HELP mist_mem_total Total memory available in KiB.\n";
     response << "# TYPE mist_mem_total gauge\n";
-    response << "mist_mem_total " << mem_total << "\n\n";
+    response << "mist_mem_total " << getMemTotal() * 1024 << "\n\n";
     response << "# HELP mist_mem_used Total memory in use in KiB.\n";
     response << "# TYPE mist_mem_used gauge\n";
-    response << "mist_mem_used " << (mem_total - mem_free - mem_bufcache) << "\n\n";
+    response << "mist_mem_used " << getMemUsed() * 1024 << "\n\n";
 
 #if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__APPLE__)
     response << "# HELP mist_shm_total Total shared memory available in KiB.\n";
     response << "# TYPE mist_shm_total gauge\n";
-    response << "mist_shm_total " << shm_total << "\n\n";
+    response << "mist_shm_total " << getShmTotal() * 1024 << "\n\n";
     response << "# HELP mist_shm_used Total shared memory in use in KiB.\n";
     response << "# TYPE mist_shm_used gauge\n";
-    response << "mist_shm_used " << (shm_total - shm_free) << "\n\n";
+    response << "mist_shm_used " << getShmUsed() * 1024 << "\n\n";
 #endif
 
     response << "# HELP mist_viewseconds_total Number of seconds any media was received by a viewer.\n";
@@ -1982,12 +1926,12 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
   }
   if (mode == PROMETHEUS_JSON){
     JSON::Value resp;
-    resp["cpu"] = cpu_use;
-    resp["mem_total"] = mem_total;
-    resp["mem_used"] = (mem_total - mem_free - mem_bufcache);
+    resp["cpu"] = getCpuUse();
+    resp["mem_total"] = getMemTotal() * 1024;
+    resp["mem_used"] = getMemUsed() * 1024;
 #if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__APPLE__)
-    resp["shm_total"] = shm_total;
-    resp["shm_used"] = (shm_total - shm_free);
+    resp["shm_total"] = getShmTotal() * 1024;
+    resp["shm_used"] = getShmUsed() * 1024;
 #endif
     resp["logs"] = Controller::logCounter;
     resp["curr"].append(totViewers);

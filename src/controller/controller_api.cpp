@@ -995,6 +995,9 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
+  // Current load (partial data from capabilities)
+  if (Request.isMember("load")) { Controller::checkCapable(Response["load"], true); }
+
   if (Request.isMember("browse")){
     if (Request["browse"] == ""){Request["browse"] = ".";}
     DIR *dir;
@@ -1178,6 +1181,14 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     Controller::insertUpdateInfo(Response["update"]);
   }
 #endif
+
+  if (Request.isMember("version")){
+    Response["version"]["version"] = PACKAGE_VERSION;
+    Response["version"]["release"] = RELEASE;
+    Response["version"]["date"] = __DATE__;
+    Response["version"]["time"] = __TIME__;
+  }
+
   /*LTS-END*/
   if (!Request.isMember("minimal") || Request.isMember("streams") ||
       Request.isMember("addstream") || Request.isMember("deletestream")){

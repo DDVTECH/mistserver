@@ -46,7 +46,7 @@ test('Array of various bools and nulls', jsontest, suite: 'JSON parser / printer
 test('Unclosed array', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[[]', 'JSON_RESULT':'[[]]'})
 test('Invalid symbols', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'-inf', 'JSON_RESULT':'null'})
 test('Invalid symbols in array', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[-inf]', 'JSON_RESULT':'[null]'})
-test('Complex structure', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[{"a":[1,2,3.14]},n,[t,f]]', 'JSON_RESULT':'[{"a":[1,2,3.1400000000]},null,[true,false]]'})
+test('Complex structure', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'[{"a":[1,2,3.14]},n,[t,f]]', 'JSON_RESULT':'[{"a":[1,2,3.14]},null,[true,false]]'})
 test('Empty object member', jsontest, suite: 'JSON parser / printer', env : {'JSON_STRING':'{"test":}', 'JSON_RESULT':'{"test":null}'})
 
 urltest = executable('urltest', 'url.cpp', header_tgts, dependencies: libmist_dep)

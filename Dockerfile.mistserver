@@ -11,4 +11,5 @@ COPY --from=mist_build /usr/local/ /usr/local/
 LABEL org.opencontainers.image.authors="Jaron Viëtor <jaron.vietor@ddvtech.com>"
 EXPOSE 4242 8080 1935 5554
 ENTRYPOINT ["MistController"]
+HEALTHCHECK CMD ["MistUtilHealth"]
 

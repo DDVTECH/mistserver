@@ -1986,117 +1986,160 @@ int main(int argc, char *argv[]){
     capa["hrn"] = "Encoder: libav (ffmpeg library)";
     capa["desc"] = "Generic video encoder that directly integrates with the ffmpeg library rather than calling a binary and transmuxing twice";
     addGenericProcessOptions(capa);
+    {
+      JSON::Value & genopts = capa["optional"]["general_process_options"]["options"];
 
-    capa["optional"]["source_mask"]["name"] = "Source track mask";
-    capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
-    capa["optional"]["source_mask"]["type"] = "select";
-    capa["optional"]["source_mask"]["select"][0u][0u] = "";
-    capa["optional"]["source_mask"]["select"][0u][1u] = "Keep original value";
-    capa["optional"]["source_mask"]["select"][1u][0u] = 255;
-    capa["optional"]["source_mask"]["select"][1u][1u] = "Everything";
-    capa["optional"]["source_mask"]["select"][2u][0u] = 4;
-    capa["optional"]["source_mask"]["select"][2u][1u] = "Processing tasks (not viewers, not pushes)";
-    capa["optional"]["source_mask"]["select"][3u][0u] = 6;
-    capa["optional"]["source_mask"]["select"][3u][1u] = "Processing and pushing tasks (not viewers)";
-    capa["optional"]["source_mask"]["select"][4u][0u] = 5;
-    capa["optional"]["source_mask"]["select"][4u][1u] = "Processing and viewer tasks (not pushes)";
-    capa["optional"]["source_mask"]["default"] = "";
+      genopts["track_select"]["name"] = "Source selector(s)";
+      genopts["track_select"]["help"] = "What tracks to select for the input. Defaults to audio=all&video=all.";
+      genopts["track_select"]["type"] = "string";
+      genopts["track_select"]["validate"][0u] = "track_selector";
+      genopts["track_select"]["default"] = "audio=all&video=all";
+      genopts["track_select"]["sort"] = "a";
 
-    capa["optional"]["target_mask"]["name"] = "Output track mask";
-    capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the ouput track(s)";
-    capa["optional"]["target_mask"]["type"] = "select";
-    capa["optional"]["target_mask"]["select"][0u][0u] = "";
-    capa["optional"]["target_mask"]["select"][0u][1u] = "Keep original value";
-    capa["optional"]["target_mask"]["select"][1u][0u] = 255;
-    capa["optional"]["target_mask"]["select"][1u][1u] = "Everything";
-    capa["optional"]["target_mask"]["select"][2u][0u] = 1;
-    capa["optional"]["target_mask"]["select"][2u][1u] = "Viewer tasks (not processing, not pushes)";
-    capa["optional"]["target_mask"]["select"][3u][0u] = 2;
-    capa["optional"]["target_mask"]["select"][3u][1u] = "Pushing tasks (not processing, not viewers)";
-    capa["optional"]["target_mask"]["select"][4u][0u] = 4;
-    capa["optional"]["target_mask"]["select"][4u][1u] = "Processing tasks (not pushes, not viewers)";
-    capa["optional"]["target_mask"]["select"][5u][0u] = 3;
-    capa["optional"]["target_mask"]["select"][5u][1u] = "Viewer and pushing tasks (not processing)";
-    capa["optional"]["target_mask"]["select"][6u][0u] = 5;
-    capa["optional"]["target_mask"]["select"][6u][1u] = "Viewer and processing tasks (not pushes)";
-    capa["optional"]["target_mask"]["select"][7u][0u] = 6;
-    capa["optional"]["target_mask"]["select"][7u][1u] = "Pushing and processing tasks (not viewers)";
-    capa["optional"]["target_mask"]["select"][8u][0u] = 0;
-    capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
-    capa["optional"]["target_mask"]["default"] = "3";
+      genopts["sink"]["name"] = "Target stream";
+      genopts["sink"]["help"] =
+        "What stream the encoded track should be added to. Defaults to source stream. May contain variables.";
+      genopts["sink"]["type"] = "string";
+      genopts["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
+      genopts["sink"]["sort"] = "b";
 
-    capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
-    capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
-    capa["optional"]["exit_unmask"]["default"] = false;
+      genopts["source_mask"]["name"] = "Source track mask";
+      genopts["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
+      genopts["source_mask"]["type"] = "select";
+      genopts["source_mask"]["select"][0u][0u] = 255;
+      genopts["source_mask"]["select"][0u][1u] = "Everything";
+      genopts["source_mask"]["select"][1u][0u] = 4;
+      genopts["source_mask"]["select"][1u][1u] = "Processing tasks (not viewers, not pushes)";
+      genopts["source_mask"]["select"][2u][0u] = 6;
+      genopts["source_mask"]["select"][2u][1u] = "Processing and pushing tasks (not viewers)";
+      genopts["source_mask"]["select"][3u][0u] = 5;
+      genopts["source_mask"]["select"][3u][1u] = "Processing and viewer tasks (not pushes)";
+      genopts["source_mask"]["default"] = "Keep original value";
+      genopts["source_mask"]["sort"] = "c";
 
-    capa["optional"]["sink"]["name"] = "Target stream";
-    capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults "
-                                       "to source stream. May contain variables.";
-    capa["optional"]["sink"]["type"] = "string";
-    capa["optional"]["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
+      genopts["target_mask"]["name"] = "Output track mask";
+      genopts["target_mask"]["help"] = "What internal processes should have access to the output track(s)";
+      genopts["target_mask"]["type"] = "select";
+      genopts["target_mask"]["select"][0u][0u] = 255;
+      genopts["target_mask"]["select"][0u][1u] = "Everything";
+      genopts["target_mask"]["select"][1u][0u] = 1;
+      genopts["target_mask"]["select"][1u][1u] = "Viewer tasks (not processing, not pushes)";
+      genopts["target_mask"]["select"][2u][0u] = 2;
+      genopts["target_mask"]["select"][2u][1u] = "Pushing tasks (not processing, not viewers)";
+      genopts["target_mask"]["select"][3u][0u] = 4;
+      genopts["target_mask"]["select"][3u][1u] = "Processing tasks (not pushes, not viewers)";
+      genopts["target_mask"]["select"][4u][0u] = 3;
+      genopts["target_mask"]["select"][4u][1u] = "Viewer and pushing tasks (not processing)";
+      genopts["target_mask"]["select"][5u][0u] = 5;
+      genopts["target_mask"]["select"][5u][1u] = "Viewer and processing tasks (not pushes)";
+      genopts["target_mask"]["select"][6u][0u] = 6;
+      genopts["target_mask"]["select"][6u][1u] = "Pushing and processing tasks (not viewers)";
+      genopts["target_mask"]["select"][7u][0u] = 0;
+      genopts["target_mask"]["select"][7u][1u] = "Nothing";
+      genopts["target_mask"]["default"] = "Keep original value";
+      genopts["target_mask"]["sort"] = "d";
 
-    capa["optional"]["track_select"]["name"] = "Source selector(s)";
-    capa["optional"]["track_select"]["help"] =
-        "What tracks to select for the input. Defaults to audio=all&video=all.";
-    capa["optional"]["track_select"]["type"] = "string";
-    capa["optional"]["track_select"]["validate"][0u] = "track_selector";
-    capa["optional"]["track_select"]["default"] = "audio=all&video=all";
+      genopts["exit_unmask"]["name"] = "Undo masks on process exit/fail";
+      genopts["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset "
+                                       "to defaults. (NOT to previous value, but to defaults!)";
+      genopts["exit_unmask"]["default"] = false;
+      genopts["exit_unmask"]["sort"] = "e";
+    }
 
-    capa["optional"]["gopsize"]["name"] = "GOP Size";
-    capa["optional"]["gopsize"]["help"] = "Amount of frames before a new keyframe is sent. When outputting JPEG, this is the minimum amount of frames between images.";
-    capa["optional"]["gopsize"]["type"] = "uint";
-    capa["optional"]["gopsize"]["default"] = 40;
+    capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
+    capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
+    capa["required"]["x-LSP-kind"]["type"] = "select"; // type of input field to use
+    capa["required"]["x-LSP-kind"]["select"][0u][0u] = "video"; // value of first select field
+    capa["required"]["x-LSP-kind"]["select"][0u][1u] = "Video"; // label of first select field
+    capa["required"]["x-LSP-kind"]["select"][1u][0u] = "audio";
+    capa["required"]["x-LSP-kind"]["select"][1u][1u] = "Audio";
+    capa["required"]["x-LSP-kind"]["sort"] = "a"; // sorting index
+    capa["required"]["x-LSP-kind"]["influences"].append("codec"); // if this field changes, also update this field
+    capa["required"]["x-LSP-kind"]["influences"].append("accel");
+    capa["required"]["x-LSP-kind"]["influences"].append("quality");
+    capa["required"]["x-LSP-kind"]["value"] = "video"; // preselect this value
 
-    capa["required"]["codec"]["name"] = "Target codec";
-    capa["required"]["codec"]["help"] = "Wanted output codec";
-    capa["required"]["codec"]["type"] = "select";
-    capa["required"]["codec"]["select"][0u][0u] = "H264";
-    capa["required"]["codec"]["select"][0u][1u] = "H264";
-    capa["required"]["codec"]["select"][1u][0u] = "AV1";
-    capa["required"]["codec"]["select"][1u][1u] = "AV1";
-    capa["required"]["codec"]["select"][2u][0u] = "JPEG";
-    capa["required"]["codec"]["select"][2u][1u] = "JPEG";
-    capa["required"]["codec"]["select"][3u][0u] = "YUYV";
-    capa["required"]["codec"]["select"][3u][1u] = "YUYV: Raw YUV 4:2:2 pixels";
-    capa["required"]["codec"]["select"][4u][0u] = "UYVY";
-    capa["required"]["codec"]["select"][4u][1u] = "UYVY: Raw YUV 4:2:2 pixels";
-    capa["required"]["codec"]["select"][5u][0u] = "PCM";
-    capa["required"]["codec"]["select"][5u][1u] = "PCM";
-    capa["required"]["codec"]["select"][6u][0u] = "opus";
-    capa["required"]["codec"]["select"][6u][1u] = "opus";
-    capa["required"]["codec"]["select"][7u][0u] = "AAC";
-    capa["required"]["codec"]["select"][7u][1u] = "AAC";
+    // use an array for this parameter, because there are two input field variations
+    capa["required"]["codec"][0u]["name"] = "Target codec";
+    capa["required"]["codec"][0u]["help"] = "Which codec to encode to";
+    capa["required"]["codec"][0u]["type"] = "select";
+    capa["required"]["codec"][0u]["select"][0u] = "AV1";
+    capa["required"]["codec"][0u]["select"][1u] = "H264";
+    capa["required"]["codec"][0u]["select"][2u] = "JPEG";
+    capa["required"]["codec"][0u]["select"][3u][0u] = "UYVY";
+    capa["required"]["codec"][0u]["select"][3u][1u] = "UYVY: Raw YUV 4:2:2 pixels";
+    capa["required"]["codec"][0u]["sort"] = "b";
+    capa["required"]["codec"][0u]["value"] = "H264";
+    capa["required"]["codec"][0u]["dependent"]["x-LSP-kind"] = "video"; // this field is only shown if x-LSP-kind is set to "video"
+    capa["required"]["codec"][0u]["influences"].append("profile");
+    capa["required"]["codec"][0u]["influences"].append("gopsize");
+
+    capa["required"]["codec"][1u] = capa["required"]["codec"][0u];
+    capa["required"]["codec"][1u]["select"].shrink(0); // empty the array
+    capa["required"]["codec"][1u]["select"][0u] = "AAC";
+    capa["required"]["codec"][1u]["select"][1u][0u] = "opus";
+    capa["required"]["codec"][1u]["select"][1u][1u] = "Opus";
+    capa["required"]["codec"][1u]["select"][2u] = "PCM";
+    capa["required"]["codec"][1u]["value"] = "opus";
+    capa["required"]["codec"][1u]["dependent"]["x-LSP-kind"] = "audio";
+    capa["required"]["codec"][1u]["influences"].append("tune");
 
     capa["optional"]["accel"]["name"] = "Hardware acceleration";
     capa["optional"]["accel"]["help"] = "Control whether hardware acceleration is used or not";
     capa["optional"]["accel"]["type"] = "select";
-    capa["optional"]["accel"]["select"][0u][0u] = "";
-    capa["optional"]["accel"]["select"][0u][1u] = "Automatic (attempt acceleration, fallback to software)";
-    capa["optional"]["accel"]["select"][1u][0u] = "hw";
-    capa["optional"]["accel"]["select"][1u][1u] = "Force enabled (abort if acceleration fails)";
-    capa["optional"]["accel"]["select"][2u][0u] = "sw";
-    capa["optional"]["accel"]["select"][2u][1u] = "Software-only (do not attempt acceleration)";
-    capa["optional"]["accel"]["default"] = "";
+    capa["optional"]["accel"]["select"][0u][0u] = "hw";
+    capa["optional"]["accel"]["select"][0u][1u] = "Force enabled: abort if acceleration fails";
+    capa["optional"]["accel"]["select"][1u][0u] = "sw";
+    capa["optional"]["accel"]["select"][1u][1u] = "Software-only: do not attempt acceleration";
+    capa["optional"]["accel"]["default"] = "Automatic: attempt acceleration, fallback to software";
+    capa["optional"]["accel"]["sort"] = "a";
+    capa["optional"]["accel"]["dependent"]["x-LSP-kind"] = "video"; // this field is only shown if x-LSP-kind is set to "video"
 
-    capa["optional"]["tune"]["name"] = "Encode tuning";
-    capa["optional"]["tune"]["help"] = "Set the encode tuning";
-    capa["optional"]["tune"]["type"] = "select";
-    capa["optional"]["tune"]["select"][0u][0u] = "zerolatency";
-    capa["optional"]["tune"]["select"][0u][1u] = "Low latency (default)";
-    capa["optional"]["tune"]["select"][1u][0u] = "zerolatency-lq";
-    capa["optional"]["tune"]["select"][1u][1u] = "Low latency (high speed / low quality)";
-    capa["optional"]["tune"]["select"][2u][0u] = "zerolatency-hq";
-    capa["optional"]["tune"]["select"][2u][1u] = "Low latency (low speed / high quality)";
-    capa["optional"]["tune"]["select"][3u][0u] = "animation";
-    capa["optional"]["tune"]["select"][3u][1u] = "Cartoon-like content";
-    capa["optional"]["tune"]["select"][4u][0u] = "film";
-    capa["optional"]["tune"]["select"][4u][1u] = "Movie-like content";
-    capa["optional"]["tune"]["select"][5u][0u] = "";
-    capa["optional"]["tune"]["select"][5u][1u] = "No tuning (generic)";
-    capa["optional"]["tune"]["default"] = "zerolatency";
-    capa["optional"]["tune"]["sort"] = "ccc";
+    capa["optional"]["bitrate"][0u]["name"] = "Bitrate";
+    capa["optional"]["bitrate"][0u]["help"] = "Set the target bitrate in bits per second";
+    capa["optional"]["bitrate"][0u]["type"] = "uint";
+    capa["optional"]["bitrate"][0u]["default"] = 2000000;
+    capa["optional"]["bitrate"][0u]["value"] = 8000000; // for EFG
+    capa["optional"]["bitrate"][0u]["unit"][0u][0u] = "1";
+    capa["optional"]["bitrate"][0u]["unit"][0u][1u] = "bit/s";
+    capa["optional"]["bitrate"][0u]["unit"][1u][0u] = "1000";
+    capa["optional"]["bitrate"][0u]["unit"][1u][1u] = "kbit/s";
+    capa["optional"]["bitrate"][0u]["unit"][2u][0u] = "1000000";
+    capa["optional"]["bitrate"][0u]["unit"][2u][1u] = "Mbit/s";
+    capa["optional"]["bitrate"][0u]["unit"][3u][0u] = "1000000000";
+    capa["optional"]["bitrate"][0u]["unit"][3u][1u] = "Gbit/s";
+    capa["optional"]["bitrate"][0u]["sort"] = "b";
+    capa["optional"]["bitrate"][0u]["dependent"]["x-LSP-kind"] = "video"; // this field is only shown if x-LSP-kind is set to "video"
 
-    capa["optional"]["preset"]["name"] = "Transcode preset";
+    capa["optional"]["bitrate"][1u] = capa["optional"]["bitrate"][0u];
+    capa["optional"]["bitrate"][1u]["value"] = 128000;
+    capa["optional"]["bitrate"][1u]["unit"].truncate(2); // keep only bit/s and kbit/s
+    capa["optional"]["bitrate"][1u]["dependent"]["x-LSP-kind"] = "audio"; // this field is only shown if x-LSP-kind is set to "audio"
+    capa["optional"]["bitrate"][1u]["dependent_not"]["codec"] = "PCM"; // do not show this field if the codec is PCM
+
+    capa["optional"]["resolution"]["name"] = "resolution";
+    capa["optional"]["resolution"]["help"] = "Resolution of the output stream, e.g. 1920x1080";
+    capa["optional"]["resolution"]["type"] = "str";
+    capa["optional"]["resolution"]["default"] = "keep source resolution";
+    capa["optional"]["resolution"]["sort"] = "c";
+    capa["optional"]["resolution"]["dependent"]["x-LSP-kind"] = "video";
+
+    /* gopsize field for any video codec: */
+    capa["optional"]["gopsize"][0u]["name"] = "GOP Size";
+    capa["optional"]["gopsize"][0u]["help"] = "Amount of frames before a new keyframe is sent.";
+    capa["optional"]["gopsize"][0u]["type"] = "uint";
+    capa["optional"]["gopsize"][0u]["default"] = 40;
+    capa["optional"]["gopsize"][0u]["value"] = 30; // for EFG
+    capa["optional"]["gopsize"][0u]["sort"] = "d";
+    capa["optional"]["gopsize"][0u]["dependent"]["x-LSP-kind"] = "video"; // show this field when the input type is video
+    capa["optional"]["gopsize"][0u]["dependent_not"]["codec"] = "JPEG"; // do not show this field if the codec is JPEG
+    /* gopsize for jpeg */
+    capa["optional"]["gopsize"][1u] = capa["optional"]["gopsize"][0u];
+    capa["optional"]["gopsize"][1u]["help"] = "The minimum amount of frames between images.";
+    capa["optional"]["gopsize"][1u].removeMember("dependent_not");
+    capa["optional"]["gopsize"][1u]["dependent"]["codec"] = "JPEG"; //*do* show this field if the codec is jpeg
+
+    capa["optional"]["preset"]["name"] = "Encode preset";
     capa["optional"]["preset"]["help"] = "Preset for encoding speed and compression ratio";
     capa["optional"]["preset"]["type"] = "select";
     capa["optional"]["preset"]["select"][0u][0u] = "ultrafast";
@@ -2118,54 +2161,78 @@ int main(int argc, char *argv[]){
     capa["optional"]["preset"]["select"][8u][0u] = "veryslow";
     capa["optional"]["preset"]["select"][8u][1u] = "veryslow";
     capa["optional"]["preset"]["default"] = "faster";
-    capa["optional"]["preset"]["sort"] = "ccb";
+    capa["optional"]["preset"]["sort"] = "e";
+    capa["optional"]["preset"]["dependent"]["x-LSP-kind"] = "video";
 
-    capa["optional"]["profile"]["name"] = "Transcode profile";
-    capa["optional"]["profile"]["help"] = "Preset for encoding speed and compression ratio";
-    capa["optional"]["profile"]["type"] = "select";
-    capa["optional"]["profile"]["select"][0u][0u] = "main";
-    capa["optional"]["profile"]["select"][0u][1u] = "main";
-    capa["optional"]["profile"]["select"][1u][0u] = "baseline";
-    capa["optional"]["profile"]["select"][1u][1u] = "baseline";
-    capa["optional"]["profile"]["select"][2u][0u] = "high";
-    capa["optional"]["profile"]["select"][2u][1u] = "high";
-    capa["optional"]["profile"]["default"] = "high";
-    capa["optional"]["profile"]["sort"] = "ccba";
+    capa["optional"]["profile"][0u]["name"] = "Encode profile";
+    capa["optional"]["profile"][0u]["help"] = "Preset for encoding speed and compression ratio";
+    capa["optional"]["profile"][0u]["type"] = "select";
+    capa["optional"]["profile"][0u]["select"][0u][0u] = "main";
+    capa["optional"]["profile"][0u]["select"][0u][1u] = "Main";
+    capa["optional"]["profile"][0u]["select"][1u][0u] = "baseline";
+    capa["optional"]["profile"][0u]["select"][1u][1u] = "Baseline";
+    capa["optional"]["profile"][0u]["select"][2u][0u] = "high";
+    capa["optional"]["profile"][0u]["select"][2u][1u] = "High";
+    capa["optional"]["profile"][0u]["default"] = "high";
+    capa["optional"]["profile"][0u]["sort"] = "f";
+    capa["optional"]["profile"][0u]["dependent"]["codec"] = "H264";
 
-    capa["optional"]["bitrate"]["name"] = "Bitrate";
-    capa["optional"]["bitrate"]["help"] = "Set the target bitrate in bits per second";
-    capa["optional"]["bitrate"]["type"] = "uint";
-    capa["optional"]["bitrate"]["default"] = 2000000;
-    capa["optional"]["bitrate"]["unit"][0u][0u] = "1";
-    capa["optional"]["bitrate"]["unit"][0u][1u] = "bit/s";
-    capa["optional"]["bitrate"]["unit"][1u][0u] = "1000";
-    capa["optional"]["bitrate"]["unit"][1u][1u] = "kbit/s";
-    capa["optional"]["bitrate"]["unit"][2u][0u] = "1000000";
-    capa["optional"]["bitrate"]["unit"][2u][1u] = "Mbit/s";
-    capa["optional"]["bitrate"]["unit"][3u][0u] = "1000000000";
-    capa["optional"]["bitrate"]["unit"][3u][1u] = "Gbit/s";
+    capa["optional"]["profile"][1u] = capa["optional"]["profile"][0u];
+    capa["optional"]["profile"][1u]["select"].shrink(0);
+    capa["optional"]["profile"][1u]["select"][0u][0u] = "low";
+    capa["optional"]["profile"][1u]["select"][0u][1u] = "Low complexity";
+    capa["optional"]["profile"][1u]["select"][1u][0u] = "main";
+    capa["optional"]["profile"][1u]["select"][1u][1u] = "Main";
+    capa["optional"]["profile"][1u]["select"][2u][0u] = "he";
+    capa["optional"]["profile"][1u]["select"][2u][1u] = "High efficiency";
+    capa["optional"]["profile"][1u]["default"] = "low";
+    capa["optional"]["profile"][1u]["dependent"]["codec"] = "AAC";
 
-    capa["optional"]["sample_rate"]["name"] = "Sample rate";
-    capa["optional"]["sample_rate"]["help"] = "Output sample rate in Hz (by default copies input rate if possible)";
-    capa["optional"]["sample_rate"]["type"] = "uint";
-    capa["optional"]["sample_rate"]["unit"][0u][0u] = "1";
-    capa["optional"]["sample_rate"]["unit"][0u][1u] = "Hz";
-    capa["optional"]["sample_rate"]["unit"][1u][0u] = "1000";
-    capa["optional"]["sample_rate"]["unit"][1u][1u] = "kHz";
+    capa["optional"]["tune"]["name"] = "Encode tuning";
+    capa["optional"]["tune"]["help"] = "Set the encode tuning";
+    capa["optional"]["tune"]["type"] = "select";
+    capa["optional"]["tune"]["select"][0u][0u] = "zerolatency";
+    capa["optional"]["tune"]["select"][0u][1u] = "Low latency (balanced performance/quality)";
+    capa["optional"]["tune"]["select"][1u][0u] = "zerolatency-lq";
+    capa["optional"]["tune"]["select"][1u][1u] = "Low latency (focus on performance)";
+    capa["optional"]["tune"]["select"][2u][0u] = "zerolatency-hq";
+    capa["optional"]["tune"]["select"][2u][1u] = "Low latency (focus on quality)";
+    capa["optional"]["tune"]["select"][3u][0u] = "animation";
+    capa["optional"]["tune"]["select"][3u][1u] = "Cartoon-like content";
+    capa["optional"]["tune"]["select"][4u][0u] = "film";
+    capa["optional"]["tune"]["select"][4u][1u] = "Movie-like content";
+    capa["optional"]["tune"]["default"] = "No tuning (generic)";
+    capa["optional"]["tune"]["value"] = "zerolatency-lq"; // for EFG
+    capa["optional"]["tune"]["sort"] = "g";
+    capa["optional"]["tune"]["dependent"]["codec"] = "H264";
 
-    capa["optional"]["resolution"]["name"] = "resolution";
-    capa["optional"]["resolution"]["help"] = "Resolution of the output stream, e.g. 1920x1080";
-    capa["optional"]["resolution"]["type"] = "str";
-    capa["optional"]["resolution"]["default"] = "keep source resolution";
-    capa["optional"]["resolution"]["sort"] = "aca";
-    capa["optional"]["resolution"]["dependent"]["x-LSP-kind"] = "video";
+    capa["optional"]["sample_rate"][0u]["name"] = "Sample rate";
+    capa["optional"]["sample_rate"][0u]["help"] = "Output sample rate in Hz (by default copies input rate if possible)";
+    capa["optional"]["sample_rate"][0u]["type"] = "uint";
 
-    capa["optional"]["quality"]["name"] = "Quality";
-    capa["optional"]["quality"]["help"] = "Level of compression similar to the `qscale` option in FFMPEG. Takes on a value between 1-31. A lower value provides a better quality output";
+    capa["optional"]["sample_rate"][0u]["min"] = 0;
+    capa["optional"]["sample_rate"][0u]["unit"][0u][0u] = "1";
+    capa["optional"]["sample_rate"][0u]["unit"][0u][1u] = "Hz";
+    capa["optional"]["sample_rate"][0u]["unit"][1u][0u] = "1000";
+    capa["optional"]["sample_rate"][0u]["unit"][1u][1u] = "kHz";
+    capa["optional"]["sample_rate"][0u]["dependent"]["codec"] = "AAC";
+
+    capa["optional"]["sample_rate"][1u] = capa["optional"]["sample_rate"][0u];
+    capa["optional"]["sample_rate"][1u]["value"] = 48000;
+    capa["optional"]["sample_rate"][1u]["dependent"]["codec"] = "PCM";
+    capa["optional"]["sample_rate"][0u]["placeholder"] = "Keep sample rate of source track"; // AAC only
+    capa["optional"]["sample_rate"][0u]["max"] = 96000; // AAC only
+
+    capa["optional"]["quality"]["name"] = "Quality (software only)";
+    capa["optional"]["quality"]["help"] =
+      "Similar to the `qscale` option in FFMPEG. Must be a value between 0 and 51. You will want to use a value "
+      "between 17 and 28. A lower value provides a better quality output.<br>This only applies to software encoding. "
+      "If set, the 'Bitrate'-setting will be used as a maximum allowed bitrate.";
     capa["optional"]["quality"]["type"] = "int";
     capa["optional"]["quality"]["default"] = 20;
-    capa["optional"]["quality"]["min"] = 1;
-    capa["optional"]["quality"]["max"] = 31;
+    capa["optional"]["quality"]["min"] = 0;
+    capa["optional"]["quality"]["max"] = 51;
+    capa["optional"]["quality"]["dependent"]["x-LSP-kind"] = "video";
 
     std::cout << capa.toString() << std::endl;
     return -1;

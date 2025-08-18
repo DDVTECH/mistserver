@@ -453,6 +453,7 @@ p.prototype.build = function (MistVideo,callback) {
       var requested_rate = 1;
       var serverdelay = [];
       var currenttracks = [];
+      var browser = MistUtil.getBrowser();
       this.ws.onmessage = function(e){
         if (!e.data) { throw "Received invalid data"; }
         if (typeof e.data == "string") {
@@ -473,7 +474,7 @@ p.prototype.build = function (MistVideo,callback) {
             case "on_time": {              
               var buffer = msg.data.current - video.currentTime*1e3;
               var serverDelay = player.ws.serverDelay.get();
-              var desiredBuffer = Math.max(100+serverDelay,serverDelay*2);
+              var desiredBuffer = (browser == "chrome") ? Math.max(1000+serverDelay,serverDelay*2)  : Math.max(100+serverDelay,serverDelay*2);
               var desiredBufferwithJitter = desiredBuffer+(msg.data.jitter ? msg.data.jitter : 0);
 
 
@@ -484,7 +485,9 @@ p.prototype.build = function (MistVideo,callback) {
                   "on_time received", msg.data.current/1e3,
                   "currtime", video.currentTime,
                   requested_rate+"x",
-                  "buffer",Math.round(buffer),"/",Math.round(desiredBuffer),
+                  "buffer",Math.round(buffer),"/",Math.round(desiredBufferwithJitter),
+                  "htmlbuffer",Math.round((video.buffered.end(0)-video.currentTime)*1000),
+                  "jitter", msg.data.jitter,
                   (MistVideo.info.type == "live" ? "latency:"+Math.round(msg.data.end-video.currentTime*1e3)+"ms" : ""),
                   (player.monitor ? "bitrate:"+MistUtil.format.bits(player.monitor.currentBps)+"/s" : ""),
                   "listeners",player.ws.listeners && player.ws.listeners.on_time ? player.ws.listeners.on_time : 0,

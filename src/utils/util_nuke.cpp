@@ -162,7 +162,7 @@ int main(int argc, char **argv){
   nukeSem(SEM_USERS);
   nukeSem(SEM_LIVE);
   nukeSem(SEM_INPUT);
-  nukeSem("/MstPull_%s");
+  nukeSem("/MstSemPull_%s");
   nukeSem(SEM_TRACKLIST);
 }
 

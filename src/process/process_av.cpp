@@ -891,8 +891,6 @@ namespace Mist{
           depth = 16;
         }else if (codecOut == "PCM"){
           tmpCtx->sample_fmt = AV_SAMPLE_FMT_S32;
-          tmpCtx->sample_rate = 48000;
-          tmpCtx->time_base = (AVRational){1, 48000};
           depth = 32;
         }else{
           avcodec_free_context(&tmpCtx);
@@ -2110,6 +2108,8 @@ int main(int argc, char *argv[]){
     capa["optional"]["bitrate"][0u]["unit"][3u][1u] = "Gbit/s";
     capa["optional"]["bitrate"][0u]["sort"] = "b";
     capa["optional"]["bitrate"][0u]["dependent"]["x-LSP-kind"] = "video"; // this field is only shown if x-LSP-kind is set to "video"
+    capa["optional"]["bitrate"][0u]["dependent_not"]["codec"].append("JPEG"); // this field should not be shown if codec is set to "JPEG"
+    capa["optional"]["bitrate"][0u]["dependent_not"]["codec"].append("UYVY"); // this field should not be shown if codec is set to "UYVY"
 
     capa["optional"]["bitrate"][1u] = capa["optional"]["bitrate"][0u];
     capa["optional"]["bitrate"][1u]["value"] = 128000;
@@ -2162,10 +2162,10 @@ int main(int argc, char *argv[]){
     capa["optional"]["preset"]["select"][8u][1u] = "veryslow";
     capa["optional"]["preset"]["default"] = "faster";
     capa["optional"]["preset"]["sort"] = "e";
-    capa["optional"]["preset"]["dependent"]["x-LSP-kind"] = "video";
+    capa["optional"]["preset"]["dependent"]["codec"] = "H264";
 
     capa["optional"]["profile"][0u]["name"] = "Encode profile";
-    capa["optional"]["profile"][0u]["help"] = "Preset for encoding speed and compression ratio";
+    capa["optional"]["profile"][0u]["help"] = "Select encoding profile";
     capa["optional"]["profile"][0u]["type"] = "select";
     capa["optional"]["profile"][0u]["select"][0u][0u] = "main";
     capa["optional"]["profile"][0u]["select"][0u][1u] = "Main";
@@ -2223,16 +2223,25 @@ int main(int argc, char *argv[]){
     capa["optional"]["sample_rate"][0u]["placeholder"] = "Keep sample rate of source track"; // AAC only
     capa["optional"]["sample_rate"][0u]["max"] = 96000; // AAC only
 
-    capa["optional"]["quality"]["name"] = "Quality (software only)";
-    capa["optional"]["quality"]["help"] =
-      "Similar to the `qscale` option in FFMPEG. Must be a value between 0 and 51. You will want to use a value "
-      "between 17 and 28. A lower value provides a better quality output.<br>This only applies to software encoding. "
-      "If set, the 'Bitrate'-setting will be used as a maximum allowed bitrate.";
+    capa["optional"]["quality"]["name"] = "Quality";
+    capa["optional"]["quality"]["help"] = "Similar to the `qscale` option in FFMPEG. Must be a value between 1 and 31. "
+                                          "A lower value provides a better quality output.";
     capa["optional"]["quality"]["type"] = "int";
     capa["optional"]["quality"]["default"] = 20;
-    capa["optional"]["quality"]["min"] = 0;
-    capa["optional"]["quality"]["max"] = 51;
-    capa["optional"]["quality"]["dependent"]["x-LSP-kind"] = "video";
+    capa["optional"]["quality"]["min"] = 1;
+    capa["optional"]["quality"]["max"] = 31;
+    capa["optional"]["quality"]["dependent"]["codec"] = "JPEG";
+
+    capa["optional"]["crf"]["name"] = "Constant Rate Factor (software only)";
+    capa["optional"]["crf"]["help"] =
+      "Similar to the `crf` option in FFMPEG. Must be a value between 0 and 51. You will want to use a value between "
+      "17 and 28. A lower value provides a better quality output, 17 should be visually lossless.<br>This only applies "
+      "to software encoding. If set, the 'Bitrate'-setting will be used as a maximum allowed bitrate.";
+    capa["optional"]["crf"]["type"] = "int";
+    capa["optional"]["crf"]["default"] = 23;
+    capa["optional"]["crf"]["min"] = 1;
+    capa["optional"]["crf"]["max"] = 51;
+    capa["optional"]["crf"]["dependent"]["codec"] = "H264";
 
     std::cout << capa.toString() << std::endl;
     return -1;

@@ -373,7 +373,7 @@ namespace Mist{
     if (!M.getLive()){
       duration = M.getLastms(idx) - M.getFirstms(idx);
     }else{
-      needsLookAhead = 420;
+      needsLookAhead = 250;
     }
     // EBML header and Segment
     EBML::sendElemEBML(myConn, doctype);

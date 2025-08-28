@@ -1219,6 +1219,7 @@ namespace Mist{
   void OutMP4::sendNext(){
     //Call parent handler for generic websocket handling
     HTTPOutput::sendNext();
+    if (!thisPacket) { return; }
     // Obtain a pointer to the data of this packet
     char *dataPointer = 0;
     size_t len = 0;

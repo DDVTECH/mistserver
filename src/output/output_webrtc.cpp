@@ -2498,6 +2498,7 @@ namespace Mist{
       onFail("idle connection", false);
       return;
     }
+    if (!thisPacket) { return; }
 
     // first make sure that we complete the DTLS handshake.
     if(doDTLS && !rtpSockets.size()){return;}

@@ -264,6 +264,7 @@ namespace Mist{
     if (prevVidTrack != INVALID_TRACK_ID && thisIdx != prevVidTrack && M.getType(thisIdx) == "video"){
       if (!thisPacket.getFlag("keyframe")){
         // Ignore the packet if not a keyframe
+        thisPacket.null();
         return;
       }
       dropTrack(prevVidTrack, "Smoothly switching to new video track", false);
@@ -888,9 +889,9 @@ namespace Mist{
         r["data"]["play_rate_curr"] = "fast-forward";
       }
     }
+    onCommandSend(r.toString());
     handleWebsocketIdle();
     onIdle();
-    onCommandSend(r.toString());
     return true;
   }
 

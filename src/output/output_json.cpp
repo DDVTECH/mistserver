@@ -37,6 +37,7 @@ namespace Mist{
   void OutJSON::sendNext(){
     //Call parent handler for generic websocket handling
     HTTPOutput::sendNext();
+    if (!thisPacket) { return; }
 
     if (keepReselecting){
       // If we can select more tracks, do it and continue.

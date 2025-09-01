@@ -10,11 +10,11 @@
 [data-mist-rotate="-1"]{--rotate:-90deg;--factor:1}
 [data-mist-rotate="2"]{transform:rotate(180deg);transform-origin:center center}
 .mistvideo svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
-.mistvideo [data-loading]{position:relative}
-.mistvideo [data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
-.mistvideo [data-loading] svg.icon.loading{z-index:2;opacity:1}
-.mistvideo [data-loading-css] .mistvideo-controls{display:none}
-.mistvideo [data-hidecursor],.mistvideo [data-hidecursor] *,.mistvideo [data-hidecursor] .mistvideo-pointer{cursor:none}
+.mistvideo[data-loading]{position:relative}
+.mistvideo[data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
+.mistvideo[data-loading] svg.icon.loading{z-index:2;opacity:1}
+.mistvideo[data-loading-css] .mistvideo-controls{display:none}
+.mistvideo[data-hidecursor],.mistvideo[data-hidecursor] *,.mistvideo[data-hidecursor] .mistvideo-pointer{cursor:none}
 .mistvideo-error{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background-color:$background;align-items:center;justify-content:center;text-align:center;z-index:2;cursor:default;min-height:fit-content;min-width:fit-content;height:100%}
 .mistvideo-error.show{display:flex}
 .mistvideo-error .message{max-width:80%}

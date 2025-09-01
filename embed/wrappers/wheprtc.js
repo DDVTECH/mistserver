@@ -1,20 +1,24 @@
-mistplayers.webrtc = {
-  name: "WebRTC player (WS)",
-  mimes: ["webrtc"],
+mistplayers.wheprtc = {
+  name: "WebRTC player (WHEP)",
+  mimes: ["whep"],
   priority: MistUtil.object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
   isBrowserSupported: function (mimetype,source,MistVideo) {
     
-    if ((!("WebSocket" in window)) || (!("RTCPeerConnection" in window) || (!("RTCRtpReceiver" in window)))) { return false; }
+    if (!("RTCPeerConnection" in window) || !("RTCRtpReceiver" in window)) { return false; }
+
+    //check if MistServer is compiled with datachannel support
+    if (!("capa" in MistVideo.info) || !("datachannels" in MistVideo.info.capa) || !MistVideo.info.capa.datachannels) {
+      return false;
+    }
     
     //check for http/https mismatch
-    if (location.protocol.replace(/^http/,"ws") != MistUtil.http.url.split(source.url.replace(/^http/,"ws")).protocol) {
+    if (location.protocol != MistUtil.http.url.split(source.url).protocol) {
       MistVideo.log("HTTP/HTTPS mismatch for this source");
       return false;
     }
-
 
     //check if both audio and video have at least one playable track
     //gather track types and codec strings
@@ -48,33 +52,29 @@ mistplayers.webrtc = {
         tracktypes.push(type);
       }
     }
-
-    //either subtitles over the datachannel or over a websocket are supported
+    //subtitles over the datachannel are supported
     if (hassubtitles) { tracktypes.push("subtitle"); }
 
     return tracktypes.length ? tracktypes : false;
-    
-    //return true;
   },
   player: function(){}
 };
-var p = mistplayers.webrtc.player;
+var p = mistplayers.wheprtc.player;
 p.prototype = new MistPlayer();
 p.prototype.build = function (MistVideo,callback) {
-
   var main = this;
-
+  
   //this.debugging = true; //enable extra messages to dev console
-
+  
   var video = document.createElement("video");
   this.setSize = function(size){
     video.style.width = size.width+"px";
     video.style.height = size.height+"px";
   };
 
-  function myRTC() {
-    var webrtc = this;
-    this.connection = false;
+  function myWHEP() {
+    var whep = this;
+    this.connection = { connectionState: "new" };
     this.connecting = false; // will contain promise while connecting
     this.control = false;
 
@@ -82,7 +82,7 @@ p.prototype.build = function (MistVideo,callback) {
 
     this.onmessage = {}; //listeners for control channel: do not save on control channel to keep the listeners even if the connection was reset
 
-    // Connects using websocket
+    // Connects using WHEP
     this.connect = function(){
       if (this.connecting) {
         //already connecting
@@ -97,32 +97,6 @@ p.prototype.build = function (MistVideo,callback) {
 
       url = MistVideo.source.url;
       MistVideo.log('Connecting to ' + url);
-      
-      this.control = new MistUtil.shared.ControlChannel(new WebSocket(url),MistVideo,this.onmessage);
-      this.control.addListener("channel_timeout").then(function(){
-        MistVideo.log("WebRTC: control channel timeout - try next combo","error");
-        MistVideo.nextCombo("control channel timeout");
-      });
-      this.control.addListener("channel_error").then(function(){
-        if (webrtc.control.was_connected) {
-          MistVideo.log("Attempting to reconnect control channel");
-          this.control = new MistUtil.shared.ControlChannel(new WebSocket(url),MistVideo,this.onmessage);
-        }
-        else {
-          MistVideo.log("WebRTC: control channel error - try next combo","error");
-          MistVideo.nextCombo("control channel error");
-        }
-      });
-      //live passthrough of the debugging flag
-      Object.defineProperty(this.control,"debugging",{
-        get: function(){
-          return main.debugging; 
-        }
-      });
-
-      this.step = 0;
-
-      if (this.connection) this.connection.close();
       this.connection = new RTCPeerConnection();
 
       this.connection.onconnectionstatechange = function(e){
@@ -185,37 +159,54 @@ p.prototype.build = function (MistVideo,callback) {
         video.srcObject = e.streams[0];
       }
 
+      // Set up the datachannel for control messages
+      this.control = new MistUtil.shared.ControlChannel(this.connection.createDataChannel("MistControl"),MistVideo,this.onmessage);
+      this.control.addListener("channel_timeout").then(function(){
+        MistVideo.log("WebRTC: control channel timeout - try next combo","error");
+        MistVideo.nextCombo("control channel timeout");
+      });
+      this.control.addListener("channel_error").then(function(){
+        if (whep.control.was_connected) {
+          MistVideo.log("Attempting to reconnect control channel");
+          this.control = new MistUtil.shared.ControlChannel(whep.connection.createDataChannel("MistControl"),MistVideo,this.onmessage);
+        }
+      });
+
+      //live passthrough of the debugging flag
+      Object.defineProperty(this.control,"debugging",{
+        get: function(){
+          return main.debugging; 
+        }
+      });
+
       // Add metadata channel
       this.meta = this.connection.createDataChannel("*",{"protocol":"JSON"});
 
       var offer, answer;
       // Create offer
       this.connecting = this.connection.createOffer({offerToReceiveVideo: true, offerToReceiveAudio: true}).then(function(o){
-        webrtc.step++; //1
         offer = o;
-        if (main.debugging) console.log("Offer:",MistUtil.format.offer2human(offer.sdp),"State:",webrtc.connection.connectionState);
-        return webrtc.connection.setLocalDescription(offer);
+        if (main.debugging) console.log("Offer:",MistUtil.format.offer2human(offer.sdp));
+        return whep.connection.setLocalDescription(offer);
       }).then(function(){
-        webrtc.step++; //2
-        // Do WS request
-        webrtc.control.send({type: "offer_sdp", offer_sdp: offer.sdp});
-        return webrtc.control.addListener("on_answer_sdp");
+        // Do WHEP request
+        return fetch(url, {method:'POST', headers: {'Content-Type': 'application/sdp'}, body: offer.sdp});
+      }).then(function(response){
+        return response.text();
       }).then(function(a){
-        webrtc.step++; //3
-        answer = a.answer_sdp;
-        if (main.debugging) console.log("Answer:",MistUtil.format.offer2human(answer));
+        answer = a;
+        if (main.debugging) console.log('Answer:',MistUtil.format.offer2human(answer));
         // Act on response
-        return webrtc.connection.setRemoteDescription({type: "answer", sdp: answer});
+        return whep.connection.setRemoteDescription({type: 'answer', sdp: answer});
       }).then(function(){
-        webrtc.step++; //4
         MistVideo.log("Connected to "+url);
-        webrtc.connecting = false;
+        whep.connecting = false;
         was_connected = true;
         //MistVideo.container.removeAttribute("data-loading");
         return answer;
       }).catch(function(e){
-        webrtc.connecting = false;
-        MistVideo.showError("WebRTC connection failed: "+e);
+        whep.connecting = false;
+        MistVideo.showError("WHEP connection failed: "+e);
       });
 
       return this.connecting;
@@ -223,12 +214,12 @@ p.prototype.build = function (MistVideo,callback) {
 
     this.close = function(){
       return new Promise(function(resolve,reject){
-        if (!webrtc.connection || (webrtc.connection.connectionState == "closed")) { resolve(); }
-        webrtc.connection.close();
+        if (!whep.connection || (whep.connection.connectionState == "closed")) { resolve(); }
+        whep.connection.close();
         var func = function() {
-          if (!webrtc.connection || (webrtc.connection.connectionState == "closed")) { resolve(); }
+          if (!whep.connection || (whep.connection.connectionState == "closed")) { resolve(); }
           else {
-            console.warn("not yet",webrtc.connection.connectionState);
+            console.warn("not yet",whep.connection.connectionState);
             MistVideo.timers.start(function(){
               func();
             },100);
@@ -241,10 +232,9 @@ p.prototype.build = function (MistVideo,callback) {
     this.connect();
 
   }
-  this.webrtc = new myRTC();
+  this.WHEP = new myWHEP();
 
-  this.api = new MistUtil.shared.ControlChannelAPI(main.webrtc,MistVideo,video);
-
+  this.api = new MistUtil.shared.ControlChannelAPI(main.WHEP,MistVideo,video);
+    
   callback(video);
-  
 };

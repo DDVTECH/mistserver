@@ -54,7 +54,7 @@
   width: 50%;
   max-width: 20em;
   flex-flow: row nowrap;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
 }
 .mistvideo-decodingIssues > * > :last-child {
@@ -73,7 +73,17 @@
 }
 .mistvideo-decodingIssues label .value {
   font-size: 0.8em;
+  align-self: flex-end;
 }
+.mistvideo-decodingIssues label > span > span > div > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.mistvideo-decodingIssues label > span > span > div > div:first-child:last-child > .mistvideo-description {
+  display: none;
+}
+
 .mistvideo svg.icon.graph {
   position: absolute;
   right: 0;

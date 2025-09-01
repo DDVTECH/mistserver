@@ -120,6 +120,8 @@ function MistVideo(streamName,options) {
   new MistSkin(this);
   
   this.checkCombo = function(options,quiet) {
+    if (!MistVideo.info) { return false; }
+
     if (!options) {
       options = {};
     }

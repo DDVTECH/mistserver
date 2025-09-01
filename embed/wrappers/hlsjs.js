@@ -104,7 +104,8 @@ p.prototype.build = function (MistVideo,callback) {
   function init(url) {
     MistVideo.player.hls = new Hls({
       maxBufferLength: 15,
-      maxMaxBufferLength: 60
+      maxMaxBufferLength: 60,
+      manifestLoadingTimeOut: 60e3
     });
     MistVideo.player.hls.attachMedia(video);
     MistVideo.player.hls.on(Hls.Events.MEDIA_ATTACHED, function () {

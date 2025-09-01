@@ -139,7 +139,6 @@ namespace Mist{
     capa["url_match"].append("/player.js");
     capa["url_match"].append("/videojs.js");
     capa["url_match"].append("/dashjs.js");
-    capa["url_match"].append("/webrtc.js");
     capa["url_match"].append("/flv.js");
     capa["url_match"].append("/hlsjs.js");
     capa["url_match"].append("/libde265.js");
@@ -158,6 +157,7 @@ namespace Mist{
     capa["optional"]["wrappers"]["allowed"].append("hlsjs");
     capa["optional"]["wrappers"]["allowed"].append("videojs");
     capa["optional"]["wrappers"]["allowed"].append("dashjs");
+    capa["optional"]["wrappers"]["allowed"].append("wheprtc");
     capa["optional"]["wrappers"]["allowed"].append("webrtc");
     capa["optional"]["wrappers"]["allowed"].append("mews");
     capa["optional"]["wrappers"]["allowed"].append("rawws");
@@ -927,6 +927,11 @@ namespace Mist{
           response.append((char *)video_js, (size_t)video_js_len);
           used = true;
         }
+        if (it->asStringRef() == "wheprtc") {
+#include "wheprtc.js.h"
+          response.append((char *)wheprtc_js, (size_t)wheprtc_js_len);
+          used = true;
+        }
         if (it->asStringRef() == "webrtc"){
 #include "webrtc.js.h"
           response.append((char *)webrtc_js, (size_t)webrtc_js_len);
@@ -1049,27 +1054,7 @@ namespace Mist{
       H.Clean();
       return;
     }
-    if (req.url == "/webrtc.js"){
-      std::string response;
-      H.SetHeader("Server", APPIDENT);
-      H.setCORSHeaders();
-      H.SetHeader("Content-Type", "application/javascript");
-      if (headersOnly){
-        H.SendResponse("200", "OK", myConn);
-        responded = true;
-        H.Clean();
-        return;
-      }
 
-#include "player_webrtc.js.h"
-      response.append((char *)player_webrtc_js, (size_t)player_webrtc_js_len);
-
-      H.SetBody(response);
-      H.SendResponse("200", "OK", myConn);
-      responded = true;
-      H.Clean();
-      return;
-    }
     if (req.url == "/flv.js"){
       std::string response;
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);

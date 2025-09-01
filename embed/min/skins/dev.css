@@ -10,11 +10,11 @@
 [data-mist-rotate="-1"]{--rotate:-90deg;--factor:1}
 [data-mist-rotate="2"]{transform:rotate(180deg);transform-origin:center center}
 .mistvideo svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
-.mistvideo [data-loading]{position:relative}
-.mistvideo [data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
-.mistvideo [data-loading] svg.icon.loading{z-index:2;opacity:1}
-.mistvideo [data-loading-css] .mistvideo-controls{display:none}
-.mistvideo [data-hidecursor],.mistvideo [data-hidecursor] *,.mistvideo [data-hidecursor] .mistvideo-pointer{cursor:none}
+.mistvideo[data-loading]{position:relative}
+.mistvideo[data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
+.mistvideo[data-loading] svg.icon.loading{z-index:2;opacity:1}
+.mistvideo[data-loading-css] .mistvideo-controls{display:none}
+.mistvideo[data-hidecursor],.mistvideo[data-hidecursor] *,.mistvideo[data-hidecursor] .mistvideo-pointer{cursor:none}
 .mistvideo-error{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background-color:$background;align-items:center;justify-content:center;text-align:center;z-index:2;cursor:default;min-height:fit-content;min-width:fit-content;height:100%}
 .mistvideo-error.show{display:flex}
 .mistvideo-error .message{max-width:80%}
@@ -138,12 +138,14 @@ to{opacity:1}
 .mistvideo-forcePlayer>span,.mistvideo-forceSource>span,.mistvideo-forceType>span{display:inline-block;width:7em}
 .mistvideo-forcePlayer>select,.mistvideo-forceSource>select,.mistvideo-forceType>select{width:15em;min-width:auto}
 .mistvideo-devcontrols{margin:.5em 0}
-.mistvideo-decodingIssues>*{display:flex;width:50%;max-width:20em;flex-flow:row nowrap;align-items:flex-end;justify-content:space-between}
+.mistvideo-decodingIssues>*{display:flex;width:50%;max-width:20em;flex-flow:row nowrap;align-items:flex-start;justify-content:space-between}
 .mistvideo-decodingIssues>*>:last-child{margin-right:.5em}
 .mistvideo-decodingIssues{display:flex;flex-flow:row wrap;justify-content:space-between}
 .mistvideo-decodingIssues label{position:relative}
 .mistvideo-decodingIssues label .mistvideo-description{font-size:.9em}
-.mistvideo-decodingIssues label .value{font-size:.8em}
+.mistvideo-decodingIssues label .value{font-size:.8em;align-self:flex-end}
+.mistvideo-decodingIssues label>span>span>div>div{display:flex;justify-content:space-between;align-items:baseline}
+.mistvideo-decodingIssues label>span>span>div>div:first-child:last-child>.mistvideo-description{display:none}
 .mistvideo svg.icon.graph{position:absolute;right:0;top:0;bottom:0;width:6em}
 .mistvideo select{border-radius:0}
 .mistvideo input[type=checkbox]{margin:0;margin-right:.2em;border:1px solid $semiFill;border-radius:0;-webkit-appearance:none;-moz-appearance:none;-ms-appearance:none;appearance:none;width:.8em;height:.8em;color:inherit;position:relative;cursor:pointer}

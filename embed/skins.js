@@ -860,6 +860,7 @@ MistSkins["default"] = {
         buffer.className = "buffer";
         buffer.style.left = (this.time2perc(start)*100)+"%";
         buffer.style.width = ((this.time2perc(end) - this.time2perc(start))*100)+"%";
+        //console.warn("start",start,"end",end);
         return buffer;
       };
       container.updateBuffers = function(buffers){
@@ -1055,7 +1056,7 @@ MistSkins["default"] = {
           tooltip.style.opacity = 0;
           
           //trigger seek
-          if ((!e.path) || (MistUtil.array.indexOf(e.path,margincontainer) < 0)) { //it's not already triggered by onmouseup
+          if ((!e.composedPath()) || (MistUtil.array.indexOf(e.composedPath(),margincontainer) < 0)) { //it's not already triggered by onmouseup
             container.seek(e);
           }
         },container);
@@ -1658,20 +1659,18 @@ MistSkins["default"] = {
           if (order(keya) < order(keyb)) { return -1; }
           return 0;
         });
-        for (var j in tracktypes) {
-          var type = tracktypes[j];
-          var t = tracks[type];
+        function processTrack(t,type) {
 
           if (MistUtil.array.indexOf(["video","audio","subtitle"],type) <= -1) {
             //Do not display this track type
-            continue;
+            return;
           }
           
           if (type == "subtitle") {
             if ((!("player" in MistVideo)) || (!("api" in MistVideo.player)) || (!("setWSSubtitle" in MistVideo.player.api) && !("setSubtitle" in MistVideo.player.api))) {
               //this player does not support adding subtitles, don't show track selection in the interface
               MistVideo.log("Subtitle selection was disabled as this player does not support it.");
-              continue;
+              return;
             }
             
             var mime = "html5/text/vtt"
@@ -1693,7 +1692,7 @@ MistSkins["default"] = {
             if (!subtitleSource) {
               //if we can't find a subtitle output, don't show track selection in the interface
               MistVideo.log("Subtitle selection was disabled as a source could not be found.");
-              continue;
+              return;
             }
             
             //also add the option to disable subtitles
@@ -1926,6 +1925,12 @@ MistSkins["default"] = {
             cell.appendChild(span);
             span.appendChild(document.createTextNode(orderValues(t[trackkeys[0]].same).join(" ")));
           }
+        }
+
+        for (var j in tracktypes) {
+          var type = tracktypes[j];
+          var t = tracks[type];
+          processTrack(t,type);
         }
         
       }
@@ -3092,7 +3097,8 @@ MistSkins.dev = {
         valuec.appendChild(ele);
         
         label.set = function(val){
-          if (val !== 0) { this.style.display = ""; }
+          if (val !== 0 && (typeof val != "object" || MistUtil.object.keys(val).length > 0 )) { this.style.display = ""; }
+          else return;
           if (typeof val == "object") {
             try {
               if (val instanceof Promise) {
@@ -3100,6 +3106,15 @@ MistSkins.dev = {
                   label.set(val)
                 },function(){});
                 return;
+              }
+              if (val instanceof HTMLElement) {
+                value.nodeValue = "";
+                ele.innerHTML = "";
+                ele.appendChild(val);
+                return;
+              }
+              if (!("val" in val)) {
+                return label.set(JSON.stringify(val));
               }
             }
             catch (e) {}
@@ -3222,42 +3237,47 @@ MistSkins.dev = {
             }
           },
           "Negative acknowledgements": function(){
-            if (MistVideo.player.api) {
-              return MistUtil.format.number(MistVideo.player.api.nackCount);
+            if (MistVideo.player.api && MistVideo.player.api.nackCount) {
+              return processMultiOutput(MistVideo.player.api.nackCount,MistUtil.format.number);
             }
           },
           "Picture losses": function(){
-            return MistUtil.format.number(MistVideo.player.api.pliCount);
-          },
-          "Packets lost": function(){
-            return MistUtil.format.number(MistVideo.player.api.packetsLost);
-          },
-          "Packets received": function(){
-            return MistUtil.format.number(MistVideo.player.api.packetsReceived);
-          },
-          "Bytes received": function(){
-            if (MistVideo.player.api) {
-              return MistUtil.format.bytes(MistVideo.player.api.bytesReceived);
+            if (MistVideo.player.api && MistVideo.player.api.pliCount) {
+              return processMultiOutput(MistVideo.player.api.pliCount,MistUtil.format.number);
             }
           },
-          "Local latency [ms]": function(){
-            if ((MistVideo.player.api) && ("getLatency" in MistVideo.player.api)) {
-              var p = MistVideo.player.api.getLatency();
-              if (p) {
-                return new Promise(function(resolve,reject) {
-                  p.then(function(result){
-                    var r = [];
-                    for (var i in result) {
-                      if (result[i]) {
-                        r.push(i[0]+":"+Math.round(result[i]*1e3));
-                      }
-                    }
-                    if (r.length) { resolve(r.join(" ")); }
-                    else { resolve(); }
-                  },reject)
-                });
-              }
-              return new Promise(function(resolve,reject){resolve();},function(){});
+          "Packets lost": function(){
+            if (MistVideo.player.api && MistVideo.player.api.packetsLost) {
+              return processMultiOutput(MistVideo.player.api.packetsLost,MistUtil.format.number);
+            }
+          },
+          "Packets received": function(){
+            if (MistVideo.player.api && MistVideo.player.api.packetsReceived) {
+              return processMultiOutput(MistVideo.player.api.packetsReceived,MistUtil.format.number);
+            }
+          },
+          "Bytes received": function(){
+            if (MistVideo.player.api && MistVideo.player.api.bytesReceived) {
+              return processMultiOutput(MistVideo.player.api.bytesReceived,function(v){
+                return MistUtil.format.bytes(v);
+              });
+            }
+          },
+          "Local latency": function(){
+            if (MistVideo.player.api && MistVideo.player.api.jitterDelay) {
+              return processMultiOutput(MistVideo.player.api.jitterDelay,function(v){
+                return MistUtil.format.number(v*1e3)+"ms";
+              });
+            }
+          },
+          "Messages received": function(){
+            if (MistVideo.player.api && MistVideo.player.api.messagesReceived) {
+              return processMultiOutput(MistVideo.player.api.messagesReceived,MistUtil.format.number);
+            }
+          },
+          "Messages sent": function(){
+            if (MistVideo.player.api && MistVideo.player.api.messagesSent) {
+              return processMultiOutput(MistVideo.player.api.messagesSent,MistUtil.format.number);
             }
           },
           "Current bitrate": function(){
@@ -3269,7 +3289,6 @@ MistSkins.dev = {
               var out = MistUtil.format.bits(MistVideo.player.api.currentBps());
               return out ? out+"ps" : out;
             }
-
           },
           "Framerate in": function(){
             if (MistVideo.player.api && "framerate_in" in MistVideo.player.api) {
@@ -3282,6 +3301,27 @@ MistSkins.dev = {
             }
           }
         };
+        function processMultiOutput(values,formatter){
+          if (typeof values == "number") {
+            return formatter(values);
+          }
+          var out = document.createElement("div");
+          for (var i in values) {
+            if (values[i]) {
+              var c = document.createElement("div"); //container
+              var l = document.createElement("span"); //label
+              l.className = "mistvideo-description";
+              c.appendChild(l);
+              l.appendChild(document.createTextNode(i[0]+": "));
+              l.setAttribute("title",i);
+              var v = document.createElement("span"); //value
+              c.appendChild(v);
+              v.appendChild(document.createTextNode(formatter(values[i])));
+              out.appendChild(c);
+            }
+          }
+          return out.children.length ? out : 0;
+        }
         var updates = [];
         for (var i in videovalues) {
           if (typeof videovalues[i]() == "undefined") { continue; }

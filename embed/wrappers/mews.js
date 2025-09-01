@@ -8,6 +8,11 @@ mistplayers.mews = {
   isBrowserSupported: function (mimetype,source,MistVideo) {
     
     if ((!("WebSocket" in window)) || (!("MediaSource" in window)) || (!("Promise" in window))) { return false; }
+
+    if (MistVideo.info.capa && !MistVideo.info.capa.ssl) {
+      MistVideo.log("This player requires websocket support");
+      return false;
+    }
     
     //check for http/https mismatch
     if (location.protocol.replace(/^http/,"ws") != MistUtil.http.url.split(source.url.replace(/^http/,"ws")).protocol) {

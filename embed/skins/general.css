@@ -71,24 +71,24 @@
   margin: auto;
   opacity: 0;
 }
-.mistvideo [data-loading] {
+.mistvideo[data-loading] {
   position: relative;
 }
 
 /*wait before showing icon when stalled*/
-.mistvideo [data-loading="stalled"] svg.icon.loading {
+.mistvideo[data-loading="stalled"] svg.icon.loading {
   transition: opacity 0s 3s;
 }
-.mistvideo [data-loading] svg.icon.loading {
+.mistvideo[data-loading] svg.icon.loading {
   z-index: 2;
   opacity: 1;
 }
-.mistvideo [data-loading-css] .mistvideo-controls {
+.mistvideo[data-loading-css] .mistvideo-controls {
   display: none;
 }
-.mistvideo [data-hidecursor],
-.mistvideo [data-hidecursor] .mistvideo-pointer,
-.mistvideo [data-hidecursor] *
+.mistvideo[data-hidecursor],
+.mistvideo[data-hidecursor] .mistvideo-pointer,
+.mistvideo[data-hidecursor] *
 { cursor: none }
 .mistvideo-error {
   display: none;

@@ -46,6 +46,9 @@ echo "    Minimizing wrappers.."
   ERRORS=$((ERRORS + $?))
 #fi
 #if elementIn "embed/wrappers/webrtc.js" "${CHANGES[@]}"; then
+  echo "      Minimizing wheprtc";
+  terser -mn -o min/wrappers/wheprtc.js -- wrappers/wheprtc.js
+  ERRORS=$((ERRORS + $?))
   echo "      Minimizing webrtc";
   terser -mn -o min/wrappers/webrtc.js -- wrappers/webrtc.js
   ERRORS=$((ERRORS + $?))

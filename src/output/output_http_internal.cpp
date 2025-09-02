@@ -1186,7 +1186,7 @@ namespace Mist{
         prevStatePerc = newStatePerc;
       }else{
         if (newState == STRMSTAT_READY){stats();}
-        if (myConn.spool() && ws.readFrame()){
+        if (ws.readFrame(true)){
           onWebsocketFrame();
         }else{
           Util::sleep(250);

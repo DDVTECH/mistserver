@@ -19,7 +19,7 @@ int main(int argc, char **argv){
   HTTP::Websocket ws(C, HTTP::URL(c.getString("url")));
   if (!ws){return 1;}
   while (ws){
-    if (!ws.readFrame()){
+    if (!ws.readFrame(true)){
       Util::sleep(100);
       continue;
     }

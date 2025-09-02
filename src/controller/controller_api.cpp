@@ -351,7 +351,7 @@ void Controller::handleWebSocket(APIConn *aConn) {
 
   // If we're not authorized (yet), only accept auth commands and nothing else
   if (!aConn->authorized) {
-    if (aConn->W->readFrame()) {
+    if (aConn->W->readFrame(true)) {
 
       // only handle text frames
       if (aConn->W->frameType != 1) { return; }
@@ -479,7 +479,7 @@ void Controller::handleWebSocket(APIConn *aConn) {
   }
 
   // Ignore any incoming frames
-  while (aConn->W->readFrame()) {}
+  while (aConn->W->readFrame(true)) {}
 }
 
 /// Handles a single incoming API connection.

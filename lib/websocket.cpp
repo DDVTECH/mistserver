@@ -116,18 +116,21 @@ namespace HTTP{
   /// Loops calling readFrame until the connection is closed, sleeping in between reads if needed.
   bool Websocket::readLoop(){
     while (C){
-      if (readFrame()){return true;}
+      if (readFrame(true)){return true;}
       Util::sleep(500);
     }
     return false;
   }
 
   /// Loops reading from the socket until either there is no more data ready or a whole frame was read.
-  bool Websocket::readFrame(){
+  bool Websocket::readFrame(bool readable){
     while (true){
       // Check if we can receive the minimum frame size (2 header bytes, 0 payload)
       if (!C.Received().available(2)){
-        if (C.spool(true)){continue;}
+        if (readable && C.spool(true)){
+          readable = false;
+          continue;
+        }
         return false;
       }
       std::string head = C.Received().copy(2);
@@ -138,7 +141,10 @@ namespace HTTP{
       if (headSize > 2){
         // Check if we can receive the whole header
         if (!C.Received().available(headSize)){
-          if (C.spool(true)){continue;}
+          if (readable && C.spool(true)){
+            readable = false;
+            continue;
+          }
           return false;
         }
         // Read entire header, re-read real payload length
@@ -151,7 +157,10 @@ namespace HTTP{
       }
       // Check if we can receive the whole frame (header + payload)
       if (!C.Received().available(headSize + payLen)){
-        if (C.spool(true)){continue;}
+        if (readable && C.spool(true)){
+          readable = false;
+          continue;
+        }
         return false;
       }
       C.Received().remove(headSize); // delete the header

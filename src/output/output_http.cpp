@@ -284,13 +284,11 @@ namespace Mist{
     }
     // Handle websockets
     if (webSock){
-      if (readable){
-        while (webSock->readFrame()){
-          if (!wsCmds || !handleWebsocketCommands()){
-            onWebsocketFrame();
-          }
-          idleLast = Util::bootMS();
+      if (webSock->readFrame(readable)){
+        if (!wsCmds || !handleWebsocketCommands()){
+          onWebsocketFrame();
         }
+        idleLast = Util::bootMS();
       }
       return;
     }
@@ -445,7 +443,6 @@ namespace Mist{
       Util::stringToLower(upgradeHeader);
       if (doesWebsockets() && upgradeHeader == "websocket"){
         INFO_MSG("Switching to Websocket mode");
-        setBlocking(false);
         preWebsocketConnect();
         HTTP::Parser req = H;
         H.Clean();

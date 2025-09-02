@@ -11,7 +11,7 @@ namespace HTTP{
     Websocket(Socket::Connection &c, const HTTP::URL & url, std::map<std::string, std::string> * headers = 0);
     Websocket(Socket::Connection &c, bool client);
     operator bool() const;
-    bool readFrame();
+    bool readFrame(bool readable);
     bool readLoop();
     void sendFrame(const char *data, unsigned int len, unsigned int frameType = 1);
     void sendFrameHead(unsigned int len, unsigned int frameType = 1);

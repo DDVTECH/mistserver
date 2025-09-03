@@ -41,6 +41,7 @@ namespace Mist{
     trkIdx = meta.addTrack();
     meta.setType(trkIdx, "meta");
     meta.setCodec(trkIdx, config->getString("codec"));
+    if (config->getString("language").size()) { meta.setLang(trkIdx, config->getString("language")); }
     meta.setID(trkIdx, 1);
     offset = M.getBootMsOffset();
     myConn.setBlocking(false);
@@ -76,15 +77,36 @@ namespace Mist{
     capa["optional"]["codec"]["option"] = "--codec";
     capa["optional"]["codec"]["short"] = "c";
 
+    cfg->addOption(
+      "language",
+      JSON::fromString("{\"arg\":\"string\",\"default\":\"JSON\",\"short\":\"l\",\"long\":"
+                       "\"language\",\"help\":\"Language to use for data ingest, undetermined by default\"}"));
+    capa["optional"]["language"]["name"] = "Language";
+    capa["optional"]["language"]["help"] = "What language to ingest as";
+    capa["optional"]["language"]["default"] = "";
+    capa["optional"]["language"]["type"] = "str";
+    capa["optional"]["language"]["option"] = "--language";
+    capa["optional"]["language"]["short"] = "l";
+
     capa["codecs"][0u][0u].append("JSON");
     cfg->addConnectorOptions(3456, capa);
+
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1;
+    opt["help"] = "Set to - to connect stdio";
+    cfg->addOption("target", opt);
+
     config = cfg;
   }
 
   void OutJSONLine::sendNext(){
   }
 
-  bool OutJSONLine::listenMode(){return true;}
+  bool OutJSONLine::listenMode() {
+    return !(config->getString("target").size());
+  }
 
   void OutJSONLine::requestHandler(bool readable){
     if (readable && myConn.spool()){

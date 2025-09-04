@@ -506,6 +506,17 @@ namespace Mist{
 
     json_resp["selver"] = 2;
 
+    // Mention what the server supports in terms of optional/versioned capabilities
+    json_resp["capa"]["selver"] = 2;
+#ifdef WITH_DATACHANNELS
+    json_resp["capa"]["datachannels"] = true;
+#endif
+#ifdef SSL
+    json_resp["capa"]["ssl"] = true;
+#else
+    json_resp["capa"]["ssl"] = false;
+#endif
+
     bool hasVideo = false;
     std::set<size_t> validTracks = M.getValidTracks();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){

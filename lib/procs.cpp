@@ -51,26 +51,28 @@ std::set<int> Util::Procs::socketList;
 void childsig_handler(int signum){return;}
 
 /// Attempts to reap child and returns current running status.
-bool Util::Procs::childRunning(pid_t p){
+bool Util::Procs::childRunning(pid_t p) {
   int status;
-  pid_t ret = waitpid(p, &status, WNOHANG);
-  if (ret == p){
-    std::lock_guard<std::mutex> guard(plistMutex);
-    int exitcode = -1;
-    if (WIFEXITED(status)){
-      exitcode = WEXITSTATUS(status);
-    }else if (WIFSIGNALED(status)){
-      exitcode = -WTERMSIG(status);
+  pid_t ret;
+  do {
+    ret = waitpid(p, &status, WNOHANG);
+    if (ret == p) {
+      std::lock_guard<std::mutex> guard(plistMutex);
+      int exitcode = -1;
+      if (WIFEXITED(status)) {
+        exitcode = WEXITSTATUS(status);
+      } else if (WIFSIGNALED(status)) {
+        exitcode = -WTERMSIG(status);
+      }
+      if (plist.count(ret)) {
+        HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
+        plist.erase(ret);
+      } else {
+        HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
+      }
+      return false;
     }
-    if (plist.count(ret)){
-      HIGH_MSG("Process %d fully terminated with code %d", ret, exitcode);
-      plist.erase(ret);
-    }else{
-      HIGH_MSG("Child process %d exited with code %d", ret, exitcode);
-    }
-    return false;
-  }
-  if (ret < 0 && errno == EINTR){return childRunning(p);}
+  } while (ret < 0 && errno == EINTR);
   return !kill(p, 0);
 }
 
@@ -91,95 +93,80 @@ bool Util::Procs::isRunning(pid_t pid){
 /// Waits up to 1 second, then sends SIGINT signal to all managed processes.
 /// After that waits up to 5 seconds for children to exit, then sends SIGKILL to
 /// all remaining children. Waits one more second for cleanup to finish, then exits.
-void exit_handler(){
-  if (!handler_set){return;}
-  int waiting = 0;
-  std::set<pid_t> listcopy;
-  {
-    std::lock_guard<std::mutex> guard(plistMutex);
-    listcopy = plist;
-    thread_handler = false;
-  }
-  if (reaper_thread){
+void exit_handler() {
+  if (!handler_set) { return; }
+  thread_handler = false;
+  if (reaper_thread) {
     // Send a child signal, to guarantee the thread wakes up immediately
     pthread_kill(reaper_thread->native_handle(), SIGCHLD);
-
     reaper_thread->join();
     delete reaper_thread;
     reaper_thread = 0;
   }
-  std::set<pid_t>::iterator it;
-  if (listcopy.empty()){return;}
+  if (plist.empty()) { return; }
 
-  // wait up to 0.5 second for applications to shut down
-  while (!listcopy.empty() && waiting <= 25){
-    for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (!Util::Procs::childRunning(*it)){
-        listcopy.erase(it);
-        break;
-      }
-      if (!listcopy.empty()){
-        Util::wait(20);
-        ++waiting;
-      }
-    }
-  }
-  if (listcopy.empty()){return;}
-
-  INFO_MSG("Sending SIGINT and waiting up to 10 seconds for %d children to terminate.",
-           (int)listcopy.size());
-  waiting = 0;
-  // wait up to 10 seconds for applications to shut down
   Event::Loop evLp;
   evLp.setup();
-  while (!listcopy.empty() && waiting <= 50*Util::Procs::kill_timeout){
-    bool doWait = true;
-    for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (!Util::Procs::childRunning(*it)){
-        listcopy.erase(it);
-        doWait = false;
-        break;
-      }
+
+  uint64_t waitStart = Util::bootMS();
+
+  // wait up to 0.5 second for applications to shut down
+  uint64_t now = Util::bootMS();
+  while (!plist.empty() && waitStart + 500 > now) {
+    const std::set<pid_t> listcopy = plist;
+    for (pid_t P : listcopy) {
+      if (!Util::Procs::childRunning(P)) { plist.erase(P); }
     }
-    if (doWait && !listcopy.empty()){
-      if ((waiting % 50) == 0){
-        for (it = listcopy.begin(); it != listcopy.end(); it++){
-          INFO_MSG("SIGINT %d", *it);
-          kill(*it, SIGINT);
+    if (!plist.empty() && waitStart + 500 > now) { evLp.await(waitStart + 500 - now); }
+    now = Util::bootMS();
+  }
+  if (plist.empty()) { return; }
+
+  INFO_MSG("Waiting up to %d seconds for %zu processes...", Util::Procs::kill_timeout, plist.size());
+  // wait up to 10 seconds for applications to shut down
+
+  uint64_t nextSignal = 0;
+  while (!plist.empty() && waitStart + 1000 * Util::Procs::kill_timeout > now) {
+    const std::set<pid_t> listcopy = plist;
+    for (pid_t P : listcopy) {
+      if (!Util::Procs::childRunning(P)) {
+        plist.erase(P);
+      } else {
+        if (nextSignal <= now) {
+          INFO_MSG("SIGINT %d", P);
+          kill(P, SIGINT);
         }
       }
-      evLp.await(20);
-      ++waiting;
     }
+    if (nextSignal <= now) { nextSignal = now + 1000; }
+    if (!plist.empty() && waitStart + 1000 * Util::Procs::kill_timeout > now) {
+      uint64_t waitTime = waitStart + 1000 * Util::Procs::kill_timeout - now;
+      if (waitTime > 1000) { waitTime = 1000; }
+      evLp.await(waitTime);
+    }
+    now = Util::bootMS();
   }
-  if (listcopy.empty()){return;}
+  if (plist.empty()) { return; }
 
-  ERROR_MSG("Sending SIGKILL to remaining %d children", (int)listcopy.size());
+  ERROR_MSG("Sending SIGKILL to remaining %zu children", plist.size());
   // send sigkill to all remaining
-  if (!listcopy.empty()){
-    for (it = listcopy.begin(); it != listcopy.end(); it++){
-      INFO_MSG("SIGKILL %d", *it);
-      kill(*it, SIGKILL);
-    }
+  for (pid_t P : plist) {
+    INFO_MSG("SIGKILL %d", P);
+    kill(P, SIGKILL);
   }
 
-  INFO_MSG("Waiting up to a second for %d children to terminate.", (int)listcopy.size());
-  waiting = 0;
-  // wait up to 1 second for applications to shut down
-  while (!listcopy.empty() && waiting <= 50){
-    for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (!Util::Procs::childRunning(*it)){
-        listcopy.erase(it);
-        break;
-      }
-      if (!listcopy.empty()){
-        Util::wait(20);
-        ++waiting;
-      }
+  INFO_MSG("Last chance for %d children to terminate.", (int)plist.size());
+  waitStart = now = Util::bootMS();
+  while (!plist.empty() && waitStart + 500 > now) {
+    const std::set<pid_t> listcopy = plist;
+    for (pid_t P : listcopy) {
+      if (!Util::Procs::childRunning(P)) { plist.erase(P); }
     }
+    if (!plist.empty() && waitStart + 500 > now) { evLp.await(waitStart + 500 - now); }
+    now = Util::bootMS();
   }
-  if (listcopy.empty()){return;}
-  FAIL_MSG("Giving up with %d children left.", (int)listcopy.size());
+  if (plist.empty()) { return; }
+  FAIL_MSG("Giving up with %zu processes still running", plist.size());
 }
 
 // Joins the reaper thread, if any, before a fork

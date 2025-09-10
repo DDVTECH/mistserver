@@ -116,7 +116,7 @@ namespace Mist{
     std::string UA;                                  ///< User Agent string, if known.
     uint64_t uaDelay;                                ///< Seconds to wait before setting the UA.
     uint64_t lastRecv;
-    uint64_t dataWaitTimeout; ///< How long to wait for new packets before dropping a track, in tens of milliseconds.
+    uint64_t dataWaitTimeout; ///< How long to wait for new packets before dropping a track, in milliseconds.
     uint64_t firstTime; ///< Time of first packet after last seek. Used for real-time sending.
     virtual std::string getConnectedHost();
     virtual std::string getConnectedBinHost();

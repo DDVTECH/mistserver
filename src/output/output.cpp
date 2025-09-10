@@ -99,7 +99,7 @@ namespace Mist{
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
     liveSeekDisabled = false;
-    dataWaitTimeout = 2500;
+    dataWaitTimeout = 25000;
     thisBootMs = Util::bootMS();
     lastPacketBootMs = thisBootMs;
     for (size_t i = 0; i < 10; ++i){interPacketTimes[i] = 50;}

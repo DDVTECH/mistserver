@@ -193,6 +193,7 @@ p.prototype.build = function (MistVideo,callback) {
       }
       
     }
+
     if (MistVideo.info.type == "live") {
       
       overrides.get.duration = function(){
@@ -242,23 +243,21 @@ p.prototype.build = function (MistVideo,callback) {
         }
       };
       
-      if ((MistVideo.source.type == "html5/video/mp4") || (MistVideo.source.type == "html5/video/webm")) {
-        var otherdurationoverride = overrides.get.duration;
-        overrides.get.duration = function(){
-          return otherdurationoverride.apply(this,arguments) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3;
-        }
-        overrides.get.currentTime = function(){
-          return this.currentTime - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3;
-        }
-        overrides.get.buffered = function(){
-          var video = this;
-          return {
-            length: video.buffered.length,
-            start: function(i) { return video.buffered.start(i) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3; },
-            end: function(i) { return video.buffered.end(i) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3; }
-          }
-        };
+      var otherdurationoverride = overrides.get.duration;
+      overrides.get.duration = function(){
+        return otherdurationoverride.apply(this,arguments) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3;
       }
+      overrides.get.currentTime = function(){
+        return this.currentTime - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3;
+      }
+      overrides.get.buffered = function(){
+        var video = this;
+        return {
+          length: video.buffered.length,
+          start: function(i) { return video.buffered.start(i) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3; },
+          end: function(i) { return video.buffered.end(i) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3; }
+        }
+      };
     }
     else {
       if (!isFinite(video.duration)) {

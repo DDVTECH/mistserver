@@ -110,6 +110,55 @@
 .mistvideo-error.show { display: flex; }
 .mistvideo-error .message { max-width: 80%; }
 .mistvideo-error .message .details table { text-align: left; }
+
+.mistvideo-keyControls {
+  position: absolute;
+  top: 0; left: 0;
+  bottom: 0; right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s 1s;
+  white-space: pre;
+  text-align: center;
+}
+.mistvideo-keyControls[data-show] {
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+.mistvideo-keyControls > * {
+  background-color: #0005;
+}
+.mistvideo-keyControls > div {
+  transform: scale(0);
+  transition: transform ease-in 1.5s 1s;
+}
+.mistvideo-keyControls > div:not(:empty) {
+  padding: 2em;
+  border-radius: 50%;
+  margin: 1em;
+}
+.mistvideo-keyControls[data-show] > div:not(:empty) {
+  transform: scale(1);
+  transition: transform cubic-bezier(1,2,.5,1) 0.2s;
+}
+.mistvideo-keyControls > div > .icon.play {
+  transform: translateX(8px);
+}
+.mistvideo-keyControls > span {
+  font-size: 1.5em;
+  padding: 0 0.25em;
+}
+
+.mistvideo[data-controls="show"] .mistvideo-controls {
+  bottom: 0;
+  transition-delay: 0s !important;
+  transition-duration: 0.1s !important;
+}
+
 .mistvideo-video:not(.video-js) button,
 .mistvideo-error button,
 .mistvideo-controls button

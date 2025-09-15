@@ -12,25 +12,40 @@
 }
 .mistvideo-subtitles {
   position: absolute;
+  top: 0; bottom: 0;
   width: 100%;
-  height: 100%;
-  pointer-events: none;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  font-size: 1.5em;
+  font-size: clamp(1em,1cm,calc(var(--height)*0.1));
+  transition: bottom 0.5s ease-in 0.5s;
+  pointer-events: none;
+}
+.mistvideo-subtitles[data-position="top"] {
+  align-items: flex-start;
 }
 .mistvideo-subtitles > * {
-  margin-bottom: 0.5em;
+  margin: 0.5em 0;
   padding: 0.1em 0.3em;
   text-align: center;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.5);
   white-space: pre-wrap;
+  pointer-events: auto;
+  cursor: pointer;
 }
 .mistvideo-subtitles > *:empty {
   display: none;
 }
 .mistvideo[data-fullscreen] .mistvideo-subtitles {
-  font-size: 3vh;
+  font-size: 5vh;
+  font-size: clamp(2em,2cm,5vh);
+}
+.mistvideo[data-show-submenu] .mistvideo-subtitles,
+.mistvideo[data-controls="show"] .mistvideo-subtitles,
+.mistvideo-maincontainer:hover:not([data-hidecursor]) .mistvideo-subtitles {
+  bottom: 42px;
+  transition: none;
 }
 .mistvideo-background { background-color: $background; }
 .mistvideo-totalTime:before {
@@ -102,18 +117,31 @@
   vertical-align: top;
 }
 
-.mist.largeplay, .mist.muted {
+.mistvideo > .mist.largeplay,
+.mistvideo > .mist.muted {
   position: absolute;
   opacity: 0.5;
+  background-color: $background;
+  border-radius: 50%;
+  padding: 0.5em;
 }
-.mist.largeplay {
+.mistvideo > .mist.largeplay {
   top: 50%;
   left: 0;
   right: 0;
   margin: auto;
   transform: translateY(-50%);
+  padding: 1em;
 }
-.mist.muted {
+.mistvideo > .mist.largeplay path {
+  stroke-width: 2.67;
+  transform: scale(.75) translateX(3px);
+  transform-origin: center;
+}
+.mistvideo > .mist.largeplay:hover path {
+  stroke: $accent;
+}
+.mistvideo > .mist.muted {
   top: 0;
   right: 0;
   margin: 1%;

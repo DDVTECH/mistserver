@@ -14,6 +14,7 @@ function MistVideo(streamName,options) {
     host: null,           //override mistserver host (default is the host that player.js is loaded from)
     autoplay: true,       //start playing when loaded
     controls: true,       //show controls (MistControls when available)
+    keyControls: true,    //enable keyboard controls (false to disable, "focus" to require focus on the player to capture keys)
     loop: false,          //don't loop when the stream has finished
     poster: false,        //don't show an image before the stream has started
     muted: false,         //don't start muted
@@ -722,7 +723,7 @@ function MistVideo(streamName,options) {
                     this.send_queue.push(obj);
                   };
 
-                  var stayahead = 5; //ask MistServer to fastforward to stayahead seconds ahead, so we receive messages earlier
+                  var stayahead = 1; //ask MistServer to fastforward to stayahead seconds ahead, so we receive messages earlier
                   var isfarahead = false; //for rate limiting the 'pause when too far ahead'-function
 
                   me.socket.setTracks = function(){
@@ -738,6 +739,7 @@ function MistVideo(streamName,options) {
                       if (!e.data) { MistVideo.log("Subtitle websocket received empty message."); return; }
                       var message = JSON.parse(e.data);
                       if (!message) { MistVideo.log("Subtitle websocket received invalid message."); return; }
+                      //console.warn("Received:",message);
 
                       if (("time" in message) && ("track" in message) && ("data" in message)) {
                         var pushed = false;

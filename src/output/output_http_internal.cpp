@@ -142,6 +142,7 @@ namespace Mist{
     capa["url_match"].append("/player.js");
     capa["url_match"].append("/videojs.js");
     capa["url_match"].append("/dashjs.js");
+    capa["url_match"].append("/webcodecsworker.js");
     capa["url_match"].append("/flv.js");
     capa["url_match"].append("/hlsjs.js");
     capa["url_match"].append("/libde265.js");
@@ -152,22 +153,34 @@ namespace Mist{
     capa["url_match"].append("/flashplayer.swf");
     capa["url_match"].append("/oldflashplayer.swf");
     capa["url_prefix"] = "/.well-known/";
-    capa["optional"]["wrappers"]["name"] = "Active players";
-    capa["optional"]["wrappers"]["help"] = "Which players are attempted and in what order.";
-    capa["optional"]["wrappers"]["default"] = "";
-    capa["optional"]["wrappers"]["type"] = "ord_multi_sel";
-    capa["optional"]["wrappers"]["allowed"].append("html5");
-    capa["optional"]["wrappers"]["allowed"].append("hlsjs");
-    capa["optional"]["wrappers"]["allowed"].append("videojs");
-    capa["optional"]["wrappers"]["allowed"].append("dashjs");
-    capa["optional"]["wrappers"]["allowed"].append("wheprtc");
-    capa["optional"]["wrappers"]["allowed"].append("webrtc");
-    capa["optional"]["wrappers"]["allowed"].append("mews");
-    capa["optional"]["wrappers"]["allowed"].append("rawws");
-    capa["optional"]["wrappers"]["allowed"].append("flv");
-    capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
-    capa["optional"]["wrappers"]["option"] = "--wrappers";
-    capa["optional"]["wrappers"]["short"] = "w";
+    {
+      JSON::Value & opt = capa["optional"]["wrappers"];
+      opt["name"] = "Active players";
+      opt["help"] = "Which players are attempted and in what order.";
+      opt["default"] = "";
+      opt["allowed"].append("mews");
+      opt["allowed"].append("webrtc");
+      opt["allowed"].append("rawws");
+      opt["allowed"].append("html5");
+      opt["allowed"].append("wheprtc");
+      opt["allowed"].append("hlsjs");
+      opt["allowed"].append("videojs");
+      opt["allowed"].append("dashjs");
+      opt["allowed"].append("rawwscanvas");
+      opt["allowed"].append("flv");
+      opt["allowed"].append("flash_strobe");
+      opt["type"] = "inputlist";
+      {
+        JSON::Value & input = opt["input"];
+        input["type"] = "select";
+        input["select"] = opt["allowed"];
+        JSON::Value & defEntry = input["select"].prepend();
+        defEntry.append("");
+        defEntry.append("(none)");
+      }
+      opt["option"] = "--wrappers";
+      opt["short"] = "w";
+    }
     capa["optional"]["certbot"]["name"] = "Certbot validation token";
     capa["optional"]["certbot"]["help"] = "Automatically set by the MistUtilCertbot authentication "
                                           "hook for certbot. Not intended to be set manually.";
@@ -1032,6 +1045,11 @@ namespace Mist{
           response.append((char *)rawws_js, (size_t)rawws_js_len);
           used = true;
         }
+        if (it->asStringRef() == "rawwscanvas") {
+#include "rawwscanvas.js.h"
+          response.append((char *)rawwscanvas_js, (size_t)rawwscanvas_js_len);
+          used = true;
+        }
         if (it->asStringRef() == "flv"){
 #include "flv.js.h"
           response.append((char *)flv_js, (size_t)flv_js_len);
@@ -1192,6 +1210,26 @@ namespace Mist{
 
       #include "player_libde265.js.h"
       response.append((char*)player_libde265_js, (size_t)player_libde265_js_len);
+
+      H.SetBody(response);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    if (req.url == "/webcodecsworker.js") {
+      std::string response;
+      H.Clean();
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/javascript");
+      if (headersOnly) {
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+
+#include "wcworker.js.h"
+      response.append((char *)wcworker_js, (size_t)wcworker_js_len);
 
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);

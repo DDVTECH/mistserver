@@ -111,8 +111,8 @@ var MistUtil = {
       
       //rounding
       //use a significance of three, but don't round "visible" digits
-      var sig = Math.max(3,Math.ceil(Math.log(num)/Math.LN10));
-      var mult = Math.pow(10,sig - Math.floor(Math.log(num)/Math.LN10) - 1);
+      var sig = Math.max(3,Math.ceil(Math.log(Math.abs(num))/Math.LN10));
+      var mult = Math.pow(10,sig - Math.floor(Math.log(Math.abs(num))/Math.LN10) - 1);
       num = Math.round(num * mult) / mult;
       
       //thousand seperation
@@ -735,6 +735,21 @@ var MistUtil = {
     },
     addListener: function(DOMelement,type,callback,storeOnElement) {
       //add an event listener and store the handles, so they can be cleared
+      var output;
+
+      //if no callback is passed, asume promise mode
+      var promise;
+      if (!callback) {
+        promise = {};
+        promise.p = new Promise(function(resolve,reject){
+          promise.resolve = resolve;
+          promise.reject = reject;
+        });
+        callback = function(){
+          MistUtil.event.removeListener(output);
+          promise.resolve.apply(this,arguments);
+        };
+      }
       
       DOMelement.addEventListener(type,callback);
       
@@ -742,14 +757,14 @@ var MistUtil = {
       if (!("attachedListeners" in storeOnElement)) {
         storeOnElement.attachedListeners = [];
       }
-      var output = {
+      output = {
         element: DOMelement,
         type: type,
         callback: callback
       };
       
       storeOnElement.attachedListeners.push(output);
-      return output;
+      return promise ? promise.p : output;
     },
     removeListener: function(data) {
       data.element.removeEventListener(data.type, data.callback);
@@ -1018,8 +1033,8 @@ var MistUtil = {
       if (arguments.length) {
         area.x.min = Math.min(area.x.min,x);
         area.x.max = Math.max(area.x.max,x);
-        area.y.min = Math.min(area.y.min,y*-1);
-        area.y.max = Math.max(area.y.max,y*-1);
+        area.y.min = Math.min(area.y.min,y);
+        area.y.max = Math.max(area.y.max,y);
       }
       else {
         //reprocess the entire path
@@ -1036,7 +1051,7 @@ var MistUtil = {
         };
         for (var i = 1; i < path.length; i++) {
           var d = path[i].split(",");
-          updateMinMax(d[0],d[1]*-1);
+          updateMinMax(d[0],d[1]);
         }
       }
     }
@@ -1066,8 +1081,8 @@ var MistUtil = {
         if ("count" in options.x) { area.x.min = area.x.max - options.x.count; }
       }
       if ("y" in options) {
-        if ("min" in options.y) { area.y.min = options.y.max*-1; }
-        if ("max" in options.y) { area.y.max = options.y.min*-1; }
+        if ("max" in options.y) { area.y.min = options.y.max*-1; }
+        if ("min" in options.y) { area.y.max = options.y.min*-1; }
       }
       svg.setAttributeNS(null,"viewBox",[area.x.min,area.y.min,area.x.max - area.x.min,area.y.max - area.y.min].join(" "));
       
@@ -1086,8 +1101,8 @@ var MistUtil = {
     
     var line = document.createElementNS(ns,"path");
     svg.appendChild(line);
-    //line.setAttributeNS(null,"vector-effect","non-scaling-stroke");
-    line.setAttributeNS(null,"stroke-width","0.1");
+    line.setAttributeNS(null,"vector-effect","non-scaling-stroke");
+    line.setAttributeNS(null,"stroke-width","1");
     line.setAttributeNS(null,"fill","none");
     line.setAttributeNS(null,"stroke","url(#"+gradient.getAttribute("id")+")");
     line.setAttributeNS(null,"d","M"+path.join(" L"));
@@ -1177,7 +1192,7 @@ var MistUtil = {
     }
   },
   shared: {
-    ControlChannel: function(channel,MistVideo,externalListenersObj){
+    ControlChannel: function(create_channel_func,MistVideo,externalListenersObj){
       /*
         Takes a WebSocket or RTCDataChannel and adds:
         - send: function(msg)
@@ -1190,9 +1205,11 @@ var MistUtil = {
       */
 
       var control = this;
-      this.channel = channel;
-      this.debugging = false;
+      this.locked = false;
+      this.channel = typeof create_channel_func == "function" ? create_channel_func() : create_channel_func;
+      this.debugging = true;
       this.was_connected = false;
+      this.bitCounter = 0;
       var queue = [];
       var listeners = externalListenersObj || {};
 
@@ -1208,77 +1225,145 @@ var MistUtil = {
           return eid;
         }
         else {
-          return new Promise(function(resolve){
+          var rejecter;
+          var promise = new Promise(function(resolve,reject){
+            rejecter = reject;
             listeners[type][eid] = function(data){
               delete listeners[type][eid];
               resolve(data);
             };
           });
+          promise.removeListener = function(){
+            delete listeners[type][eid];
+            rejecter("EventListener was removed");
+          };
+          return promise;
         }
       };
-      function callListeners(type,data) {
+      this.addSendListener = function(type,callback){
+        type = "send_"+type;
+        return this.addListener(type,callback);
+      };
+      function callListeners(type,data,full_message) {
+        var haveChanged = false;
         if (type in listeners) {
           for (var eid in listeners[type]) {
             try {
-              listeners[type][eid].apply(control,[data]);
+              var out = listeners[type][eid].apply(control,[data,full_message]);
+              if (out && (type.slice(0,5) == "send_")) {
+                //this listener wants to change the message data
+                data = out;
+                haveChanged = true;
+              }
             }
             catch(err) {
               MistVideo.log("Error in "+type+" listener "+eid+": "+err,"error");
+              console.warn("🎮",err);
             }
           }
+          if (haveChanged) return data;
         }
       }
-
-      this.channel.addEventListener("open",function(ev){
-        control.was_connected = true;
-        callListeners("channel_open",ev);
-        if (queue.length) {
-          for (var i = 0; i <= queue.length; i++) {
-            control.send(queue[i]);
+      this.removeListener = function(type,callback){
+        if (type in listeners) {
+          if (typeof callback == "function") {
+            for (var eid in listeners[type]) {
+              if (listeners[type][eid] == callback) {
+                delete listeners[type][eid];
+                return true;
+              }
+            }
           }
-          queue = [];
-        }
-        if (control.timeout) {
-          MistVideo.timers.stop(control.timeout);
-        }
-      });
-      this.timeout = MistVideo.timers.start(function(){
-        if (control.readyState == "connecting") {
-          MistVideo.log("Control socket timeout","error");
-          if (control.debugging) console.log("The control channel timed out");
-          callListeners("channel_timeout",control.channel);
-        }
-      },5e3);
-
-      this.channel.addEventListener("message",function(e){
-        var message;
-        try {
-          message = JSON.parse(e.data);
-        } catch(err) {
-          MistVideo.log("Received invalid control message: "+err+" in "+e.data,"error");
-        }
-
-        if (message) {
-          var data = "data" in message ? message.data : message; //some control messages do not have the data key, e.g. websocket webrtc's on_answer_sdp
-          if (!message.type) {
-            MistVideo.log("Received invalid control message: missing type in "+e.data,"error");
+          else {
+            var eid = callback;
+            if (eid in listeners[type]) delete listeners[type][eid];
           }
-          if (control.debugging) console.log("Received:",message.type,data);
-          callListeners(message.type,data);
         }
-      });
+        return false;
+      };
+      this.removeSendListener = function(type,callback) {
+        type = "send_"+type;
+        return this.removeListener(type,callback);
+      }
+      this.lock = function(){
+        this.locked = true;
+      };
+      this.unlock = function(){
+        if (this.readyState == "open") {
+          if (queue.length) {
+            for (var i = 0; i <= queue.length; i++) {
+              control.send(queue[i],true);
+            }
+            queue = [];
+          }
+        }
+        this.locked = false;
+        if (this.debugging) console.log("🎮","The control channel was unlocked");
+      };
 
-      this.channel.addEventListener("close",function(ev){
-        callListeners("channel_close",ev);
-        if (control.debugging) console.log("The control channel was closed",ev);
-        MistVideo.log("The control channel was closed");
-        //callListeners("on_stop",ev);
-      });
-      this.channel.addEventListener("error",function(ev){
-        callListeners("channel_error",ev);
-        if (control.debugging) console.log("The control channel threw an error",ev);
-        MistVideo.log("The control channel threw an error: "+ev);
-      });
+      this.init = function(){
+        this.channel.addEventListener("open",function(ev){
+          control.was_connected = true;
+          callListeners("channel_open",ev);
+          if (queue.length && !control.locked) {
+            for (var i = 0; i <= queue.length; i++) {
+              control.send(queue[i]);
+            }
+            queue = [];
+          }
+          if (control.timeout) {
+            MistVideo.timers.stop(control.timeout);
+          }
+        });
+        this.timeout = MistVideo.timers.start(function(){
+          if (control.readyState == "connecting") {
+            MistVideo.log("Control socket timeout","error");
+            if (control.debugging) console.log("🎮","The control channel timed out");
+            callListeners("channel_timeout",control.channel);
+          }
+        },5e3);
+        this.channel.addEventListener("close",function(ev){
+          callListeners("channel_close",ev);
+          if (control.debugging) console.log("🎮","The control channel was closed",ev);
+          MistVideo.log("The control channel was closed");
+          //callListeners("on_stop",ev);
+        });
+        this.channel.addEventListener("error",function(ev){
+          callListeners("channel_error",ev);
+          if (control.debugging) console.log("🎮","The control channel threw an error",ev);
+          MistVideo.log("The control channel threw an error: "+ev);
+        });
+        this.channel.addEventListener("message",function(e){
+          var message;
+
+          if (typeof e.data == "string") {
+            try {
+              message = JSON.parse(e.data);
+            } catch(err) {
+              MistVideo.log("Received invalid control message: "+err+" in "+e.data,"error");
+            }
+
+            if (message) {
+              var data = "data" in message ? message.data : message; //some control messages do not have the data key, e.g. websocket webrtc's on_answer_sdp
+              if (!message.type) {
+                MistVideo.log("Received invalid control message: missing type in "+e.data,"error");
+              }
+              if (control.debugging) console.info("🎮","Received:",message.type,data);
+              callListeners(message.type,data,message);
+            }
+          }
+          else {
+            var data = new Uint8Array(e.data);
+            if (data) {
+              callListeners("binary",data);
+              control.bitCounter += data.byteLength*8;
+            }
+          }
+        });
+      }
+      this.init();
+
+
 
       Object.defineProperty(this,"readyState",{
         get: function(){
@@ -1293,12 +1378,78 @@ var MistUtil = {
           return state; //unknown readyState
         }
       });
+      Object.defineProperty(this,"connectionState",{
+        get: function(){
+          return this.readyState;
+        }
+      });
 
-      this.send = function(cmdObj){
+      function LogServerDelay() {
+        var serverDelay = this;
+        var delays = [];
+
+        this.log = function(type){
+          var responseType = false;
+          switch (type) {
+            case "seek":
+            case "set_speed": {
+              //wait for cmd.type
+              responseType = type;
+              break;
+            }
+            case "request_codec_data": {
+              responseType = "codec_data";
+              break;
+            }
+            default: {
+              //do nothing
+              return;
+            }
+          }
+          if (responseType) {
+            var starttime = performance.now();
+            control.addListener(responseType).then(function(){
+              serverDelay.add(performance.now() - starttime);
+            });
+          }
+        };
+
+        this.add = function(delay){
+          delays.unshift(delay);
+          if (delays.length > 3) {
+            delays.splice(3);
+          }
+        };
+
+        this.get = function(){
+          if (delays.length) {
+            //return average of the last recorded delays
+            var sum = 0;
+            var i = 0;
+            for (null; i < delays.length; i++){
+              sum += delays[i];
+            }
+            return sum/i;
+          }
+          return 500;
+        };
+
+        Object.defineProperty(this,"length",{
+          get: function(){ return delays.length }
+        });
+      }
+      this.serverDelay = new LogServerDelay();
+
+      this.send = function(cmdObj,bypassLock){
         if (!this.channel || this.readyState != "open") {
           //wait for it to open
           queue.push(cmdObj);
-          if (this.debugging) console.warn("Want to send but control channel is "+this.readyState+". Queue: "+queue.length);
+          if (this.debugging) console.warn("🎮","Want to send but control channel is "+this.readyState+". Queue: "+queue.length);
+          return;
+        }
+        if (!bypassLock && this.locked) {
+          queue.push(cmdObj);
+          if (this.debugging) console.warn("🎮","Want to send but control channel is locked. Queue: "+queue.length,cmdObj);
           return;
         }
         var str;
@@ -1308,8 +1459,18 @@ var MistUtil = {
           MistVideo.log("Tried to send invalid command: "+e,"error");
         }
         if (str) {
+          var out = callListeners("send_"+cmdObj.type,cmdObj);
+          if (out) {
+            //one of the send listeners changed the message
+            try {
+              str = JSON.stringify(cmdObj);
+            } catch(e) {
+              MistVideo.log("Tried to send invalid command: "+e,"error");
+            }
+          }
           this.channel.send(str);
-          if (this.debugging) console.warn("Sent:",cmdObj.type,cmdObj);
+          this.serverDelay.log(cmdObj.type);
+          if (this.debugging) console.warn("🎮","Sent:",cmdObj.type,cmdObj);
         }
       };
 
@@ -1317,6 +1478,25 @@ var MistUtil = {
         callListeners("on_stop",msg);
         MistVideo.showError(msg.message);
       });
+
+      this.close = function(){
+        this.channel.close();
+      };
+      if (typeof create_channel_func == "function") {
+        this.reconnect = function(){
+          if (this.readyState == "open") {
+            this.channel.addEventListener("close",function(){
+              control.channel = create_channel_func();
+              control.init();
+            });
+            this.close();
+          }
+          else {
+            this.channel = create_channel_func();
+            this.init();
+          }
+        };
+      }
       
     },
     DataChannel2WebSocket: function(){
@@ -1366,7 +1546,7 @@ var MistUtil = {
           //this.origin.onopen = onopen; 
 
           this.origin.onmessage = function(e){
-            if (converter.debugging) console.log("Received metadata:",JSON.parse(e.data));
+            if (converter.debugging) console.log("🔀","Received metadata:",JSON.parse(e.data));
           };
           this.origin.addEventListener("close",function(){
             converter.readyState = converter.CLOSED;
@@ -1435,7 +1615,7 @@ var MistUtil = {
       return this;
 
     },
-    ControlChannelAPI: function(controller,MistVideo,video){
+    ControlChannelAPI: function(controller,MistVideo,video,custom_funcs){
 
       /*
 
@@ -1461,6 +1641,20 @@ var MistUtil = {
 
       var api = this;
       var control = controller.control;
+
+
+      function defineProperty(index,descriptor) {
+        if (typeof descriptor == "function") {
+          api[index] = descriptor;
+          return;
+        }
+        var opts = MistUtil.object.extend({
+          configurable: true,
+          enumerable: true
+        },descriptor);
+        Object.defineProperty(api,index,opts);
+      }
+
 
       video.setAttribute("playsinline",""); //iphones. effin' iphones.
 
@@ -1489,11 +1683,12 @@ var MistUtil = {
         ,"loop"
         ,"paused"
         ,"error"
+        ,"buffered"
         ,"textTracks"
         ,"webkitDroppedFrameCount"
         ,"webkitDecodedFrameCount"
       ].forEach(function(item){
-        Object.defineProperty(api,item,{
+        defineProperty(item,{
           get: function(){ return video[item]; },
           set: function(value){
             return video[item] = value;
@@ -1514,6 +1709,7 @@ var MistUtil = {
       this.play = function(){
         if (controller.connection){
           switch (controller.connection.connectionState) {
+            case "open":
             case "connected": {
               controller.control.send({type:"play"});
               return video.play();
@@ -1567,6 +1763,24 @@ var MistUtil = {
           }
         });
       }
+      controller.control.addListener("pause",function(msg,m){
+        if (msg.reason && (msg.reason == "at_dead_point")) {
+          //we're running out of the buffer for some reason - attempt to fix it by seeking ahead
+          MistVideo.log("At dead point: seeking to return into buffer.");
+          //NB: when sending both set_speed and seek, set_speed must be sent first
+          if (play_rate < 1) { 
+            //reset speed to real time
+            controller.control.send({type:"seek",seek_time:msg.begin+1000});
+            controller.control.send({type:"set_speed",play_rate:"auto"});
+          }
+          else {
+            controller.control.send({type:"seek",seek_time:msg.begin+5e3});
+            //controller.control.send({type:"seek",seek_time:"live"});
+          }
+          return;
+        }
+        if (m.paused) video.pause();
+      });
       this.stop = function(){
         return new Promise(function(resolve,reject){
           try {
@@ -1634,27 +1848,66 @@ var MistUtil = {
         }
 
         if (MistVideo.reporting && msg.tracks) {
-          MistVideo.reporting.stats.d.tracks = msg.tracks.join(",");
+          MistVideo.reporting.stats.d.tracks = msg.tracks;
         }
+
       });
 
-      controller.control.addListener("on_stop",function(msg){
-        //if (MistVideo.info.type != "live") 
+      //looping
+      api.stream_end = function(){
         MistUtil.event.send("ended",null,video);
-        if (api.loop) {
-          if (!looping) {
-            looping = true;
-            seekoffset = 0;
-            MistVideo.log("Looping..");
-            //console.warn(controller.connection.connectionState);
-            controller.close().then(function(){
-              //console.warn("closed, connecting");
-              controller.connect().then(function(){
-                looping = false;
-                //console.warn("Looping complete");
-              });
+      };
+      api.restart = function(){
+        if (!looping) {
+          looping = true;
+          seekoffset = 0;
+          //console.warn("set seekoffset to zero")
+          MistVideo.log("Looping..");
+          //console.warn(controller.connection.connectionState);
+          var result = controller.close();
+          if (result instanceof Promise) {
+            result.then(function(){
+              if (controller.debugging) console.warn("[Looping] Controller closed, reconnecting..");
+              return controller.connect();
+            }).then(function(){
+              looping = false;
+              if (controller.debugging) console.warn("[Looping] Complete");
+            }).catch(function(err){
+              MistVideo.showError("Looping failed: "+err)
             });
           }
+          else {
+            controller.connect().then(function(){
+              looping = false;
+              if (controller.debugging) console.warn("[Looping] Complete");
+            }).catch(function(err){
+              MistVideo.showError("Looping failed: "+err)
+            });
+          }
+        }
+      };
+      controller.control.addListener("on_stop",function(msg){
+        if (api.buffered.length) {
+          if (api.buffered.end(api.buffered.length-1) > api.currentTime) {
+            //using a timer ensures this will always fire even if playback stops prematurely :)
+            var left = api.buffered.end(api.buffered.length-1) - api.currentTime;
+            left /= api.playbackRate;
+            if (controller.debugging) console.warn("Received on_stop, waiting ",left,"s for buffer to play out");
+            MistVideo.timers.start(function(){
+              api.stream_end();
+              if (api.loop) {
+                api.restart();
+              }
+              else {
+                video.pause();
+              }
+            },left*1e3);
+            return;
+          }
+        }
+        api.stream_end();
+        if (api.loop) {
+          api.restart();
         }
         else {
           video.pause();
@@ -1662,14 +1915,20 @@ var MistUtil = {
       });
 
       //override seeking
-      Object.defineProperty(api,"currentTime",{
+      var override_timestamp = false;
+      defineProperty("currentTime",{
         get: function(){
+          if (override_timestamp !== false) {
+            return override_timestamp;
+          }
           return seekoffset + video.currentTime;
         },
         set: function(value){
           MistUtil.event.send("seeking",value,video);
+          var to = (value == "live" ? Infinity : value);
 
-          seekoffset = (value == "live" ? Infinity : value) - video.currentTime; //immediately place playback cursor at seek point
+          //immediately place playback cursor at seek point
+          override_timestamp = to;
 
           controller.control.send({
             type: "seek",
@@ -1681,9 +1940,13 @@ var MistUtil = {
           }).then(function(msg){
             //the next "on_time" message was received
 
-            //seekoffset is set in the generic on_time handler
-            //seekoffset = msg.current*1e-3 - video.currentTime;
+            //seekoffset is set in the generic on_time handler, but the data hasn't been added to the video yet = therefore seekoffset will be wrong
+            //console.warn("current seekoffset (seeked)",seekoffset,api.currentTime);
 
+            MistUtil.event.addListener(video,"timeupdate").then(function(){
+              seekoffset = 0;
+              override_timestamp = false;
+            });
             MistUtil.event.send("seeked",seekoffset,video);
 
             return video.play();
@@ -1694,7 +1957,7 @@ var MistUtil = {
       });
 
       //duration
-      Object.defineProperty(api,"duration",{
+      defineProperty("duration",{
         get: function(){
           if (MistVideo.info.type == "live") {
             return duration + (last_on_time ? new Date().getTime() - last_on_time._received.getTime() : 0)*1e-3;
@@ -1708,7 +1971,7 @@ var MistUtil = {
       controller.control.addListener("set_speed",function(msg){
         play_rate = msg.play_rate_curr;
       });
-      Object.defineProperty(api,"playbackRate",{
+      defineProperty("playbackRate",{
         get: function(){
           if (play_rate) {
             switch (play_rate) {
@@ -1726,9 +1989,14 @@ var MistUtil = {
           return 1;
         },
         set: function(value){
+          if (value == 1) {
+            if ((MistVideo.info.type != "live") || (MistVideo.options.liveCatchup && (last_on_time.end - last_on_time.current < MistVideo.options.liveCatchup*1e3))) {
+              value = "auto";
+            }
+          }
           control.send({
             type: "set_speed",
-            play_rate: value == 1 ? "auto" : value
+            play_rate: value
           });
         }
       });
@@ -1838,6 +2106,7 @@ var MistUtil = {
 
           //live passthrough of the debugging flag
           Object.defineProperty(converter,"debugging",{
+            configurable: true,
             get: function(){
               return MistVideo.player.debugging; 
             }
@@ -1848,18 +2117,568 @@ var MistUtil = {
       }
 
       // ABR_resize
-      this.ABR_resize = function(size){
+      /*this.ABR_resize = function(size){
         MistVideo.log("Requesting the video track with the resolution that best matches the player size");
         this.setTracks({video:"~"+[size.width,size.height].join("x")});
-      };
+      };*/ //TODO restore for webRTC
+
+      //relay server delay stats if applicable
+      if ("serverDelay" in controller.control) {
+        Object.defineProperty(this,"server_delay",{
+          configurable: true,
+          get: function() {
+            return controller.control.serverDelay.get();
+          }
+        });
+      }
+
+      //return latest on_time information
+      Object.defineProperty(api,"on_time",{
+        get: function(){
+          if (MistVideo.info.type == "live") {
+            //provide a sliding window for "begin" and "end"
+            function OnTime(orig){
+              var me = this;
+              function wrap(key) {
+                switch (key) {
+                  case "begin":
+                  case "end": {
+                    Object.defineProperty(me,key,{
+                      get: function(){
+                        return orig[key] + (new Date().getTime() - last_on_time._received.getTime());
+                      }
+                    });
+                    break;
+                  }
+                  default: {
+                    me[key] = orig[key];
+                  }
+                }
+              }
+
+              for (var key in orig) {
+                wrap(key);
+              }
+            }
+            return new OnTime(last_on_time);
+          }
+          return last_on_time; 
+        }
+      });
+
       // unload
       this.unload = function(){
         controller.control.send({type: "stop"});
         controller.connection.close();
       };
 
+      this.setSize = function(size){
+        video.style.width = size.width+"px";
+        video.style.height = size.height+"px";
+      };
+
+      if (custom_funcs) {
+        for (var i in custom_funcs) {
+          defineProperty(i,custom_funcs[i]);
+        }
+      }
 
 
+    },
+    BufferManager: function(controlChannel,MistVideo,video,get){
+      /*
+       requires:
+        - get.desiredBuffer()  : either instanceof DesiredBuffer or returns value in ms
+        - get.buffer()         : returns value in ms
+
+       optional:
+        - get.keepAwayDecay = [ms]   : value with which keepAway is decreased (to a minimum of 0) every time on_time is received while timing.speed.tweak >= 1
+        - get.keepAwayPenalty = [ms] : value with which keepAway is increased every time the buffer is empty/waiting (defaults to 100)
+        - get.setPlaybackRate(value) : function to use to set video playbackRate
+      */
+      var manager = this;
+      this.settings = {
+        bounds: { //if the buffer <> desiredBuffer*bounds[low,high], take action
+          low: 0.6,
+          high: 2
+        },
+        actions: { //action to take when the bounds are reached
+          faster: 1.05,
+          slower: 0.98
+        }
+      };
+      function TimeControl(){
+        this.speed = {
+          main: 1,
+          tweak: 1,
+          combined: 1
+        };
+        this.tweakSpeed = function(tweak){
+          this.setSpeed(this.speed.main,tweak);
+        };
+        this.setSpeed = function(speed,tweak){
+          if (!tweak) tweak = this.speed.tweak;
+
+          if ((speed == this.speed.main) && (tweak == this.speed.tweak)) return; //nothing to do
+
+          var combinedSpeed = speed*tweak;
+          //video.playbackRate = combinedSpeed;
+          get.setPlaybackRate(combinedSpeed);
+          if (this.speed.main != speed) {
+            MistUtil.event.send("ratechange",speed,video);
+          }
+
+          this.speed.main = speed;
+          this.speed.tweak = tweak;
+          this.speed.combined = combinedSpeed;
+
+        };
+      }
+      this.timing = new TimeControl();
+      var bounds = this.settings.bounds;
+      var actions = this.settings.actions;
+      var timing = this.timing;
+      var state = {  //what the buffer manager is currently doing
+        seeking: false,
+        pending: false
+      };
+      Object.defineProperty(this,"state",{
+        get: function(){
+          if (state.seeking) return "seeking";
+          if (state.pending) return "requesting more data";
+          if (timing.speed.tweak == 1) return "ok";
+          if (timing.speed.tweak > 1) return "catching up";
+          return "backing off";
+        }
+      });
+      if (!get.desiredBuffer) {
+        get.desiredBuffer = new MistUtil.shared.DesiredBuffer({
+          base: 500,
+          keepAway: 500,
+          serverDelay: controlChannel.serverDelay.get
+        });
+      }
+      this.desiredBuffer = get.desiredBuffer;
+      this.buffer = get.buffer;
+      if (!get.setPlaybackRate) {
+        get.setPlaybackRate = function(value){
+          return video.playbackRate = value;
+        };
+      }
+      var listeners = {
+        "buffer_ok": [],
+        "buffer_low": [],
+        "buffer_high": []
+      }
+      this.addListener = function(type,func){
+        if (!type in listeners) throw "Not an event type: "+type; return;
+        listeners[type] = func;
+      };
+      this.removeListener = function(type,func){
+        if (!type in listeners) throw "Not an event type: "+type; return;
+        var index = listeners[type].indexOf(func);
+        if (index < 0) return false;
+        listeners[type].splice(index,1);
+        return true;
+      };
+      function emit(type) {
+        if (!type in listeners) throw "Not an event type: "+type; return;
+        for (var i in listeners[type]) {
+          listeners[type][i]();
+        }
+      }
+
+      //listen to set_speed
+      controlChannel.addListener("set_speed",function(msg){
+        var speed;
+        switch (msg.play_rate_curr) {
+          case "auto": {
+            //MistServer is controlling the playback rate
+            speed = 1;
+            break;
+          }
+          case "fast-forward": {
+            //fast forwards means it is speeding now but it will return to auto once the requested position is reached (after seeking)
+            return;
+          }
+          default: {
+            speed = msg.play_rate_curr;
+            break;
+          }
+        }
+        manager.timing.setSpeed(speed);
+      });
+      //show the main speed as the current api.playbackRate
+      if (MistVideo.player.api) {
+        Object.defineProperty(MistVideo.player.api,"playbackRate",{
+          get: function(){ return manager.timing.speed.main; }
+        });
+      }
+      else {
+        MistVideo.player.onready(function(){
+          Object.defineProperty(MistVideo.player.api,"playbackRate",{
+            get: function(){ return manager.timing.speed.main; }
+          });
+        });
+      }
+
+      //listen for seeks and add desiredBuffer
+      controlChannel.addSendListener("seek",function(msg){
+        state.seeking = true;
+        if (!msg.ff_add) {
+          msg.ff_add = Math.round(get.desiredBuffer); //NB: ensure cast to number
+        }
+        return msg; //return modified message object
+      });
+      MistUtil.event.addListener(video,"seeked",function(){
+        state.seeking = false;
+      });
+      //also add desiredBuffer to play commands
+      controlChannel.addSendListener("play",function(msg){
+        if (!msg.ff_add) {
+          msg.ff_add = Math.round(get.desiredBuffer); //NB: ensure cast to number
+          if (!msg.ff_add) return;
+          return msg; //return modified message object
+        }
+      });
+
+
+
+      //listen to on_time
+      controlChannel.addListener("on_time",function(msg){
+        var buffer = get.buffer();
+        var desired = typeof get.desiredBuffer == "function" ? get.desiredBuffer() : get.desiredBuffer;
+        if ((buffer !== null) && !state.seeking && !state.pending) {
+          //if the buffer is known, and we're not in the middle of a seek or additional data request
+
+          if ((buffer < desired*bounds.low) && (msg.play_rate_curr != "fast-forward") && (timing.speed.tweak >= 1)) { //the buffer is low
+            
+            if (msg.current < msg.end) { //there is more data in MistServer's buffer: request more data
+              state.pending = true;
+              controlChannel.send({
+                type: "fast_forward",
+                ff_add: desired+0 //+0 ensures cast to number
+              });
+              if (timing.speed.tweak > 1) {
+                timing.tweakSpeed(1);
+              }
+              MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is small (<"+Math.round(desired*bounds.low)+"ms), requesting more data (+"+Math.round(desired)+"ms)..");
+
+              //test if we received enough data
+              var gotsetspeed = false;
+              controlChannel.addListener("set_speed").then(function(m){
+                gotsetspeed = true;
+                if (m.play_rate_prev == "fast-forward") {
+                  controlChannel.addListener("on_time").then(function(m){
+                    var increase = m.current - msg.current - (m._received - msg._received);
+                    //if (main.debugging) console.warn("▶️","Extra buffer received:",m.current - msg.current,"ms","Time taken:",m._received - msg._received,"ms","Increase:",increase,"ms");
+                    if (buffer + increase < desired*bounds.low) {
+                      timing.tweakSpeed(actions.slower);
+                      if (typeof desiredBuffer == "object") desiredBuffer.factors.keepAway += get.keepAwayPenalty || 100;
+                      MistVideo.log("Didn't receive enough extra data to increase our buffer ("+increase+"/"+Math.round(desired*bounds.low - buffer)+"ms): slowing down..");
+                      emit("buffer_low");
+                      //once slowed down, the fast_forward request code will not trigger
+                      //it may be tried again if the buffer shrinks again after playback speed returned to 1
+                    }
+                    else {
+                      MistVideo.log("Received +"+increase+"ms extra data")
+                    }
+                    state.pending = false;
+                  });
+                }
+                else {
+                  //eh? reset
+                  state.pending = false;
+                }
+              });
+              //it's possible we don't receive a set_speed answer - in that case there is no extra data available
+              controlChannel.addListener("on_time").then(function(m){
+                if (gotsetspeed) return;
+
+                if (state.pending && (m.play_rate_curr != "fast-forward")) {
+                  state.pending = false;
+                  timing.tweakSpeed(actions.slower);
+                  if (typeof desiredBuffer == "object") desiredBuffer.factors.keepAway += get.keepAwayPenalty || 100;
+                  MistVideo.log("Didn't receive extra data: slowing down..");
+                  emit("buffer_low");
+                }
+              });
+            }
+            else { //(msg.current >= msg.end) these is no data in MistServer's buffer
+              if (timing.speed.main > 1) {
+                //if main playback speed is faster than real time, reset it to 1
+                controlChannel.send({type:"set_speed",play_rate:"auto"});
+              }
+              timing.tweakSpeed(actions.slower);
+              MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is small (<"+Math.round(desired*bounds.low)+"ms), but can't request more data: slowing down..");
+              emit("buffer_low");
+            }
+
+          }
+          else {
+            if ((timing.speed.tweak < 1) && (buffer >= desired)) {
+              timing.tweakSpeed(1);
+              MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is large enough (>"+Math.round(desired)+"ms), so return to normal playback.");
+              emit("buffer_ok");
+            }
+            else {
+              if ((MistVideo.info.type == "live") && (MistVideo.options.liveCatchup)) { //in an else to prevent sending fast_forward more than once
+
+                //if the buffer is large, tweak playback speed to catch up
+                if ((msg.play_rate_curr == "auto") && timing) {
+                  if ((timing.speed.tweak <= 1) && (buffer > desired*bounds.high)) {
+                    timing.tweakSpeed(actions.faster);
+                    MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is big (>"+Math.round(desired*bounds.high)+"ms), so tweak the playback speed to catch up.");
+                    emit("buffer_high");
+
+                  }
+                  else if ((timing.speed.tweak > 1) && (buffer <= desired)) {
+                    timing.tweakSpeed(1);
+                    MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is small enough (<"+Math.round(desired)+"ms), so return to normal playback.");
+                    emit("buffer_ok");
+                  }
+                }
+
+                //live catchup
+                if (msg.play_rate_curr != "fast-forward") {
+                  var distanceToLive = msg.end - msg.current;
+                  if (
+                    (distanceToLive < MistVideo.options.liveCatchup*1e3)  // we're within a minute of the live point
+                    && (distanceToLive > Math.max(msg.jitter*1.1,msg.jitter+250)) // the current (download) timestamp is more than jitter*1.1 and jitter+250 away from the live point
+                    && (buffer-desired < 1e3) // our buffer is less than a second larger than the desired buffer size
+                  ) {
+                    controlChannel.send({
+                      type: "fast_forward",
+                      ff_add: 5e3 //request an additional 5 seconds of data
+                    });
+                    MistVideo.log("We're away ("+(distanceToLive)+"ms) from the live point, requesting more data..");
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (get.keepAwayDecay && (timing.speed.tweak >= 1) && (typeof desired == "object")) {
+          desired.factors.keepAway = Math.max(0,desired.factors.keepAway - get.keepAwayDecay);
+          //console.log("keepAway",desired.factors.keepAway);
+        }
+      });
+
+    },
+    DesiredBuffer: function(factors,clamp){
+      /*
+       - factors:  should be an object of additive factors for the desired buffer. A factor may be a value or a function that returns a value [ms]
+                   e.g. {
+                      base: 100,
+                      keepAway: 500,
+                      serverDelay: controlChannel.serverDelay.get
+                   }
+       - clamp:    optional; should be an object with min and/or max keys, with factors which which the desired buffer should be clamped. These factors may also be a value or a function
+                    e.g. {
+                      min: {
+                        maxFrameDuration: function(){ return value_in_ms; }
+                      }
+                    }
+      */
+      this.factors = {}; 
+      this.clamp = null;
+      this.get = function(){
+        var out = 0;
+        for (var i in this.factors) {
+          out += this.factors[i];
+        }
+        if (this.clamp) {
+          var min, max;
+          if ("min" in this.clamp) {
+            min = Math.max.apply(null,Object.values(this.clamp.min));
+            out = Math.max(out,min);
+          }
+          if ("max" in this.clamp) {
+            max = Math.min.apply(null,Object.values(this.clamp.max));
+            out = Math.min(out,max);
+          }
+          if ((typeof min != "undefined") && (typeof max != "undefined") && (max > min)) {
+            throw "Minimum desired buffer is higher than maximum desired buffer";
+          }
+        }
+        return out;
+      };
+      function add(target,name,getter) {
+        if (typeof getter == "function") {
+          Object.defineProperty(target,name,{ get: getter, enumerable: true });
+        }
+        else {
+          target[name] = getter;
+        }
+      }
+      this.addFactor = function(name,getter) {
+        return add(this.factors,name,getter);
+        /*
+        if (typeof getter == "function") {
+          Object.defineProperty(this.factors,name,{ get: getter, enumerable: true });
+        }
+        else {
+          this.factors[name] = getter;
+        }*/
+      };
+      if (factors) {
+        for (var i in factors) {
+          this.addFactor(i,factors[i]);
+        }
+      }
+      if (clamp) {
+        this.clamp = {};
+        if ("min" in clamp) {
+          this.clamp.min = {};
+          for (var i in clamp.min) {
+            add(this.clamp.min,i,clamp.min[i]);
+          }
+        }
+        if ("max" in clamp) {
+          this.clamp.max = {};
+          for (var i in clamp.max) {
+            add(this.clamp.max,i,clamp.max[i]);
+          }
+        }
+      }
+
+      this.valueOf = function(){ return this.get(); };
+      this.toString = function(){ return this.get(); };
+      Object.defineProperty(this,"value",{get: this.valueOf});
+    },
+    ABRController: function(MistVideo,getter,threshold){
+      /* getter should contain:
+       * - .bitCounter() [bits] (if missing, automatic bitrate ABR is disabled, but it can still be called with ABR.request("bitrate"));
+       *
+       * NB: some outside event should increase this.badness: once it is > threshold, the trackrequest will be the current bitrate
+      */
+
+      var ABR = this;
+      if (!threshold) threshold = 3;
+      var api = MistVideo.player.api;
+      this.current = {
+        size: null,
+        bitrate: null
+      };
+      var current = this.current;
+
+      this.request = function(type,value){
+        current[type] = value;
+
+        var request = [];
+        if (current.bitrate !== null) {
+          var req = current.bitrate / MistVideo.api.playbackRate; //correct for playback speed
+          try {
+            //subtract bps of current audio track
+            var trackidx = MistVideo.reporting.stats.d.tracks;
+            var meta = MistVideo.info.meta.tracks;
+            for (var i in meta) {
+              var t = meta[i];
+              if ((t.type == "audio") && (trackidxs.indexOf(t.idx) > -1)) {
+                req -= t.bps;
+                break;
+              }
+            }
+          } catch(e) {}
+          if (req <= 0) request.push("minbps");
+          else request.push("<"+Math.round(req)+"bps,minbps");
+        }
+        if (current.size !== null) {
+          request.push("!jpeg,~"+[current.size.width,current.size.height].join("x"));
+        }
+        else {
+          request.push("maxres");
+        }
+
+        return api.setTracks({
+          video: request.join(",|")
+        });
+      };
+
+      function BitMonitor(){
+        var bm = this;
+        this.history = [];
+        this.since = [];
+        this.peak = 0;
+        Object.defineProperty(bm,"current",{
+          get: function(){
+            if (!bm.history.length) return null;
+            
+            var dbits = getter.bitCounter() - bm.history[0];
+            var dt = now() - bm.since[0];
+            if (dt == 0) dt = 1; //just in case :)
+
+            return dbits / dt;
+          }
+        });
+        var now = function(){
+          return new Date().getTime()*1e-3;
+        };
+        if ("now" in performance) {
+          now = function(){
+            return performance.now()*1e-3;
+          };
+        }
+          
+        this.logBitRate = function(){
+          this.history.push(getter.bitCounter());
+          this.since.push(now());
+
+          if (this.history.length > 3) {
+            this.history.shift();
+            this.since.shift();
+            this.peak = Math.max(this.peak,this.current);
+          }
+        };
+        function timer() {
+          MistVideo.timers.start(function(){
+            bm.logBitRate();
+            timer();
+          },500);
+        }
+        timer();
+
+        //for stats display
+        api.currentBps = function(){ return bm.current; }
+        api.maxBps = this.peak;
+        Object.defineProperty(api,"maxBps",{ get: function(){ return bm.peak; } });
+      }
+      if ("bitCounter" in getter) this.bitMonitor = new BitMonitor();
+
+      // When this.badness is above threshold, the track bitrate should be decreased
+      // this.badness should be increased by some outside event 
+      //   for example:
+      //   BufferManager.addListener("buffer_low",function(){ ABRController.badness++; }));
+
+      var badness = 0;
+      Object.defineProperty(this,"badness",{
+        get: function(){ return badness; },
+        set: function(value){
+          badness = value;
+
+          if (!MistVideo.options.ABR_bitrate) return; //bitrate based ABR is currently off
+          if (MistVideo.options.setTracks && MistVideo.options.setTracks.video) {
+            //a video track was selected by the user, do not change it
+            return;
+          }
+          if (badness > threshold) {
+            MistVideo.log("ABR threshold triggered, requesting lower quality");
+            ABR.request("bitrate",this.bitMonitor.current);
+            badness = 0;
+          }
+        }
+      });
+
+      //TODO it would be possible to "test" higher bitrates by requesting a fast forward, unless we're very close to live
+      //maybe use this to up the bps request when the stream has been stable for a while?
+      //if current.bitrate != null, the track bitrate was (attempted to get) limited
+
+      api.ABR_resize = function(size){
+        if (size.width + size.height <= 0) return;
+        MistVideo.log("Requesting the video track with the resolution that best matches the player size");
+        ABR.request("size",size);
+      };
     }
   }
 };

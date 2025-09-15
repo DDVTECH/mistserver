@@ -871,6 +871,10 @@ MistSkins["default"] = {
       }
 
       function getBufferWindow() {
+        if ("on_time" in MistVideo.player.api) {
+          var ot = MistVideo.player.api.on_time;
+          return (ot.end - ot.begin)*1e-3;
+        }
         var buffer_window = MistVideo.info.meta.buffer_window;
         if (typeof buffer_window == "undefined") { 
           //for some reason, buffer_window is not defined (liveDVR?)
@@ -893,7 +897,8 @@ MistSkins["default"] = {
           else { this.kids.bar.style.display = ""; }
           
           w = Math.min(1,Math.max(0,this.time2perc(currentTime)));
-          this.kids.bar.style.width = w*100+"%";
+          //this.kids.bar.style.width = w*100+"%";
+          this.kids.bar.style.transform = "translateX("+(w*100-100)+"%)";
         }
       };
       container.time2perc = function(time) {
@@ -925,12 +930,16 @@ MistSkins["default"] = {
         
         //add new buffer-divs
         if (buffers) {
+          //var out = [];
           for (var i = 0; i < buffers.length; i++) {
             this.appendChild(this.buildBuffer(
               buffers.start(i),
               buffers.end(i)
             ));
+            //out.push([MistUtil.format.time(buffers.start(i),{ms:true}),(buffers.end(i)-buffers.start(i))*1e3+"ms"]);
           }
+
+          //console.warn("Buffers",out);
         }
       };
       
@@ -973,6 +982,7 @@ MistSkins["default"] = {
         updateBar();
       },container);
       MistUtil.event.addListener(video,"seeking",function(){
+        //console.warn("on seeking",MistVideo.player.api.currentTime);
         container.updateBar(MistVideo.player.api.currentTime);
       },container);
       
@@ -1089,8 +1099,7 @@ MistSkins["default"] = {
         if (e.which != 1) { return;} //only respond to left mouse clicks
         
         dragging = true;
-        
-        container.updateBar(container.getPos(e));
+        container.style.transition = "none";
         
         var moveListener = MistUtil.event.addListener(document,"mousemove",function(e){
           container.updateBar(container.getPos(e));
@@ -1101,6 +1110,7 @@ MistSkins["default"] = {
         var upListener = MistUtil.event.addListener(document,"mouseup",function(e){
           if (e.which != 1) { return;} //only respond to left mouse clicks
           dragging = false;
+          container.style.transition = "";
           
           //remove mousemove and up
           MistUtil.event.removeListener(moveListener);
@@ -3053,7 +3063,24 @@ console.warn(i,cast.framework.CastContext.getInstance().getSessionState());
             break;
           }
         }
-        return { index: index, rate: speeds[index], speeds: speeds };
+        return { index: Number(index), rate: speeds[index], speeds: speeds };
+      }
+      function snapVolume(volume) {
+        var values = [0,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1];
+        var index = values.length-1;
+        for (var i in values) {
+          var val = values[i];
+          if (volume < val) {
+            if ((i > 0) && (val - volume > volume - values[i-1])) {
+              index = i-1;
+            }
+            else {
+              index = i;
+            }
+            break;
+          }
+        }
+        return { index: Number(index), val: values[index], values: values };
       }
       var keepTimer = false;
       function showControls(keep){
@@ -3167,8 +3194,13 @@ console.warn(i,cast.framework.CastContext.getInstance().getSessionState());
           case "+":
           case "=": {
             //volume up
-            var current = (1-Math.pow(1-api.volume,2));
-            var target = Math.min(1,Math.round((current+0.1)*10)/10);
+            var current = 1-Math.pow(1-api.volume,2);
+            var snap = snapVolume(current);
+            var target = current;
+            if (snap.index+1 < snap.values.length) {
+              target = snap.values[snap.index+1];
+            }
+
             api.volume = Math.min(1,1-Math.pow(1-target,0.5));
             if (api.muted) api.muted = false;
             show("Volume: "+getDisplayVolume(),"unmuted");
@@ -3179,8 +3211,13 @@ console.warn(i,cast.framework.CastContext.getInstance().getSessionState());
           case "-":
           case "_": {
             //volume down
-            var current = (1-Math.pow(1-api.volume,2));
-            var target = Math.round((current-0.1)*10)/10;
+            var current = Math.round((1-Math.pow(1-api.volume,2))*100)/100;
+            var snap = snapVolume(current);
+            var target = current;
+            if (snap.index-1 >= 0) {
+              target = snap.values[snap.index-1];
+            }
+
             api.volume = Math.max(0,1-Math.pow(1-target,0.5));
             show("Volume: "+getDisplayVolume()+(api.muted ? "\n(muted)" : ""),api.muted || api.volume <= 0 ? "muted" : "unmuted");
             e.preventDefault();
@@ -3418,10 +3455,16 @@ MistSkins.dev = {
       
       var MistVideo = this;
       var container = document.createElement("div");
+
+      var title = document.createTextNode("Stats");
+      container.appendChild(title);
+
+      var cont = document.createElement("div");
+      container.appendChild(cont);
       
       function buildItem(options){
         var label = document.createElement("label");
-        container.appendChild(label);
+        cont.appendChild(label);
         label.style.display = "none";
         
         var text = document.createElement("span");
@@ -3438,7 +3481,10 @@ MistSkins.dev = {
         
         label.set = function(val){
           if (val !== 0 && (typeof val != "object" || MistUtil.object.keys(val).length > 0 )) { this.style.display = ""; }
-          else return;
+          else {
+            this.style.display = "none";
+            return;
+          }
           if (typeof val == "object") {
             try {
               if (val instanceof Promise) {
@@ -3480,10 +3526,13 @@ MistSkins.dev = {
           return value.nodeValue = val;
         };
         
-        container.appendChild(label);
+        cont.appendChild(label);
         updates.push(function(){
-          var result = options.function();
-          label.set(result);
+          try {
+            var result = options.function();
+            label.set(result);
+          }
+          catch(e) { console.warn(e); }
         });
       }
       
@@ -3514,6 +3563,28 @@ MistSkins.dev = {
                 }
               }
               return 0;
+            }
+          },
+          "Tracks playing": function(){
+            if (MistVideo.reporting) {
+              if (MistVideo.reporting.stats && MistVideo.reporting.stats.d && MistVideo.reporting.stats.d.tracks) {
+                var trackidxs = MistVideo.reporting.stats.d.tracks;
+                if (MistVideo.info && MistVideo.info.meta && MistVideo.info.meta.tracks) { 
+                  var meta = MistVideo.info.meta.tracks;
+                  var out = {};
+                  for (var i in meta) {
+                    var t = meta[i];
+                    if (trackidxs.indexOf(t.idx) > -1) {
+                      out[t.type] = t;
+                    }
+                  }
+                  return processMultiOutput(out,function(t){
+                    return t.codec+" ("+t.idx+")";
+                  });
+                }
+                return MistVideo.reporting.stats.d.tracks.join(", ");
+              }
+              return "";
             }
           },
           "Corrupted frames": function(){
@@ -3621,42 +3692,184 @@ MistSkins.dev = {
             }
           },
           "Current bitrate": function(){
+            var out;
             if (MistVideo.player.monitor && ("currentBps" in MistVideo.player.monitor)) {
-              var out = MistUtil.format.bits(MistVideo.player.monitor.currentBps);
-              return out ? out+"ps" : out;
+              out = MistVideo.player.monitor.currentBps;
             }
             if (MistVideo.player.api && "currentBps" in MistVideo.player.api) {
-              var out = MistUtil.format.bits(MistVideo.player.api.currentBps());
-              return out ? out+"ps" : out;
+              out = MistVideo.player.api.currentBps;
+            }
+            if (typeof out == "function") out = out();
+            if (out) {
+              return {
+                x: new Date().getTime()*1e-3,
+                y: out,
+                options: {
+                  y: {
+                    min: 0
+                  },
+                  x: {
+                    count: 10
+                  }
+                },
+                val: MistUtil.format.bits(out)+"ps"
+              };
+            }
+            return out;
+          },
+          "Max bitrate": function(){
+            if (MistVideo.player.api && "maxBps" in MistVideo.player.api) {
+              var out = MistVideo.player.api.maxBps;
+              return out ? MistUtil.format.bits(out)+"ps" : out;
             }
           },
           "Framerate in": function(){
             if (MistVideo.player.api && "framerate_in" in MistVideo.player.api) {
-              return MistUtil.format.number(MistVideo.player.api.framerate_in());
+              return processMultiOutput(MistVideo.player.api.framerate_in(),{
+                "default": function(v){ return MistUtil.format.number(v)+"p/s"; }, //[packets per second]
+                "video": function(v){ return MistUtil.format.number(v)+"fps"; }
+              });
+            }
+          },
+          "Decoder fps": function(){
+            if (MistVideo.player.api && "framerate_decoder" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.framerate_decoder(),{
+                "default": function(v){ return MistUtil.format.number(v)+"p/s"; }, //[packets per second]
+                "video": function(v){ return MistUtil.format.number(v)+"fps"; }
+              });
             }
           },
           "Framerate out": function(){
             if (MistVideo.player.api && "framerate_out" in MistVideo.player.api) {
-              return MistUtil.format.number(MistVideo.player.api.framerate_out());
+              return processMultiOutput(MistVideo.player.api.framerate_out(),{
+                "default": function(v){ return MistUtil.format.number(v)+"p/s"; }, //[packets per second]
+                "video": function(v){ return MistUtil.format.number(v)+"fps"; }
+              });
+            }
+          },
+          "Queue (in)": function(){
+            if (MistVideo.player.api && "receiveQueue" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.receiveQueue,MistUtil.format.number);
+            }
+          },
+          "Queue (decoder)": function(){
+            if (MistVideo.player.api && "decodeQueue" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.decodeQueue,MistUtil.format.number);
+            }
+          },
+          "Display buffer": function(){
+            if (MistVideo.player.api && "displayBuffer" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.displayBuffer,function(v){
+                return MistUtil.format.number(v)+"ms";
+              });
+            }
+          },
+          "Decode Time": function(){
+            if (MistVideo.player.api && "decodeTime" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.decodeTime,function(v){
+                return MistUtil.format.number(v)+"ms";
+              });
+            }
+          },
+          "Display Time": function(){
+            if (MistVideo.player.api && "displayTime" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.displayTime,function(v){
+                return MistUtil.format.number(v)+"ms";
+              });
+            }
+          },
+          "Audio/Video sync": function(){
+            if (MistVideo.player.api && "sync" in MistVideo.player.api) {
+              return MistUtil.format.number(MistVideo.player.api.sync)+"ms";
+            }
+          },
+          "Earliness": function(){
+            if (MistVideo.player.api && "earliness" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.earliness,function(v){
+                return MistUtil.format.number(v)+"ms";
+              });
+            }
+          },
+          "Server delay": function(){
+            if (MistVideo.player.api && "server_delay" in MistVideo.player.api) {
+              return MistUtil.format.number(MistVideo.player.api.server_delay)+"ms";
+            }
+          },
+          "Local jitter": function(){
+            if (MistVideo.player.api && "local_jitter" in MistVideo.player.api) {
+              return MistUtil.format.number(MistVideo.player.api.local_jitter)+"ms";
+            }
+          },
+          "Timestamp shift": function(){
+            if (MistVideo.player.api && "shift" in MistVideo.player.api) {
+              return processMultiOutput(MistVideo.player.api.shift,function(v){
+                return MistUtil.format.number(v)+"μs";
+              });
+            }
+          },
+          "Buffering": function(){
+            if (MistVideo.player.api && ("buffer_manager" in MistVideo.player.api)) {
+              var bm = MistVideo.player.api.buffer_manager;
+              if (bm) {
+                var cb = bm.buffer();
+                return {
+                  x: new Date().getTime()*1e-3,
+                  y: cb,
+                  options: {
+                    y: {
+                      min: 0
+                    },
+                    x: {
+                      count: 60
+                    }
+                  },
+                  val: Math.round(cb)+"/"+Math.round(bm.desiredBuffer)+"ms"
+                };
+                return Math.round(bm.buffer())+"/"+Math.round(bm.desiredBuffer)+"ms";
+              }
+              return 0;
+            }
+          },
+          "Buffer state": function(){
+            if (MistVideo.player.api && ("buffer_manager" in MistVideo.player.api)) {
+              var bm = MistVideo.player.api.buffer_manager;
+              if (bm) return bm.state;
+              return "";
+            }
+          },
+          "Speed": function(){
+            if (MistVideo.player.api && ("buffer_manager" in MistVideo.player.api)) {
+              if (!MistVideo.player.api.buffer_manager) return 0;
+              var speed = MistVideo.player.api.buffer_manager.timing.speed;
+              return processMultiOutput({
+                "▶️ playback": speed.combined,
+                "⬇️ download": speed.main
+              },function(v){return v+"×"});
             }
           }
         };
         function processMultiOutput(values,formatter){
+          function getFormatter(label) {
+            if (typeof formatter == "function") return formatter;
+            if (label in formatter) { return formatter[label]; }
+            else if ("default" in formatter) { return formatter["default"] };
+            return formatter;
+          }
           if (typeof values == "number") {
-            return formatter(values);
+            return getFormatter()(values);
           }
           var out = document.createElement("div");
           for (var i in values) {
             if (values[i]) {
               var c = document.createElement("div"); //container
+              c.setAttribute("title",i);
               var l = document.createElement("span"); //label
               l.className = "mistvideo-description";
               c.appendChild(l);
               l.appendChild(document.createTextNode(i[0]+": "));
-              l.setAttribute("title",i);
               var v = document.createElement("span"); //value
               c.appendChild(v);
-              v.appendChild(document.createTextNode(formatter(values[i])));
+              v.appendChild(document.createTextNode(getFormatter(i)(values[i])));
               out.appendChild(c);
             }
           }
@@ -3792,6 +4005,48 @@ MistSkins.dev = {
       });
       
       return container;
+    },
+    debuglevel: function(){
+      var MistVideo = this;
+      var container = document.createElement("label");
+      var s = document.createElement("span");
+      container.appendChild(s);
+      s.appendChild(document.createTextNode("Debug level: "));
+
+      var select = document.createElement("select");
+      var opts = {
+        "false": "Quiet (default)",
+        "true": "Some",
+        "verbose": "Verbose"
+      };
+      for (var i in opts) {
+        var option = document.createElement("option");
+        option.setAttribute("value",i);
+        option.appendChild(document.createTextNode(opts[i]));
+        select.appendChild(option);
+      }
+      select.addEventListener("change",function(){
+        var value = false;
+        switch (this.value) {
+          case "false": value = false; break;
+          case "true":  value = true;  break;
+          default:      value = this.value;
+        }
+        MistVideo.player.debugging = value;
+      });
+
+      var value = "false";
+      switch (MistVideo.player.debugging) {
+        case undefined: value = "false"; break;
+        case false: value = "false"; break;
+        case true: value = "true"; break;
+        default:   value = MistVideo.player.debugging;
+      }
+      select.value = value;
+
+      container.appendChild(select);
+
+      return container;
     }
   }
 };
@@ -3807,6 +4062,8 @@ MistSkins.dev.structure.submenu.children.unshift({
   style: { flexShrink: 1 },
   classes: ["mistvideo-column"],
   children: [
+    {type:"decodingIssues"},
+    {type:"log"},
     {
       if: function(){
         return (this.playerName && this.source)
@@ -3822,8 +4079,6 @@ MistSkins.dev.structure.submenu.children.unshift({
         ]
       }
     },
-    {type:"log"},
-    {type:"decodingIssues"},
     {
       type: "container",
       classes: ["mistvideo-column","mistvideo-devcontrols"],
@@ -3855,8 +4110,9 @@ MistSkins.dev.structure.submenu.children.unshift({
           ]
         },
         {type:"forcePlayer"},
-        {type:"forceType"}//,
-        //{type:"forceSource"}
+        {type:"forceType"},
+        {type: "debuglevel"}
+        //,{type:"forceSource"}
       ]
     }
   ]

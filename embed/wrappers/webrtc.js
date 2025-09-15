@@ -29,6 +29,9 @@ mistplayers.webrtc = {
         playabletracks[MistVideo.info.meta.tracks[i].type] = {};
       }
       playabletracks[MistVideo.info.meta.tracks[i].type][MistVideo.info.meta.tracks[i].codec] = 1;
+      if (MistVideo.info.meta.tracks[i].codec == "HEVC") {
+        playabletracks[MistVideo.info.meta.tracks[i].type]["H265"] = 1
+      }
     }
 
     var tracktypes = [];
@@ -67,10 +70,6 @@ p.prototype.build = function (MistVideo,callback) {
   //this.debugging = true; //enable extra messages to dev console
 
   var video = document.createElement("video");
-  this.setSize = function(size){
-    video.style.width = size.width+"px";
-    video.style.height = size.height+"px";
-  };
 
   function myRTC() {
     var webrtc = this;
@@ -110,9 +109,35 @@ p.prototype.build = function (MistVideo,callback) {
         }
         else {
           MistVideo.log("WebRTC: control channel error - try next combo","error");
-          MistVideo.nextCombo("control channel error");
+          MistVideo.nextCombo();
         }
       });
+
+      // if liveCatchup is disabled, use play rate 1 instead of auto and vice versa
+      if (MistVideo.info.type == "live") {
+        this.control.addListener("on_time",function(msg){
+          if (msg.play_rate_curr) {
+            switch (msg.play_rate_curr) {
+              case "auto": {
+                if (!MistVideo.options.liveCatchup || (msg.end - msg.current > MistVideo.options.liveCatchup*1e3)) {
+                  //backend is tweaking speed, but the user does not want this
+                  webrtc.control.send({type:"set_speed",play_rate:1});
+                }
+                break;
+              }
+              case 1: {
+                if (MistVideo.options.liveCatchup && ((msg.end - msg.current) < MistVideo.options.liveCatchup*1e3)) {
+  //speed is set to 1, but user wants catchup
+                  webrtc.control.send({type:"set_speed",play_rate:"auto"});
+                }
+                break;
+              }
+            }
+          }
+        });
+      }
+
+
       //live passthrough of the debugging flag
       Object.defineProperty(this.control,"debugging",{
         get: function(){
@@ -244,6 +269,16 @@ p.prototype.build = function (MistVideo,callback) {
   this.webrtc = new myRTC();
 
   this.api = new MistUtil.shared.ControlChannelAPI(main.webrtc,MistVideo,video);
+  this.ABR = new MistUtil.shared.ABRController(MistVideo,{
+    bitCounter: function(){ 
+      var total = 0;
+      var values = Object.values(main.api.bytesReceived);
+      for (var i in values) {
+        total += values[i];
+      }
+      return total*8;
+    }
+  });
 
   callback(video);
   

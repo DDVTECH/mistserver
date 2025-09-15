@@ -38,7 +38,8 @@ function MistVideo(streamName,options) {
     ABR_resize: true,     //for supporting wrappers: when the player resizes, request a video track that matches the resolution best
     ABR_bitrate: true,    //for supporting wrappers: when there are playback issues, request a lower bitrate video track
     useDateTime: true,    //when the unix timestamp of the stream is known, display the date/time,
-    subscribeToMetaTrack: false, //pass [[track index,callback]]; the callback function will be called whenever the specified meta data track receives a message. 
+    subscribeToMetaTrack: false, //pass [[track index,callback]]; the callback function will be called whenever the specified meta data track receives a message.
+    liveCatchup: 60,      //when the player supports it, and the playback position is within 60 seconds from live, play slightly faster to catch up TODO
     MistVideoObject: false//no reference object is passed
   },options);
   if (options.host) { options.host = MistUtil.http.url.sanitizeHost(options.host); }
@@ -116,6 +117,9 @@ function MistVideo(streamName,options) {
   if (options.reloadDelay && (options.reloadDelay > 3600)) {
     options.reloadDelay /= 1000;
     this.log("A reloadDelay of more than an hour was set: assuming milliseconds were intended. ReloadDelay is now "+options.reloadDelay+"s");
+  }
+  if (options.liveCatchup === true) {
+    options.liveCatchup = 60;
   }
 
   new MistSkin(this);
@@ -244,22 +248,6 @@ function MistVideo(streamName,options) {
       source_index: null,
       player: null
     };
-    function calcScore(tracktypes) {
-      //player.isBrowserSupported returns either true or an array of track types that are in the source and that it can play in this browser.
-      //loop over the returned track types and calculate a score of how good this player+source combo is
-      if (tracktypes === true) { return 1.9; } //something will play, but the player doesn't tell us what. Hopefully video will work?
-
-      var scores = {
-        video: 2,
-        audio: 1,
-        subtitle: 0.5
-      };
-      var score = 0;
-      for (var i in tracktypes) {
-        score += scores[tracktypes[i]];
-      }
-      return score;
-    }
     //calculate the best possible score for this stream, so that we can break the loop early
     var hastracktypes = {};
     for (var i in MistVideo.info.meta.tracks) {
@@ -270,7 +258,7 @@ function MistVideo(streamName,options) {
         hastracktypes[MistVideo.info.meta.tracks[i].type] = 1;
       }
     }
-    var maxscore = calcScore(MistUtil.object.keys(hastracktypes));
+    var maxscore = MistVideo.scoreCombo(MistUtil.object.keys(hastracktypes));
 
     outerloop:
     for (var n in variables[map.outer].list) {
@@ -294,7 +282,7 @@ function MistVideo(streamName,options) {
           //this player supports this mime
           var tracktypes = player.isBrowserSupported(source.type,source,MistVideo);
           if (tracktypes) {
-            var score = calcScore(tracktypes);
+            var score = MistVideo.scoreCombo(tracktypes);
             if (score > best.score) {              
               if (!quiet) MistVideo.log("Found a "+(best.score ? "better" : "working")+" combo: "+player.name+" with "+source.url+" (Score: "+score+")");
 
@@ -314,14 +302,30 @@ function MistVideo(streamName,options) {
         }
       }
     }
-
     if (best.score) {
       return best;
     }
     
     return false;
   }
-  
+  this.scoreCombo = function (tracktypes) {
+    //player.isBrowserSupported returns either true or an array of track types that are in the source and that it can play in this browser.
+    //loop over the returned track types and calculate a score of how good this player+source combo is
+    if (tracktypes === true) { return 1.9; } //something will play, but the player doesn't tell us what. Hopefully video will work?
+
+    var scores = {
+      video: 2,
+      audio: 1,
+      subtitle: 0.5
+    };
+    var score = 0;
+    for (var i in tracktypes) {
+      score += scores[tracktypes[i]];
+    }
+    return score;
+  };
+
+
   this.choosePlayer = function() {
     MistVideo.log("Checking available players..");
     
@@ -572,7 +576,7 @@ function MistVideo(streamName,options) {
               
               this.vars = {
                 values: [],
-                score: false,
+                score: 1,
                 active: true
               };
               
@@ -974,78 +978,9 @@ function MistVideo(streamName,options) {
             }
           }
 
+          //add general resize function
+          if ("setSize" in MistVideo.player.api) MistVideo.player.setSize = MistVideo.player.api.setSize;
         }
-        
-        //remove placeholder and add UI structure
-        
-        MistUtil.empty(MistVideo.options.target);
-        new MistSkin(MistVideo);
-        MistVideo.container = new MistUI(MistVideo);
-        MistVideo.options.target.appendChild(MistVideo.container);
-        MistVideo.container.setAttribute("data-loading",""); //will be removed automatically when video loads
-        
-        MistVideo.video.p = MistVideo.player;
-        
-        //add event logging
-        var events = [
-        "abort","canplay","canplaythrough",/*"durationchange"*/,"emptied","ended","loadeddata","loadedmetadata","loadstart","pause","play","playing","ratechange","seeked","seeking","stalled","volumechange","waiting","metaUpdate_tracks","resizing"
-        //,"timeupdate"
-        ];
-        for (var i in events) {
-          MistUtil.event.addListener(MistVideo.video,events[i],function(e){
-            if (e.message && (e.message == "chromecast")) {
-              //if the event originates from the chromecast, it is already printed by the chromecast's log passthrough
-              return;
-            }
-            MistVideo.log("Player event fired: "+e.type);
-          });
-        }
-        MistUtil.event.addListener(MistVideo.video,"error",function(e){
-          var msg;
-          if (
-            ("player" in MistVideo) && ("api" in MistVideo.player)
-            && ("error" in MistVideo.player.api) && (MistVideo.player.api.error)
-          ) {
-            if ("message" in MistVideo.player.api.error) {
-              msg = MistVideo.player.api.error.message;
-            }
-            else if (("code" in MistVideo.player.api.error) && (MistVideo.player.api.error instanceof MediaError)) {
-              var human = {
-                1: "MEDIA_ERR_ABORTED: The fetching of the associated resource was aborted by the user's request.",
-                2: "MEDIA_ERR_NETWORK: Some kind of network error occurred which prevented the media from being successfully fetched, despite having previously been available.",
-                3: "MEDIA_ERR_DECODE: Despite having previously been determined to be usable, an error occurred while trying to decode the media resource, resulting in an error.",
-                4: "MEDIA_ERR_SRC_NOT_SUPPORTED: The associated resource or media provider object (such as a MediaStream) has been found to be unsuitable."
-              };
-              if (MistVideo.player.api.error.code in human) {
-                msg = human[MistVideo.player.api.error.code];
-              }
-              else {
-                msg = "MediaError code "+MistVideo.player.api.error.code;
-              }
-            }
-            else {
-              msg = MistVideo.player.api.error;
-              if (typeof msg != "string") {
-                msg = JSON.stringify(msg);
-              }
-            }
-          }
-          else {
-            msg = "An error was encountered.";
-            //console.log("Err:",e);
-          }
-          if (MistVideo.state == "Stream is online") {
-            MistVideo.showError(msg);
-          }
-          else {
-            //it was probaby an error like "PIPELINE_ERROR_READ: FFmpegDemuxer: data source error" because the live stream has ended. Print it in the log, but display the stream state instead.
-            MistVideo.log(msg,"error");
-            MistVideo.showError(MistVideo.state,{polling:true});
-          }
-          
-        });
-        
-        //add general resize function
         if ("setSize" in MistVideo.player) {
           MistVideo.player.videocontainer = MistVideo.video.parentNode;
           MistVideo.video.currentTarget = MistVideo.options.target;
@@ -1055,6 +990,7 @@ function MistVideo(streamName,options) {
               if (MistVideo.destroyed) return;
 
               function findVideo(startAt,matchTarget) {
+                if (!startAt || !startAt.video) return false;
                 if (startAt.video.currentTarget == matchTarget) {
                   return startAt.video;
                 }
@@ -1066,12 +1002,12 @@ function MistVideo(streamName,options) {
                 }
                 return false;
               }
-              
+
               //find the video that is in the main container, and resize that one
               var main = findVideo(MistVideo,MistVideo.options.target);
-              if (!main) { throw "Main video not found"; }
+              if (!main) return; //main video not found
               main.p.resize();
-              
+
               //then, resize the secondaries
               if ("secondary" in MistVideo) {
                 function tryResize(mv){
@@ -1094,7 +1030,7 @@ function MistVideo(streamName,options) {
                 }
               }
             };
-            
+
           }
           MistVideo.player.resize = function(options,oldsize){
             var container = MistVideo.video.currentTarget.querySelector(".mistvideo");
@@ -1208,7 +1144,7 @@ function MistVideo(streamName,options) {
             }
             return true;
           };
-          
+
           //if this is the main video
           if (!MistUtil.class.has(MistVideo.options.target,"mistvideo-secondaryVideo")) {
             MistUtil.event.addListener(window,"resize",function(){
@@ -1219,13 +1155,13 @@ function MistVideo(streamName,options) {
               var ro = new ResizeObserver(function(entries){
                 if (MistVideo.destroyed) { ro.disconnect(); }
                 //only the target was added to the observer, so just call resizeAll - no need to iterate
-                MistVideo.player.resizeAll();
+                if (MistVideo.player && MistVideo.player.resizeAll) MistVideo.player.resizeAll();
               });
               ro.observe(MistVideo.options.target);
             }
           }
         }
-        
+
         if (MistVideo.player.api) {
           //add general setSource function
           if ("setSource" in MistVideo.player.api) {
@@ -1233,14 +1169,14 @@ function MistVideo(streamName,options) {
             MistVideo.player.api.setSourceParams = function(url,params){
               //append these params to the current source, overwrite if they already exist
               MistUtil.object.extend(MistVideo.sourceParams,params);
-              
+
               MistVideo.player.api.setSource(MistUtil.http.url.addParam(url,params));
             };
-            
+
             //add track selection function
             if (!("setTracks" in MistVideo.player.api)) {
               MistVideo.player.api.setTracks = function(usetracks){
-                
+
                 //check tracks exist
                 var meta = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
                 for (var i in usetracks) {
@@ -1249,14 +1185,14 @@ function MistVideo(streamName,options) {
                   delete usetracks[i];
                 }
                 //if (!MistUtil.object.keys(usetracks).length) { return; } //don't do this; allow switching back to auto
-                
+
                 //create source url
                 var newurl = MistVideo.source.url;                
                 var time = MistVideo.player.api.currentTime;
-                
+
                 //actually switch to the new source url
                 this.setSourceParams(newurl,usetracks);
-                
+
                 //restore video position
                 if (MistVideo.info.type != "live") {
                   var f = function(){
@@ -1265,12 +1201,12 @@ function MistVideo(streamName,options) {
                   };
                   MistUtil.event.addListener(MistVideo.video,"loadedmetadata",f);
                 }
-                
+
               }
-              
+
             }
-            
-            
+
+
           }
           //add general setTracks function if setTrack exists
           if (!("setTracks" in MistVideo.player.api) && ("setTrack" in MistVideo.player.api)) {
@@ -1280,12 +1216,12 @@ function MistVideo(streamName,options) {
               }
             };
           }
-          
+
           if (options.setTracks) {
             var setTracks = MistUtil.object.extend({},options.setTracks);
             if (("subtitle" in options.setTracks) && ("setSubtitle" in MistVideo.player.api)) {
               MistVideo.player.onready(function(){
-                
+
                 //find the source for subtitles
                 var subtitleSource = false;
                 for (var i in MistVideo.info.source) {
@@ -1297,28 +1233,28 @@ function MistVideo(streamName,options) {
                   }
                 }
                 if (!subtitleSource) { return; }
-                
+
                 //find the track meta information
                 var tracks = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
                 if (!("subtitle" in tracks) || !(setTracks.subtitle in tracks.subtitle)) { return; }
                 meta = tracks.subtitle[setTracks.subtitle];
-                
+
                 //add source to the meta
                 meta.src = MistUtil.http.url.addParam(subtitleSource,{track:setTracks.subtitle});
-                
+
                 meta.label = "automatic";
                 meta.lang = "unknown";
-                
+
                 MistVideo.player.api.setSubtitle(meta);
                 MistUtil.event.send("playerUpdate_trackChanged",{
                   type: "subtitle",
                   trackid: setTracks.subtitle
                 }, MistVideo.video);
-                
+
                 delete setTracks.subtitle;
               });
             }
-            
+
             if ("setTrack" in MistVideo.player.api) {
               MistVideo.player.onready(function(){
                 for (var i in setTracks) {
@@ -1342,7 +1278,7 @@ function MistVideo(streamName,options) {
               }
             }
           }
-          
+
           if (MistVideo.player.api.ABR_resize && MistVideo.options.ABR_resize) {
             var resizeratelimiter = false;
             var newsize = false;
@@ -1361,7 +1297,7 @@ function MistVideo(streamName,options) {
                 MistVideo.player.api.ABR_resize(e.message);
                 resizeratelimiter = false;
               },1e3);
-              
+
             });
 
             MistUtil.event.addListener(MistVideo.video,"trackSetToAuto",function(e){
@@ -1381,16 +1317,86 @@ function MistVideo(streamName,options) {
 
           }
         }
+
+
+        //remove placeholder and add UI structure
         
+        MistUtil.empty(MistVideo.options.target);
+        new MistSkin(MistVideo);
+        MistVideo.container = new MistUI(MistVideo);
+        MistVideo.options.target.appendChild(MistVideo.container);
+        MistVideo.container.setAttribute("data-loading",""); //will be removed automatically when video loads
+        
+        MistVideo.video.p = MistVideo.player;
+        
+        //add event logging
+        var events = [
+        "abort","canplay","canplaythrough",/*"durationchange"*/,"emptied","ended","loadeddata","loadedmetadata","loadstart","pause","play","playing","ratechange","seeked","seeking","stalled","volumechange","waiting","metaUpdate_tracks","resizing"
+        //,"timeupdate"
+        ];
+        for (var i in events) {
+          MistUtil.event.addListener(MistVideo.video,events[i],function(e){
+            if (e.message && (e.message == "chromecast")) {
+              //if the event originates from the chromecast, it is already printed by the chromecast's log passthrough
+              return;
+            }
+            MistVideo.log("Player event fired: "+e.type);
+          });
+        }
+        MistUtil.event.addListener(MistVideo.video,"error",function(e){
+          var msg;
+          if (
+            ("player" in MistVideo) && ("api" in MistVideo.player)
+            && ("error" in MistVideo.player.api) && (MistVideo.player.api.error)
+          ) {
+            if ("message" in MistVideo.player.api.error) {
+              msg = MistVideo.player.api.error.message;
+            }
+            else if (("code" in MistVideo.player.api.error) && (MistVideo.player.api.error instanceof MediaError)) {
+              var human = {
+                1: "MEDIA_ERR_ABORTED: The fetching of the associated resource was aborted by the user's request.",
+                2: "MEDIA_ERR_NETWORK: Some kind of network error occurred which prevented the media from being successfully fetched, despite having previously been available.",
+                3: "MEDIA_ERR_DECODE: Despite having previously been determined to be usable, an error occurred while trying to decode the media resource, resulting in an error.",
+                4: "MEDIA_ERR_SRC_NOT_SUPPORTED: The associated resource or media provider object (such as a MediaStream) has been found to be unsuitable."
+              };
+              if (MistVideo.player.api.error.code in human) {
+                msg = human[MistVideo.player.api.error.code];
+              }
+              else {
+                msg = "MediaError code "+MistVideo.player.api.error.code;
+              }
+            }
+            else {
+              msg = MistVideo.player.api.error;
+              if (typeof msg != "string") {
+                msg = JSON.stringify(msg);
+              }
+            }
+          }
+          else {
+            msg = "An error was encountered.";
+            //console.log("Err:",e);
+          }
+          if (MistVideo.state == "Stream is online") {
+            MistVideo.showError(msg);
+          }
+          else {
+            //it was probaby an error like "PIPELINE_ERROR_READ: FFmpegDemuxer: data source error" because the live stream has ended. Print it in the log, but display the stream state instead.
+            MistVideo.log(msg,"error");
+            MistVideo.showError(MistVideo.state,{polling:true});
+          }
+          
+        });
+
         for (var i in MistVideo.player.onreadylist) {
           MistVideo.player.onreadylist[i]();
         }
-        
+
         MistUtil.event.send("initialized",null,options.target);
         MistVideo.log("Initialized");
 
         if (MistVideo.options.callback) { options.callback(MistVideo); }
-        
+
       });
     }
     else if (MistVideo.options.startCombo) {
@@ -1845,7 +1851,7 @@ function MistVideo(streamName,options) {
               }
             }
             
-            if (resized && MistVideo.player.resize) {
+            if (resized && MistVideo.player && MistVideo.player.resize) {
               //call resize function
               MistVideo.player.resize();
             }
@@ -1948,12 +1954,11 @@ function MistVideo(streamName,options) {
     
     return MistVideo;
   };
-  this.nextCombo = function(){
-    
+  this.nextCombo = function(startCombo,reason){ 
     var time = false;
     if (("player" in this) && ("api" in this.player)) { time = this.player.api.currentTime; }
     
-    var startCombo = {
+    if (typeof startCombo == "undefined") startCombo = {
       source: this.source.index,
       player: this.playerName
     };
@@ -1964,11 +1969,14 @@ function MistVideo(streamName,options) {
         startCombo = false;
       }
       else {
+        MistVideo.showError("No compatible player/source combo found.",{reload:true});
+        MistUtil.event.send("initializeFailed",null,options.target);
+        MistVideo.log("Initialization failed");
         return;
       }
     }
     
-    this.unload("nextCombo");
+    this.unload("nextCombo"+(reason ? ": "+reason : ""));
     var opts = this.options;
     opts.startCombo = startCombo;
     MistVideo = mistPlay(this.stream,opts);

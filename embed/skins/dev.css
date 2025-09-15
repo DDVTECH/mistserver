@@ -36,9 +36,11 @@
   margin: 0.1em;
   padding: 0.2em 0.4em;
 }
+.mistvideo-debuglevel > span,
 .mistvideo-forceSource > span,
 .mistvideo-forceType > span,
 .mistvideo-forcePlayer > span { display: inline-block; width: 7em; }
+.mistvideo-debuglevel > select,
 .mistvideo-forceSource > select,
 .mistvideo-forceType > select,
 .mistvideo-forcePlayer > select {
@@ -49,27 +51,25 @@
   margin: 0.5em 0;
 }
 
-.mistvideo-decodingIssues > * {
+.mistvideo-decodingIssues > div > * {
   display: flex;
   width: 50%;
   max-width: 20em;
   flex-flow: row nowrap;
   align-items: flex-start;
   justify-content: space-between;
+  font-size: 0.9em;
 }
-.mistvideo-decodingIssues > * > :last-child {
+.mistvideo-decodingIssues > div > * > :last-child {
   margin-right: 0.5em;
 }
-.mistvideo-decodingIssues {
+.mistvideo-decodingIssues > div {
   display: flex;
   flex-flow: row wrap;
   justify-content: space-between;
 }
 .mistvideo-decodingIssues label {
   position: relative;
-}
-.mistvideo-decodingIssues label .mistvideo-description {
-  font-size: 0.9em;
 }
 .mistvideo-decodingIssues label .value {
   font-size: 0.8em;

@@ -65,6 +65,13 @@ echo "    Minimizing wrappers.."
   echo "      Minimizing rawws.js";
   terser -mn -o min/wrappers/rawws.js -- wrappers/rawws.js
   ERRORS=$((ERRORS + $?))
+  echo "      Minimizing webcodecsworker.js";
+  terser -mn -o min/wrappers/webcodecsworker.js -- wrappers/webcodecsworker.js
+  ERRORS=$((ERRORS + $?))
+  echo "      Minimizing rawwscanvas.js";
+  terser -mn -o min/wrappers/rawwscanvas.js -- wrappers/rawwscanvas.js
+  ERRORS=$((ERRORS + $?))
+  
   echo "    Done.";
 
 echo "  Minimizing CSS..";

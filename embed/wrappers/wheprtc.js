@@ -33,6 +33,9 @@ mistplayers.wheprtc = {
         playabletracks[MistVideo.info.meta.tracks[i].type] = {};
       }
       playabletracks[MistVideo.info.meta.tracks[i].type][MistVideo.info.meta.tracks[i].codec] = 1;
+      if (MistVideo.info.meta.tracks[i].codec == "HEVC") {
+        playabletracks[MistVideo.info.meta.tracks[i].type]["H265"] = 1
+      }
     }
 
     var tracktypes = [];
@@ -67,10 +70,6 @@ p.prototype.build = function (MistVideo,callback) {
   //this.debugging = true; //enable extra messages to dev console
   
   var video = document.createElement("video");
-  this.setSize = function(size){
-    video.style.width = size.width+"px";
-    video.style.height = size.height+"px";
-  };
 
   function myWHEP() {
     var whep = this;
@@ -166,7 +165,7 @@ p.prototype.build = function (MistVideo,callback) {
       this.control = new MistUtil.shared.ControlChannel(this.connection.createDataChannel("MistControl"),MistVideo,this.onmessage);
       this.control.addListener("channel_timeout").then(function(){
         MistVideo.log("WebRTC: control channel timeout - try next combo","error");
-        MistVideo.nextCombo("control channel timeout");
+        MistVideo.nextCombo();
       });
       this.control.addListener("channel_error").then(function(){
         if (whep.control.was_connected) {
@@ -174,6 +173,29 @@ p.prototype.build = function (MistVideo,callback) {
           this.control = new MistUtil.shared.ControlChannel(whep.connection.createDataChannel("MistControl"),MistVideo,this.onmessage);
         }
       });
+
+      if (MistVideo.info.type == "live") {
+        this.control.addListener("on_time",function(msg){
+          if (msg.play_rate_curr) {
+            switch (msg.play_rate_curr) {
+              case "auto": {
+                if (!MistVideo.options.liveCatchup || (msg.end - msg.current > MistVideo.options.liveCatchup*1e3)) {
+                  //backend is tweaking speed, but the user does not want this
+                  main.WHEP.control.send({type:"set_speed",play_rate:1});
+                }
+                break;
+              }
+              case 1: {
+                if (MistVideo.options.liveCatchup && ((msg.end - msg.current) < MistVideo.options.liveCatchup*1e3)) {
+                  //speed is set to 1, but user wants catchup
+                  main.WHEP.control.send({type:"set_speed",play_rate:"auto"});
+                }
+                break;
+              }
+            }
+          }
+        });
+      }
 
       //live passthrough of the debugging flag
       Object.defineProperty(this.control,"debugging",{
@@ -206,6 +228,7 @@ p.prototype.build = function (MistVideo,callback) {
         whep.connecting = false;
         was_connected = true;
         //MistVideo.container.removeAttribute("data-loading");
+        
         return answer;
       }).catch(function(e){
         whep.connecting = false;
@@ -222,7 +245,7 @@ p.prototype.build = function (MistVideo,callback) {
         var func = function() {
           if (!whep.connection || (whep.connection.connectionState == "closed")) { resolve(); }
           else {
-            console.warn("not yet",whep.connection.connectionState);
+            //console.warn("not yet",whep.connection.connectionState);
             MistVideo.timers.start(function(){
               func();
             },100);
@@ -238,6 +261,16 @@ p.prototype.build = function (MistVideo,callback) {
   this.WHEP = new myWHEP();
 
   this.api = new MistUtil.shared.ControlChannelAPI(main.WHEP,MistVideo,video);
-    
+  this.ABR = new MistUtil.shared.ABRController(MistVideo,{
+    bitCounter: function(){ 
+      var total = 0;
+      var values = Object.values(main.api.bytesReceived);
+      for (var i in values) {
+        total += values[i];
+      }
+      return total*8;
+    }
+  });
+
   callback(video);
 };

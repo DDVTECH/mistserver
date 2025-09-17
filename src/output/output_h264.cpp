@@ -35,7 +35,7 @@ namespace Mist{
   }
 
   void OutH264::onWebsocketConnect() {
-    capa["name"] = "Raw/WS";
+    capa["name"] = "H264/WS";
     idleInterval = 1000;
     maxSkipAhead = 0;
   }
@@ -336,13 +336,13 @@ namespace Mist{
     capa["codecs"][0u][0u].append("HEVC");
 
     capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/video/raw";
-    capa["methods"][0u]["hrn"] = "Raw progressive";
+    capa["methods"][0u]["type"] = "html5/video/h264";
+    capa["methods"][0u]["hrn"] = "Annex B progressive";
     capa["methods"][0u]["priority"] = 1;
     capa["methods"][0u]["url_rel"] = "/$.h264";
     capa["methods"][1u]["handler"] = "ws";
-    capa["methods"][1u]["type"] = "ws/video/raw";
-    capa["methods"][1u]["hrn"] = "Raw WebSocket";
+    capa["methods"][1u]["type"] = "ws/video/h264";
+    capa["methods"][1u]["hrn"] = "Annex B WebSocket";
     capa["methods"][1u]["priority"] = 2;
     capa["methods"][1u]["url_rel"] = "/$.h264";
 

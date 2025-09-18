@@ -48,13 +48,19 @@ void Util::setStreamName(const std::string & sn){
   strncpy(Util::streamName, sn.c_str(), 256);
 }
 
-void Util::logExitReason(const char* shortString, const char *format, ...){
-  if (exitReason[0]){return;}
+void Util::logExitReason(const char *shortString, const char *format, ...) {
+  if (exitReason[0]) { return; }
   va_list args;
   va_start(args, format);
   vsnprintf(exitReason, 255, format, args);
   va_end(args);
-  mRExitReason = (char*)shortString;
+  mRExitReason = (char *)shortString;
+
+  if (!strncmp(mRExitReason, "CLEAN", 5)) {
+    INFO_MSG("Logging clean exit reason: %s", exitReason);
+  } else {
+    FAIL_MSG("Logging unclean exit reason: %s", exitReason);
+  }
 }
 
 #ifdef DISKSERIAL
@@ -615,13 +621,13 @@ void Util::Config::installDefaultChildSignalHandler(){
 /// signal, and ignores all other signals.
 void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   switch (signum){
-  case SIGINT: // these three signals will set is_active to false.
-  case SIGHUP:
-  case SIGTERM:
-    if (!mutabort || mutabort->try_lock()){
-      if (serv_sock_fd != -1){close(serv_sock_fd);}
-      if (mutabort){mutabort->unlock();}
-    }
+    case SIGINT: // these three signals will set is_active to false.
+    case SIGTERM:
+      if (!mutabort || mutabort->try_lock()) {
+        if (serv_sock_fd != -1) { close(serv_sock_fd); }
+        if (mutabort) { mutabort->unlock(); }
+      }
+    case SIGHUP:
 #if DEBUG >= DLVL_DEVEL
     static int ctr = 0;
     if (!is_active && ++ctr > 4){BACKTRACE;}

@@ -1328,6 +1328,10 @@ namespace Mist {
             return;
           }
         }
+
+        // Clear the exit reason, in case it was set before now
+        Util::mRExitReason = (char*)ER_UNKNOWN;
+        Util::exitReason[0] = 0;
       }
       // send a status reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

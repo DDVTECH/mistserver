@@ -199,11 +199,9 @@ namespace TS{
 
   void Stream::finish(){
     std::lock_guard<std::recursive_mutex> guard(tMutex);
-    if (!pesStreams.size()){return;}
-
-    for (std::map<size_t, std::deque<Packet> >::const_iterator i = pesStreams.begin();
-         i != pesStreams.end(); i++){
-      parsePES(i->first, true);
+    for (auto & i : pesStreams) {
+      auto p2c = pidToCodec.find(i.first);
+      if (p2c != pidToCodec.end()) { parsePES(i.first, p2c->second, true); }
     }
   }
 
@@ -281,6 +279,7 @@ namespace TS{
         case AAC:
         case H265:
         case AC3:
+        case SCTE35:
         case ID3:
         case MP2:
         case MPEG2:
@@ -321,7 +320,8 @@ namespace TS{
       return;
     }
 
-    if (!pidToCodec.count(tid)){
+    auto p2c = pidToCodec.find(tid);
+    if (p2c == pidToCodec.end()) {
       pesStreams.erase(tid);
       pesPositions.erase(tid);
       seenUnitStart.erase(tid);
@@ -330,7 +330,7 @@ namespace TS{
       return; // skip unknown codecs
     }
 
-    while (seenUnitStart[tid] > 1){parsePES(tid);}
+    while (seenUnitStart[tid] > (p2c->second == SCTE35 ? 0 : 1)) { parsePES(tid, p2c->second); }
   }
 
   void Stream::parse(Packet &newPack, uint64_t bytePos){
@@ -405,13 +405,25 @@ namespace TS{
     return time;
   }
 
-  void Stream::parsePES(size_t tid, bool finished){
-    if (!pidToCodec.count(tid)){
-      return; // skip unknown codecs
-    }
+  void Stream::parsePES(size_t tid, uint32_t codec, bool finished) {
     if (psCacheTid != tid || !psCache){
       psCache = &(pesStreams[tid]);
       psCacheTid = tid;
+    }
+    // Special handling for SCTE35
+    if (codec == SCTE35) {
+      std::deque<uint64_t> & inPositions = pesPositions[tid];
+      /// \TODO Add timestamp and make this work..?
+      // auto & out = outPackets[tid];
+      // for (auto & p : *psCache){
+      //   out.push_back(DTSC::Packet());
+      //   out.back().genericFill(0, 0, tid, p.checkAndGetBuffer(), 188, inPositions.front(), 0);
+      //   inPositions.pop_front();
+      // }
+      psCache->clear();
+      inPositions.clear();
+      seenUnitStart[tid] = 0;
+      return;
     }
     if (!psCache->size() || (!finished && psCache->size() <= 1)){
       if (!finished){FAIL_MSG("No PES packets to parse");}
@@ -498,8 +510,8 @@ namespace TS{
 
       // Check for large enough buffer
       if ((paySize - offset) < 9 || (paySize - offset) < 9 + pesHeader[8]){
-        INFO_MSG("Not enough data (%d / %d) on track %zu (%" PRIu32 "), discarding remainder of data",
-                 paySize - offset, 9 + pesHeader[8], tid, pidToCodec[tid]);
+        INFO_MSG("Not enough data (%d / %d) on track %zu (%" PRIu32 "), discarding remainder of data", paySize - offset,
+                 9 + pesHeader[8], tid, codec);
         break;
       }
 
@@ -582,7 +594,7 @@ namespace TS{
       // headers/padding
       offset += realPayloadSize + (9 + pesHeader[8]);
     }
-    if (finished && (pidToCodec[tid] == H264 || pidToCodec[tid] == H265)){
+    if (finished && (codec == H264 || codec == H265)) {
       if (buildPacket.count(tid) && buildPacket[tid].getDataStringLen()){
         outPackets[tid].push_back(buildPacket[tid]);
         buildPacket.erase(tid);
@@ -1158,6 +1170,11 @@ namespace TS{
           init.erase(4);
         }
       } break;
+      case SCTE35: {
+        addNewTrack = true;
+        type = "meta";
+        codec = "SCTE35";
+      } break;
       case OPUS:{
         addNewTrack = true;
         type = "audio";
@@ -1290,6 +1307,7 @@ namespace TS{
             case AAC:
             case H265:
             case AC3:
+            case SCTE35:
             case ID3:
             case MP2:
             case MPEG2:

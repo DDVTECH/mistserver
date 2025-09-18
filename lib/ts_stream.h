@@ -12,6 +12,7 @@ namespace TS{
     H264 = 0x1B,
     AAC = 0x0F,
     AC3 = 0x81,
+    SCTE35 = 0x86,
     MP3 = 0x03,
     H265 = 0x24,
     ID3 = 0x15,
@@ -109,7 +110,7 @@ namespace TS{
     std::map<size_t, size_t> rolloverCount;
     std::map<size_t, unsigned long long> lastms;
 
-    void parsePES(size_t tid, bool finished = false);
+    void parsePES(size_t tid, uint32_t codec, bool finished = false);
   };
 
   class Assembler{

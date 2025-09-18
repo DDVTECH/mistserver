@@ -1,5 +1,5 @@
 #include "output_httpts.h"
-#include "lib/defines.h"
+
 #include <mist/defines.h>
 #include <mist/http_parser.h>
 #include <mist/procs.h>
@@ -7,6 +7,7 @@
 #include <mist/ts_packet.h>
 #include <mist/ts_stream.h>
 #include <mist/url.h>
+
 #include <dirent.h>
 #include <unistd.h>
 
@@ -68,6 +69,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
     capa["codecs"][0u][2u].append("+JSON");
+    capa["codecs"][0u][2u].append("+SCTE35");
     capa["codecs"][1u][0u].append("rawts");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mpeg";
@@ -85,12 +87,10 @@ namespace Mist{
       srt_tx = Util::Procs::StartPiped(args, 0, 0, 0);
       if (srt_tx > 1){
         capa["push_urls"].append("srt://*");
-        capa["desc"] = capa["desc"].asStringRef() +
-                       ". Non-native SRT push output support (srt://*) is installed and available.";
+        capa["desc"].asStringRef() += ". Non-native SRT push output support (srt://*) is installed and available.";
       }else{
-        capa["desc"] =
-            capa["desc"].asStringRef() +
-            ". To enable non-native SRT push output support, please install the srt-live-transmit binary.";
+        capa["desc"].asStringRef() +=
+          ". To enable non-native SRT push output support, please install the srt-live-transmit binary.";
       }
     }
 #endif

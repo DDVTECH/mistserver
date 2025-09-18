@@ -11,6 +11,7 @@ namespace Mist{
     virtual void onWebsocketFrame();
     virtual void onWebsocketConnect();
     virtual void preWebsocketConnect();
+    bool bufferData(const char *ptr, size_t len);
     bool onFinish();
     void onFail(const std::string &msg, bool critical = false);
     void sendNext();

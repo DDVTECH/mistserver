@@ -277,9 +277,10 @@ namespace TS{
   /// If detail level contains bitmask 64, prints raw bytes after packet.
   std::string Packet::toPrettyString(const std::set<unsigned int> &pidlist, size_t indent, int detailLevel) const{
     if (!(*this)){return "[Invalid packet - no sync byte]";}
+    unsigned int size = getDataSize();
     std::stringstream output;
-    output << std::string(indent, ' ') << "[PID " << getPID() << "|" << std::hex
-           << getContinuityCounter() << std::dec << ": " << getDataSize() << "b ";
+    output << std::string(indent, ' ') << "[PID " << getPID() << "|" << std::hex << getContinuityCounter() << std::dec
+           << ": " << size << "b ";
     switch (getPID()){
     case 0: output << "PAT"; break;
     case 1: output << "CAT"; break;
@@ -290,9 +291,9 @@ namespace TS{
       if (isPMT(pidlist)){
         output << "PMT";
       }else{
-        if (isStream()){
+        if (stream_pids.count(getPID())) {
           output << stream_pids[getPID()];
-        }else{
+        } else {
           output << "Unknown";
         }
       }
@@ -308,27 +309,33 @@ namespace TS{
       if (hasOPCR()){output << " [OPCR: " << (double)getOPCR() / 27000000 << "s]";}
     }
     output << std::endl;
-    if (!getPID()){
-      // PAT
+
+    // PAT
+    if (!getPID()) {
       output << ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
       return output.str();
     }
 
-    if (pidlist.count(getPID())){
-      // PMT
+    // Splice Info Section
+    if (!(strBuf + 188 - size)[0] && (strBuf + 188 - size)[1] == 0xfc) {
+      output << ((SpliceInfoSection *)this)->toPrettyString(indent + 2);
+      return output.str();
+    }
+
+    // PMT
+    if (pidlist.count(getPID())) {
       output << ((ProgramMappingTable *)this)->toPrettyString(indent + 2);
       return output.str();
     }
 
-    if (getPID() == 17){
-      // SDT
+    // SDT
+    if (getPID() == 17) {
       output << ((ServiceDescriptionTable *)this)->toPrettyString(indent + 2);
       return output.str();
     }
 
     if (detailLevel & 64){
       output << std::string(indent + 2, ' ') << "Raw data bytes:";
-      unsigned int size = getDataSize();
 
       for (unsigned int i = 0; i < size; ++i){
         if (!(i % 32)){output << std::endl << std::string(indent + 4, ' ');}
@@ -352,7 +359,9 @@ namespace TS{
 
   /// Returns true if this PID contains a stream known from a PMT.
   /// Important caveat: only works if the corresponding PMT was pretty-printed or had parseStreams() called on it!
-  bool Packet::isStream() const{return stream_pids.count(getPID());}
+  bool Packet::isStream() const {
+    return stream_pids.count(getPID()) && stream_pids[getPID()] != "SCTE35 data";
+  }
 
   /// Sets the start of a new unit in this Packet.
   /// \param NewVal The new value for the start of a unit.
@@ -904,6 +913,7 @@ namespace TS{
     case 0x1B: return "H264";
     case 0x24: return "HEVC";
     case 0x81: return "AC3";
+    case 0x86: return "SCTE35";
     default: return "unknown";
     }
   }
@@ -1073,11 +1083,12 @@ namespace TS{
     return (((short)strBuf[loc] & 0x0F) << 8) | strBuf[loc + 1];
   }
 
-  void ProgramMappingTable::setProgramInfoLength(short newVal){
+  void ProgramMappingTable::setProgramInfo(const std::string & newVal) {
     unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 11;
     updPos(loc + 2);
-    strBuf[loc] = (char)((newVal >> 8) & 0x0F) | 0xF0; // Note: here we set reserved bits on 1
-    strBuf[loc + 1] = (char)newVal;
+    strBuf[loc] = (char)((newVal.size() >> 8) & 0x0F) | 0xF0; // Note: here we set reserved bits on 1
+    strBuf[loc + 1] = (char)newVal.size();
+    memcpy(strBuf + loc + 2, newVal.data(), newVal.size());
   }
 
   ProgramMappingEntry ProgramMappingTable::getEntry(int index) const{
@@ -1111,12 +1122,9 @@ namespace TS{
   }
 
   /// Parses the PMT for streams, keeping track of their PIDs to make the Packet::isStream() function work
-  void ProgramMappingTable::parseStreams(){
-    ProgramMappingEntry entry = getEntry(0);
-    while (entry){
-      stream_pids[entry.getElementaryPid()] =
-          entry.getCodec() + std::string(" ") + entry.getStreamTypeString();
-      entry.advance();
+  void ProgramMappingTable::parseStreams() {
+    for (ProgramMappingEntry e = getEntry(0); e; e.advance()) {
+      stream_pids[e.getElementaryPid()] = e.getCodec() + " " + e.getStreamTypeString();
     }
   }
 
@@ -1137,7 +1145,10 @@ namespace TS{
     output << std::string(indent + 2, ' ') << "Last Section number: " << (int)getLastSectionNumber()
            << std::endl;
     output << std::string(indent + 2, ' ') << "PCR PID: " << getPCRPID() << std::endl;
-    output << std::string(indent + 2, ' ') << "Program Info Length: " << getProgramInfoLength() << std::endl;
+    output << std::string(indent + 2, ' ') << "Program Info (" << getProgramInfoLength() << "):" << std::endl;
+    output << ProgramDescriptors(strBuf + 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13,
+                                 getProgramInfoLength())
+                .toPrettyString(indent + 4);
     ProgramMappingEntry entry = getEntry(0);
     while (entry){
       output << std::string(indent + 4, ' ');
@@ -1366,6 +1377,7 @@ namespace TS{
     PMT.setTableId(2);
     // section length met 2 tracks: 0xB017
     int sectionLen = 0;
+    bool hasSCTE = false;
     for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string codec = M.getCodec(*it);
       sectionLen += 5;
@@ -1374,6 +1386,10 @@ namespace TS{
       if (codec == "opus"){sectionLen += 10;} // 6 bytes registration desc, 4 bytes opus desc
       if (codec == "JSON") { sectionLen += 6; } // 6 bytes registration desc
       if (codec == "AV1") { sectionLen += 12; } // 6 bytes registration desc, 6 bytes AV1 desc
+      if (codec == "SCTE35") {
+        hasSCTE = true;
+        sectionLen += 6 + 3 + 6;
+      } // 2x6 bytes registration desc, 3 bytes 000100 desc
       std::string lang = M.getLang(*it);
       if (lang.size() == 3 && lang != "und"){
         sectionLen += 6; // language descriptor
@@ -1395,7 +1411,12 @@ namespace TS{
     }
     if (vidTrack == -1){vidTrack = *(selectedTracks.begin());}
     PMT.setPCRPID(getUniqTrackID(M, vidTrack));
-    PMT.setProgramInfoLength(0);
+    if (hasSCTE) {
+      std::string progInfo("\005\004CUEI", 6);
+      PMT.setProgramInfo(progInfo);
+    } else {
+      PMT.setProgramInfo("");
+    }
     ProgramMappingEntry entry = PMT.getEntry(0);
     for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string codec = M.getCodec(*it);
@@ -1429,6 +1450,10 @@ namespace TS{
         if (init.size() > 4) { init.erase(4); }
         es_info.append("\200\004", 2); // AV1 descriptor
         es_info.append(init);
+      } else if (codec == "SCTE35") {
+        entry.setStreamType(0x86);
+        es_info.append("\000\001\000", 3); // unknown descriptor
+        es_info.append("\005\004CUEI", 6); // registration descriptor
       } else if (codec == "AC3") {
         entry.setStreamType(0x81);
       } else if (codec == "ID3") {
@@ -1692,6 +1717,202 @@ namespace TS{
     }
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8)
            << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
+    return output.str();
+  }
+
+  SpliceInfoSection::SpliceInfoSection() {
+    strBuf[0] = 0x47;
+    strBuf[1] = 0x50;
+    strBuf[2] = 0x00;
+    strBuf[3] = 0x10;
+    memcpy(strBuf + 4, "\x00\xfc\x30\x20\x00\x00\x00\x00\x00\x00\x00\xff\xf0\x0f\x05\x01\x00\x02\x03\x7f\xff\xfe\x00\xcd\xfe\x60\x00\x01\x00\x00\x00\x00\x6f\x80\x1d\x5a",
+           36);
+    pos = 40;
+  }
+
+  SpliceInfoSection & SpliceInfoSection::operator=(const Packet & rhs) {
+    memcpy(strBuf, rhs.checkAndGetBuffer(), 188);
+    pos = 188;
+    return *this;
+  }
+
+  char SpliceInfoSection::getOffset() const {
+    size_t loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0);
+    return strBuf[loc];
+  }
+
+  char SpliceInfoSection::getTableId() const {
+    size_t loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+    return strBuf[loc];
+  }
+
+  uint32_t SpliceInfoSection::getCRC() const {
+    size_t loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 12;
+
+    uint16_t splice_cmd_len = (((uint16_t)strBuf[loc] << 8) | (uint16_t)strBuf[loc + 1]) & 0xFFF;
+    loc += 3 + splice_cmd_len;
+    uint16_t desc_loop_len = ((uint16_t)strBuf[loc] << 8) | strBuf[loc + 1];
+    loc += 2 + desc_loop_len;
+    return Bit::btohl_le(strBuf + loc);
+  }
+
+  uint32_t SpliceInfoSection::calcCRC() const {
+    size_t startLoc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+    size_t loc = startLoc + 11;
+    uint16_t splice_cmd_len = (((uint16_t)strBuf[loc] << 8) | (uint16_t)strBuf[loc + 1]) & 0xFFF;
+    loc += 3 + splice_cmd_len;
+    uint16_t desc_loop_len = ((uint16_t)strBuf[loc] << 8) | strBuf[loc + 1];
+    loc += 2 + desc_loop_len;
+    // Loc is now set to where the CRC32 begins
+    return checksum::crc32(-1, strBuf + startLoc, loc - startLoc);
+  }
+
+  void SpliceInfoSection::writeCRC() {
+    size_t loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 12;
+    uint16_t splice_cmd_len = (((uint16_t)strBuf[loc] << 8) | (uint16_t)strBuf[loc + 1]) & 0xFFF;
+    loc += 3 + splice_cmd_len;
+    uint16_t desc_loop_len = ((uint16_t)strBuf[loc] << 8) | strBuf[loc + 1];
+    loc += 2 + desc_loop_len;
+    // Loc is now set to where the CRC32 begins
+    Bit::htobl_le(strBuf + loc, calcCRC());
+  }
+
+  void SpliceInfoSection::writeSpliceDuration(uint64_t duration) {
+    // Set loc to duration location
+    size_t loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 21;
+    Bit::htob40(strBuf + loc, (duration * 90) | 0x8000000000ull);
+  }
+
+  void SpliceInfoSection::randomizeSpliceID() {
+    // Set loc to splice ID location
+    size_t loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 15;
+    Util::getRandomBytes(strBuf + loc, 4);
+    strBuf[loc] &= 0x0F;
+    strBuf[loc] |= 0x60;
+  }
+
+  /// Print SIS in a human readable format
+  ///\param indent The indentation of the string printed as wanted by the user
+  ///\return The string with human readable data from a SIS packet
+  std::string SpliceInfoSection::toPrettyString(size_t indent) const {
+    std::stringstream output;
+    output << std::string(indent, ' ') << "[Splice Info Section]" << std::endl;
+    output << std::string(indent + 2, ' ') << "Pointer Field: " << (int)getOffset() << std::endl;
+    output << std::string(indent + 2, ' ') << "Table ID: " << (int)getTableId() << std::endl;
+
+    // Skip past table ID
+    size_t loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 2;
+
+    output << std::string(indent + 2, ' ') << "SAP Type: ";
+    uint8_t sap_type = (strBuf[loc] & 0x30) >> 4;
+    switch (sap_type) {
+      case 0: output << "closed GOP, no leading pictures"; break;
+      case 1: output << "closed GOP, with leading pictures"; break;
+      case 2: output << "open GOP"; break;
+      case 3: output << "unspecified"; break;
+    }
+    output << std::endl;
+
+    uint16_t sectLen = (((uint16_t)strBuf[loc] << 8) | strBuf[loc + 1]) & 0xfff;
+    output << std::string(indent + 2, ' ') << "Section Length: " << sectLen << std::endl;
+    loc += 2; // Skip past section length
+              //
+    output << std::string(indent + 2, ' ') << "Protocol Version: " << (int)strBuf[loc] << std::endl;
+    ++loc;
+
+    output << std::string(indent + 2, ' ') << "Encrypted: " << ((strBuf[loc] & 0x80) ? "Yes" : "No") << std::endl;
+    uint64_t tsOffset = Bit::btoh40(strBuf + loc) & 0x1FFFFFFFFull;
+    output << std::string(indent + 2, ' ') << "Time offset: " << tsOffset << " (" << ((double)tsOffset / 90000.0)
+           << "s)" << std::endl;
+    loc += 6; // Skip past time offset and cw_index
+
+    uint16_t tier = ((((uint16_t)strBuf[loc] << 8) | (uint16_t)strBuf[loc + 1]) >> 4) & 0xFFF;
+    uint16_t splice_cmd_len = (((uint16_t)strBuf[loc + 1] << 8) | (uint16_t)strBuf[loc + 2]) & 0xFFF;
+    output << std::string(indent + 2, ' ') << "Tier: " << tier << std::endl;
+    output << std::string(indent + 2, ' ') << "Splice command length: " << splice_cmd_len << std::endl;
+    loc += 3; // Skip past splice_cmd_len
+
+    // Calculate location of descriptor loop
+    size_t desc_loop_loc = loc + 1 + splice_cmd_len;
+
+    output << std::string(indent + 2, ' ') << "Splice command type: ";
+    uint8_t splice_cmd_type = strBuf[loc];
+    ++loc;
+    switch (splice_cmd_type) {
+      case 0: output << "Null" << std::endl; break;
+      case 4: output << "Schedule" << std::endl; break;
+      case 5: {
+        output << "Insert" << std::endl;
+        uint32_t spliceId = Bit::btohl(strBuf + loc);
+        loc += 4;
+        output << std::string(indent + 4, ' ') << "ID: " << spliceId << std::endl;
+        if (strBuf[loc] & 0x80) {
+          output << std::string(indent + 4, ' ') << "Splice cancelled" << std::endl;
+          break;
+        }
+        ++loc;
+
+        bool progSplice = (strBuf[loc] & 0x40);
+        bool hasDuration = (strBuf[loc] & 0x20);
+        bool hasTime = !(strBuf[loc] & 0x10);
+        output << std::string(indent + 4, ' ') << "Splice " << ((strBuf[loc] & 0x80) ? "out" : "in") << std::endl;
+        output << std::string(indent + 4, ' ') << "Splice " << (progSplice ? "program" : "component (deprecated)") << std::endl;
+        if (strBuf[loc] & 0x08) {
+          output << std::string(indent + 4, ' ');
+          switch (spliceId >> 28) {
+            case 0: output << "Cue from source material"; break;
+            case 4: output << "Cue from automation system"; break;
+            case 6: output << "Cue from manual trigger"; break;
+            case 12: output << "Cue from local content replacement system"; break;
+            default: output << "Unknown cue source"; break;
+          }
+          output << std::endl;
+        }
+        ++loc;
+        if (progSplice && hasTime) {
+          if (strBuf[loc] & 0x80) {
+            uint64_t spliceTime = Bit::btoh40(strBuf + loc) & 0x1FFFFFFFFull;
+            output << std::string(indent + 4, ' ') << "Splice Time: " << spliceTime << " ("
+                   << ((double)spliceTime / 90000.0) << "s)" << std::endl;
+          } else {
+            output << std::string(indent + 4, ' ') << "Splice Time: unset" << std::endl;
+          }
+          loc += 5;
+        } else {
+          output << std::string(indent + 4, ' ') << "Splice Time: immediate" << std::endl;
+        }
+        if (hasDuration) {
+          uint64_t spliceDuration = Bit::btoh40(strBuf + loc) & 0x1FFFFFFFFull;
+          output << std::string(indent + 4, ' ') << "Splice Duration: " << spliceDuration << " ("
+                 << (((double)spliceDuration) / 90000.0) << "s)" << std::endl;
+          if (strBuf[loc] & 0x80) { output << std::string(indent + 4, ' ') << "Auto-return from splice" << std::endl; }
+          loc += 5;
+        }
+        output << std::string(indent + 4, ' ') << "Program ID: " << Bit::btohs(strBuf + loc) << std::endl;
+        loc += 2;
+        output << std::string(indent + 4, ' ') << "Avail: " << (int)strBuf[loc] << " / " << (int)strBuf[loc + 1] << std::endl;
+      } break;
+      case 6: output << "TimeSignal" << std::endl; break;
+      case 7: output << "BandwidthReservation" << std::endl; break;
+      default: output << "Unknown" << std::endl; break;
+    }
+
+    // Reset offset to descriptor loop location
+    loc = desc_loop_loc;
+    uint16_t desc_loop_len = ((uint16_t)strBuf[loc] << 8) | strBuf[loc + 1];
+    output << std::string(indent + 2, ' ') << "Descriptors length: " << desc_loop_len << std::endl;
+    loc += desc_loop_len + 2;
+
+    uint32_t pktCrc = getCRC();
+    uint32_t clcCrc = calcCRC();
+    output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << pktCrc;
+    if (pktCrc == clcCrc) {
+      output << " (valid)";
+    } else {
+      output << " (should be " << clcCrc << ")";
+    }
+    output << std::dec << std::endl;
+
     return output.str();
   }
 

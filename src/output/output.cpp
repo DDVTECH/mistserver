@@ -940,13 +940,10 @@ namespace Mist{
         stats();
       }
     }
-    if (meta.getNowms(tid) < pos){
-      WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: past end of track (= %" PRIu64 "ms).",
-               pos, tid, meta.getNowms(tid));
-      userSelect.erase(tid);
-      trackSelectionChanged();
-      return false;
-    }
+
+    // Snap to end of track if past end
+    if (meta.getNowms(tid) < pos) { pos = meta.getNowms(tid); }
+
     DTSC::Keys keys(M.getKeys(tid));
     if (M.getLive() && !pos && !buffer.getSyncMode()){
       uint64_t tmpTime = (M.getFirstms(tid) + M.getLastms(tid))/2;
@@ -2379,32 +2376,70 @@ namespace Mist{
 
       // if we're going to read past the end of the data page...
       cPageIt = curPage.find(nxt.tid);
-      if (cPageIt == curPage.end() || !cPageIt->second.mapped || nxt.offset >= cPageIt->second.len ||
-          (!memcmp(cPageIt->second.mapped + nxt.offset, "\000\000\000\000", 4))){
+      const bool pageNotOpen = (cPageIt == curPage.end()) || !cPageIt->second.mapped;
+      const bool atPageEnd =
+        !pageNotOpen && (nxt.offset >= cPageIt->second.len || !*(uint32_t *)(cPageIt->second.mapped + nxt.offset));
+      if (pageNotOpen || atPageEnd) {
         // For non-live, we may have just reached the end of the track. That's normal and fine, drop it.
         if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
           dropTrack(nxt.tid, "end of VoD track reached", false);
           return 1;
         }
+        if (meta.reloadReplacedPagesIfNeeded()) { return 1; }
         // Check if there is a next page for the timestamp we're looking for.
-        if (M.getLastms(nxt.tid) >= nxt.time && (!currentPage.count(nxt.tid) || M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid] || !curPage[nxt.tid].mapped)){
-          loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
+        size_t targetPage = 0;
+        size_t nextPage = 0;
+        M.getPageNumbersForTime(nxt.tid, nxt.time, targetPage, nextPage);
+        if (pageNotOpen || M.getLastms(nxt.tid) >= nxt.time || targetPage != currentPage[nxt.tid]) {
           nxt.offset = 0;
-          //Only read the next time if the page load succeeded and there is a packet to read from
-          if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
-            nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
-            nxt.ghostPacket = false;
-            nxt.unavailable = false;
-          }else{
-            nxt.ghostPacket = true;
-            nxt.unavailable = true;
+          if (atPageEnd && nextPage) {
+            // Load the next page, since we're at the end of the current one.
+            loadPageForKey(nxt.tid, nextPage);
+            IPC::sharedPage & cPage = curPage[nxt.tid];
+            // Only read the next time if the page load succeeded and there is a packet to read from
+            if (cPage.mapped && cPage.mapped[0] == 'D') {
+              nxt.time = getDTSCTime(cPage.mapped, 0);
+              nxt.ghostPacket = false;
+              nxt.unavailable = false;
+            } else {
+              nxt.ghostPacket = true;
+              nxt.unavailable = true;
+            }
+          } else {
+            // Load the current page, since we're not at the end (or there is no next page yet)
+            loadPageForKey(nxt.tid, targetPage);
+            IPC::sharedPage & cPage = curPage[nxt.tid];
+            if (cPage.mapped && cPage.mapped[0] == 'D') {
+              // Find the next timestamp greater or equal to nxt.time and set the offset to it
+              DTSC::Packet pkt(cPage.mapped, 0, true);
+              while (pkt) {
+                if (pkt.getTime() >= nxt.time) {
+                  nxt.time = pkt.getTime();
+                  break;
+                }
+                nxt.offset += pkt.getDataLen();
+                pkt.reInit(cPage.mapped + nxt.offset, 0, true);
+              }
+              nxt.ghostPacket = false;
+              nxt.unavailable = false;
+            } else {
+              nxt.ghostPacket = true;
+              nxt.unavailable = true;
+            }
           }
           buffer.replaceFirst(nxt);
           return nxt.ghostPacket ? 10 : 1;
         }
         // We're still on the same page; ghost packets should update their time and retry later
         if (nxt.ghostPacket){
-          nxt.time = M.getNowms(nxt.tid);
+          uint64_t newTime = M.getNowms(nxt.tid);
+          uint64_t lastPack = M.getLastms(nxt.tid);
+          if (nxt.time < newTime) {
+            // Pretend we received data, to prevent timeouts
+            lastReceive = thisBootMs;
+          }
+          // Only update nxt.time if we don't have any new packets after our current time
+          if (lastPack <= nxt.time) { nxt.time = newTime; }
           buffer.replaceFirst(nxt);
 
           // If it's a live stream, request to be signalled on packet availability
@@ -2871,13 +2906,16 @@ namespace Mist{
       for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
         if (M.getNowms(*it) > oneTime){oneTime = M.getNowms(*it);}
       }
-      Util::wait(2000);
-      for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
-        if (M.getNowms(*it) > twoTime){twoTime = M.getNowms(*it);}
+      size_t waitNum = 0;
+      while (twoTime <= oneTime + 100 && ++waitNum <= 20) {
+        Util::wait(100);
+        for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it) {
+          if (M.getNowms(*it) > twoTime) { twoTime = M.getNowms(*it); }
+        }
       }
-      if (twoTime <= oneTime+500){
+      if (twoTime <= oneTime + 100) {
         disconnect();
-        INFO_MSG("Waiting for stream reset before attempting push input accept (%" PRIu64 " <= %" PRIu64 "+500)", twoTime, oneTime);
+        INFO_MSG("Waiting for stream reset before attempting push input accept (%" PRIu64 " <= %" PRIu64 "+100)", twoTime, oneTime);
         while (streamStatus != STRMSTAT_OFF && keepGoing()){
           userSelect.clear();
           trackSelectionChanged();

@@ -410,6 +410,7 @@ namespace DTSC{
     uint64_t getLastms(size_t trackIdx) const;
 
     void setNowms(size_t trackIdx, uint64_t nowms);
+    void upNowms(size_t trackIdx, uint64_t nowms);
     uint64_t getNowms(size_t trackIdx) const;
 
     uint64_t getDuration(size_t trackIdx) const;
@@ -432,7 +433,7 @@ namespace DTSC{
     void setMaxKeepAway(uint64_t maxKeepAway);
     uint64_t getMaxKeepAway() const;
 
-    void claimTrack(size_t trackIdx);
+    bool claimTrack(size_t trackIdx);
     bool isClaimed(size_t trackIdx) const;
     uint64_t isClaimedBy(size_t trackIdx) const;
     void abandonTrack(size_t trackIdx);
@@ -502,7 +503,7 @@ namespace DTSC{
     uint64_t getPartTime(uint32_t partIndex, size_t idx) const;
 
     bool nextPageAvailable(uint32_t idx, size_t currentPage) const;
-    size_t getPageNumberForTime(uint32_t idx, uint64_t time) const;
+    void getPageNumbersForTime(uint32_t idx, uint64_t time, size_t & currPage, size_t & nextPage) const;
     size_t getPageNumberForKey(uint32_t idx, uint64_t keynumber) const;
     size_t getKeyNumForTime(uint32_t idx, uint64_t time) const;
     bool keyTimingsMatch(size_t idx1, size_t idx2) const;

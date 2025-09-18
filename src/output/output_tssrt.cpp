@@ -178,6 +178,7 @@ namespace Mist{
       Socket::SRT::libraryInit();
       target = HTTP::URL(config->getString("target"));
       HTTP::parseVars(target.args, targetParams);
+      initialize();
       std::string addData;
       if (targetParams.count("streamid")){addData = targetParams["streamid"];}
       if (target.protocol != "srt"){
@@ -416,6 +417,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
     capa["codecs"][0u][2u].append("+JSON");
+    capa["codecs"][0u][2u].append("+SCTE35");
     capa["codecs"][1u][0u].append("rawts");
     cfg->addConnectorOptions(8889, capa);
     capa["optional"]["port"]["name"] = "UDP port";

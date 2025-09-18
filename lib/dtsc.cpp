@@ -1939,15 +1939,33 @@ namespace DTSC{
   uint64_t Meta::isClaimedBy(size_t trackIdx) const{
     return trackList.getInt(trackPidField, trackIdx);
   }
-  
-  void Meta::claimTrack(size_t trackIdx){
+
+  bool Meta::claimTrack(size_t trackIdx) {
+    IPC::semaphore trackLock;
+    if (!isMemBuf) {
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
+      trackLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      if (!trackLock) {
+        FAIL_MSG("Could not open semaphore to claim track!");
+        return false;
+      }
+      trackLock.wait();
+      if (stream.isExit()) {
+        trackLock.post();
+        FAIL_MSG("Not claiming track: stream page is shutting down");
+        return false;
+      }
+    }
     if (trackList.getInt(trackPidField, trackIdx) != 0){
       FAIL_MSG("Cannot claim track: already claimed by PID %" PRIu64, trackList.getInt(trackPidField, trackIdx));
-      return;
+      return false;
     }
     trackList.setInt(trackPidField, getpid(), trackIdx);
+    if (!isMemBuf) { trackLock.post(); }
+    return true;
   }
-  
+
   void Meta::abandonTrack(size_t trackIdx){
     if (trackList.getInt(trackPidField, trackIdx) != getpid()){
       FAIL_MSG("Cannot abandon track: is claimed by PID %" PRIu64 ", not us", trackList.getInt(trackPidField, trackIdx));
@@ -2261,6 +2279,10 @@ namespace DTSC{
   void Meta::setNowms(size_t trackIdx, uint64_t nowms){
     DTSC::Track &t = tracks.at(trackIdx);
     t.track.setInt(t.trackNowmsField, nowms);
+  }
+  void Meta::upNowms(size_t trackIdx, uint64_t nowms) {
+    DTSC::Track & t = tracks.at(trackIdx);
+    if (t.track.getInt(t.trackNowmsField) < nowms) { t.track.setInt(t.trackNowmsField, nowms); }
   }
   uint64_t Meta::getNowms(size_t trackIdx) const{
     const DTSC::Track &t = tracks.find(trackIdx)->second;
@@ -3482,18 +3504,24 @@ namespace DTSC{
 
   /// Given a timestamp, returns the page number that timestamp can be found on.
   /// If the timestamp is not available, returns the closest page number that is.
-  size_t Meta::getPageNumberForTime(uint32_t idx, uint64_t time) const{
+  void Meta::getPageNumbersForTime(uint32_t idx, uint64_t time, size_t & currPage, size_t & nextPage) const {
     const Track & t = tracks.at(idx);
     const Util::RelAccX & pages = t.pages;
     uint32_t res = pages.getStartPos();
     uint64_t endPos = pages.getEndPos();
     for (uint64_t i = res; i < endPos; ++i){
       if (pages.getInt(t.pageAvailField, i) == 0) { continue; }
-      if (pages.getInt(t.pageFirstTimeField, i) > time) { break; }
+      if (pages.getInt(t.pageFirstTimeField, i) > time) {
+        nextPage = pages.getInt(t.pageFirstKeyField, i);
+        INFO_MSG("next page %" PRId64 ": %" PRIu64 " <-> %" PRIu64, pages.getInt(t.pageFirstKeyField, i),
+                 pages.getInt(t.pageFirstTimeField, i), time);
+        break;
+      }
       res = i;
     }
-    DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %" PRIu64, time, idx, pages.getInt("firstkey", res));
-    return pages.getInt(t.pageFirstKeyField, res);
+    currPage = pages.getInt(t.pageFirstKeyField, res);
+    DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %" PRIu64, time, idx,
+                 pages.getInt("firstkey", res));
   }
 
   /// Given a key, returns the page number it can be found on.

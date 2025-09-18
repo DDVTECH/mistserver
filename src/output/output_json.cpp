@@ -149,6 +149,11 @@ namespace Mist{
       recursive = false;
     }
     if (!webSock && !jsonp.size() && !first){myConn.SendNow("]\n", 2);}
+    if (isPushing() && pushTrack != INVALID_TRACK_ID) {
+      meta.abandonTrack(pushTrack);
+      pushTrack = INVALID_TRACK_ID;
+      pushing = false;
+    }
     myConn.close();
     return false;
   }
@@ -180,11 +185,18 @@ namespace Mist{
   }
 
   void OutJSON::onWebsocketFrame(){
+    if (bufferData(webSock->data, webSock->data.size())) {
+      if (!idleInterval) { idleInterval = 50; }
+      if (isBlocking) { setBlocking(false); }
+    }
+  }
+
+  bool OutJSON::bufferData(const char *ptr, size_t len) {
     if (!isPushing()){
       if (checkStreamKey()) {
         if (!streamName.size()) {
           onFinish();
-          return;
+          return false;
         }
       } else {
         if (Triggers::shouldTrigger("PUSH_REWRITE")) {
@@ -195,7 +207,7 @@ namespace Mist{
             FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                      getConnectedHost().c_str(), reqUrl.c_str());
             onFinish();
-            return;
+            return false;
           } else {
             streamName = newStream;
             Util::sanitizeName(streamName);
@@ -204,23 +216,37 @@ namespace Mist{
         }
         if (!allowPush(pushPass)) {
           onFinish();
-          return;
+          return false;
         }
       }
     }
-    if (!M.getBootMsOffset()){meta.setBootMsOffset(Util::bootMS());}
-    // We now know we're allowed to push. Read a JSON object.
-    JSON::Value inJSON = JSON::fromString(webSock->data, webSock->data.size());
-    if (!inJSON || !inJSON.isObject()){
-      // Ignore empty and/or non-parsable JSON packets
-      MEDIUM_MSG("Ignoring non-JSON object: %s", (char *)webSock->data);
-      return;
+
+    std::string tCodec = "JSON";
+    if (targetParams.count("meta") && (targetParams["meta"] == "SCTE35" || targetParams["meta"] == "scte35")) {
+      tCodec = "SCTE35";
     }
+
+    // We now know we're allowed to push. Read a JSON object.
+    JSON::Value inJSON = JSON::fromString(ptr, len);
     // Let's create a new track for pushing purposes, if needed
-    if (pushTrack == INVALID_TRACK_ID){pushTrack = meta.addTrack();}
-    meta.setType(pushTrack, "meta");
-    meta.setCodec(pushTrack, "JSON");
-    meta.setID(pushTrack, pushTrack);
+    if (pushTrack == INVALID_TRACK_ID) {
+      // First attempt to resume a track if we can
+      std::set<size_t> v = M.getValidTracks();
+      for (size_t t : v) {
+        if (M.getType(t) == "meta" && M.getCodec(t) == tCodec && !M.isClaimed(t)) {
+          if (meta.claimTrack(t)) {
+            pushTrack = t;
+            break;
+          }
+        }
+      }
+      if (pushTrack == INVALID_TRACK_ID) {
+        pushTrack = meta.addTrack();
+        meta.setType(pushTrack, "meta");
+        meta.setCodec(pushTrack, tCodec);
+        meta.setID(pushTrack, pushTrack);
+      }
+    }
     // We have a track set correctly. Let's attempt to buffer a frame.
     lastSendTime = Util::bootMS();
     if (!inJSON.isMember("unix")){
@@ -232,22 +258,31 @@ namespace Mist{
     }
     lastOutData = inJSON.toString();
     bufferLivePacket(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true);
-    if (!idleInterval){idleInterval = 5000;}
-    if (isBlocking){setBlocking(false);}
+    return true;
   }
 
-  /// Repeats last JSON packet every 5 seconds to keep stream alive.
-  void OutJSON::onIdle(){
-    if (isPushing()){
-      lastOutTime += (Util::bootMS() - lastSendTime);
-      lastSendTime = Util::bootMS();
-      bufferLivePacket(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true);
+  /// Updates NowMs every 50ms to keep track updated
+  void OutJSON::onIdle() {
+    if (isPushing()) {
+      uint64_t now = Util::bootMS();
+      if (now - lastSendTime > 50) {
+        lastOutTime += (now - lastSendTime - 50);
+        lastSendTime = now;
+        meta.upNowms(pushTrack, lastOutTime - 50);
+      }
     }
   }
 
   void OutJSON::onHTTP(){
     std::string method = H.method;
+    std::string body = H.body;
+
+    // Force-set push param if POST/PUT method is used
+    if (method == "POST" || method == "PUT") { H.SetVar("push", method); }
+
     preWebsocketConnect(); // Not actually a websocket, but we need to do the same checks
+
+    // Determine if a callback is used, and if yes, what it's named
     jsonp = "";
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
@@ -258,6 +293,22 @@ namespace Mist{
       H.SetHeader("Content-Type", "text/javascript");
       H.protocol = "HTTP/1.0";
       H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    if (method == "POST" || method == "PUT") {
+      INFO_MSG("Received method %s!", method.c_str());
+      INFO_MSG("Body = %s", body.c_str());
+      H.SetHeader("Content-Type", "application/json");
+      H.protocol = "HTTP/1.0";
+      if (bufferData(body.data(), body.size())) {
+        H.body = "Packet inserted into datastream successfully";
+        H.SendResponse("200", "OK", myConn);
+      } else {
+        H.body = "Could not insert packet :-(";
+        H.SendResponse("404", "OK", myConn);
+      }
+      myConn.close();
       H.Clean();
       return;
     }

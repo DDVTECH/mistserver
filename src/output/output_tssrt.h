@@ -14,7 +14,6 @@ namespace Mist{
 
     static void init(Util::Config *cfg);
     void sendTS(const char *tsData, size_t len = 188);
-    bool isReadyForPlay(){return true;}
     virtual void requestHandler(bool readable);
     virtual bool onFinish();
     virtual uint64_t getInitialSeekPosition();

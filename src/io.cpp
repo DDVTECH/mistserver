@@ -408,7 +408,7 @@ namespace Mist{
                  packTime, aMeta.getLastms(packTrack));
         return;
       }
-      if (packTime > aMeta.getNowms(packTrack) + 30000 && aMeta.getLastms(packTrack)) {
+      if (packTime > aMeta.getNowms(packTrack) + 30000 && aMeta.getNowms(packTrack)) {
         WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, aMeta.getNowms(packTrack), packTime);
       }
     }

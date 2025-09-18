@@ -231,16 +231,29 @@ namespace Mist{
       }
       fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
     }else if (type == "meta"){
-      long unsigned int tempLen = dataLen;
-      if (codec == "JSON"){tempLen += 2;}
-      bs = TS::Packet::getPESMetaLeadIn(tempLen, packTime, M.getBps(thisIdx));
-      fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
-      if (codec == "JSON"){
-        char dLen[2];
-        Bit::htobs(dLen, dataLen);
-        fillPacket(dLen, 2, firstPack, video, keyframe, pkgPid, contPkg);
+      if (codec == "SCTE35") {
+        if (dataLen && dataPointer[0] == '{') {
+          uint64_t duration = 30000;
+          JSON::Value cmd = JSON::fromString(dataPointer, dataLen);
+          if (cmd.isMember("splice_out")) { duration = cmd["splice_out"].asInt(); }
+          TS::SpliceInfoSection sis;
+          sis.randomizeSpliceID();
+          sis.writeSpliceDuration(duration);
+          sis.writeCRC();
+          fillPacket(sis.checkAndGetBuffer() + 4, 36, firstPack, false, true, pkgPid, contPkg);
+        }
+      } else {
+        long unsigned int tempLen = dataLen;
+        if (codec == "JSON") { tempLen += 2; }
+        bs = TS::Packet::getPESMetaLeadIn(tempLen, packTime, M.getBps(thisIdx));
+        fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+        if (codec == "JSON") {
+          char dLen[2];
+          Bit::htobs(dLen, dataLen);
+          fillPacket(dLen, 2, firstPack, video, keyframe, pkgPid, contPkg);
+        }
+        fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
       }
-      fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
     }
     if (packData.getBytesFree() < 184){
       packData.addStuffing();

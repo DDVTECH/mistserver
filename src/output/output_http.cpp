@@ -32,9 +32,7 @@ namespace Mist{
     if (config->getString("ip").size()){
       myConn.setHost(config->getString("ip"));
     }
-    if (config->getString("prequest").size()){
-      myConn.Received().prepend(config->getString("prequest"));
-    }
+    if (config->getString("prequest").size()) { myConn.Received().append(config->getString("prequest")); }
     config->activate();
   }
 

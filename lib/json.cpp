@@ -1488,9 +1488,9 @@ JSON::Value JSON::fromDTMI2(const std::string &data){
 }
 
 void JSON::fromDTMI2(const char *data, uint64_t len, uint32_t &i, JSON::Value &ret){
-  if (len < 13){return;}
+  if (len < 20) { return; }
   uint32_t tid = Bit::btohl(data + i);
-  uint64_t time = Bit::btohll(data + 4);
+  uint64_t time = Bit::btohll(data + i + 4);
   i += 12;
   fromDTMI(data, len, i, ret);
   ret["time"] = time;

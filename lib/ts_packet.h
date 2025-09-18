@@ -4,11 +4,9 @@
 #pragma once
 #include "checksum.h"
 #include "dtsc.h"
-#include <algorithm>
-#include <cmath>
+
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <iostream>
 #include <map>
 #include <stdint.h> //for uint64_t
@@ -172,7 +170,7 @@ namespace TS{
     short getPCRPID() const;
     void setPCRPID(short newVal);
     short getProgramInfoLength() const;
-    void setProgramInfoLength(short newVal);
+    void setProgramInfo(const std::string & newVal);
     void parseStreams();
     ProgramMappingEntry getEntry(int index) const;
     int getCRC() const;
@@ -232,6 +230,20 @@ namespace TS{
     int getCRC() const;
     void calcCRC();
     std::string toPrettyString(size_t indent) const;
+  };
+
+  class SpliceInfoSection : public Packet {
+    public:
+      SpliceInfoSection();
+      SpliceInfoSection & operator=(const Packet & rhs);
+      char getOffset() const;
+      char getTableId() const;
+      uint32_t getCRC() const;
+      uint32_t calcCRC() const;
+      void writeSpliceDuration(uint64_t duration);
+      void randomizeSpliceID();
+      void writeCRC();
+      std::string toPrettyString(size_t indent) const;
   };
 
   /// Constructs an audio header to be used on each audio frame.

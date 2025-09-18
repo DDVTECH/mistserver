@@ -1,5 +1,12 @@
-#include "analyser.h"
 #include "analyser_ts.h"
+
+#include "analyser.h"
+
+#include <mist/bitfields.h>
+#include <mist/config.h>
+#include <mist/defines.h>
+#include <mist/ts_packet.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
@@ -7,16 +14,10 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <mist/bitfields.h>
-#include <mist/config.h>
-#include <mist/defines.h>
-#include <mist/ts_packet.h>
-#include <signal.h>
 #include <sstream>
 #include <string.h>
 #include <string>
 #include <unistd.h>
-
 
 std::set<unsigned int> pmtTracks;
 
@@ -77,8 +78,8 @@ bool AnalyserTS::parsePacket(){
         (!pidOnly || packet.getPID() == pidOnly)){
       std::cout << packet.toPrettyString(pmtTracks, 0, detail);
     }
-    if (packet.getPID() >= 0x10 && !packet.isPMT(pmtTracks) && packet.getPID() != 17 &&
-        (payloads[packet.getPID()].size() || packet.getUnitStart())){
+    if (packet.getPID() >= 0x10 && !packet.isPMT(pmtTracks) && packet.getPID() != 17 && packet.isStream() &&
+        (payloads[packet.getPID()].size() || packet.getUnitStart())) {
       payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
     }
   }

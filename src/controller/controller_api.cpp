@@ -1485,8 +1485,24 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   if (Request.isMember("push_stop")){
     if (Request["push_stop"].isArray()){
       jsonForEach(Request["push_stop"], it){Controller::stopPush(it->asInt());}
-    }else{
+    } else if (Request["push_stop"].isString()) {
+      Controller::stopPush(Request["push_stop"].asStringRef());
+    } else {
       Controller::stopPush(Request["push_stop"].asInt());
+    }
+  }
+
+  // This `push_stop_graceful` command was added to allow outputs
+  // to gracefully disconnect from their remote server. For
+  // example, when used for an outgoing RTMP push, we will
+  // correctly delete the stream before closing the socket.
+  if (Request.isMember("push_stop_graceful")) {
+    if (Request["push_stop_graceful"].isArray()) {
+      jsonForEach (Request["push_stop_graceful"], it) { Controller::stopPushGraceful(it->asInt()); }
+    } else if (Request["push_stop_graceful"].isString()) {
+      Controller::stopPushGraceful(Request["push_stop_graceful"].asStringRef());
+    } else {
+      Controller::stopPushGraceful(Request["push_stop_graceful"].asInt());
     }
   }
 

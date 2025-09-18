@@ -27,6 +27,7 @@ namespace Util{
     static pid_t StartPiped(const char *const *argv);
     static pid_t StartPiped(const std::deque<std::string> & argDeq, int *fdIn, int *fdOut, int *fdErr);
     static void Stop(pid_t name);
+    static void hangup(pid_t name);
     static void Murder(pid_t name);
     static void StopAll();
     static int Count();

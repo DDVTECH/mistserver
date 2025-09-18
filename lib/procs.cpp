@@ -556,6 +556,10 @@ void Util::Procs::Stop(pid_t name){
   kill(name, SIGTERM);
 }
 
+void Util::Procs::hangup(pid_t name) {
+  kill(name, SIGHUP);
+}
+
 /// Stops the process with this pid, if running.
 /// \arg name The PID of the process to murder.
 void Util::Procs::Murder(pid_t name){

@@ -198,6 +198,25 @@ namespace Controller{
     if (ID > 1 && activePushes.count(ID)){Util::Procs::Stop(ID);}
   }
 
+  /// Immediately stops all pushes of the given stream
+  void stopPush(const std::string & stream) {
+    for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it) {
+      if (it->second[1].asStringRef() == stream && Util::Procs::isActive(it->first)) { Util::Procs::Stop(it->first); }
+    }
+  }
+
+  /// Stops a push with the given ID by sending HUP, which will complete sending current data and then disconnect
+  void stopPushGraceful(unsigned int ID) {
+    if (ID > 1 && activePushes.count(ID)) { Util::Procs::hangup(ID); }
+  }
+
+  /// Stops all pushes of the given stream by sending HUP, which will complete sending current data and then disconnect
+  void stopPushGraceful(const std::string & stream) {
+    for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it) {
+      if (it->second[1].asStringRef() == stream && Util::Procs::isActive(it->first)) { Util::Procs::hangup(it->first); }
+    }
+  }
+
   /// Compactly writes the list of pushes to a pointer, assumed to be 8MiB in size
   static void writePushList(char *pwo){
     std::lock_guard<std::recursive_mutex> actGuard(actPushMut);

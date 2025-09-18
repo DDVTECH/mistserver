@@ -19,6 +19,19 @@ const char * trackType(char ID){
   return "unknown";
 }
 
+// Handles "soft close" behaviour, where the connection is gracefully closed on the next data stall
+bool softClose = false;
+void hup_handler(int signum, siginfo_t *sigInfo, void *ignore) {
+  softClose = true;
+}
+void setHupHandler() {
+  struct sigaction new_action;
+  new_action.sa_sigaction = hup_handler;
+  sigemptyset(&new_action.sa_mask);
+  new_action.sa_flags = SA_SIGINFO;
+  sigaction(SIGHUP, &new_action, NULL);
+}
+
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
 #ifdef SSL
@@ -35,6 +48,7 @@ namespace Mist {
     lastAck = Util::bootSecs();
     setRtmpOffset = false;
     rtmpOffset = 0;
+    lastSend = 0;
     authAttempts = 0;
     didReceiveDeleteStream = false;
     maxbps = config->getInteger("maxkbps") * 128;
@@ -269,6 +283,7 @@ namespace Mist {
     RTMPStream::snd_cnt += 3073;
     setBlocking(false);
     VERYHIGH_MSG("Push out handshake completed");
+    setHupHandler(); // Install SIGHUP handler
     std::string pushHost = pushUrl.protocol + "://" + pushUrl.host + "/";
     if (pushUrl.getPort() != 1935){
       pushHost = pushUrl.protocol + "://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/";
@@ -956,6 +971,7 @@ namespace Mist {
       }
     }
     myConn.setBlocking(false);
+    lastSend = Util::bootMS();
   }
 
   void OutRTMP::sendHeader(){
@@ -1103,6 +1119,7 @@ namespace Mist {
       }
       Util::sleep(50);
     }
+    if (softClose && lastSend + 1000 < Util::bootMS()) { onFinish(); }
     Output::requestHandler(readable);
   }
 

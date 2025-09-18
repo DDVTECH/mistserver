@@ -76,6 +76,8 @@ namespace Mist{
       }
       if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
         DTSC::trackValidDefault = opt["target_mask"].asInt();
+      } else {
+        DTSC::trackValidDefault = TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH;
       }
     }
     bool needsLock(){return false;}
@@ -383,7 +385,7 @@ int main(int argc, char *argv[]){
     capa["optional"]["target_mask"]["select"][7u][1u] = "Pushing and processing tasks (not viewers)";
     capa["optional"]["target_mask"]["select"][8u][0u] = 0;
     capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
-    capa["optional"]["target_mask"]["default"] = "";
+    capa["optional"]["target_mask"]["default"] = "3";
 
     capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
     capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";

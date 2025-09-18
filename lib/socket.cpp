@@ -1108,7 +1108,7 @@ void Socket::Connection::onClose(std::function<void(int)> cb) {
 }
 
 /// Returns internal socket number.
-int Socket::Connection::getSocket(){
+int Socket::Connection::getSocket() const {
 #ifdef SSL
   if (sslConnected){return server_fd->fd;}
 #endif
@@ -1235,7 +1235,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock, bool w
 
 /// Open TCP connection.
 /// Closes any existing connections and resets all internal values beforehand.
-void Socket::Connection::open(std::string host, int port, bool nonblock, bool with_ssl){
+void Socket::Connection::open(std::string host, int port, bool nonblock, bool with_ssl, const std::string & hostname) {
   drop();
   clear();
   if (with_ssl){
@@ -1365,7 +1365,12 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
       close();
       return;
     }
-    if ((ret = mbedtls_ssl_set_hostname(ssl, host.c_str())) != 0){
+    if (hostname.size()) {
+      ret = mbedtls_ssl_set_hostname(ssl, hostname.c_str());
+    } else {
+      ret = mbedtls_ssl_set_hostname(ssl, host.c_str());
+    }
+    if (ret != 0) {
       char estr[200];
       mbedtls_strerror(ret, estr, 200);
       lastErr = estr;
@@ -1391,7 +1396,6 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     FAIL_MSG("Attempted to open SSL socket without SSL support compiled in!");
     return;
   }
-
 }
 
 /// Returns the connected-state for this socket.

@@ -179,7 +179,7 @@ namespace Socket{
     ~Connection();
     // generic methods
     void open(int sockNo); // Open from existing socket connection.
-    void open(std::string hostname, int port, bool nonblock, bool with_ssl = false); // Open TCP connection.
+    void open(std::string host, int port, bool nonblock, bool with_ssl = false, const std::string & hostname = ""); // Open TCP connection.
     void open(std::string adres, bool nonblock = false); // Open Unix connection.
     void open(int write, int read);                      // Open from two existing file descriptors.
 #ifdef SSL
@@ -198,7 +198,7 @@ namespace Socket{
     std::string getBinHost() const;
     void setHost(std::string host); ///< Sets hostname for connection manually.
     std::string getBoundAddress() const;
-    int getSocket();        ///< Returns internal socket number.
+    int getSocket() const; ///< Returns internal socket number.
     int getPureSocket();    ///< Returns non-piped internal socket number.
     std::string getError(); ///< Returns a string describing the last error that occurred.
     bool connected() const; ///< Returns the connected-state for this socket.

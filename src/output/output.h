@@ -121,6 +121,7 @@ namespace Mist{
     virtual std::string getConnectedHost();
     virtual std::string getConnectedBinHost();
     virtual std::string getStatsName();
+    virtual void determineExitReason() {}
 
     virtual void connStats(uint64_t now, Comms::Connections &statComm);
 

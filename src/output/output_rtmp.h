@@ -32,10 +32,13 @@ namespace Mist{
     uint64_t lastSend;
     uint32_t maxbps;
     std::string app_name;
+    bool didReceiveDeleteStream;
+    std::string pushState; ///< Keep track of the current rtmp flow state.
     void parseChunk(Socket::Buffer &inputBuffer);
     void parseAMFCommand(AMF::Object &amfData, int messageType, int streamId);
     void sendCommand(AMF::Object &amfReply, int messageType, int streamId);
     void startPushOut(const char *args);
+    virtual void determineExitReason();
     uint64_t lastAck;
     HTTP::URL pushApp, pushUrl;
     uint8_t authAttempts;

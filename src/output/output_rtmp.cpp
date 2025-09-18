@@ -36,40 +36,13 @@ namespace Mist {
     setRtmpOffset = false;
     rtmpOffset = 0;
     authAttempts = 0;
+    didReceiveDeleteStream = false;
     maxbps = config->getInteger("maxkbps") * 128;
     //Switch realtime tracking system to mode where it never skips ahead, but only changes playback speed
     maxSkipAhead = 0;
-    if (config->getString("target").size() && config->getString("target") != "-"){
-      streamName = config->getString("streamname");
-      pushUrl = HTTP::URL(config->getString("target"));
-#ifdef SSL
-      if (pushUrl.protocol != "rtmp" && pushUrl.protocol != "rtmps"){
-        FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
-        return;
-      }
-#else
-      if (pushUrl.protocol != "rtmp"){
-        FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
-        return;
-      }
-#endif
-      std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
-      if (pushUrl.args.size()){app += "?" + pushUrl.args;}
-      streamOut = streamName;
-
-      size_t slash = app.find('/');
-      if (slash != std::string::npos){
-        streamOut = app.substr(slash + 1, std::string::npos);
-        app = app.substr(0, slash);
-        if (!streamOut.size()){streamOut = streamName;}
-      }
-      INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(),
-               pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
-      myConn.setHost(pushUrl.host);
-      initialize();
-      initialSeek();
+    if (config->getString("target").size() && config->getString("target") != "-") {
       startPushOut("");
-    }else{
+    } else {
       setBlocking(true);
       while (!conn.Received().available(1537) && conn.connected() && config->is_active){
         conn.spool();
@@ -176,11 +149,7 @@ namespace Mist {
   }
 #endif
 
-  void OutRTMP::startPushOut(const char *args){
-
-    myConn.close();
-    myConn.Received().clear();
-
+  void OutRTMP::startPushOut(const char *args) {
     RTMPStream::chunk_rec_max = 128;
     RTMPStream::chunk_snd_max = 128;
     RTMPStream::rec_window_size = 2500000;
@@ -193,25 +162,73 @@ namespace Mist {
     RTMPStream::lastsend.clear();
     RTMPStream::lastrecv.clear();
 
-    std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
-    size_t slash = app.rfind('/');
-    if (slash != std::string::npos){app = app.substr(0, slash);}
+    pushUrl = HTTP::URL(config->getString("target"));
+    streamOut = streamName;
 
-    if (pushUrl.protocol == "rtmp"){myConn.open(pushUrl.host, pushUrl.getPort(), false);}
+    // For a push you can specify the `host` query parameter via
+    // the target URL. When specified we will use as this host as
+    // the host to which we connect using the socket. We will
+    // still use the host from the `rtmp://<host>:<port>/` URL
+    // that you've defined for the push target. This allows us to
+    // connect with a differrent host then we use for the `tcUrl`
+    // AMF field (see below).
+    std::string remoteHost = pushUrl.host;
+    if (targetParams.count("host")) { remoteHost = targetParams["host"]; }
+
+    std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
+    if (pushUrl.args.size()) { app += "?" + pushUrl.args; }
+
+    size_t slash = app.rfind('/');
+    if (slash != std::string::npos) {
+      streamOut = app.substr(slash + 1, std::string::npos);
+      app = app.substr(0, slash);
+      if (!streamOut.size()) { streamOut = streamName; }
+    }
+
+    // For a push, you can add the `?app=<name>` to change the
+    // RTMP application name (rtmp://host:port/<app>/stream)
+    if (targetParams.count("app")) { app = targetParams["app"]; }
+
+    // You can specify `?stream=<name>` to change the RTMP stream
+    // key, (rmtp://host:port/app/<stream>)
+    if (targetParams.count("stream")) { streamOut = targetParams["stream"]; }
+
+    INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(),
+             remoteHost.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
+
+    myConn.setHost(remoteHost);
+    initialize();
+    initialSeek();
+
+    myConn.close();
+    myConn.Received().clear();
+
+    if (pushUrl.protocol == "rtmp") {
+      myConn.open(remoteHost, pushUrl.getPort(), false);
 #ifdef SSL
-    if (pushUrl.protocol == "rtmps"){myConn.open(pushUrl.host, pushUrl.getPort(), false, true);}
+    } else if (pushUrl.protocol == "rtmps") {
+      myConn.open(remoteHost, pushUrl.getPort(), false, true, pushUrl.host);
 #endif
-    if (!myConn){
-      FAIL_MSG("Could not connect to %s:%d!", pushUrl.host.c_str(), pushUrl.getPort());
+    } else {
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "protocol not supported: %s", pushUrl.protocol.c_str());
       return;
     }
+
+    if (!myConn){
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "could not connect to %s:%d: %s!", remoteHost.c_str(), pushUrl.getPort(),
+                          myConn.getError().c_str());
+      return;
+    }
+
     // do handshake
     myConn.SendNow("\003", 1); // protocol version. Always 3
     char *temp = (char *)malloc(3072);
     if (!temp){
       myConn.close();
+      Util::logExitReason(ER_MEMORY, "could not allocate buffer for RTMP handshake");
       return;
     }
+
     *((uint32_t *)temp) = 0;                         // time zero
     *(((uint32_t *)(temp + 4))) = 0; // version 0
     for (int i = 8; i < 3072; ++i){
@@ -243,7 +260,10 @@ namespace Mist {
     while (!myConn.Received().available(1536) && myConn.connected() && config->is_active){
       myConn.spool();
     }
-    if (!myConn || !config->is_active){return;}
+    if (!myConn || !config->is_active) {
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "connection closed during RTMP handshake");
+      return;
+    }
     myConn.Received().remove(1536);
     RTMPStream::rec_cnt += 3073;
     RTMPStream::snd_cnt += 3073;
@@ -267,50 +287,62 @@ namespace Mist {
 
     RTMPStream::chunk_snd_max = 65536;                                 // 64KiB
     myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); // send chunk size max (msg 1)
+
+    pushState = "connect";
     HIGH_MSG("Waiting for server to acknowledge connect request...");
   }
 
   bool OutRTMP::listenMode(){return !(config->getString("target").size());}
 
   bool OutRTMP::onFinish(){
+
     MEDIUM_MSG("Finishing stream %s, %s", streamName.c_str(), myConn ? "while connected" : "already disconnected");
-    if (myConn){
-      if (isRecording()){
-        AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-        amfreply.addContent(AMF::Object("", "deleteStream"));            // status reply
-        amfreply.addContent(AMF::Object("", (double)6));                 // transaction ID
-        amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); // null - command info
-        amfreply.addContent(AMF::Object("", (double)1)); // No clue. But OBS sends this, too.
-        sendCommand(amfreply, 20, 1);
-        myConn.close();
-        return false;
-      }
-      myConn.SendNow(RTMPStream::SendUSR(1, 1)); // send UCM StreamEOF (1), stream 1
+
+    // When the query parameter `graceless` has been set for an
+    // outgoing push target we directly close the socket. This
+    // means we'll never send the `deleteStream` command.
+    if (targetParams.count("graceless")) { myConn.close(); }
+
+    if (!myConn) { return false; }
+
+    if (isRecording()) {
       AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfreply.addContent(AMF::Object("", 0.0));                 // transaction ID
-      amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object(""));                      // info
-      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Stop"));
-      amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
-      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
-      amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
+      amfreply.addContent(AMF::Object("", "deleteStream")); // status reply
+      amfreply.addContent(AMF::Object("", (double)6)); // transaction ID
+      amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); // null - command info
+      amfreply.addContent(AMF::Object("", (double)1)); // No clue. But OBS sends this, too.
       sendCommand(amfreply, 20, 1);
-
-      amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
-      amfreply.addContent(AMF::Object("", "onStatus"));          // status reply
-      amfreply.addContent(AMF::Object("", 0.0));                 // transaction ID
-      amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
-      amfreply.addContent(AMF::Object(""));                      // info
-      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
-      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.UnpublishNotify"));
-      amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
-      amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
-      sendCommand(amfreply, 20, 1);
-
       myConn.close();
+      return false;
     }
+
+    myConn.SendNow(RTMPStream::SendUSR(1, 1)); // send UCM StreamEOF (1), stream 1
+
+    AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+    amfreply.addContent(AMF::Object("", "onStatus")); // status reply
+    amfreply.addContent(AMF::Object("", 0.0)); // transaction ID
+    amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
+    amfreply.addContent(AMF::Object("")); // info
+    amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+    amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Stop"));
+    amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
+    amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
+    amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
+    sendCommand(amfreply, 20, 1);
+
+    amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+    amfreply.addContent(AMF::Object("", "onStatus")); // status reply
+    amfreply.addContent(AMF::Object("", 0.0)); // transaction ID
+    amfreply.addContent(AMF::Object("", 0.0, AMF::AMF0_NULL)); // null - command info
+    amfreply.addContent(AMF::Object("")); // info
+    amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+    amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.UnpublishNotify"));
+    amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
+    amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337.0));
+    sendCommand(amfreply, 20, 1);
+
+    myConn.close();
+
     return false;
   }
 
@@ -384,6 +416,48 @@ namespace Mist {
     config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rtmp://*");
     capa["push_urls"].append("rtmps://*");
+
+    JSON::Value & pp = capa["push_parameters"];
+
+    // By setting the `graceless` option we will never perfrom a
+    // gracefull disconnect. This means that when `onFinish()` is
+    // called we directly .close() the socket connection w/o
+    // sending a `deleteStream` AMF message. For some media
+    // servers, not sending the `deleteStream` message, means
+    // that we can re-open the socket and continue sending media
+    // to the same `tcUrl`/stream.
+    pp["graceless"]["name"] = "Graceless disconnect";
+    pp["graceless"]["help"] = "When set, we will directly close the RTMP connection when shutting down the stream. "
+                              "This means we don't send a `deleteStream` AMF command to the receiving media server.";
+    pp["graceless"]["type"] = "bool";
+    pp["graceless"]["format"] = "set_or_unset"; // when not checked do not set at all so `graceless=false` does not do what you expect
+    pp["graceless"]["sort"] = "1a"; // alphanumerical sorting: determines the position in the web interface form.
+
+    // Specify the <host> part for the `tcUrl` that we use when
+    // connecting with the remote media server, see
+    // https://en.wikipedia.org/wiki/Real-Time_Messaging_Protocol
+    pp["host"]["name"] = "Host";
+    pp["host"]["help"] =
+      "Specify the host to which we should connect. When set, we will open a connection to this host instead of the "
+      "host specified in the RTMP target url as defined above. We will stil use the host value of the RTMP target URL "
+      "when for the `tcUrl` that is send to the remote server. This option is relevant when you want to manually "
+      "specify which server to connect to when dealing with CDNs.";
+    pp["host"]["type"] = "string";
+    pp["host"]["sort"] = "1b";
+
+    // Specify the <app> separately for the url rtmp://host:port/<app>/stream
+    pp["app"]["name"] = "Stream app";
+    pp["app"]["help"] =
+      "The value that we should use for the app, this is used to as the rtmp://host:port/&lt;app&gt;/stream. ";
+    pp["app"]["type"] = "string";
+    pp["app"]["sort"] = "1c";
+
+    // Specify the <stream> separately for the url rtmp://host:port/app/<stream>
+    pp["stream"]["name"] = "Stream key";
+    pp["stream"]["help"] = "The value that we should use for the stream key, this is used to as the "
+                           "<code>rtmp://host:port/app/&lt;stream&gt;. ";
+    pp["stream"]["type"] = "string";
+    pp["stream"]["sort"] = "1d";
 
     JSON::Value opt;
     opt["arg"] = "string";
@@ -1169,6 +1243,7 @@ namespace Mist {
       return;
     }
     if (amfData.getContentP(0)->StrValue() == "deleteStream"){
+      Util::logExitReason(ER_CLEAN_INTENDED_STOP, "received deleteStream");
       stop();
       return;
     }
@@ -1591,12 +1666,12 @@ namespace Mist {
         if (code.size() || description.size()){
           if (description.find("authmod=adobe") != std::string::npos){
             if (!pushUrl.user.size() && !pushUrl.pass.size()){
-              FAIL_MSG("Receiving side wants credentials, but none were provided in the target");
+              Util::logExitReason(ER_FORMAT_SPECIFIC, "receiving side wants credentials, but none were provided in the target");
+              myConn.close();
               return;
             }
             if (description.find("?reason=authfailed") != std::string::npos || authAttempts > 1){
-              FAIL_MSG(
-                  "Credentials provided in the target were not accepted by the receiving side");
+              Util::logExitReason(ER_FORMAT_SPECIFIC, "credentials provided in the target were not accepted by the receiving side");
               myConn.close();
               return;
             }
@@ -1650,6 +1725,7 @@ namespace Mist {
       WARN_MSG("Received error response: %s", amfData.Print().c_str());
       return;
     }
+    // We received a result from one of our commands:
     if ((amfData.getContentP(0)->StrValue() == "_result") || (amfData.getContentP(0)->StrValue() == "onFCPublish") ||
         (amfData.getContentP(0)->StrValue() == "onStatus")){
       if (isRecording() && amfData.getContentP(0)->StrValue() == "_result" &&
@@ -1690,7 +1766,9 @@ namespace Mist {
           amfReply.addContent(AMF::Object("", "live"));              // stream name
           sendCommand(amfReply, 20, 1);
         }
+
         HIGH_MSG("Publish starting");
+        pushState = "publish";
         didPublish = true;
         return;
       }
@@ -1704,7 +1782,7 @@ namespace Mist {
         return;
       }
 
-      // Also handle publish start without matching transation ID
+      // Also handle publish start without matching transaction ID
       if (didPublish && isRecording() && amfData.getContentP(0)->StrValue() == "onStatus" &&
           amfData.getContentP(3)->getContentP("code")->StrValue() == "NetStream.Publish.Start") {
         if (!targetParams.count("realtime")){realTime = 800;}
@@ -1716,9 +1794,10 @@ namespace Mist {
       // Handling generic errors remotely triggered errors.
       if (amfData.getContentP(0)->StrValue() == "onStatus" &&
           amfData.getContentP(3)->getContentP("level")->StrValue() == "error"){
-        WARN_MSG("Received error response: %s; %s",
-                 amfData.getContentP(3)->getContentP("code")->StrValue().c_str(),
-                 amfData.getContentP(3)->getContentP("description")->StrValue().c_str());
+        const std::string & errorCode = amfData.getContentP(3)->getContentP("code")->StrValue();
+        const std::string & errorDesc = amfData.getContentP(3)->getContentP("code")->StrValue();
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "received %s during %s: %s", errorCode.c_str(), pushState.c_str(),
+                            errorDesc.c_str());
         return;
       }
 
@@ -1961,4 +2040,13 @@ namespace Mist {
       }
     }
   }
+
+  // Called when we get disconnected and allows us to specify a
+  // more detailed exit reason.
+  void OutRTMP::determineExitReason() {
+    if (pushState.size() && !myConn) {
+      Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed during %s", pushState.c_str());
+    }
+  }
+
 } // namespace Mist

@@ -2069,6 +2069,7 @@ namespace Mist{
         }
       }
     }
+    determineExitReason(); // Allow an output to override the below two checks.
     if (!config->is_active){Util::logExitReason(ER_UNKNOWN, "set inactive");}
     if (!myConn){Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed");}
     if (strncmp(Util::exitReason, "connection closed", 17) == 0){

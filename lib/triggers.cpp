@@ -66,6 +66,7 @@ namespace Triggers{
       if (hrn.size()){
         DL.setHeader("X-Name", hrn);
       }
+      DL.setHeader("X-PID", JSON::Value(getpid()).toString());
       DL.setHeader("X-Trigger-UUID", getenv("MIST_TUUID"));
       DL.setHeader("X-Trigger-UnixMillis", getenv("MIST_TIME"));
       DL.setHeader("Date", getenv("MIST_DATE"));
@@ -90,6 +91,7 @@ namespace Triggers{
       argv[2] = NULL;
       setenv("MIST_TRIGGER", trigger.c_str(), 1);
       setenv("MIST_TRIG_DEF", defaultResponse.c_str(), 1);
+      setenv("MIST_PID", JSON::Value(getpid()).toString().c_str(), 1);
       std::string iid = Util::getGlobalConfig("iid").asString();
       if (iid.size()){
         setenv("MIST_INSTANCE", iid.c_str(), 1);
@@ -102,6 +104,7 @@ namespace Triggers{
       pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, 0); // start new process and return stdin file desc.
       unsetenv("MIST_TRIGGER");
       unsetenv("MIST_TRIG_DEF");
+      unsetenv("MIST_PID");
       unsetenv("MIST_INSTANCE");
       unsetenv("MIST_NAME");
       if (fdIn == -1 || fdOut == -1 || !myProc) {

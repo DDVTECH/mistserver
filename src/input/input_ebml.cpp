@@ -153,7 +153,7 @@ namespace Mist{
       int fin = -1, fout = -1;
       pid_t inProc = Util::Procs::StartPiped(args, &fin, &fout, 0);
       if (fout == -1){
-        Util::logExitReason(ER_PROCESS_SPECIFIC, "Unable to start mkv-exec process %s",
+        Util::logExitReason(ER_EXEC_FAILURE, "Unable to start mkv-exec process `%s`",
                             config->getString("input").substr(9).c_str());
         return false;
       }

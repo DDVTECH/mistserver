@@ -121,7 +121,9 @@ namespace Event{
     uint64_t currPace = Util::getMicros();
     for (auto it : sendQueues){
       if (it->finTimer) {
+#ifdef SSL
         if (it->finTimer <= startTime) { it->handshake(); }
+#endif
         if (it->finTimer && it->finTimer > startTime && it->finTimer - startTime < maxMs) {
           maxMs = it->finTimer - startTime;
         }

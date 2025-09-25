@@ -3557,7 +3557,7 @@ namespace DTSC{
     uint32_t res = pages.getStartPos();
     uint64_t endPos = pages.getEndPos();
     for (uint64_t i = res; i < endPos; ++i){
-      if (pages.getInt(t.pageAvailField, i) == 0) { continue; }
+      if (!pages.getInt(t.pageAvailField, i)) { continue; }
       if (pages.getInt(t.pageFirstTimeField, i) > time) {
         nextPage = pages.getInt(t.pageFirstKeyField, i);
         INFO_MSG("next page %" PRId64 ": %" PRIu64 " <-> %" PRIu64, pages.getInt(t.pageFirstKeyField, i),

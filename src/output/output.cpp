@@ -2428,7 +2428,7 @@ namespace Mist{
         M.getPageNumbersForTime(nxt.tid, nxt.time, targetPage, nextPage);
         if (pageNotOpen || M.getLastms(nxt.tid) >= nxt.time || targetPage != currentPage[nxt.tid]) {
           nxt.offset = 0;
-          if (atPageEnd && nextPage) {
+          if (atPageEnd && nextPage && targetPage == currentPage[nxt.tid]) {
             // Load the next page, since we're at the end of the current one.
             loadPageForKey(nxt.tid, nextPage);
             IPC::sharedPage & cPage = curPage[nxt.tid];

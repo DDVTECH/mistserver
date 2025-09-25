@@ -15,7 +15,7 @@
 #include <sys/types.h>
 #include <thread>
 
-#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__)
+#ifdef HASSYSWAIT
 #include <sys/wait.h>
 #else
 #include <wait.h>

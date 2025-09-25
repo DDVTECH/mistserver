@@ -101,6 +101,10 @@ if get_option('NOLLHLS')
   option_defines += '-DNOLLHLS=1'
 endif
 
+if get_option('DOCKERRUN')
+  option_defines += '-DDOCKERRUN'
+endif
+
 # End of options
 
 message('Building release @0@ for version @1@ @ debug level @2@'.format(release, version, get_option('DEBUG')))
@@ -121,6 +125,10 @@ endif
 
 if ccpp.has_header('execinfo.h')
   option_defines += '-DHASEXECINFO'
+endif
+
+if ccpp.has_header('sys/wait.h')
+  option_defines += '-DHASSYSWAIT'
 endif
 
 if usessl

@@ -596,6 +596,12 @@ int main_loop(int argc, char **argv){
 
 /// Controller entry point - either starts main_loop or runs a child process that does.
 int main(int argc, char **argv){
+#ifdef __CYGWIN__
+  // Cygwin is weird and the file permissions often get messed up somehow for different Windows account types.
+  // This sets the umask to zero, meaning all file permissions are set wide open.
+  // Not sure if this is the right way, but it seems to help!
+  umask(0);
+#endif
   Controller::conf = Util::Config(argv[0]);
   Util::Config::binaryType = Util::CONTROLLER;
   Controller::conf.activate();

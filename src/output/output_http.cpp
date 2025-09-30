@@ -29,6 +29,7 @@ namespace Mist{
     //General
     idleInterval = 0;
     idleLast = 0;
+    lastHTTPRequest = Util::bootSecs();
     if (config->getString("ip").size()){
       myConn.setHost(config->getString("ip"));
     }
@@ -286,6 +287,12 @@ namespace Mist{
       onIdle();
       idleLast = Util::bootMS();
     }
+    // Disconnect connections that have been idle for over 60s
+    if (!parseData && !isPushing() && !webSock && lastHTTPRequest + 60 < Util::bootSecs()) {
+      Util::logExitReason(ER_CLEAN_INACTIVE, "inactive HTTP connection closed");
+      myConn.close();
+      return;
+    }
     // Handle websockets
     if (webSock){
       if (webSock->readFrame(readable)){
@@ -301,6 +308,7 @@ namespace Mist{
     if (readable){myConn.spool();}
     //Attempt to read a HTTP request, regardless of data being available
     while (H.Read(myConn)){
+      lastHTTPRequest = Util::bootSecs();
       //First, figure out which handler we need to use
       std::string handler = getHandler();
       if (handler != capa["name"].asStringRef() || streamName != safenv("stream")) {

@@ -50,10 +50,11 @@ namespace Mist{
     bool responded;
     HTTP::Parser H;
     HTTP::Websocket *webSock;
-    uint32_t idleInterval;
-    uint64_t idleLast;
-    std::string getConnectedHost();             // LTS
-    std::string getConnectedBinHost();          // LTS
-    bool isTrustedProxy(const std::string &ip); // LTS
+    uint32_t idleInterval; ///< Interval for the onIdle handler in milliseconds
+    uint64_t idleLast; ///< Last time the onIdle handler was ran in BootMs
+    uint64_t lastHTTPRequest; ///< BootSecs time of last parsed HTTP request
+    std::string getConnectedHost();
+    std::string getConnectedBinHost();
+    bool isTrustedProxy(const std::string & ip);
   };
 }// namespace Mist

@@ -330,109 +330,107 @@ namespace Mist{
     return true;
   }
 
-  void InputMP4::getNext(size_t idx){// get next part from track in stream
-    thisPacket.null();
+  void InputMP4::getNext(size_t idx) { // get next part from track in stream
+    do {
+      thisPacket.null();
 
-    if (curPositions.empty()){
-      // fMP4 file? Seek to the right header and read it in
-      if (nextBox){
-        uint32_t trackId = M.getID(idx);
-        MP4::TrackHeader & thisHeader = headerData(trackId);
+      if (curPositions.empty()) {
+        // fMP4 file? Seek to the right header and read it in
+        if (nextBox) {
+          uint32_t trackId = M.getID(idx);
+          MP4::TrackHeader & thisHeader = headerData(trackId);
 
-        std::string boxType;
-        while (boxType != "moof"){
-          if (!shiftTo(nextBox, 12)){return;}
-          boxType = std::string(readBuffer+(nextBox - readPos)+4, 4);
-          if (boxType == "moof"){break;}
-          if (boxType != "mdat"){INFO_MSG("Skipping box: %s", boxType.c_str());}
+          std::string boxType;
+          while (boxType != "moof") {
+            if (!shiftTo(nextBox, 12)) { return; }
+            boxType = std::string(readBuffer + (nextBox - readPos) + 4, 4);
+            if (boxType == "moof") { break; }
+            if (boxType != "mdat") { INFO_MSG("Skipping box: %s", boxType.c_str()); }
+            uint64_t boxSize = MP4::calcBoxSize(readBuffer + (nextBox - readPos));
+            nextBox += boxSize;
+          }
+
           uint64_t boxSize = MP4::calcBoxSize(readBuffer + (nextBox - readPos));
+          if (!shiftTo(nextBox, boxSize)) { return; }
+          uint64_t moofPos = nextBox;
+
+          {
+            MP4::Box moofBox(readBuffer + (nextBox - readPos), false);
+
+            thisHeader.nextMoof();
+            // Loop over traf boxes inside the moof box, but them in our header parser
+            std::deque<MP4::TRAF> trafs = ((MP4::MOOF *)&moofBox)->getChildren<MP4::TRAF>();
+            for (std::deque<MP4::TRAF>::iterator t = trafs.begin(); t != trafs.end(); ++t) {
+              if (!(t->getChild<MP4::TFHD>())) {
+                WARN_MSG("Could not find thfd box inside traf box!");
+                continue;
+              }
+              if (t->getChild<MP4::TFHD>().getTrackID() == trackId) { thisHeader.read(*t); }
+            }
+          }
+
+          size_t headerDataSize = thisHeader.size();
+          MP4::PartTime addPart;
+          addPart.trackID = idx;
+          for (size_t i = 0; i < headerDataSize; i++) {
+            thisHeader.getPart(i, &addPart.bpos, &addPart.size, &addPart.time, &addPart.offset, &addPart.keyframe, moofPos);
+            addPart.index = i;
+            curPositions.insert(addPart);
+          }
           nextBox += boxSize;
         }
-
-        uint64_t boxSize = MP4::calcBoxSize(readBuffer + (nextBox - readPos));
-        if (!shiftTo(nextBox, boxSize)){return;}
-        uint64_t moofPos = nextBox;
-
-        {
-          MP4::Box moofBox(readBuffer + (nextBox-readPos), false);
-
-          thisHeader.nextMoof();
-          // Loop over traf boxes inside the moof box, but them in our header parser
-          std::deque<MP4::TRAF> trafs = ((MP4::MOOF*)&moofBox)->getChildren<MP4::TRAF>();
-          for (std::deque<MP4::TRAF>::iterator t = trafs.begin(); t != trafs.end(); ++t){
-            if (!(t->getChild<MP4::TFHD>())){
-              WARN_MSG("Could not find thfd box inside traf box!");
-              continue;
-            }
-            if (t->getChild<MP4::TFHD>().getTrackID() == trackId){thisHeader.read(*t);}
-          }
-        }
-
-        size_t headerDataSize = thisHeader.size();
-        MP4::PartTime addPart;
-        addPart.trackID = idx;
-        for (size_t i = 0; i < headerDataSize; i++){
-          thisHeader.getPart(i, &addPart.bpos, &addPart.size, &addPart.time, &addPart.offset, &addPart.keyframe, moofPos);
-          addPart.index = i;
-          curPositions.insert(addPart);
-        }
-        nextBox += boxSize;
+        if (!curPositions.size()) { return; }
       }
-      if (!curPositions.size()) { return; }
-    }
 
-    // pop uit set
-    MP4::PartTime curPart = *curPositions.begin();
-    curPositions.erase(curPositions.begin());
+      // pop uit set
+      MP4::PartTime curPart = *curPositions.begin();
+      curPositions.erase(curPositions.begin());
 
-    if (!shiftTo(curPart.bpos, curPart.size)){return;}
+      if (!shiftTo(curPart.bpos, curPart.size)) { return; }
 
-    if (M.getCodec(curPart.trackID) == "subtitle"){
-      static JSON::Value thisPack;
-      thisPack["trackid"] = (uint64_t)curPart.trackID;
-      thisPack["bpos"] = curPart.bpos; //(long long)fileSource.tellg();
-      thisPack["data"] = std::string(readBuffer + (curPart.bpos-readPos), curPart.size);
-      thisPack["time"] = curPart.time;
-      if (curPart.duration){thisPack["duration"] = curPart.duration;}
-      thisPack["keyframe"] = true;
-      std::string tmpStr = thisPack.toNetPacked();
-      thisPacket.reInit(tmpStr.data(), tmpStr.size());
-    }else{
-      bool isKeyframe = (curPart.keyframe && meta.getType(curPart.trackID) == "video");
-      thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, readBuffer + (curPart.bpos-readPos), curPart.size, 0, isKeyframe);
-    }
-    thisTime = curPart.time;
-    thisIdx = curPart.trackID;
-
-    if (!nextBox){
-      // get the next part for this track
-      curPart.index++;
-      if (curPart.index < headerData(M.getID(curPart.trackID)).size()){
-        headerData(M.getID(curPart.trackID)).getPart(curPart.index, &curPart.bpos, &curPart.size, &curPart.time, &curPart.offset, &curPart.keyframe);
-        curPositions.insert(curPart);
+      if (M.getCodec(curPart.trackID) == "subtitle") {
+        static JSON::Value thisPack;
+        thisPack["trackid"] = (uint64_t)curPart.trackID;
+        thisPack["bpos"] = curPart.bpos; //(long long)fileSource.tellg();
+        thisPack["data"] = std::string(readBuffer + (curPart.bpos - readPos), curPart.size);
+        thisPack["time"] = curPart.time;
+        if (curPart.duration) { thisPack["duration"] = curPart.duration; }
+        thisPack["keyframe"] = true;
+        std::string tmpStr = thisPack.toNetPacked();
+        thisPacket.reInit(tmpStr.data(), tmpStr.size());
+      } else {
+        bool isKeyframe = (curPart.keyframe && meta.getType(curPart.trackID) == "video");
+        thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, readBuffer + (curPart.bpos - readPos),
+                               curPart.size, 0, isKeyframe);
       }
-    }
+      thisTime = curPart.time;
+      thisIdx = curPart.trackID;
+
+      if (!nextBox) {
+        // get the next part for this track
+        curPart.index++;
+        if (curPart.index < headerData(M.getID(curPart.trackID)).size()) {
+          headerData(M.getID(curPart.trackID))
+            .getPart(curPart.index, &curPart.bpos, &curPart.size, &curPart.time, &curPart.offset, &curPart.keyframe);
+          curPositions.insert(curPart);
+        }
+      }
+    } while (idx != INVALID_TRACK_ID && thisIdx != idx);
   }
 
   void InputMP4::seek(uint64_t seekTime, size_t idx){// seek to a point
     curPositions.clear();
-    if (idx == INVALID_TRACK_ID){
-      FAIL_MSG("Seeking more than 1 track at a time in MP4 input is unsupported");
-      return;
-    }
+    size_t seekIdx = (idx == INVALID_TRACK_ID) ? M.mainTrack() : idx;
 
     MP4::PartTime addPart;
-    addPart.trackID = idx;
-    size_t trackId = M.getID(idx);
-    MP4::TrackHeader &thisHeader = headerData(M.getID(idx));
     uint64_t moofPos = 0;
 
     // fMP4 file? Seek to the right header and read it in
     if (M.inputLocalVars.isMember("fmp4")){
-      uint32_t keyIdx = M.getKeyIndexForTime(idx, seekTime);
-      size_t bPos = M.getKeys(idx).getBpos(keyIdx);
+      DTSC::Keys keys = M.getKeys(seekIdx);
+      size_t bPos = keys.getBpos(keys.getIndexForTime(seekTime));
       if (bPos == moovPos){
-        thisHeader.revertToMoov();
+        for (auto & H : trackHeaders) { H.revertToMoov(); }
         if (!shiftTo(bPos, 12)){return;}
         uint64_t boxSize = MP4::calcBoxSize(readBuffer + (bPos - readPos));
         nextBox = bPos + boxSize;
@@ -450,7 +448,7 @@ namespace Mist{
         MP4::Box moofBox(readBuffer + (bPos-readPos), false);
         moofPos = bPos;
 
-        thisHeader.nextMoof();
+        for (auto & H : trackHeaders) { H.nextMoof(); }
         // Loop over traf boxes inside the moof box, put them in our header parser
         std::deque<MP4::TRAF> trafs = ((MP4::MOOF*)&moofBox)->getChildren<MP4::TRAF>();
         for (std::deque<MP4::TRAF>::iterator t = trafs.begin(); t != trafs.end(); ++t){
@@ -458,23 +456,37 @@ namespace Mist{
             WARN_MSG("Could not find thfd box inside traf box!");
             continue;
           }
-          if (t->getChild<MP4::TFHD>().getTrackID() == trackId){thisHeader.read(*t);}
+          uint32_t hereTrackId = t->getChild<MP4::TFHD>().getTrackID();
+          for (auto & H : trackHeaders) {
+            if (H.trackId == hereTrackId) { H.read(*t); }
+          }
         }
         nextBox = bPos + boxSize;
       }
     }
 
-    size_t headerDataSize = thisHeader.size();
-    for (size_t i = 0; i < headerDataSize; i++){
-      thisHeader.getPart(i, &addPart.bpos, &addPart.size, &addPart.time, &addPart.offset, &addPart.keyframe, moofPos);
+    std::set<size_t> indexes;
+    if (idx != INVALID_TRACK_ID) {
+      indexes.insert(idx);
+    } else {
+      indexes = M.getValidTracks();
+    }
 
-      // Skip any parts that are outside the file limits
-      if (inFile.getSize() != std::string::npos && addPart.bpos + addPart.size > inFile.getSize()){continue;}
+    for (auto & currIdx : indexes) {
+      addPart.trackID = currIdx;
+      MP4::TrackHeader & thisHeader = headerData(M.getID(currIdx));
+      size_t headerDataSize = thisHeader.size();
+      for (size_t i = 0; i < headerDataSize; i++) {
+        thisHeader.getPart(i, &addPart.bpos, &addPart.size, &addPart.time, &addPart.offset, &addPart.keyframe, moofPos);
 
-      if (addPart.time >= seekTime){
-        addPart.index = i;
-        curPositions.insert(addPart);
-        if (!nextBox){break;}
+        // Skip any parts that are outside the file limits
+        if (inFile.getSize() != std::string::npos && addPart.bpos + addPart.size > inFile.getSize()) { continue; }
+
+        if (addPart.time >= seekTime) {
+          addPart.index = i;
+          curPositions.insert(addPart);
+          if (!nextBox) { break; }
+        }
       }
     }
   }

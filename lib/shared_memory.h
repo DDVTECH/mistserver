@@ -31,6 +31,7 @@ namespace IPC{
     bool tryWait();
     bool tryWait(uint64_t ms);
     bool tryWaitOneSecond();
+    bool locked() const;
     void close();
     void abandon();
     void unlink();

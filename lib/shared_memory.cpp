@@ -88,6 +88,11 @@ namespace IPC{
     return res;
   }
 
+  /// Returns true if the semaphore is currently locked
+  bool semaphore::locked() const {
+    return isLocked;
+  }
+
   ///\brief Posts to the semaphore, increases its value by one
   void semaphore::post(){
     if (!*this || !isLocked){
@@ -158,8 +163,8 @@ namespace IPC{
     uint64_t now = Util::getMicros();
     uint64_t timeout = now + (ms * 1000);
     while (now < timeout){
-      if (0 == sem_trywait(mySem)){
-        isLocked = true;
+      if (!sem_trywait(mySem)) {
+        isLocked = 1;
         return true;
       }
       usleep(100e3);
@@ -172,7 +177,7 @@ namespace IPC{
     wt.tv_nsec = ms % 1000;
     result = sem_timedwait(mySem, &wt);
 #endif
-    return (isLocked = (result == 0));
+    return (isLocked = (!result) ? 1 : 0) > 0;
   }
 
   ///\brief Tries to wait for the semaphore for a single second, returns true if successful, false
@@ -196,7 +201,7 @@ namespace IPC{
     wt.tv_nsec = 0;
     result = sem_timedwait(mySem, &wt);
 #endif
-    isLocked += (result == 0 ? 1 : 0);
+    isLocked += (!result) ? 1 : 0;
     if (isLocked == 1){lockTime = Util::getMicros();}
     return isLocked;
   }

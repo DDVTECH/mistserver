@@ -246,7 +246,7 @@ static inline void show_stackframe(){}
 #define SHM_STATE_ACCS "/MstStateAccs"
 #define SHM_STATE_STREAMS "/MstStateStreams"
 #define SHM_CUSTOM_VARIABLES "/MstVars"
-#define NAME_BUFFER_SIZE 200 // char buffer size for snprintf'ing shm filenames
+#define NAME_BUFFER_SIZE 300 // char buffer size for snprintf'ing shm filenames
 #define SHM_SESSIONS "/MstSess"
 #define SHM_SESSIONS_ITEM 165     // 4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync
 #define SHM_SESSIONS_SIZE 5248000 // 5MiB = almost 32k sessions

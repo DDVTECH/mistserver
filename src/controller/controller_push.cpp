@@ -95,10 +95,17 @@ namespace Controller{
     return ret;
   }
 
-  void setPushStatus(uint64_t id, const JSON::Value & status){
-    std::lock_guard<std::recursive_mutex> actGuard(actPushMut);
-    if (!activePushes.count(id)){return;}
-    activePushes[id][5].extend(status);
+  void setPushStatus(const JSON::Value & status) {
+    uint64_t id = status["id"].asInt();
+    if (!activePushes.count(id)) {
+      if (!Util::Procs::isRunning(id)) { return; }
+      INFO_MSG("Discovered ongoing push %" PRIu64 ", adding to push list", id);
+      activePushes[id][0u] = id;
+      activePushes[id][1u] = status["stream"].asStringRef();
+      activePushes[id][2u] = "";
+      activePushes[id][3u] = status["target"].asStringRef();
+    }
+    activePushes[id][5].extend(status["status"]);
   }
 
   void pushLogMessage(uint64_t id, const JSON::Value & msg){

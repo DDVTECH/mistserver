@@ -648,9 +648,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   }
   if (Request.isMember("push_status_update")){
     JSON::Value &statUp = Request["push_status_update"];
-    if (statUp.isMember("id") && statUp.isMember("status")){
-      setPushStatus(statUp["id"].asInt(), statUp["status"]);
-    }
+    if (statUp.isMember("id") && statUp.isMember("status")) { setPushStatus(statUp); }
   }
   if (Request.isMember("proc_status_update")){
     JSON::Value &statUp = Request["proc_status_update"];

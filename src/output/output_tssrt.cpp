@@ -169,12 +169,10 @@ namespace Mist{
         srtConn->connect(udpSrv->getRemoteAddr(), "output", targetParams);
         INFO_MSG("UDP to SRT socket conversion: %s", srtConn->getStateStr());
       }
-      // Set target to empty before pushing output conf
-      config->getOption("target", true).append("");
     }
 
     // Push output configuration
-    if (config->getString("target").size()){
+    if (!config->getString("remote").size() && config->getString("target").size()) {
       Socket::SRT::libraryInit();
       target = HTTP::URL(config->getString("target"));
       HTTP::parseVars(target.args, targetParams);
@@ -210,7 +208,7 @@ namespace Mist{
       srtConn->setBlocking(true);
       wantRequest = true;
       parseData = true;
-    }else{
+    } else {
       // Pull output configuration, In this case we have an srt connection in the second constructor parameter.
       // Handle override / append of streamname options
       std::string sName = srtConn->getStreamName();
@@ -228,6 +226,7 @@ namespace Mist{
             if (recvSize){
               accTypes = 2;
               INFO_MSG("Connection put into ingest mode");
+              config->getOption("target", true).append("");
               assembler.assemble(tsIn, srtConn->recvbuf, recvSize, true);
             }
           }else{
@@ -298,7 +297,6 @@ namespace Mist{
         parseData = false;
         wantRequest = true;
       }
-
     }
     lastWorked = Util::bootSecs();
     lastTimeStamp = 0;

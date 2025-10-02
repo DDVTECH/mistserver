@@ -14,7 +14,7 @@ namespace Controller{
   void stopPushGraceful(const std::string & stream);
   void listPush(JSON::Value &output);
   void pushLogMessage(uint64_t id, const JSON::Value & msg);
-  void setPushStatus(uint64_t id, const JSON::Value & status);
+  void setPushStatus(const JSON::Value & status);
   bool isPushActive(uint64_t id);
 
   // Functions for automated pushes, add/remove

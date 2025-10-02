@@ -2685,37 +2685,35 @@ namespace Mist{
     uint64_t now = thisBootMs / 1000;
     if (now <= lastStats && !force){return;}
 
-    if (isRecording()){
-      if(lastPushUpdate == 0){
-        lastPushUpdate = now;
-      }
-
+    if (isRecording()) {
       if (lastPushUpdate + 5 <= now){
         JSON::Value pStat;
         pStat["push_status_update"]["id"] = getpid();
+        pStat["push_status_update"]["stream"] = streamName;
+        if (config->hasOption("target")) { pStat["push_status_update"]["target"] = config->getString("target"); }
         JSON::Value & pData = pStat["push_status_update"]["status"];
         pData["mediatime"] = currentTime();
         pData["latency"] = endTime() - currentTime();
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
           pData["tracks"].append((uint64_t)it->first);
         }
-        pData["bytes"] = statComm.getUp();
-        uint64_t pktCntNow = statComm.getPacketCount();
-        if (pktCntNow){
-          uint64_t pktLosNow = statComm.getPacketLostCount();
-          static uint64_t prevPktCount = pktCntNow;
-          static uint64_t prevLosCount = pktLosNow;
-          uint64_t pktCntDiff = pktCntNow-prevPktCount;
-          uint64_t pktLosDiff = pktLosNow-prevLosCount;
-          if (pktCntDiff){
-            pData["pkt_loss_perc"] = (pktLosDiff*100) / pktCntDiff;
+        if (lastPushUpdate) {
+          pData["bytes"] = statComm.getUp();
+          uint64_t pktCntNow = statComm.getPacketCount();
+          if (pktCntNow) {
+            uint64_t pktLosNow = statComm.getPacketLostCount();
+            static uint64_t prevPktCount = pktCntNow;
+            static uint64_t prevLosCount = pktLosNow;
+            uint64_t pktCntDiff = pktCntNow - prevPktCount;
+            uint64_t pktLosDiff = pktLosNow - prevLosCount;
+            if (pktCntDiff) { pData["pkt_loss_perc"] = (pktLosDiff * 100) / pktCntDiff; }
+            pData["pkt_loss_count"] = pktLosNow;
+            pData["pkt_retrans_count"] = statComm.getPacketRetransmitCount();
+            prevPktCount = pktCntNow;
+            prevLosCount = pktLosNow;
           }
-          pData["pkt_loss_count"] = pktLosNow;
-          pData["pkt_retrans_count"] = statComm.getPacketRetransmitCount();
-          prevPktCount = pktCntNow;
-          prevLosCount = pktLosNow;
+          pData["active_seconds"] = statComm.getTime();
         }
-        pData["active_seconds"] = statComm.getTime();
         pData["current_target"] = currentTarget;
         Util::sendUDPApi(pStat);
         lastPushUpdate = now;

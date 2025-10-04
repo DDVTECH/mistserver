@@ -1,14 +1,14 @@
-#include "output_srt.h"
+#include "output_subrip.h"
 #include <sstream>
 #include <mist/checksum.h>
 #include <mist/defines.h>
 #include <mist/http_parser.h>
 
 namespace Mist{
-  OutSRT::OutSRT(Socket::Connection &conn) : HTTPOutput(conn){realTime = 0;}
-  OutSRT::~OutSRT(){}
+  OutSubRip::OutSubRip(Socket::Connection &conn) : HTTPOutput(conn){realTime = 0;}
+  OutSubRip::~OutSubRip(){}
 
-  void OutSRT::init(Util::Config *cfg){
+  void OutSubRip::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "SubRip";
     capa["friendly"] = "SubRip (SRT/WebVTT) over HTTP";
@@ -29,7 +29,7 @@ namespace Mist{
     capa["methods"][1u]["url_rel"] = "/$.webvtt";
   }
 
-  void OutSRT::sendNext(){
+  void OutSubRip::sendNext(){
     // Reached the end we wanted? Stop here.
     if (filter_to > 0 && thisTime > filter_to && filter_to > filter_from){
       config->is_active = false;
@@ -63,7 +63,7 @@ namespace Mist{
     myConn.SendNow("\n\n");
   }
 
-  void OutSRT::sendHeader(){
+  void OutSubRip::sendHeader(){
     H.setCORSHeaders();
     H.SetHeader("Content-Type", (webVTT ? "text/vtt; charset=utf-8" : "text/plain; charset=utf-8"));
     H.protocol = "HTTP/1.0";
@@ -72,7 +72,7 @@ namespace Mist{
     sentHeader = true;
   }
 
-  void OutSRT::onHTTP(){
+  void OutSubRip::onHTTP(){
     std::string method = H.method;
     webVTT = (H.url.find(".vtt") != std::string::npos) || (H.url.find(".webvtt") != std::string::npos);
     if (H.GetVar("track").size()){

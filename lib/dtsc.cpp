@@ -2655,9 +2655,11 @@ namespace DTSC{
     for (int i = 0; i < 8; ++i){
       trueTime[i] = 0;
       packTime[i] = 0;
+      peaks[i] = 0;
     }
-    maxJitter = 200;
+    maxJitter = 120;
     lastTime = 0;
+    curJitter = 0;
     x = 0;
   }
 
@@ -2676,18 +2678,27 @@ namespace DTSC{
       lastTime = t;
       curJitter = 0;
     }
-    if (t > lastTime + 2500){
-      if ((x % 4) == 0){
-        if (maxJitter > 50 && curJitter < maxJitter - 50){
-          MEDIUM_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
-          maxJitter = curJitter;
-        }
-        curJitter = maxJitter*0.90;
-      }
+    if (t >= lastTime + 2500) {
       ++x;
       trueTime[x % 8] = curMs;
       packTime[x % 8] = t;
+      peaks[x % 8] = curJitter;
       lastTime = t;
+      curJitter = 0;
+
+      uint64_t totJitter = 0;
+      uint64_t maxPeak = 0;
+      for (int i = 0; i < 8; ++i) {
+        totJitter += peaks[i];
+        if (peaks[i] > maxPeak) { maxPeak = peaks[i]; }
+      }
+      uint64_t weighted = (totJitter / 8 + maxPeak * 2) / 3 + 1;
+      // Limit lowering to max 250ms per step (10% of measurement window size)
+      if (maxJitter > weighted + 500) { weighted = maxJitter - 500; }
+      maxJitter = (maxJitter + weighted) / 2;
+      INFO_MSG("Average peak %" PRIu64 "ms, highest peak %" PRIu64 "ms, weighted %" PRIu64 "ms. New jitter %" PRIu64
+               "ms",
+               totJitter / 8, maxPeak, weighted, maxJitter);
     }
     uint64_t realTime = (curMs - trueTime[(x + 1) % 8]);
     uint64_t arriTime = (t - packTime[(x + 1) % 8]);

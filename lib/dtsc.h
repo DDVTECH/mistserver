@@ -303,12 +303,13 @@ namespace DTSC{
 
   class jitterTimer{
   public:
-    uint64_t trueTime[8]; // Array of bootMS-based measurement points
-    uint64_t packTime[8]; // Array of corresponding packet times
-    uint64_t curJitter;   // Maximum jitter measurement in past 10 seconds
-    unsigned int x;       // Current indice within above two arrays
-    uint64_t maxJitter;   // Highest jitter ever observed by this jitterTimer
-    uint64_t lastTime;    // Last packet used for a measurement point
+    uint64_t trueTime[8]; ///< Array of bootMS-based measurement points
+    uint64_t packTime[8]; ///< Array of corresponding packet times
+    uint64_t curJitter; ///< Maximum jitter measurement in the current time window so far
+    unsigned int x; ///< Current indice within above two arrays
+    uint64_t peaks[8]; ///< Highest jitter observed in each time window
+    uint64_t maxJitter; ///< Highest jitter ever observed by this jitterTimer
+    uint64_t lastTime; ///< Last packet used for a measurement point
     jitterTimer();
     uint64_t addPack(uint64_t t);
   };

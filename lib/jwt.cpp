@@ -346,7 +346,11 @@ namespace JWT {
 
     // Setup RSA context with correct padding mode
     mbedtls_rsa_context rsa;
+#if MBEDTLS_VERSION_MAJOR >= 3
     mbedtls_rsa_init(&rsa);
+#else
+    mbedtls_rsa_init(&rsa, paddingMode, hashMode);
+#endif
     mbedtls_rsa_set_padding(&rsa, paddingMode, hashMode);
 
     // Import the public key variables into the context
@@ -364,8 +368,24 @@ namespace JWT {
     }
 
     // Verify the signature (see RFC7515:[Example using RSASSA-PKCS1-v1_5 SHA-256] for an example)
-    auto verify = (paddingMode == MBEDTLS_RSA_PKCS_V15) ? mbedtls_rsa_rsassa_pkcs1_v15_verify : mbedtls_rsa_rsassa_pss_verify;
-    ret = verify(&rsa, hashMode, getSHA(hashMode) / 8, (const unsigned char *)hash, (const unsigned char *)s.data());
+    const size_t hash_len = getSHA(hashMode) / 8;
+#if MBEDTLS_VERSION_MAJOR >= 3
+    if (paddingMode == MBEDTLS_RSA_PKCS_V15) {
+      ret = mbedtls_rsa_rsassa_pkcs1_v15_verify(&rsa, hashMode, static_cast<unsigned int>(hash_len),
+                                                (const unsigned char *)hash, (const unsigned char *)s.data());
+    } else {
+      ret = mbedtls_rsa_rsassa_pss_verify(&rsa, hashMode, hash_len, (const unsigned char *)hash,
+                                          (const unsigned char *)s.data());
+    }
+#else
+    if (paddingMode == MBEDTLS_RSA_PKCS_V15) {
+      ret = mbedtls_rsa_rsassa_pkcs1_v15_verify(&rsa, NULL, NULL, MBEDTLS_RSA_PUBLIC, hashMode, static_cast<unsigned int>(hash_len),
+                                                (const unsigned char *)hash, (const unsigned char *)s.data());
+    } else {
+      ret = mbedtls_rsa_rsassa_pss_verify(&rsa, NULL, NULL, MBEDTLS_RSA_PUBLIC, hashMode, static_cast<unsigned int>(hash_len),
+                                          (const unsigned char *)hash, (const unsigned char *)s.data());
+    }
+#endif
 
     // Perform cleanup regardless of success, then print the status and return accordingly
     mbedtls_rsa_free(&rsa);

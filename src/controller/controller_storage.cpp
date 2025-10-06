@@ -1011,9 +1011,15 @@ namespace Controller{
     { // Scope for writing JWKs to their own shared memory page
       jwkUriCheck();
 
-      // First retrieve all storage entries that are JWKs (non-URI)
+      // First retrieve all storage entries that are JWKs, for URIs check if they are still valid
+      std::set<std::string> uris;
       jsonForEachConst (Storage["jwks"], it) {
-        if (it->isString() || (it->isArray() && (*it)[0u].isString())) continue;
+        const std::string uri = (it->isArray() && it->size()) ? (*it)[0u].asStringRef() : it->asStringRef();
+        // There is some URI in JWK resolved that is maybe not in storage anymore, store in set to later ignore
+        if (uri.find("://") != std::string::npos) {
+          uris.insert(uri);
+          continue;
+        }
         JWT::Key jwk = JWT::Key((it->isArray()) ? (*it)[0u] : *it, (it->isArray()) ? (*it)[1u] : JSON::EMPTY);
         jwkResolved["default"].emplace_back(jwk);
       }
@@ -1049,8 +1055,14 @@ namespace Controller{
 
       std::map<std::string, uint32_t> uniques;
 
-      // For each key in the storage write it to shared memory
+      // For each key in the storage write it to shared memory if it was present in the config
       for (auto jwkUriPair : jwkResolved) {
+        // Erase the keys if the config does not have the URI anymore
+        if (!uris.count(jwkUriPair.first) && jwkUriPair.first != "default") {
+          uriExpiresAt.erase(jwkUriPair.first);
+          uriPerms.erase(jwkUriPair.first);
+          continue;
+        }
         for (auto jwk : jwkUriPair.second) {
           std::string raw = jwk.toString(false);
           // Duplicate prevention based on full key matching

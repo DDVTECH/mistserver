@@ -5630,15 +5630,20 @@ context_menu: function(){
             type: "help",
             help: "- and / or -",
             css: { margin: "1em 0" }
-          }  : false,!editing || (typeof editing[0] != "string") ? {
+          } : false,!editing || (typeof editing[0] != "string") ? {
             type: "span",
-            label: "JSON web key (set)",/*
+            label: "JSON web key (set)",
             value: $("<button>").attr("data-icon","up").text("Upload JWKS file").css({
               fontSize:"1.25em",
               marginLeft:0
             }).click(function(){
               let $me = $(this);
               let $field = $(this).closest(".input_container")?.find(".field[name=\"keys\"]");
+              let $ihc = $me.parent().data("help_container");
+              let uid = $me.parent().data("uid");
+              if ($ihc) {
+                $ihc.find(".err_balloon[data-uid='"+uid+"']")?.remove();
+              }
 
               function showErr(err) {
                 console.warn(err);
@@ -5647,6 +5652,10 @@ context_menu: function(){
                   msg = "Upload aborted";
                 }
                 $me.attr("data-icon","cross").text(msg);
+                if ($ihc) {
+                  let $err = $('<span>').addClass('err_balloon').addClass("orange").attr("data-uid",uid).html(err);
+                  $ihc.prepend($err);
+                }
                 setTimeout(function(){
                   $me.attr("data-icon","up").text("Upload JWKS file");
                 },5e3);
@@ -5655,26 +5664,36 @@ context_menu: function(){
               UI.upload({
                 description: "JWKS files",
                 accept: {
-                  "/json": [".json"]
+                  "*/json": [".jwk",".jwks",".json"]
                 }
               }).then(function(result){
                 result.text().then(function(text){
                   try {
                     let json = JSON.parse(text);
                     let out = $field.getval();
+                    let foundkeys = false;
+                    function add(json) {
+                      if (("kty" in json) && ("alg" in json)) {
+                        out.push(JSON.stringify(json,null,2));
+                        foundkeys = true;
+                      }
+                    }
+
                     if ("keys" in json) {
                       for (let i in json.keys) {
-                        out.push(JSON.stringify(json.keys[i],null,2));
+                        add(json.keys[i]);
                       }
                     }
                     else if (Array.isArray(json)) {
                       for (let i in json) {
-                        out.push(JSON.stringify(json[i],null,2));
+                        add(json[i]);
                       }
                     }
-                    else if ("kid" in json) {
-                      out.push(JSON.stringify(json,null,2));
+                    else {
+                      add(json);
                     }
+                    if (!foundkeys) throw "Could not find any keys in this file ("+result.name+")";
+
                     $field.setval(out);
                   }
                   catch(e) { showErr(e); }
@@ -5682,7 +5701,7 @@ context_menu: function(){
               }).catch(showErr);
 
             }),
-            help: "Upload a JWKS file from your computer.",*/
+            help: "Upload a JWKS file from your computer.",
           } : false, !editing || (typeof editing[0] != "string") ? {
             type: "inputlist",
             pointer: { main: saveas, index: "keys" },
@@ -5690,7 +5709,7 @@ context_menu: function(){
             validate: editing ? ["required"] : [],
             input: {
               type: "textarea",
-              placeholder: JSON.stringify({kid:"youruuid",kty:"oct",k:42},null,2),
+              placeholder: JSON.stringify({alg:"youralg",kid:"youruuid",kty:"oct",k:42},null,2),
               rows: 6,
               validate: [function (val,me){
                 let fieldn = 1+$(me).closest(".listitem").index();

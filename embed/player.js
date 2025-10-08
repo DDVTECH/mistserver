@@ -355,6 +355,19 @@ function MistVideo(streamName,options) {
     }
     return false;
   }
+  function hasAudio(d){
+    if (("meta" in d) && ("tracks" in d.meta)) {
+      //check if this stream has audio
+      var tracks = d.meta.tracks;
+      var hasAudio = false;
+      for (var i in tracks) {
+        if (tracks[i].type == "audio") {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
   
   function onStreamInfo(d) {
     
@@ -456,7 +469,7 @@ function MistVideo(streamName,options) {
     };
     
     d.hasVideo = hasVideo(d);
-    
+    d.hasAudio = hasAudio(d);
     
     if (d.type == "live") {
       //calculate duration so far
@@ -1711,17 +1724,28 @@ function MistVideo(streamName,options) {
                 case "meta": {
                   for (var j in diff[i]) {
                     switch (j) {
-                      case "tracks":
-                        //if difference in tracks, recalculate info.hasVideo
-                        MistVideo.info.hasVideo = hasVideo(MistVideo.info);
-                        
-                        //signal track selector to refresh
-                        MistUtil.event.send("metaUpdate_tracks",data,MistVideo.video);
-                        
+                      case "tracks": {
+                        //are there significant differences in the tracks (like resolution, codec) or are there more or less tracks?
+                        var newtracks = JSON.stringify(Object.keys(data.meta.tracks).sort());
+                        var oldtracks = JSON.stringify(Object.keys(MistVideo.info.meta.tracks).sort());
+                        if (newtracks != oldtracks) {
+                          //if difference in tracks, recalculate info.hasVideo/hasAudio
+                          var v = hasVideo(MistVideo.info);
+                          var a = hasAudio(MistVideo.info);
+                          if ((MistVideo.info.hasVideo != v) || (MistVideo.info.hasAudio != a)) {
+                            MistVideo.info.hasVideo = v;
+                            MistVideo.info.hasAudio = a;
+                          }
+
+                          //signal track selector to refresh
+                          MistUtil.event.send("metaUpdate_tracks",data,MistVideo.video);
+                        }
+
                         break;
+                      }
                     }
+                    break;
                   }
-                  break;
                 }
                 case "width":
                 case "height": {

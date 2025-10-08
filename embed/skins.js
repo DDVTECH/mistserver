@@ -384,116 +384,147 @@ MistSkins["default"] = {
       
       //improve autoplay behaviour
       if (MistVideo.options.autoplay) {
+        //play without muting first, mute if play failed
+
         //because Mist doesn't send data instantly (but real time), it can take a little while before canplaythrough is fired. Rather than wait, we can just start playing at the canplay event
         var canplay = MistUtil.event.addListener(MistVideo.video,"canplay",function(){
           if (MistVideo.player.api && MistVideo.player.api.paused) {
+            if (!MistVideo.info.hasAudio) {
+              //we might as well..
+              MistVideo.player.api.muted = true;
+              //before wasMuted because we don't need to show the large muted button
+            }
+
+            var wasMuted = MistVideo.player.api.muted;
+            //console.warn("Muted state:",wasMuted);
+
+            if (MistUtil.getBrowser() == "safari") {
+              MistVideo.log("Muting before autoplay because this is safari");
+              //..and if you try to autoplay a non-muted video, safari will "lock" the video where the video element itself must be interacted with before it will play, even if player interaction had occured previously
+              MistVideo.player.api.muted = true;
+            }
+
+            function autoplayFailed() {
+              MistVideo.log("Autoplay failed even with muted video. Unmuting and showing play button.");
+
+              //wait 5 seconds and then pause the download
+              MistVideo.timers.start(function(){
+                if (MistVideo.player.api.paused) {
+                  //don't question it
+                  //if the video is paused, also request the player api to pause
+                  //for example, for mews, this would pause the download
+                  MistVideo.player.api.pause(); 
+                  if (MistVideo.monitor) { MistVideo.monitor.destroy(); }
+                }
+              },5e3);
+
+              if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
+              MistVideo.player.api.muted = false;
+
+              //show large centered play button
+              var largePlayButton = MistVideo.skin.icons.build("largeplay",150);
+              MistUtil.class.add(largePlayButton,"mistvideo-pointer");
+              MistVideo.container.appendChild(largePlayButton);
+
+              //start playing on click
+              MistUtil.event.addListener(largePlayButton,"click",function(){
+                if (MistVideo.player.api.paused) {
+                  MistVideo.player.api.play();
+                }
+              });
+
+              //remove large button on play
+              var f = function (){
+                MistVideo.container.removeChild(largePlayButton);
+                MistVideo.video.removeEventListener("play",f);
+              };
+              MistUtil.event.addListener(MistVideo.video,"play",f);
+
+            }
+            function autoplayMuted() {
+              //show large muted button
+              MistVideo.log("Autoplay worked! Video will be unmuted on mouseover if the page has been interacted with.");
+
+              if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "muted"; }
+
+              //show large "muted" icon
+              var largeMutedButton = MistVideo.skin.icons.build("muted",100);
+              MistUtil.class.add(largeMutedButton,"mistvideo-pointer");
+              MistVideo.container.appendChild(largeMutedButton);
+              MistUtil.event.addListener(largeMutedButton,"click",function(){
+                MistVideo.player.api.muted = false;
+                MistVideo.container.removeChild(largeMutedButton);
+              });
+
+              //listen for page interactions
+              var interacted = false;
+              var i = function(){
+                interacted = true;
+                document.body.removeEventListener("click",i);
+              };
+              MistUtil.event.addListener(document.body,"click",i,MistVideo.video);
+
+
+              //turn sound back on on mouseover
+              var f = function(){
+                if (interacted) {
+                  MistVideo.player.api.muted = false;
+                  MistVideo.video.removeEventListener("mouseenter",f);
+                  MistVideo.log("Re-enabled sound");
+                }
+              };
+              MistUtil.event.addListener(MistVideo.video,"mouseenter",f);
+
+              //remove all the things when unmuted
+              var fu = function(){
+                if (!MistVideo.player.api.muted) {
+                  if (largeMutedButton.parentNode) {
+                    MistVideo.container.removeChild(largeMutedButton);
+                  }
+                  MistVideo.video.removeEventListener("volumechange",fu);
+                  document.body.removeEventListener("click",i);
+                  MistVideo.video.removeEventListener("mouseenter",f);
+                }
+              }
+              MistUtil.event.addListener(MistVideo.video,"volumechange",fu);
+
+            }
+
             var promise = MistVideo.player.api.play();
             if (promise) {
-              promise.catch(function(e){
+              promise.then(function(){
+                if (MistVideo.player.api.muted != wasMuted) {
+                  autoplayMuted();
+                }
+                else {
+                  MistVideo.log("Autoplay worked! muted:"+MistVideo.player.api.muted);
+                }
+              }).catch(function(e){
                 if (MistVideo.destroyed) { return; }
-                MistVideo.log("Autoplay failed. Retrying with muted audio..");
+
                 //play has failed
-                
-                if (MistVideo.info.hasVideo) {
+                if (MistVideo.info.hasVideo && !MistVideo.player.api.muted) {
+                  MistVideo.log("Autoplay failed. Retrying with muted audio..");
+
                   //try again with sound muted
                   MistVideo.player.api.muted = true;
-                  //safari doesn't send this event themselves..
-                  MistUtil.event.send("volumechange",null,MistVideo.video);
-                  
+
                   var promise = MistVideo.player.api.play();
                   if (promise) {
                     promise.then(function(){
                       if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "success"; }
                     }).then(function(){
                       if (MistVideo.destroyed) { return; }
-                      
-                      MistVideo.log("Autoplay worked! Video will be unmuted on mouseover if the page has been interacted with.");
-                      
-                      if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "muted"; }
-                      
-                      //show large "muted" icon
-                      var largeMutedButton = MistVideo.skin.icons.build("muted",100);
-                      MistUtil.class.add(largeMutedButton,"mistvideo-pointer");
-                      MistVideo.container.appendChild(largeMutedButton);
-                      MistUtil.event.addListener(largeMutedButton,"click",function(){
-                        MistVideo.player.api.muted = false;
-                        MistVideo.container.removeChild(largeMutedButton);
-                      });
-                      
-                      //listen for page interactions
-                      var interacted = false;
-                      var i = function(){
-                        interacted = true;
-                        document.body.removeEventListener("click",i);
-                      };
-                      MistUtil.event.addListener(document.body,"click",i,MistVideo.video);
-                      
-                      
-                      //turn sound back on on mouseover
-                      var f = function(){
-                        if (interacted) {
-                          MistVideo.player.api.muted = false;
-                          MistVideo.video.removeEventListener("mouseenter",f);
-                          MistVideo.log("Re-enabled sound");
-                        }
-                      };
-                      MistUtil.event.addListener(MistVideo.video,"mouseenter",f);
-                      
-                      //remove all the things when unmuted
-                      var fu = function(){
-                        if (!MistVideo.player.api.muted) {
-                          if (largeMutedButton.parentNode) {
-                            MistVideo.container.removeChild(largeMutedButton);
-                          }
-                          MistVideo.video.removeEventListener("volumechange",fu);
-                          document.body.removeEventListener("click",i);
-                          MistVideo.video.removeEventListener("mouseenter",f);
-                        }
-                      }
-                      MistUtil.event.addListener(MistVideo.video,"volumechange",fu);
-                      
+                      autoplayMuted();
                     }).catch(function(){
                       if (MistVideo.destroyed) { return; }
-                      MistVideo.log("Autoplay failed even with muted video. Unmuting and showing play button.");
-                      //wait 5 seconds and then pause the download
-                      MistVideo.timers.start(function(){
-                        if (MistVideo.player.api.paused) {
-                          //don't question it
-                          //if the video is paused, also request the player api to pause
-                          //for example, for mews, this would pause the download
-                          MistVideo.player.api.pause(); 
-                          if (MistVideo.monitor) { MistVideo.monitor.destroy(); }
-                        }
-                      },5e3);
-
-                      if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
-                      MistVideo.player.api.muted = false;
-                      
-                      //play has failed
-                      
-                      //show large centered play button
-                      var largePlayButton = MistVideo.skin.icons.build("largeplay",150);
-                      MistUtil.class.add(largePlayButton,"mistvideo-pointer");
-                      MistVideo.container.appendChild(largePlayButton);
-                      
-                      //start playing on click
-                      MistUtil.event.addListener(largePlayButton,"click",function(){
-                        if (MistVideo.player.api.paused) {
-                          MistVideo.player.api.play();
-                        }
-                      });
-                      
-                      //remove large button on play
-                      var f = function (){
-                        MistVideo.container.removeChild(largePlayButton);
-                        MistVideo.video.removeEventListener("play",f);
-                      };
-                      MistUtil.event.addListener(MistVideo.video,"play",f);
-                      
+                      autoplayFailed();
                     });
                   }
                 }
-                else if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
+                else {
+                  autoplayFailed();
+                }
               });
             }
           }
@@ -501,6 +532,7 @@ MistSkins["default"] = {
 
           MistUtil.event.removeListener(canplay); //only fire once
         });
+
       }
       
       return this.video;

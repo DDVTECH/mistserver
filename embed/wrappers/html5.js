@@ -25,6 +25,10 @@ mistplayers.html5 = {
         return false;
       }
     }
+    if ((mimetype == "html5/video/webm") && (MistUtil.getBrowser() == "safari")) {
+      MistVideo.log("Skipping html5/webm, as safari and webm are not friends");
+      return false;
+    }
     
     
     var support = false;

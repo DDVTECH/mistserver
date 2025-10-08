@@ -126,7 +126,7 @@ p.prototype.build = function (MistVideo,callback) {
       this.connection = new RTCPeerConnection();
 
       this.connection.onconnectionstatechange = function(e){
-        if (MistVideo.destroyed) { return; } //the player doesn't exist any more
+        if (MistVideo.destroyed) new Promise(function(resolve,reject){ reject(); }); //the player doesn't exist any more
 
         switch (this.connectionState) {
           case "failed": {

@@ -51,7 +51,8 @@ var MistUtil = {
       }
       else if (ago < 60e3) {
         //less than a minute ago
-        out = Math.round(ago/10)/100+" sec";
+        out = Math.round(ago/1e3)+" sec";
+        //out = Math.round(ago/10)/100+" sec"; //more detail for debugging purposes
         if (negative) {
           out = "in "+out;
         }
@@ -971,21 +972,10 @@ var MistUtil = {
     //return true;
   },
   getPos: function(element,cursorLocation){
-    var style = element.currentStyle || window.getComputedStyle(element, null);
-    
-    var zoom = 1;
-    var node = element;
-    while (node) {
-      if ((node.style.zoom) && (node.style.zoom != "")) {
-        zoom *= parseFloat(node.style.zoom,10);
-      }
-      node = node.parentElement;
-    }
-    
     var pos0 = element.getBoundingClientRect().left - (parseInt(element.borderLeftWidth,10) || 0);
     
-    var width = element.getBoundingClientRect().width;;
-    var perc = Math.max(0,((cursorLocation.clientX/zoom) - pos0) / width);
+    var width = element.getBoundingClientRect().width;
+    var perc = Math.max(0,(cursorLocation.clientX - pos0) / width);
     perc = Math.min(perc,1);
     
     return perc;

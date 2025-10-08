@@ -84,6 +84,9 @@ p.prototype.build = function (MistVideo,callback) {
 
     // Connects using WHEP
     this.connect = function(){
+      if (MistVideo.destroyed) new Promise(function(resolve,reject){ reject(); }); //the player doesn't exist any more
+
+
       if (this.connecting) {
         //already connecting
         return this.connecting;

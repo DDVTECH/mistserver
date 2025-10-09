@@ -7267,7 +7267,7 @@ context_menu: function(){
                         main: saveas,
                         index: 'always_on'
                       },
-                      value: (other == "" && ((type == "TSSRT") || (type == "TSRIST") || (type == "RTSP")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
+                      value: (other == "" && ((type == "TSSRT") || (type == "TSRIST") || (type == "RTSP") || (type == "TS")) ? true : false) //for new streams, if the input is TSSRT TSRIST RTSP or TS(= tsudp), put always_on true by default
                     });
                   }
                   $inputoptions.append(UI.buildUI(build));

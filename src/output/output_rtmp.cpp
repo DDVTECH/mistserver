@@ -1,4 +1,5 @@
 #include "output_rtmp.h"
+#include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>

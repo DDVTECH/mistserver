@@ -21,6 +21,7 @@
 
 // libav headers
 extern "C" {
+  #include "libavcodec/version.h"
   #include "libavcodec/avcodec.h"
   #include "libavutil/avutil.h"
   #include "libavutil/imgutils.h"         ///< Video frame operations
@@ -576,9 +577,17 @@ namespace Mist{
       tmpCtx->qmax = 51;
       tmpCtx->framerate = (AVRational){(int)targetFPKS, 1000};
       if (codecOut == "AV1"){
+#if defined(LIBAVCODEC_VERSION_MAJOR) && LIBAVCODEC_VERSION_MAJOR >= 61
+        tmpCtx->profile = AV_PROFILE_AV1_MAIN;
+#elif defined(FF_PROFILE_AV1_MAIN)
         tmpCtx->profile = FF_PROFILE_AV1_MAIN;
+#endif
       }else if (codecOut == "H264"){
+#if defined(LIBAVCODEC_VERSION_MAJOR) && LIBAVCODEC_VERSION_MAJOR >= 61
+        tmpCtx->profile = AV_PROFILE_H264_HIGH;
+#elif defined(FF_PROFILE_H264_HIGH)
         tmpCtx->profile = FF_PROFILE_H264_HIGH;
+#endif
       }
       tmpCtx->gop_size = Mist::opt["gopsize"].asInt();
       tmpCtx->max_b_frames = 0;
@@ -799,7 +808,11 @@ namespace Mist{
         // Codec-specific overrides
         if (codecOut == "AAC"){
           tmpCtx->sample_fmt = AV_SAMPLE_FMT_FLTP;
+#if defined(LIBAVCODEC_VERSION_MAJOR) && LIBAVCODEC_VERSION_MAJOR >= 61
+          tmpCtx->profile = AV_PROFILE_AAC_MAIN;
+#elif defined(FF_PROFILE_AAC_MAIN)
           tmpCtx->profile = FF_PROFILE_AAC_MAIN;
+#endif
           depth = 16;
         }else if (codecOut == "opus"){
           tmpCtx->sample_fmt = AV_SAMPLE_FMT_S16;

@@ -320,7 +320,7 @@ namespace Mist{
           meta.setID(trkIdx, 1);
           meta.setWidth(trkIdx, frameConverted->width);
           meta.setHeight(trkIdx,  frameConverted->height);
-          meta.setFpks(trkIdx, inFpks);
+          meta.setFpks(trkIdx, 0);
           if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
             userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
           }

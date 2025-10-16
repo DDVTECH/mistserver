@@ -1137,6 +1137,15 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
   std::string trackLow = trackVal;
   Util::stringToLower(trackLow);
 
+  // the letter i followed by a number -> track ID based selection
+  if (trackLow.size() >= 2 && trackLow[0] == 'i' && trackLow[1] >= '0' && trackLow[1] <= '9') {
+    size_t id = JSON::Value(trackLow.substr(1)).asInt();
+    for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++) {
+      if (M.getID(*it) == id) { result.insert(*it); }
+    }
+    return result;
+  }
+
   //Select all tracks in trackList of the given type
   if (trackLow == "all" || trackLow == "*"){
     // select all tracks of this type

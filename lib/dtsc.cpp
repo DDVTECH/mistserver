@@ -2809,7 +2809,9 @@ namespace DTSC{
         // Update duration of previous key too
         uint64_t prevKeyDuration = packTime - t.keys.getInt(t.keyTimeField, newKeyNum - 1);
         t.keys.setInt(t.keyDurationField, prevKeyDuration, newKeyNum - 1);
-        setEfpks(tNumber, prevKeyDuration * 1000 / t.keys.getInt(t.keyPartsField, newKeyNum - 1));
+        if (prevKeyDuration) {
+          setEfpks(tNumber, (t.keys.getInt(t.keyPartsField, newKeyNum - 1) * 1000000) / prevKeyDuration);
+        }
       }else{
         t.keys.setInt(t.keyFirstPartField, 0, newKeyNum);
       }
@@ -2987,6 +2989,7 @@ namespace DTSC{
       t.frames.deleteRecords(1);
       setFirstms(trackIdx, t.frames.getInt(t.framesTimeField, t.frames.getDeleted()));
     }
+    uint64_t begPos = t.frames.getDeleted();
     t.frames.setInt(t.framesTimeField, time, endPos);
     if (t.framesDataField.size < dataSize){dataSize = t.framesDataField.size;}
     memcpy(t.frames.getPointer(t.framesDataField, endPos), data, dataSize);
@@ -2995,6 +2998,9 @@ namespace DTSC{
     setMinKeepAway(trackIdx, theJitters[trackIdx].addPack(time));
     t.track.setInt(t.trackLastmsField, time);
     t.track.setInt(t.trackNowmsField, time);
+    if (begPos != endPos) {
+      t.track.setInt(t.trackEfpksField, 1000000 * (endPos - begPos) / (time - t.frames.getInt(t.framesTimeField, begPos)));
+    }
     markUpdated(trackIdx);
   }
 
@@ -3199,6 +3205,8 @@ namespace DTSC{
         trackJSON["height"] = getHeight(*it);
         trackJSON["fpks"] = getFpks(*it);
         trackJSON["efpks"] = getEfpks(*it);
+        trackJSON["fps"] = getFpks(*it) / 1000.0;
+        trackJSON["efps"] = getEfpks(*it) / 1000.0;
         if (hasBFrames(*it)){
           bframes = true;
           trackJSON["bframes"] = 1;
@@ -3671,9 +3679,14 @@ namespace DTSC{
     std::set<size_t> validTracks = getValidTracks();
     uint64_t jitter = 0;
     uint64_t buffer = 0;
+    JSON::Value & trkLst = retRef["tracks"];
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
       size_t i = *it;
-      JSON::Value &track = retRef[getTrackIdentifier(i)];
+      const std::string trkIdent = getTrackIdentifier(i, true);
+      JSON::Value & track = retRef[trkIdent];
+      trkLst.append(trkIdent);
+      track["idx"] = *it;
+      track["id"] = getID(i);
       uint64_t minKeep = getMinKeepAway(*it);
       track["jitter"] = minKeep;
       std::string codec = getCodec(i);
@@ -3735,6 +3748,8 @@ namespace DTSC{
         track["height"] = getHeight(i);
         track["fpks"] = getFpks(i);
         track["efpks"] = getEfpks(i);
+        track["fps"] = getFpks(i) / 1000.0;
+        track["efps"] = getEfpks(i) / 1000.0;
         track["bframes"] = hasBFrames(i);
       }
       if (type == "audio"){

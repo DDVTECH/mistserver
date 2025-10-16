@@ -37,6 +37,7 @@ $(function(){
     }
     return false; //unknown
   }());
+  document.body.setAttribute("data-platform",window.navigator.platform.toLowerCase());
 
   $("body").on("keydown",function(e){
     switch (e.key) {

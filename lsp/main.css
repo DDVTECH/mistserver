@@ -176,8 +176,9 @@ nav > *, header > * {
   position: relative;
 }
 
-body[data-browser="firefox"] .textures {
+body:is([data-browser="firefox"],[data-browser="safari"]:not([data-platform~="macintel"])) .textures {
   /* for some reason the textures slow down firefox if the screen is fairly wide */
+  /* ..and crash safari on iOs */
   display: none;
 }
 nav .textures, header .textures {

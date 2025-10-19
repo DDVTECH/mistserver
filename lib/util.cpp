@@ -1150,8 +1150,8 @@ namespace Util{
     // calculate fLen if missing
     if (!fLen){
       fLen = getDefaultSize(fType);
-      if (!fLen){
-        WARN_MSG("Attempting to add a mandatory-size field without size");
+      if (!fLen && fType != RAX_NESTED) {
+        WARN_MSG("Attempting to add a mandatory-size field '%s' without size", name.c_str());
         return;
       }
     }

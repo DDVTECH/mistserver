@@ -131,6 +131,8 @@ namespace Mist{
 
     lastRecv = Util::bootSecs();
     outputStartMs = thisBootMs;
+    totalPlaytime = 0;
+    lastSeekPos = 0;
     if (myConn){
       setBlocking(true);
       //Make sure that if the socket is a non-stdio socket, we close it when forking
@@ -902,7 +904,7 @@ namespace Mist{
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   /// If toKey is true, clips the seek to the nearest keyframe if the main track is a video track.
   bool Output::seek(uint64_t pos, bool toKey){
-    sought = true;
+    if (sought) { totalPlaytime += lastPacketTime - lastSeekPos; }
     if (!isInitialized){initialize();}
     buffer.clear();
     thisPacket.null();
@@ -924,6 +926,8 @@ namespace Mist{
       }
     }
     MEDIUM_MSG("Seeking to %" PRIu64 "ms (%s)", pos, toKey ? "sync" : "direct");
+    lastSeekPos = pos;
+    sought = true;
     std::set<size_t> seekTracks;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       if (M.trackLoaded(it->first)){seekTracks.insert(it->first);}
@@ -2708,6 +2712,7 @@ namespace Mist{
         if (getenv("MST_ORIG_TARGET")) { pStat["push_status_update"]["orig_target"] = getenv("MST_ORIG_TARGET"); }
         JSON::Value & pData = pStat["push_status_update"]["status"];
         pData["mediatime"] = currentTime();
+        pData["media_tx"] = (lastPacketTime - lastSeekPos) + totalPlaytime;
         pData["latency"] = endTime() - currentTime();
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
           pData["tracks"].append((uint64_t)it->first);
@@ -2727,7 +2732,8 @@ namespace Mist{
             prevPktCount = pktCntNow;
             prevLosCount = pktLosNow;
           }
-          pData["active_seconds"] = statComm.getTime();
+          pData["active_seconds"] = (thisBootMs - outputStartMs) / 1000;
+          pData["active_ms"] = thisBootMs - outputStartMs;
         }
         pData["current_target"] = currentTarget;
         Util::sendUDPApi(pStat);

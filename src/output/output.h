@@ -102,6 +102,8 @@ namespace Mist{
     bool firstData;
     uint64_t lastPushUpdate;
     uint64_t outputStartMs; ///< bootMS() at time of output start (unrelated to media start)
+    uint64_t lastSeekPos; ///< Last seek target position
+    uint64_t totalPlaytime; ///< Appended to with current playback time every seek
     bool newUA;
     size_t maxWait; /// Maximum wait in milliseconds (scheduled next packet timing)
     

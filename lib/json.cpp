@@ -367,7 +367,7 @@ static std::string UTF16(uint32_t c){
   return ret;
 }
 
-std::string JSON::string_escape(const std::string &val){
+std::string JSON::string_escape(const std::string & val, bool isRaw) {
   std::string out = "\"";
   for (size_t i = 0; i < val.size(); ++i){
     const char &c = val.data()[i];
@@ -381,10 +381,10 @@ std::string JSON::string_escape(const std::string &val){
     case '\t': out += "\\t"; break;
     default:
       if (c < 32 || c > 126){
-        // we assume our data is UTF-8 encoded internally.
+        // Unless isRaw is set, we assume our data is UTF-8 encoded internally.
         // JavaScript expects UTF-16, so if we recognize a valid UTF-8 sequence, we turn it into
         // UTF-16 for JavaScript. Anything else is escaped as a single character UTF-16 escape.
-        if ((c & 0xC0) == 0xC0){
+        if (!isRaw && (c & 0xC0) == 0xC0) {
           // possible UTF-8 sequence
           // check for 2-byte sequence
           if (((c & 0xE0) == 0XC0) && (i + 1 < val.size()) && ((val.data()[i + 1] & 0xC0) == 0x80)){
@@ -411,7 +411,7 @@ std::string JSON::string_escape(const std::string &val){
             break;
           }
         }
-        // Anything else, we encode as a single UTF-16 character.
+        // Anything else (everything if in raw mode), we encode as a single UTF-16 character.
         out += "\\u00";
         out += hex2c((val.data()[i] >> 4) & 0xf);
         out += hex2c(val.data()[i] & 0xf);
@@ -759,7 +759,7 @@ bool JSON::Value::operator==(const JSON::Value &rhs) const{
   if (myType != rhs.myType){return false;}
   if (myType == INTEGER || myType == BOOL){return intVal == rhs.intVal;}
   if (myType == DOUBLE){return dblVal == rhs.dblVal;}
-  if (myType == STRING){return strVal == rhs.strVal;}
+  if (myType == STRING || myType == RAWSTRING) { return strVal == rhs.strVal; }
   if (myType == EMPTY || myType == UNSET) { return true; }
   if (size() != rhs.size()){return false;}
   if (myType == OBJECT){
@@ -842,11 +842,17 @@ void JSON::Value::unset() {
   myType = UNSET;
 }
 
+/// Changes the type of a STRING to RAWSTRING, does nothing otherwise.
+/// RAWSTRING is identical to STRING in behaviour, except the content is _not_ assumed to be UTF-8.
+void JSON::Value::raw() {
+  if (myType == STRING) { myType = RAWSTRING; }
+}
+
 /// Assigns this JSON::Value to the given JSON::Value, skipping given member recursively.
 JSON::Value &JSON::Value::assignFrom(const Value &rhs, const std::set<std::string> &skip){
   null();
   myType = rhs.myType;
-  if (myType == STRING){strVal = rhs.strVal;}
+  if (myType == STRING || myType == RAWSTRING) { strVal = rhs.strVal; }
   if (myType == BOOL || myType == INTEGER){intVal = rhs.intVal;}
   if (myType == DOUBLE){dblVal = rhs.dblVal;}
   if (myType == OBJECT){
@@ -903,7 +909,7 @@ JSON::Value & JSON::Value::extend(const Value & rhs, const std::set<std::string>
 JSON::Value &JSON::Value::operator=(const JSON::Value &rhs){
   null();
   myType = rhs.myType;
-  if (myType == STRING){strVal = rhs.strVal;}
+  if (myType == STRING || myType == RAWSTRING) { strVal = rhs.strVal; }
   if (myType == BOOL || myType == INTEGER){intVal = rhs.intVal;}
   if (myType == DOUBLE){dblVal = rhs.dblVal;}
   if (myType == OBJECT){
@@ -971,7 +977,7 @@ JSON::Value &JSON::Value::operator=(const uint32_t &rhs){
 JSON::Value::operator int64_t() const{
   if (myType == INTEGER){return intVal;}
   if (myType == DOUBLE){return (long long int)dblVal;}
-  if (myType == STRING){return atoll(strVal.c_str());}
+  if (myType == STRING || myType == RAWSTRING) { return atoll(strVal.c_str()); }
   return 0;
 }
 
@@ -979,14 +985,14 @@ JSON::Value::operator int64_t() const{
 JSON::Value::operator double() const{
   if (myType == INTEGER){return (double)intVal;}
   if (myType == DOUBLE){return dblVal;}
-  if (myType == STRING){return atof(strVal.c_str());}
+  if (myType == STRING || myType == RAWSTRING) { return atof(strVal.c_str()); }
   return 0;
 }
 
 /// Automatic conversion to std::string.
 /// Returns the raw string value if available, otherwise calls toString().
 JSON::Value::operator std::string() const{
-  if (myType == STRING){return strVal;}
+  if (myType == STRING || myType == RAWSTRING) { return strVal; }
   if (myType == EMPTY || myType == UNSET) { return ""; }
   return toString();
 }
@@ -994,7 +1000,7 @@ JSON::Value::operator std::string() const{
 /// Automatic conversion to bool.
 /// Returns true if there is anything meaningful stored into this value.
 JSON::Value::operator bool() const{
-  if (myType == STRING){return strVal != "";}
+  if (myType == STRING || myType == RAWSTRING) { return !strVal.empty(); }
   if (myType == DOUBLE){return dblVal != 0;}
   if (myType == INTEGER || myType == BOOL){return intVal != 0;}
   if (myType == OBJECT || myType == ARRAY){return size() > 0;}
@@ -1024,7 +1030,7 @@ bool JSON::Value::asBool() const{
 /// \warning Only save to use when the JSON::Value is a string type!
 const std::string &JSON::Value::asStringRef() const{
   static std::string ugly_buffer;
-  if (myType == STRING){return strVal;}
+  if (myType == STRING || myType == RAWSTRING) { return strVal; }
   return ugly_buffer;
 }
 
@@ -1033,7 +1039,7 @@ const std::string &JSON::Value::asStringRef() const{
 /// a reference to an empty string otherwise.
 /// \warning Only save to use when the JSON::Value is a string type!
 const char *JSON::Value::c_str() const{
-  if (myType == STRING){return strVal.c_str();}
+  if (myType == STRING || myType == RAWSTRING) { return strVal.c_str(); }
   return "";
 }
 
@@ -1354,6 +1360,9 @@ std::string JSON::Value::toString() const{
   case STRING:{
     return JSON::string_escape(strVal);
   }
+  case RAWSTRING: {
+    return JSON::string_escape(strVal, true);
+  }
   case ARRAY:{
     std::string tmp = "[";
     if (arrVal.size() > 0){
@@ -1409,13 +1418,14 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
       return "false";
     }
   }
-  case STRING:{
+  case STRING:
+  case RAWSTRING: {
     for (uint8_t i = 0; i < 201 && i < strVal.size(); ++i){
       if (strVal[i] < 32 || strVal[i] > 126 || strVal.size() > 1024) {
         return "\"" + JSON::Value((int64_t)strVal.size()).asString() + " bytes of data\"";
       }
     }
-    return JSON::string_escape(strVal);
+    return JSON::string_escape(strVal, myType == RAWSTRING);
   }
   case ARRAY:{
     if (arrVal.size() > 0){
@@ -1570,7 +1580,7 @@ bool JSON::Value::isDouble() const{
 
 /// Returns true if this object is a string.
 bool JSON::Value::isString() const{
-  return (myType == STRING);
+  return myType == STRING || myType == RAWSTRING;
 }
 
 /// Returns true if this object is a bool.

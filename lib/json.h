@@ -1,13 +1,13 @@
 /// \file json.h Holds all JSON-related headers.
 #pragma once
 #include "socket.h"
+
 #include <deque>
 #include <istream>
 #include <map>
 #include <set>
 #include <stdint.h>
 #include <string>
-#include <vector>
 
 static const std::set<std::string> emptyset;
 
@@ -15,10 +15,10 @@ static const std::set<std::string> emptyset;
 namespace JSON{
 
   /// Lists all types of JSON::Value.
-  enum ValueType { EMPTY, BOOL, INTEGER, DOUBLE, STRING, ARRAY, OBJECT, UNSET };
+  enum ValueType { EMPTY, BOOL, INTEGER, DOUBLE, STRING, RAWSTRING, ARRAY, OBJECT, UNSET };
 
   /// JSON-string-escapes a value
-  std::string string_escape(const std::string &val);
+  std::string string_escape(const std::string & val, bool isRaw = false);
 
   /// A JSON::Value is either a string or an integer, but may also be an object, array or null.
   class Value{
@@ -122,6 +122,7 @@ namespace JSON{
     size_t fromString(const std::string & str);
     size_t fromString(const char *ptr, size_t len);
     void fromStream(std::istream & fromstream);
+    void raw();
   };
 
   Value fromDTMI2(const std::string &data);

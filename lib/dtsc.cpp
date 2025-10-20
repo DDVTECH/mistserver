@@ -3526,6 +3526,7 @@ namespace DTSC{
       trackJSON["idx"] = (uint64_t)*it;
       trackJSON["trackid"] = (uint64_t)getID(*it);
       trackJSON["init"] = getInit(*it);
+      trackJSON["init"].raw();
       trackJSON["firstms"] = getFirstms(*it);
       trackJSON["lastms"] = getLastms(*it);
       trackJSON["nowms"] = getNowms(*it);

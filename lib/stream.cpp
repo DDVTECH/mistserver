@@ -38,7 +38,7 @@ static std::string strftime_now(const std::string &format){
   return buffer;
 }
 
-std::string Util::codecString(const std::string &codec, const std::string &initData){
+std::string Util::codecString(const std::string & codec, const std::string & initData, bool webCodec) {
   if (codec == "H264"){
     std::stringstream r;
     r << "avc1";
@@ -110,7 +110,7 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
     return r.str();
   }
   if (codec == "AAC"){return "mp4a.40.2";}
-  if (codec == "MP3"){return "mp4a.40.34";}
+  if (codec == "MP3") { return webCodec ? "mp3" : "mp4a.40.34"; }
   if (codec == "AC3"){return "mp4a.a5";}
   if (codec == "AV1"){
     if (initData.size() < 4){return "av01";}// Can't determine properties. :-(
@@ -134,7 +134,9 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
   }
   if (codec == "opus") { return "opus"; }
   if (codec == "VP8") { return "vp8"; }
-  if (codec == "VP9") { return "vp9.00.00.08"; }
+  if (codec == "ULAW") { return "ulaw"; }
+  if (codec == "ALAW") { return "alaw"; }
+  if (codec == "VP9") { return "vp09.00.10.08"; }
   return "";
 }
 

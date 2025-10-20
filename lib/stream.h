@@ -35,7 +35,7 @@ namespace Util{
   uint8_t getStreamStatusPercentage(const std::string &streamname);
   bool streamMatches(const std::string & stream, const std::string & matchString);
   bool checkException(const JSON::Value &ex, const std::string &useragent);
-  std::string codecString(const std::string &codec, const std::string &initData = "");
+  std::string codecString(const std::string & codec, const std::string & initData = "", bool webCodec = false);
 
   std::set<size_t> getSupportedTracks(const DTSC::Meta &M, const JSON::Value &capa,
                                       const std::string &type = "", const std::string &UA = "");

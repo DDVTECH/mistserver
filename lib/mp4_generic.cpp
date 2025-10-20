@@ -3046,6 +3046,7 @@ namespace MP4{
       setCodecBox(dac3Box);
     } else if (tCodec == "opus") {
       setCodec("Opus");
+      setSampleSize(16);
       MP4::DOPS dopsBox(M.getInit(idx));
       setCodecBox(dopsBox);
     } else { // other codecs use the ESDS box

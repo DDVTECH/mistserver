@@ -2705,6 +2705,7 @@ namespace Mist{
         pStat["push_status_update"]["id"] = getpid();
         pStat["push_status_update"]["stream"] = streamName;
         if (config->hasOption("target")) { pStat["push_status_update"]["target"] = config->getString("target"); }
+        if (getenv("MST_ORIG_TARGET")) { pStat["push_status_update"]["orig_target"] = getenv("MST_ORIG_TARGET"); }
         JSON::Value & pData = pStat["push_status_update"]["status"];
         pData["mediatime"] = currentTime();
         pData["latency"] = endTime() - currentTime();

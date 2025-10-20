@@ -102,7 +102,7 @@ namespace Controller{
       INFO_MSG("Discovered ongoing push %" PRIu64 ", adding to push list", id);
       activePushes[id][0u] = id;
       activePushes[id][1u] = status["stream"].asStringRef();
-      activePushes[id][2u] = "";
+      activePushes[id][2u] = status["orig_target"].asStringRef();
       activePushes[id][3u] = status["target"].asStringRef();
     }
     activePushes[id][5].extend(status["status"]);

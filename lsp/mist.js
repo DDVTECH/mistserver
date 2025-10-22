@@ -12159,9 +12159,11 @@ context_menu: function(){
                   var $ele = $("<div>");
                   var labels = {
                     pid: "Pid: ",
-                    active_seconds: "Active for: ",
+                    latency: "Latency: ",
+                    active_ms: "Active for: ",
                     bytes: "Data transferred: ",
-                    mediatime: "Media time transferred: ",
+                    mediatime: "Last sent timestamp:",
+                    media_tx: "Media time transferred: ",
                     mediaremaining: "Media time until stream end: ",
                     pkt_retrans_count: "Packets retransmitted: ",
                     pkt_loss_count: "Packets lost: ",
@@ -12190,9 +12192,25 @@ context_menu: function(){
                   var me = this;
                   var formatting = {
                     pid: function(v){ return v;},
-                    active_seconds: UI.format.duration,
+                    latency: function(v){
+                      var $out = $("<span>").html(UI.format.addUnit(UI.format.number(v),"ms"));
+                      $out.find(".unit").append(
+                        $("<span>").addClass("info").text("i").hover(function(e){
+                          UI.tooltip.show(e,
+                            $("<div>").append(
+                              $("<h3>").html("Latency: "+$out.html())
+                            ).append(
+                              $("<p>").text("This the difference between the last sent timestamp and the theoretically highest possible playback position. This is usually mostly jitter buffers.")
+                            )
+                          )
+                        })
+                      );
+                      return $out;
+                    },
+                    active_ms: function(v) { return UI.format.duration(v*1e-3); },
                     bytes: UI.format.bytes,
                     mediatime: function(v){ return UI.format.duration(v*1e-3); },
+                    media_tx: function(v){ return UI.format.duration(v*1e-3); },
                     mediatimestamp: function(v){ return UI.format.duration(v*1e-3); },
                     tracks: function(v){ return v.join(", "); },
                     pkt_retrans_count: function(v){

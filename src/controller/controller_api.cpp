@@ -830,7 +830,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
         const JSON::Value prmIn = (it->isArray() && it->size()) ? (*it)[1u] : JSON::EMPTY;
         JSON::Value jwkOut, prmOut, writeOut;
 
-        std::vector<std::string> p, unique;
+        std::set<std::string> unique;
         const std::string & kty = jwkIn["kty"].asStringRef();
         switch (kty.at(0)) {
           case 'o':
@@ -849,21 +849,25 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
         }
         jwkOut.extend(jwkIn, emptyset, {"kty", "use", "key_ops", "alg", "kid", "x5u", "x5c", "x5t", "x5t#S256"});
 
-        // Detect duplicates
-        bool dupe = false, hasKid = jwkOut.isMember("kid");
-        jsonForEachConst (target, jwk) {
-          if (kty != (*jwk)["kty"].asStringRef()) continue;
-          if ((*jwk) == jwkOut || (hasKid && jwk->isMember("kid") && jwkOut["kid"] == (*jwk)["kid"])) dupe = true;
-          for (std::string str : unique) {
-            if (jwkOut[str] != (*jwk)[str]) continue;
-            dupe = true;
-            break;
+        // Detect duplicates in both the storage and the response
+        bool hasKid = jwkOut.isMember("kid"), checkedDuplicates = false;
+        jsonForEach (target, jwkWithPerms) {
+          const JSON::Value jwk = (*jwkWithPerms)[0u];
+          if ((hasKid && jwk["kid"] == jwkOut["kid"]) || jwk.compareOnly(jwkOut, unique)) {
+            jwkWithPerms.remove();
+            if (checkedDuplicates) continue;
+            jsonForEach (*response, jwkResWithPerms) {
+              const JSON::Value jwkRes = (*jwkResWithPerms)[0u];
+              if ((hasKid && jwk["kid"] == jwkRes["kid"]) || jwk.compareOnly(jwkRes, unique)) {
+                jwkResWithPerms.remove();
+                break;
+              }
+            }
+            checkedDuplicates = true;
           }
-          if (dupe) break;
         }
 
         // Do not write anything if this is a duplicate, otherwise start setting permissions
-        if (dupe) continue;
         prmOut.extend(prmIn, emptyset, {"input", "output", "admin", "stream"});
 
         // Append the short result to the target, this will be written to storage

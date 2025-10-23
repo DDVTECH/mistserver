@@ -410,6 +410,7 @@ namespace Mist {
     capa["name"] = "RTMP";
     capa["friendly"] = "RTMP";
     capa["desc"] = "Real time streaming over Adobe RTMP";
+    capa["sort"] = "sort";
     capa["deps"] = "";
     capa["url_rel"] = "/play/$";
     capa["incoming_push_url"] = "rtmp://$host:$port/$password/$stream";
@@ -460,6 +461,7 @@ namespace Mist {
     capa["optional"]["acceptable"]["select"][1u][1u] = "Allow only outgoing connections";
     capa["optional"]["acceptable"]["select"][2u][0u] = 2;
     capa["optional"]["acceptable"]["select"][2u][1u] = "Allow only incoming connections";
+    capa["optional"]["acceptable"]["sort"] = "aaa";
     capa["optional"]["maxkbps"]["name"] = "Max. kbps";
     capa["optional"]["maxkbps"]["help"] =
         "Maximum bitrate to allow in the ingest direction, in kilobits per second.";
@@ -474,13 +476,17 @@ namespace Mist {
     capa["optional"]["cert"]["option"] = "--cert";
     capa["optional"]["cert"]["short"] = "C";
     capa["optional"]["cert"]["default"] = "";
-    capa["optional"]["cert"]["type"] = "str";
+    capa["optional"]["cert"]["type"] = "inputlist";
+    capa["optional"]["cert"]["input"]["type"] = "browse";
+    capa["optional"]["cert"]["sort"] = "aab";
     capa["optional"]["key"]["name"] = "Key";
     capa["optional"]["key"]["help"] = "Private key for SSL";
     capa["optional"]["key"]["option"] = "--key";
     capa["optional"]["key"]["short"] = "k";
     capa["optional"]["key"]["default"] = "";
-    capa["optional"]["key"]["type"] = "str";
+    capa["optional"]["key"]["type"] = "inputlist";
+    capa["optional"]["key"]["input"]["type"] = "browse";
+    capa["optional"]["key"]["sort"] = "aac";
 #endif
 
     cfg->addConnectorOptions(1935, capa);

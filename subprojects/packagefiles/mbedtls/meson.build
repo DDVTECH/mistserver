@@ -1,4 +1,4 @@
-project('mbedtls', 'c', default_options: ['optimization=2', 'warning_level=0'])
+project('mbedtls', 'c', default_options: ['optimization=2', 'warning_level=0', 'c_std=c99'])
 add_project_arguments(['-Wno-stringop-overflow'], language: 'c')
 
 incl = include_directories('include')
@@ -85,7 +85,8 @@ libmbedcrypto = library('mbedcrypto',
   'library/timing.c',
   'library/version.c',
   'library/version_features.c',
-  include_directories: incl
+  include_directories: incl,
+  install: true,
 )
 
 mbedcrypto_dep = declare_dependency(
@@ -105,6 +106,7 @@ libmbedx509 = library('mbedx509',
   'library/x509write_csr.c',
   include_directories: incl,
   dependencies: mbedcrypto_dep,
+  install: true,
 )
 
 mbedx509_dep = declare_dependency(
@@ -133,6 +135,7 @@ libmbedtls = library('mbedtls',
   'library/ssl_tls13_generic.c',
   include_directories: incl,
   dependencies: [mbedx509_dep, mbedcrypto_dep],
+  install: true,
 )
 
 mbedtls_dep = declare_dependency(

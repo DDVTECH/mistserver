@@ -46,8 +46,9 @@ int AMF::Object::hasContent(){
 
 /// Adds an AMF::Object as contents, only makes sense for object-based types.
 AMF::Object *AMF::Object::addContent(const AMF::Object & c) {
-  contents.push_back(c);
-  return &*contents.rbegin();
+  AMF::Object *ptr = new AMF::Object(c);
+  contents.push_back(ptr);
+  return ptr;
 }
 
 /// Adds a string as contents, only makes sense for array-based types.
@@ -85,7 +86,7 @@ AMF::Object *AMF::Object::addContent(const std::string & indice, const obj0type 
 /// \param i The indice of the object in this container.
 AMF::Object *AMF::Object::getContentP(unsigned int i){
   if (i >= contents.size()){return &nullPtr;}
-  return &contents.at(i);
+  return contents.at(i);
 }
 
 /// Returns a copy of the object held at indice i.
@@ -93,14 +94,14 @@ AMF::Object *AMF::Object::getContentP(unsigned int i){
 /// \param i The indice of the object in this container.
 AMF::Object AMF::Object::getContent(unsigned int i){
   if (i >= contents.size()){return AMF::Object("error", AMF0_DDV_CONTAINER);}
-  return contents.at(i);
+  return *contents.at(i);
 }
 
 /// Returns a pointer to the object held at indice s.
 /// Returns NULL if no object is held at this indice.
 /// \param s The indice of the object in this container.
 AMF::Object *AMF::Object::getContentP(std::string s) {
-  for (auto & it : contents) {
+  for (auto && it : *this) {
     if (it.Indice() == s) { return &it; }
   }
   return &nullPtr;
@@ -110,7 +111,7 @@ AMF::Object *AMF::Object::getContentP(std::string s) {
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param s The indice of the object in this container.
 AMF::Object AMF::Object::getContent(std::string s) {
-  for (auto & it : contents) {
+  for (auto & it : *this) {
     if (it.Indice() == s) { return it; }
   }
   return AMF::Object("error", AMF0_DDV_CONTAINER);
@@ -209,7 +210,7 @@ std::string AMF::Object::Print(std::string indent){
   }
   st << std::endl;
   // if I hold other objects, print those too, recursively.
-  for (auto & it : contents) { st << it.Print(indent + "  "); }
+  for (auto & it : *this) { st << it.Print(indent + "  "); }
   return st.str();
 }// print
 
@@ -229,13 +230,13 @@ JSON::Value AMF::Object::toJSON() const {
     case AMF::AMF0_OBJECT:
     case AMF::AMF0_ECMA_ARRAY: {
       JSON::Value ret;
-      for (auto & it : contents) { ret[it.Indice()] = it.toJSON(); }
+      for (auto & it : *this) { ret[it.Indice()] = it.toJSON(); }
       return ret;
     }
     case AMF::AMF0_DDV_CONTAINER: // only send contents
     case AMF::AMF0_STRICT_ARRAY: {
       JSON::Value ret;
-      for (auto & it : contents) { ret.append(it.toJSON()); }
+      for (auto & it : *this) { ret.append(it.toJSON()); }
       return ret;
     }
     case AMF::AMF0_MOVIECLIP:
@@ -304,7 +305,7 @@ std::string AMF::Object::Pack(){
   /* no break */
   case AMF::AMF0_OBJECT:
     if (contents.size() > 0){
-      for (auto & it : contents) {
+      for (auto & it : *this) {
         r += it.Indice().size() / 256;
         r += it.Indice().size() % 256;
         r += it.Indice();
@@ -336,7 +337,7 @@ std::string AMF::Object::Pack(){
       r += arrlen / (256 * 256);
       r += arrlen / 256;
       r += arrlen % 256;
-      for (auto & it : contents) {
+      for (auto & it : *this) {
         r += it.Indice().size() / 256;
         r += it.Indice().size() % 256;
         r += it.Indice();
@@ -360,7 +361,7 @@ std::string AMF::Object::Pack(){
       r += arrlen / (256 * 256);
       r += arrlen / 256;
       r += arrlen % 256;
-      for (auto & it : contents) { r += it.Pack(); }
+      for (auto & it : *this) { r += it.Pack(); }
     }else{
       r += (char)0;
       r += (char)0;
@@ -369,7 +370,7 @@ std::string AMF::Object::Pack(){
     }
   }break;
   case AMF::AMF0_DDV_CONTAINER: // only send contents
-    for (auto & it : contents) { r += it.Pack(); }
+    for (auto & it : *this) { r += it.Pack(); }
     break;
   }
   return r;

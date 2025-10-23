@@ -55,6 +55,31 @@ namespace AMF{
   /// Recursive class that holds AMF0 objects.
   /// It supports all AMF0 types (defined in AMF::obj0type), adding support for a special DDVTECH
   /// container type.
+
+  class Object;
+  class Object_iterator {
+    private:
+      std::deque<Object *>::iterator it;
+
+    public:
+      Object_iterator(std::deque<Object *>::iterator _it) { it = _it; }
+      AMF::Object & operator*() { return *(*it); }
+      void operator++() { it++; }
+      bool operator==(const Object_iterator & o) { return o.it == it; }
+      bool operator!=(const Object_iterator & o) { return o.it != it; }
+  };
+  class Object_iterator_const {
+    private:
+      std::deque<Object *>::const_iterator it;
+
+    public:
+      Object_iterator_const(std::deque<Object *>::const_iterator _it) { it = _it; }
+      const AMF::Object & operator*() { return *(*it); }
+      void operator++() { it++; }
+      bool operator==(const Object_iterator_const & o) { return o.it == it; }
+      bool operator!=(const Object_iterator_const & o) { return o.it != it; }
+  };
+
   class Object{
   public:
     const std::string & Indice() const;
@@ -82,15 +107,17 @@ namespace AMF{
     std::string Print(std::string indent = "");
     std::string Pack();
     JSON::Value toJSON() const;
-    std::deque<Object>::iterator begin() { return contents.begin(); }
-    std::deque<Object>::iterator end() { return contents.end(); }
+    Object_iterator begin() { return contents.begin(); }
+    Object_iterator end() { return contents.end(); }
+    Object_iterator_const begin() const { return contents.begin(); }
+    Object_iterator_const end() const { return contents.end(); }
 
   protected:
     std::string myIndice;         ///< Holds this objects indice, if any.
     obj0type myType;              ///< Holds this objects AMF0 type.
     std::string strval;           ///< Holds this objects string value, if any.
     double numval;                ///< Holds this objects numeric value, if any.
-    std::deque<Object> contents; ///< Holds this objects contents, if any (for container types).
+    std::deque<Object *> contents; ///< Holds this objects contents, if any (for container types).
   };
   // AMFType
 

@@ -12203,6 +12203,8 @@ context_menu: function(){
                               $("<p>").text("This the difference between the last sent timestamp and the theoretically highest possible playback position. This is usually mostly jitter buffers.")
                             )
                           )
+                        },function(e){
+                          UI.tooltip.hide();
                         })
                       );
                       return $out;

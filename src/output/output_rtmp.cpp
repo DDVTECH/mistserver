@@ -548,7 +548,9 @@ namespace Mist {
 
 #ifdef SSL
     capa["optional"]["cert"]["name"] = "Certificate";
-    capa["optional"]["cert"]["help"] = "(Root) certificate(s) file(s) to append to chain";
+    capa["optional"]["cert"]["help"] =
+      "Path to the file(s) containing certificate chain(s). When multiple chains are used make sure to "
+      "provide their matching keys in the same order.";
     capa["optional"]["cert"]["option"] = "--cert";
     capa["optional"]["cert"]["short"] = "C";
     capa["optional"]["cert"]["default"] = "";
@@ -556,7 +558,8 @@ namespace Mist {
     capa["optional"]["cert"]["input"]["type"] = "browse";
     capa["optional"]["cert"]["sort"] = "aab";
     capa["optional"]["key"]["name"] = "Key";
-    capa["optional"]["key"]["help"] = "Private key for SSL";
+    capa["optional"]["key"]["help"] =
+      "Path to private key for SSL. When multiple are used make sure they are in order matching the certificates.";
     capa["optional"]["key"]["option"] = "--key";
     capa["optional"]["key"]["short"] = "k";
     capa["optional"]["key"]["default"] = "";

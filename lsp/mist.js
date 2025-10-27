@@ -1815,17 +1815,17 @@ context_menu: function(){
         case 'debug':
           e.select = [
             ['','Default'],
-            [0,'0 - All debugging messages disabled'],
-            [1,'1 - Messages about failed operations'],
-            [2,'2 - Previous level, and error messages'],
-            [3,'3 - Previous level, and warning messages'],
-            [4,'4 - Previous level, and status messages for development'],
-            [5,'5 - Previous level, and more status messages for development'],
-            [6,'6 - Previous level, and verbose debugging messages'],
-            [7,'7 - Previous level, and very verbose debugging messages'],
-            [8,'8 - Report everything in extreme detail'],
-            [9,'9 - Report everything in insane detail'],
-            [10,'10 - All messages enabled']
+            [0,'0 - NONE: All debugging messages disabled'],
+            [1,'1 - FAIL: Messages about failed operations'],
+            [2,'2 - ERROR: Previous level, and error messages'],
+            [3,'3 - WARN: Previous level, and warning messages'],
+            [4,'4 - INFO: Previous level, and status messages for development'],
+            [5,'5 - MEDIUM: Previous level, and more status messages for development'],
+            [6,'6 - HIGH: Previous level, and verbose debugging messages'],
+            [7,'7 - VERY HIGH: Previous level, and very verbose debugging messages'],
+            [8,'8 - EXTREME: Report everything in extreme detail'],
+            [9,'9 - INSANE: Report everything in insane detail'],
+            [10,'10 - DONTEVEN: All messages enabled']
           ];
         case 'select':
           $field = $('<select>');

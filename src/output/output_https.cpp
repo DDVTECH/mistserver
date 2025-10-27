@@ -54,9 +54,8 @@ namespace Mist{
     capa["protocol"] = "https://";
     capa["required"]["cert"]["name"] = "Path to certificate";
     capa["required"]["cert"]["help"] =
-      "Path to the (root) certificate(s) file(s) to append to chain. When multiple certificates are used make sure to "
-      "start with the server certificate. All given certificates will be used. Each file may contain one or more "
-      "certificates.";
+      "Path to the file(s) containing certificate chain(s). When multiple chains are used make sure to "
+      "provide their matching keys in the same order.";
     capa["required"]["cert"]["option"] = "--cert";
     capa["required"]["cert"]["short"] = "C";
     capa["required"]["cert"]["default"] = "";
@@ -64,7 +63,8 @@ namespace Mist{
     capa["required"]["cert"]["input"]["type"] = "browse";
 
     capa["required"]["key"]["name"] = "Path to key";
-    capa["required"]["key"]["help"] = "Path to private key for SSL";
+    capa["required"]["key"]["help"] =
+      "Path to private key for SSL. When multiple are used make sure they are in order matching the certificates.";
     capa["required"]["key"]["option"] = "--key";
     capa["required"]["key"]["short"] = "K";
     capa["required"]["key"]["default"] = "";

@@ -1244,13 +1244,7 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
     if (amf_storage.getContentP("stereo")){
       meta.setChannels(reTrack, amf_storage.getContentP("stereo")->NumValue() == 1 ? 2 : 1);
     }
-    if (needsInitData() && isInitData()){
-      meta.setInit(reTrack, getData(), getDataLen());
-      if (meta.getCodec(reTrack) == "AAC"){
-        meta.setRate(reTrack, aac::AudSpecConf::rate(meta.getInit(reTrack)));
-        meta.setChannels(reTrack, aac::AudSpecConf::channels(meta.getInit(reTrack)));
-      }
-    }
+    if (needsInitData() && isInitData()) { meta.setInit(reTrack, getData(), getDataLen()); }
   }
 
   if (data[0] == 0x09 && ((needsInitData() && isInitData()) || !codec.size())){

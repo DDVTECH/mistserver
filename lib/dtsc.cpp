@@ -1,16 +1,19 @@
 /// \file dtsc.cpp
 /// Holds all code for DDVTECH Stream Container parsing/generation.
 
+#include "dtsc.h"
+
+#include "adts.h"
 #include "bitfields.h"
 #include "defines.h"
-#include "dtsc.h"
 #include "encode.h"
+#include "h264.h"
+#include "mp4_generic.h"
 #include "shared_memory.h"
-#include "util.h"
 #include "stream.h"
 #include "timing.h"
-#include "mp4_generic.h"
-#include "h264.h"
+#include "util.h"
+
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -2153,6 +2156,26 @@ namespace DTSC{
         if (iData.fps >= 1 && !t.track.getInt(t.trackFpksField)) {
           t.track.setInt(t.trackFpksField, iData.fps * 1000.0);
         }
+      }
+    }
+    if (codec == "AAC") {
+      setRate(trackIdx, aac::AudSpecConf::rate(std::string(init, initLen)));
+      setChannels(trackIdx, aac::AudSpecConf::channels(std::string(init, initLen)));
+    }
+    if (codec == "opus") {
+      setRate(trackIdx, 48000);
+      setSize(trackIdx, 16);
+      if (initLen >= 10) {
+        setChannels(trackIdx, init[9]);
+      } else {
+        setChannels(trackIdx, 2);
+      }
+    }
+    if (codec == "FLAC") {
+      if (initLen >= 13) {
+        setRate(trackIdx, Bit::btoh24(init + 10) >> 4);
+        setChannels(trackIdx, ((init[12] & 0x0e) >> 1) + 1);
+        setSize(trackIdx, ((init[12] & 0x01) << 4) + ((init[13] & 0xf0) >> 4) + 1);
       }
     }
     if (initLen > t.trackInitField.size){

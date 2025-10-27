@@ -2713,7 +2713,7 @@ namespace Mist{
         JSON::Value & pData = pStat["push_status_update"]["status"];
         pData["mediatime"] = currentTime();
         pData["media_tx"] = (lastPacketTime - lastSeekPos) + totalPlaytime;
-        pData["latency"] = endTime() - currentTime();
+        if (M && buffer.size()) { pData["latency"] = endTime() - currentTime(); }
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
           pData["tracks"].append((uint64_t)it->first);
         }

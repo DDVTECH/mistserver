@@ -120,7 +120,7 @@ namespace Mist{
 
     option["arg"] = "integer";
     option["long"] = "profile";
-    option["short"] = "P";
+    option["short"] = "p";
     option["help"] = "RIST profile (0=Simple, 1=Main)";
     option["value"].append(1);
     config->addOption("profile", option);
@@ -251,7 +251,9 @@ namespace Mist{
   }
 
   bool InputTSRIST::openStreamSource(){
-    if (rist_receiver_create(&receiver_ctx, (rist_profile)config->getInteger("profile"), &log_settings) != 0){
+    int profile = config->getInteger("profile");
+    INFO_MSG("RIST input starting in %s mode", (profile == 1) ? "main" : "simple");
+    if (rist_receiver_create(&receiver_ctx, (rist_profile)profile, &log_settings) != 0) {
       onFail("Failed to create RIST receiver context");
       return false;
     }

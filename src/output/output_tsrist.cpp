@@ -15,6 +15,7 @@ uint64_t upBytes = 0;
 
 namespace Mist{
 
+  std::set<std::string> ristOpts;
 
   struct rist_logging_settings log_settings;
   int rist_log_callback(void *, enum rist_log_level llvl, const char *msg){
@@ -47,6 +48,7 @@ namespace Mist{
   }
 
   static void addIntOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, size_t def = 0){
+    ristOpts.insert(param);
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "int";
@@ -54,6 +56,7 @@ namespace Mist{
   }
 
   static void addStrOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, const std::string & def = ""){
+    ristOpts.insert(param);
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "str";
@@ -61,6 +64,7 @@ namespace Mist{
   }
 
   static void addBoolOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, bool def = false){
+    ristOpts.insert(param);
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "select";
@@ -90,12 +94,20 @@ namespace Mist{
         std::string extraParams = ristURL.substr(ristURL.rfind('?')+1);
         std::map<std::string, std::string> arguments;
         HTTP::parseVars(extraParams, arguments);
-        for (std::map<std::string, std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it){
-          targetParams[it->first] = it->second;
-        }
+        for (auto & it : arguments) { targetParams[it.first] = it.second; }
         ristURL.erase(ristURL.rfind('?'));
       }
       target = HTTP::URL(ristURL);
+      {
+        // Restore all arguments from targetParams
+        std::map<std::string, std::string> arguments;
+        HTTP::parseVars(target.args, arguments);
+        for (auto & it : targetParams) {
+          if (ristOpts.count(it.first)) { arguments[it.first] = it.second; }
+        }
+        target.args = HTTP::argStr(arguments, false);
+        ristURL = target.getUrl();
+      }
       if (target.protocol != "rist"){
         FAIL_MSG("Target %s must begin with rist://, aborting", target.getUrl().c_str());
         onFail("Invalid RIST target: doesn't start with rist://", true);

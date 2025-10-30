@@ -2696,7 +2696,7 @@ namespace DTSC{
       // Limit lowering to max 250ms per step (10% of measurement window size)
       if (maxJitter > weighted + 500) { weighted = maxJitter - 500; }
       maxJitter = (maxJitter + weighted) / 2;
-      INFO_MSG("Average peak %" PRIu64 "ms, highest peak %" PRIu64 "ms, weighted %" PRIu64 "ms. New jitter %" PRIu64
+      HIGH_MSG("Average peak %" PRIu64 "ms, highest peak %" PRIu64 "ms, weighted %" PRIu64 "ms. New jitter %" PRIu64
                "ms",
                totJitter / 8, maxPeak, weighted, maxJitter);
     }

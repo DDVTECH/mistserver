@@ -16,9 +16,9 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <deque>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <signal.h>
 #include <sys/stat.h>
 
@@ -46,7 +46,7 @@ namespace Controller{
   uint64_t firstLog = 0;
 
   HTTP::Downloader jwkDL;
-  std::map<std::string, std::deque<JWT::Key>> jwkResolved;
+  std::map<std::string, std::set<JWT::Key>> jwkResolved;
   std::map<std::string, uint64_t> uriExpiresAt;
   std::map<std::string, std::string> uriEndpoint;
   std::map<std::string, JSON::Value> uriPerms;
@@ -206,7 +206,7 @@ namespace Controller{
           const std::string & kty = (*key)["kty"].asStringRef();
           if (kty != "oct" && kty != "RSA" && kty != "EC") continue;
           JWT::Key jwk = JWT::Key(*key, mostExpiredPerms);
-          jwkResolved[mostExpiredUri].emplace_back(jwk);
+          jwkResolved[mostExpiredUri].insert(jwk);
         }
       } else {
         jwkResolved.erase(mostExpiredUri);
@@ -1021,7 +1021,7 @@ namespace Controller{
           continue;
         }
         JWT::Key jwk = JWT::Key((it->isArray()) ? (*it)[0u] : *it, (it->isArray()) ? (*it)[1u] : JSON::EMPTY);
-        jwkResolved["default"].emplace_back(jwk);
+        jwkResolved["default"].insert(jwk);
       }
 
       // Remove any nulled elements from the keystore and start setting up the shared page

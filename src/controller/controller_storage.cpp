@@ -1056,14 +1056,14 @@ namespace Controller{
       std::map<std::string, uint32_t> uniques;
 
       // For each key in the storage write it to shared memory if it was present in the config
-      for (auto jwkUriPair : jwkResolved) {
+      for (const auto & jwkUriPair : jwkResolved) {
         // Erase the keys if the config does not have the URI anymore
         if (!uris.count(jwkUriPair.first) && jwkUriPair.first != "default") {
           uriExpiresAt.erase(jwkUriPair.first);
           uriPerms.erase(jwkUriPair.first);
           continue;
         }
-        for (auto jwk : jwkUriPair.second) {
+        for (const auto & jwk : jwkUriPair.second) {
           std::string raw = jwk.toString(false);
           // Duplicate prevention based on full key matching
           uint32_t j = i;

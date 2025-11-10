@@ -38,6 +38,14 @@ static int cert_callback(void *p_info, mbedtls_ssl_context *ssl, const unsigned 
           found = true;
           break;
         }
+        if (cur->buf.len && cur->buf.p[0] == '*' && sniName.size() >= cur->buf.len) {
+          if (sniName.substr(sniName.size() - (cur->buf.len - 1)) == std::string((char *)cur->buf.p + 1, cur->buf.len - 1)) {
+            if (sniName.substr(0, sniName.size() - (cur->buf.len - 1)).find('.') == std::string::npos) {
+              found = true;
+              break;
+            }
+          }
+        }
         cur = cur->next;
       }
       if (!found) { continue; }
@@ -49,7 +57,9 @@ static int cert_callback(void *p_info, mbedtls_ssl_context *ssl, const unsigned 
     return r;
   }
   WARN_MSG("Could not find matching certificate for %s; using default certificate instead", sniName.c_str());
-  return 0;
+  int r = mbedtls_ssl_set_hs_own_cert(ssl, &(srvcerts.begin()->crt), &(srvcerts.begin()->key));
+  if (r) { WARN_MSG("Could not set certificate!"); }
+  return r;
 }
 
 const char * trackType(char ID){

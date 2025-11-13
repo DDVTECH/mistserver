@@ -74,14 +74,13 @@ namespace Comms{
     pid = dataAccX.getFieldAccX("pid");
   }
 
-  size_t Comms::recordCount() const{
-    if (!master){return index + 1;}
-    return dataAccX.getPresent();
+  size_t Comms::recordCount() const {
+    return dataAccX.getEndPos();
   }
 
   void Comms::setRecordCount(size_t idx, size_t prevCount){
     IPC::semGuard G(&sem);
-    if (dataAccX.getPresent() <= prevCount){dataAccX.setPresent(idx);}
+    if (dataAccX.getEndPos() <= prevCount) { dataAccX.setEndPos(idx); }
   }
 
   uint8_t Comms::getStatus() const{return status.uint(index);}
@@ -148,6 +147,7 @@ namespace Comms{
         fieldAccess();
         size_t reqCount = (currentSize - dataAccX.getOffset()) / dataAccX.getRSize();
         dataAccX.setRCount(reqCount);
+        dataAccX.setEndPos(1);
         dataAccX.setPresent(0);
         dataAccX.setReady();
       }
@@ -173,8 +173,8 @@ namespace Comms{
           if (getStatus() != COMM_STATUS_INVALID){continue;}
           nullFields();
           setStatus(COMM_STATUS_ACTIVE | defaultCommFlags);
-          // Update present counter if/as needed
-          if (dataAccX.getPresent() < index+1){dataAccX.setPresent(index+1);}
+          // Update endPos if/as needed
+          if (dataAccX.getEndPos() <= index) { dataAccX.setEndPos(index + 1); }
           break;
         }
       }

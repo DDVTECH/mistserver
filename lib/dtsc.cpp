@@ -2787,6 +2787,8 @@ namespace DTSC{
     }
     t.parts.addRecords(1);
 
+    if (getType(tNumber) == "video" && t.fpsCalc.addTime(packTime)) { setEfpks(tNumber, t.fpsCalc.fpks); }
+
     uint64_t newKeyNum = t.keys.getEndPos();
     if (isKeyframe || newKeyNum == 0 ||
         (getType(tNumber) != "video" && packTime >= AUDIO_KEY_INTERVAL &&
@@ -2809,9 +2811,9 @@ namespace DTSC{
         // Update duration of previous key too
         uint64_t prevKeyDuration = packTime - t.keys.getInt(t.keyTimeField, newKeyNum - 1);
         t.keys.setInt(t.keyDurationField, prevKeyDuration, newKeyNum - 1);
-        if (prevKeyDuration) {
-          setEfpks(tNumber, (t.keys.getInt(t.keyPartsField, newKeyNum - 1) * 1000000) / prevKeyDuration);
-        }
+        // if (prevKeyDuration) {
+        //   setEfpks(tNumber, (t.keys.getInt(t.keyPartsField, newKeyNum - 1) * 1000000) / prevKeyDuration);
+        // }
       }else{
         t.keys.setInt(t.keyFirstPartField, 0, newKeyNum);
       }
@@ -2963,6 +2965,78 @@ namespace DTSC{
     return k;
   }
 
+  frameRateCalculator::frameRateCalculator() {
+    dataPoints = 0;
+    fpks = 0;
+  }
+
+  /// Calculates fpks based on frame timings. Returns true whenever the (estimated) frame rate changes.
+  bool frameRateCalculator::addTime(uint64_t t) {
+    // We want 0.01 FPS precision around 30 and 60 FPS
+    // We want 0.1 FPS precision everywhere else under 500 FPS
+    // We want 1 FPS precision over 1000 FPS.
+    // To calculate the needed frames for our wanted precision: (rate^2) / 5
+    // (or use 50 instead of 5 for 0.1 FPS, or 500 instead of 5 for 1 FPS)
+
+    // Ensure 5k data points fit: this is needed for 0.1 FPS precision at 500 FPS, our theoretical maximum wanted precision.
+    if (data.size() < sizeof(uint64_t) * 5000) {
+      data.allocate(sizeof(uint64_t) * 5000);
+      data.append(0, data.rsize() - data.size());
+    }
+
+    uint64_t *times = (uint64_t *)(char *)data;
+
+    // Ensure time never stalls or flows backwards. This is technically wrong, but we can't do any calculations otherwise.
+    if (dataPoints && times[(dataPoints - 1) % 5000] >= t) { return false; }
+
+    times[dataPoints % 5000] = t;
+    ++dataPoints;
+
+    if (dataPoints <= 1) { return false; }
+
+    // Seed the fpks for the initial calculation (single-frame estimate)
+    if (!fpks) { fpks = 1000000 * (dataPoints - 1) / (t - times[0]); }
+
+    // Calculate how many frames we need to be precise
+    size_t fps = fpks / 1000; // round to whole FPS
+    size_t neededFrames = (fps * fps) / ((fps < 65) ? 5 : ((fps < 500) ? 50 : 500));
+    if (neededFrames < 2) { neededFrames = 2; }
+
+    // Less than needed frames? Update current estimate based on received frames so far.
+    if (dataPoints < neededFrames) {
+      uint64_t fpksOld = fpks;
+      fpks = 1000000 * (dataPoints - 1) / (t - times[0]);
+      if (fpks != fpksOld) {
+        DONTEVEN_MSG("FPS calculation %zu%%: %" PRIu64 " fpks", (size_t)(dataPoints * 100 / neededFrames), fpks);
+      }
+      return false;
+    }
+
+    // Okay, we know we have a frame rate with the precision we want.
+    // Reduce the shown decimals to our precision level, since we don't want to make it look like there is more
+    // precision than there actually is.
+    uint64_t fpksOld = fpks;
+    fpks = 1000000 * (neededFrames - 1) / (t - times[(dataPoints - neededFrames) % 5000]);
+    if (fps < 65) {
+      fpks = (uint64_t)((fpks + 5) / 10) * 10;
+    } else if (fps < 500) {
+      fpks = (uint64_t)((fpks + 50) / 100) * 100;
+    } else {
+      fpks = (uint64_t)((fpks + 500) / 1000) * 1000;
+    }
+    if (!precise) {
+      precise = true;
+      HIGH_MSG("Frame rate calculated: %" PRIu64 " fpks", fpks);
+      return true;
+    }
+    if (fpksOld != fpks) {
+      MEDIUM_MSG("Frame rate change: %" PRIu64 " -> %" PRIu64 " fpks", fpksOld, fpks);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   void Meta::storeFrame(size_t trackIdx, uint64_t time, const char * data, size_t dataSize){
     Track & t = tracks.at(trackIdx);
 
@@ -2989,7 +3063,6 @@ namespace DTSC{
       t.frames.deleteRecords(1);
       setFirstms(trackIdx, t.frames.getInt(t.framesTimeField, t.frames.getDeleted()));
     }
-    uint64_t begPos = t.frames.getDeleted();
     t.frames.setInt(t.framesTimeField, time, endPos);
     if (t.framesDataField.size < dataSize){dataSize = t.framesDataField.size;}
     memcpy(t.frames.getPointer(t.framesDataField, endPos), data, dataSize);
@@ -2998,9 +3071,7 @@ namespace DTSC{
     setMinKeepAway(trackIdx, theJitters[trackIdx].addPack(time));
     t.track.setInt(t.trackLastmsField, time);
     t.track.setInt(t.trackNowmsField, time);
-    if (begPos != endPos) {
-      t.track.setInt(t.trackEfpksField, 1000000 * (endPos - begPos) / (time - t.frames.getInt(t.framesTimeField, begPos)));
-    }
+    if (t.fpsCalc.addTime(time)) { t.track.setInt(t.trackEfpksField, t.fpsCalc.fpks); }
     markUpdated(trackIdx);
   }
 

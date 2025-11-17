@@ -191,6 +191,16 @@ namespace DTSC{
     const Util::RelAccX &fragments;
   };
 
+  class frameRateCalculator {
+    public:
+      frameRateCalculator();
+      bool addTime(uint64_t t);
+      size_t dataPoints;
+      Util::ResizeablePointer data;
+      uint64_t fpks;
+      bool precise;
+  };
+
   class Track{
   public:
     Util::RelAccX track;
@@ -199,6 +209,8 @@ namespace DTSC{
     Util::RelAccX fragments;
     Util::RelAccX pages;
     Util::RelAccX frames;
+
+    frameRateCalculator fpsCalc;
 
     // Internal buffers so we don't always need to search for everything
     Util::RelAccXFieldData trackIdField;

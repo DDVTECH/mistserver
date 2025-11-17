@@ -148,7 +148,9 @@ namespace Mist{
 
   void OutDTSC::sendNext(){
     DTSC::Packet p(thisPacket, thisIdx+1);
+    myConn.setBlocking(true);
     myConn.SendNow(p.getData(), p.getDataLen());
+    myConn.setBlocking(false);
     lastActive = Util::epoch();
     // If selectable tracks changed, set sentHeader to false to force it to send init data
     static uint64_t lastMeta = 0;

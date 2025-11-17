@@ -588,15 +588,17 @@ namespace Mist{
 
     //Fast_forward command, fast-forwards to given timestamp and resume previous speed
     if (command["type"] == "fast_forward"){
-      if (command.isMember("ff_to")){
-        forwardTo = command["ff_to"].asInt();
+      forwardTo = 0;
+      if (command.isMember("ff_add")) { forwardTo = currentTime() + command["ff_add"].asInt(); }
+      if (command.isMember("ff_to")) { forwardTo = command["ff_to"].asInt(); }
+      if (forwardTo) {
         if (forwardTo > currentTime()){
           realTime = 0;
         }else{
           resetTiming(forwardTo);
           forwardTo = 0;
         }
-      }else{
+      } else {
         JSON::Value r;
         r["type"] = "warning";
         r["warning"] = "Ignored fast_forward command: ff_to property missing";
@@ -672,6 +674,18 @@ namespace Mist{
           // On resume, restore the timing to be where it was when pausing
           // We don't know? Guess.
           resetTiming(lastPacketTime ? lastPacketTime : currentTime());
+        }
+        if (command.isMember("ff_add")) {
+          if (!forwardTo) { forwardTo = currentTime(); }
+          forwardTo += command["ff_add"].asInt();
+        }
+        if (forwardTo) {
+          if (forwardTo < currentTime()) {
+            resetTiming(forwardTo);
+            forwardTo = 0;
+          } else {
+            realTime = 0;
+          }
         }
       }
       return true;
@@ -886,6 +900,12 @@ namespace Mist{
       if (command.isMember("ff_to") && command["ff_to"].asInt() > forwardTo){
         forwardTo = command["ff_to"].asInt();
       }
+    }
+    if (command.isMember("ff_add")) {
+      if (!forwardTo) { forwardTo = seek_time; }
+      forwardTo += command["ff_add"].asInt();
+    }
+    if (forwardTo) {
       if (forwardTo < currentTime()){
         resetTiming(forwardTo);
         forwardTo = 0;
@@ -893,7 +913,9 @@ namespace Mist{
         realTime = 0;
         r["data"]["play_rate_curr"] = "fast-forward";
       }
+      r["data"]["ff_to"] = forwardTo;
     }
+    r["data"]["pos"] = currentTime();
     onCommandSend(r.toString());
     handleWebsocketIdle();
     onIdle();

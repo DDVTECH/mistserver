@@ -3754,6 +3754,7 @@ namespace DTSC{
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
       size_t i = *it;
       const std::string trkIdent = getTrackIdentifier(i, true);
+      const size_t srcTrk = getSourceTrack(i);
       JSON::Value & track = retRef[trkIdent];
       trkLst.append(trkIdent);
       track["idx"] = *it;
@@ -3764,53 +3765,75 @@ namespace DTSC{
       std::string type = getType(i);
       track["kbits"] = getBps(i) * 8 / 1024;
       track["codec"] = codec;
-      uint32_t shrtest_key = 0xFFFFFFFFul;
-      uint32_t longest_key = 0;
-      uint32_t shrtest_prt = 0xFFFFFFFFul;
-      uint32_t longest_prt = 0;
-      uint32_t shrtest_cnt = 0xFFFFFFFFul;
-      uint32_t longest_cnt = 0;
-      DTSC::Keys Mkeys(getKeys(i));
-      uint32_t firstKey = Mkeys.getFirstValid();
-      uint32_t endKey = Mkeys.getEndValid();
-      for (uint32_t k = firstKey; k+1 < endKey; k++){
-        uint64_t kDur = Mkeys.getDuration(k);
-        uint64_t kParts = Mkeys.getParts(k);
-        if (!kDur){continue;}
-        if (kDur > longest_key){longest_key = kDur;}
-        if (kDur < shrtest_key){shrtest_key = kDur;}
-        if (kParts > longest_cnt){longest_cnt = kParts;}
-        if (kParts < shrtest_cnt){shrtest_cnt = kParts;}
-        if ((kDur / kParts) > longest_prt){longest_prt = (kDur / kParts);}
-        if ((kDur / kParts) < shrtest_prt){shrtest_prt = (kDur / kParts);}
+      if (hasEmbeddedFrames(*it)) {
+        uint32_t shrtest_prt = 0xFFFFFFFFul;
+        uint32_t longest_prt = 0;
+        DTSC::Keys Mkeys(getKeys(i));
+        uint32_t firstKey = Mkeys.getFirstValid();
+        uint32_t endKey = Mkeys.getEndValid();
+        uint64_t prevTime = 0;
+        for (uint32_t k = firstKey; k + 1 < endKey; k++) {
+          uint64_t kTime = Mkeys.getTime(k);
+          if (k != firstKey) {
+            uint32_t dur = kTime - prevTime;
+            if (dur > longest_prt) { longest_prt = dur; }
+            if (dur < shrtest_prt) { shrtest_prt = dur; }
+          }
+          prevTime = kTime;
+        }
+        track["keys"]["ms_min"] = shrtest_prt;
+        track["keys"]["ms_max"] = longest_prt;
+        track["keys"]["frame_ms_min"] = shrtest_prt;
+        track["keys"]["frame_ms_max"] = longest_prt;
+        track["keys"]["frames_min"] = 1;
+        track["keys"]["frames_max"] = 1;
+      } else {
+        uint32_t shrtest_key = 0xFFFFFFFFul;
+        uint32_t longest_key = 0;
+        uint32_t shrtest_prt = 0xFFFFFFFFul;
+        uint32_t longest_prt = 0;
+        uint32_t shrtest_cnt = 0xFFFFFFFFul;
+        uint32_t longest_cnt = 0;
+        DTSC::Keys Mkeys(getKeys(i));
+        uint32_t firstKey = Mkeys.getFirstValid();
+        uint32_t endKey = Mkeys.getEndValid();
+        for (uint32_t k = firstKey; k + 1 < endKey; k++) {
+          uint64_t kDur = Mkeys.getDuration(k);
+          uint64_t kParts = Mkeys.getParts(k);
+          if (!kDur) { continue; }
+          if (kDur > longest_key) { longest_key = kDur; }
+          if (kDur < shrtest_key) { shrtest_key = kDur; }
+          if (kParts > longest_cnt) { longest_cnt = kParts; }
+          if (kParts < shrtest_cnt) { shrtest_cnt = kParts; }
+          if ((kDur / kParts) > longest_prt) { longest_prt = (kDur / kParts); }
+          if ((kDur / kParts) < shrtest_prt) { shrtest_prt = (kDur / kParts); }
+        }
+        track["keys"]["ms_min"] = shrtest_key;
+        track["keys"]["ms_max"] = longest_key;
+        track["keys"]["frame_ms_min"] = shrtest_prt;
+        track["keys"]["frame_ms_max"] = longest_prt;
+        track["keys"]["frames_min"] = shrtest_cnt;
+        track["keys"]["frames_max"] = longest_cnt;
+        if (srcTrk == INVALID_TRACK_ID) {
+          if (jitter < minKeep) { jitter = minKeep; }
+          if (longest_prt > 500) { issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! "; }
+          if (shrtest_cnt < 6) {
+            issues << "unstable connection (" << shrtest_cnt << " " << codec << " frame(s) in key)! ";
+          }
+          if (longest_key > shrtest_key * 1.30) {
+            issues << "unstable key interval (" << (uint32_t)(((longest_key / shrtest_key) - 1) * 100) << "% " << codec << " variance)! ";
+          }
+        }
       }
-      track["keys"]["ms_min"] = shrtest_key;
-      track["keys"]["ms_max"] = longest_key;
-      track["keys"]["frame_ms_min"] = shrtest_prt;
-      track["keys"]["frame_ms_max"] = longest_prt;
-      track["keys"]["frames_min"] = shrtest_cnt;
-      track["keys"]["frames_max"] = longest_cnt;
-      uint64_t trBuffer = getLastms(i) - getFirstms(i);
-      track["buffer"] = trBuffer;
-      size_t srcTrk = getSourceTrack(i);
       if (srcTrk != INVALID_TRACK_ID){
         if (trackValid(srcTrk)){
           track["source"] = getTrackIdentifier(srcTrk);
         }else{
           track["source"] = "Invalid track " + JSON::Value((uint64_t)srcTrk).asString();
         }
-      }else{
-        if (jitter < minKeep){jitter = minKeep;}
-        if (longest_prt > 500){
-          issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! ";
-        }
-        if (shrtest_cnt < 6){
-          issues << "unstable connection (" << shrtest_cnt << " " << codec << " frame(s) in key)! ";
-        }
-        if (longest_key > shrtest_key*1.30){
-          issues << "unstable key interval (" << (uint32_t)(((longest_key/shrtest_key)-1)*100) << "% " << codec << " variance)! ";
-        }
       }
+      uint64_t trBuffer = getLastms(i) - getFirstms(i);
+      track["buffer"] = trBuffer;
       if (buffer < trBuffer){buffer = trBuffer;}
       if (codec == "AAC"){hasAAC = true;}
       if (codec == "H264"){hasH264 = true;}

@@ -35,6 +35,7 @@ extern "C" {
 
 bool allowHW = true;
 bool allowSW = true;
+bool autoUpdateFps = false;
 
 Util::Config co;
 Util::Config conf;
@@ -202,6 +203,9 @@ namespace Mist{
           bufferLivePacket(thisTime, 0, thisIdx, ptr, ptr.size(), 0, true);
         }
       }
+      if (autoUpdateFps) {
+        if (inFpks != M.getFpks(thisIdx)) { meta.setFpks(thisIdx, inFpks); }
+      }
     }
 
     /// \brief Outputs buffer as audio
@@ -313,7 +317,12 @@ namespace Mist{
           meta.setID(trkIdx, 1);
           meta.setWidth(trkIdx, frameConverted->width);
           meta.setHeight(trkIdx,  frameConverted->height);
-          meta.setFpks(trkIdx, inFpks);
+          if (opt.isMember("framerate") && opt["framerate"].asDouble()) {
+            meta.setFpks(trkIdx, opt["framerate"].asDouble() * 1000);
+          } else {
+            meta.setFpks(trkIdx, inFpks);
+            autoUpdateFps = true;
+          }
           meta.setInit(trkIdx, (char*)context_out->extradata, context_out->extradata_size);
           if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
             userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
@@ -364,7 +373,12 @@ namespace Mist{
           if (avccBox.payloadSize()){meta.setInit(trkIdx, avccBox.payload(), avccBox.payloadSize());}
           meta.setWidth(trkIdx, sps.chars.width);
           meta.setHeight(trkIdx, sps.chars.height);
-          meta.setFpks(trkIdx, inFpks);
+          if (opt.isMember("framerate") && opt["framerate"].asDouble()) {
+            meta.setFpks(trkIdx, opt["framerate"].asDouble() * 1000);
+          } else {
+            autoUpdateFps = true;
+            meta.setFpks(trkIdx, inFpks);
+          }
           if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
             userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
           }
@@ -391,7 +405,12 @@ namespace Mist{
         meta.setID(trkIdx, 1);
         meta.setWidth(trkIdx, frameConverted->width);
         meta.setHeight(trkIdx,  frameConverted->height);
-        meta.setFpks(trkIdx, inFpks);
+        if (opt.isMember("framerate") && opt["framerate"].asDouble()) {
+          meta.setFpks(trkIdx, opt["framerate"].asDouble() * 1000);
+        } else {
+          autoUpdateFps = true;
+          meta.setFpks(trkIdx, inFpks);
+        }
         if (trkIdx != INVALID_TRACK_ID && !userSelect.count(trkIdx)){
           userSelect[trkIdx].reload(streamName, trkIdx, COMM_STATUS_ACTSOURCEDNT);
         }
@@ -577,9 +596,13 @@ namespace Mist{
       }
 
       uint64_t targetFPKS = M.getFpks(getMainSelectedTrack());
-      if (!targetFPKS){
-        WARN_MSG("No FPS set, assuming 60 FPS for the encoder.");
-        targetFPKS = 60000;
+      if (opt.isMember("framerate") && opt["framerate"].asDouble()) { targetFPKS = opt["framerate"].asDouble() * 1000; }
+      if (!targetFPKS) {
+        targetFPKS = M.getEfpks(getMainSelectedTrack());
+        if (!targetFPKS) {
+          WARN_MSG("No FPS set, assuming 60 FPS for the encoder.");
+          targetFPKS = 60000;
+        }
       }
       uint64_t reqWidth = M.getWidth(getMainSelectedTrack());
       uint64_t reqHeight = M.getHeight(getMainSelectedTrack());
@@ -783,8 +806,9 @@ namespace Mist{
         INFO_MSG("%s encoder initted", codecOut.c_str());
       }
 
-      if (!inFpks){
+      if (!inFpks) {
         inFpks = M.getFpks(thisIdx);
+        if (!inFpks) { inFpks = M.getEfpks(thisIdx); }
       }
     }
 
@@ -1782,6 +1806,9 @@ namespace Mist{
         uint64_t transformTime = Util::getMicros();
         totalDecode += decodeTime - startTime;
         totalTransform += transformTime - decodeTime;
+
+        inFpks = M.getFpks(thisIdx);
+        if (!inFpks) { inFpks = M.getEfpks(thisIdx); }
       } else {
         if (!configAudioDecoder()){ return; }
         // Since PCM has a 'codec' in LibAV, handle all decoding using the generic function
@@ -2123,6 +2150,13 @@ int main(int argc, char *argv[]){
     capa["optional"]["resolution"]["default"] = "keep source resolution";
     capa["optional"]["resolution"]["sort"] = "c";
     capa["optional"]["resolution"]["dependent"]["x-LSP-kind"] = "video";
+
+    capa["optional"]["framerate"]["name"] = "Frame rate";
+    capa["optional"]["framerate"]["help"] = "Declared frame rate of target stream, copy input frame rate if unset";
+    capa["optional"]["framerate"]["type"] = "str";
+    capa["optional"]["framerate"]["default"] = "";
+    capa["optional"]["framerate"]["sort"] = "ca";
+    capa["optional"]["framerate"]["dependent"]["x-LSP-kind"] = "video";
 
     /* gopsize field for any video codec: */
     capa["optional"]["gopsize"][0u]["name"] = "GOP Size";

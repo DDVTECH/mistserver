@@ -574,7 +574,10 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
       } else {
         aConn->authorized |= authorize(Request, Response, aConn->C);
       }
-      if (aConn->authorized) { handleAPICommands(Request, Response); }
+      if (aConn->authorized) {
+        handleAPICommands(Request, Response);
+        if (Request.isMember("logout")) { aConn->authorized = false; }
+      }
     } // config mutex lock
     if (!aConn->authorized) { aConn->attempts++; }
     // send the response, either normally or through JSONP callback.

@@ -9045,8 +9045,11 @@ context_menu: function(){
         mist.data = {};
         UI.sockets.http_host = null;
         sessionStorage.removeItem('mistLogin');
+
+        mist.send(function(){
+          UI.navto('Login');
+        },{logout:true});
         
-        UI.navto('Login');
         break;
       default:
         $main.append($('<p>').text('This tab does not exist.'));

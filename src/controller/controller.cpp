@@ -522,7 +522,8 @@ int main_loop(int argc, char **argv){
           Response["authorize"]["local"] = true;
           Controller::handleAPICommands(Request, Response);
           Response.removeMember("authorize");
-          uSock.SendNow(Response.toString());
+          // Only reply if the request does not come from our own port (prevent loops)
+          if (uSock.getRemoteAddr().port() != boundPort) { uSock.SendNow(Response.toString()); }
         } else {
           WARN_MSG("Invalid API command received over UDP: %s", (const char *)uSock.data);
         }

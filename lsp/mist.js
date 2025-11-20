@@ -7677,7 +7677,7 @@ context_menu: function(){
         function buildTheThings(edit,editid) {
           var o = other.split("_");
           other = o[0];
-          if (o.length == 2) { editid = o[1]; }
+          if (o.length >= 2) { editid = o.slice(1).join("_"); }
           
           if ((typeof editid != "undefined") && (typeof edit == "undefined")) {
             mist.send(function(d){

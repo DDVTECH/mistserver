@@ -582,6 +582,12 @@ namespace Controller{
       capa.removeMember("mem");
       capa["mem"]["used"] = memUsed;
       capa["mem"]["cached"] = bufcache;
+      capa["mem"]["free"] = memFree;
+      capa["mem"]["total"] = memTotal;
+      capa["mem"]["swapfree"] = swapFree;
+      capa["mem"]["swaptotal"] = swapTotal;
+      capa["mem"]["shmfree"] = shmFree;
+      capa["mem"]["shmtotal"] = shmTotal;
 
       capa.removeMember("load");
       capa["load"]["mem"] = memK / 10.0;

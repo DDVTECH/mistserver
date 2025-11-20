@@ -1086,6 +1086,28 @@ table button {
   position: absolute;
   right: 0.5em;
 }
+
+div.bargraph {
+  display: flex;
+  flex-flow: row nowrap;
+  border: 1px solid var(--secondaryBackgroundColor);
+  background-color: var(--tertiaryBackgroundColor);
+  height: 2em;
+  line-height: 2em;
+
+  &> * {
+    min-width: 0;
+    text-align: center;
+
+    &.used {
+      background-color: var(--accentColor);
+    }
+    &.cached {
+      background-color: var(--accentColorDark);
+    }
+  }
+}
+
 #tooltip, .context_menu {
   position: absolute;
   display: none;

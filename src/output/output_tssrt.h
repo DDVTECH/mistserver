@@ -24,6 +24,7 @@ namespace Mist{
     virtual std::string getConnectedBinHost(){return srtConn?srtConn->getBinHost():"";}
     virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
   private:
+    virtual bool isRecording();
     HTTP::URL target;
     int64_t timeStampOffset;
     uint64_t lastTimeStamp;

@@ -97,7 +97,11 @@ int generateChildAddressInRange(Socket::Address & newLocalAddrStr) {
 }
 #endif
 
-namespace Mist{
+namespace Mist {
+  bool OutTSSRT::isRecording() {
+    return !getenv("IS_PROTOCOL_PORT") && config->getString("target").size();
+  }
+
   OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection * _srtSock) : TSOutput(conn){
     closeMyConn();
     srtConn = _srtSock;
@@ -780,6 +784,7 @@ namespace Mist{
       conf.getOption("port", true).append((uint64_t)tgt.getPort());
       conf.getOption("target", true).append("");
     }else{
+      setenv("IS_PROTOCOL_PORT", "1", 1);
       HTTP::parseVars(conf.getString("sockopts"), arguments);
       std::string opt = conf.getString("passphrase");
       if (opt.size()){arguments["passphrase"] = opt;}
@@ -896,5 +901,4 @@ namespace Mist{
     if (conf.is_restarting) { stashProxyList(udpSrv, proxyConnections); }
 #endif
   }
-}// namespace Mist
-
+} // namespace Mist

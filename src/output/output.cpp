@@ -2703,7 +2703,7 @@ namespace Mist{
     uint64_t now = thisBootMs / 1000;
     if (now <= lastStats && !force){return;}
 
-    if (isRecording() && DTSC::trackValidMask != TRACK_VALID_INT_PROCESS) {
+    if (isRecording()) {
       if (lastPushUpdate + 5 <= now){
         JSON::Value pStat;
         pStat["push_status_update"]["id"] = getpid();

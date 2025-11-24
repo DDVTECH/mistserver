@@ -205,17 +205,14 @@ namespace SDP{
         mediaDesc << "m=audio " << port << " RTP/AVP 11"
                   << "\r\n";
       }else{
-        mediaDesc << "m=audio " << port << " RTP/AVP 103"
-                  << "\r\n";
-        mediaDesc << "a=rtpmap:103 L" << M.getSize(tid) << "/" << M.getRate(tid) << "/"
-                  << M.getChannels(tid) << "\r\n";
+        mediaDesc << "m=audio " << port << " RTP/AVP 103" << "\r\n";
+        mediaDesc << "a=rtpmap:103 L" << M.getSize(tid) << "/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n";
       }
       mediaDesc << "a=control:track" << tid << "\r\n";
     }else if (codec == "opus"){
-      mediaDesc << "m=audio " << port << " RTP/AVP 102"
-                << "\r\n"
-                   "a=rtpmap:102 opus/"
-                << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n"
+      mediaDesc << "m=audio " << port << " RTP/AVP 102" << "\r\n"
+                << "a=rtpmap:102 opus/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n"
+                << "a=fmtp:102 stereo=1; sprop-stereo=1;\r\n"
                 << "a=control:track" << tid << "\r\n";
     } else if (codec == "AV1") {
       mediaDesc << "m=video " << port

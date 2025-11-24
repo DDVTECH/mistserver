@@ -1006,7 +1006,7 @@ namespace SDP{
         }
         o << "a=fmtp:" << mFmt->payloadType << " profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1\r\n";
       } else if (mFmt->encodingName == "OPUS") {
-        o << "a=fmtp:" << mFmt->payloadType << " minptime=10;useinbandfec=1\r\n";
+        o << "a=fmtp:" << mFmt->payloadType << " minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;\r\n";
       }
       //hacky way of adding sdes:mid extension line
       if (isVideoEnabled && isAudioEnabled){

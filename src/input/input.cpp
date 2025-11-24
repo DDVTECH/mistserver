@@ -233,9 +233,9 @@ namespace Mist{
     option["short"] = "r";
     option["help"] = "Feed the results of this input in realtime to the buffer";
     config->addOption("realtime", option);
-    capa["optional"]["realtime"]["name"] = "Simulated Live";
-    capa["optional"]["realtime"]["help"] = "Make this input run as a simulated live stream";
-    capa["optional"]["realtime"]["option"] = "--realtime";
+    capa["internal"]["realtime"]["name"] = "Simulated Live";
+    capa["internal"]["realtime"]["help"] = "Make this input run as a simulated live stream";
+    capa["internal"]["realtime"]["option"] = "--realtime";
 
     option.null();
     option["short"] = "P";

@@ -688,6 +688,19 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
       if (!prm->isMember("type") && str_args.count(opt)){str_args[opt] = "";}
     }
   }
+  // check internal parameters
+  if (input.isMember("internal")) {
+    jsonForEachConst (input["internal"], prm) {
+      if (!prm->isMember("option")) { continue; }
+      const std::string opt = (*prm)["option"].asStringRef();
+      // check for overrides
+      if (overrides.count(prm.key())) {
+        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
+        str_args[opt] = overrides.at(prm.key());
+      }
+      if (!prm->isMember("type") && str_args.count(opt)) { str_args[opt] = ""; }
+    }
+  }
 
   if (isProvider){
     // Set environment variable so we can know if we have a provider when re-exec'ing.

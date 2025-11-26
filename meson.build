@@ -101,6 +101,10 @@ if get_option('NOLLHLS')
   option_defines += '-DNOLLHLS=1'
 endif
 
+if get_option('DOCKERRUN')
+  option_defines += '-DDOCKERRUN'
+endif
+
 # End of options
 
 message('Building release @0@ for version @1@ @ debug level @2@'.format(release, version, get_option('DEBUG')))

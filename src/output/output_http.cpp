@@ -347,9 +347,8 @@ namespace Mist{
           }
           fwdHostStr.clear();
         }else{
-          Socket::Connection tmp;
-          tmp.setHost(fwdHostStr);
-          fwdHostBin = tmp.getBinHost();
+          std::deque<Socket::Address> addrs = Socket::getAddrs(fwdHostStr, 0);
+          if (addrs.size()) { fwdHostBin = addrs.begin()->binForm(); }
         }
       }
 

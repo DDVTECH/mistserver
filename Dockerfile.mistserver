@@ -5,7 +5,7 @@ ADD . /src/
 
 ARG OUTPUT_DBG
 
-RUN mkdir /build/; cd /build; meson setup /src -Dlibrist:default_library=static -Dmbedtls:default_library=static -DDEBUG=3 -Dstrip=true; ninja install; if [ -n ${OUTPUT_DBG+x} ]; then tar cf - /build /src | pigz -6 | curl --upload-file - ${OUTPUT_DBG} ; fi
+RUN mkdir /build/; cd /build; meson setup /src -DDOCKERRUN=true -Dlibrist:default_library=static -Dmbedtls:default_library=static -DDEBUG=3 -Dstrip=true; ninja install; if [ -n "${OUTPUT_DBG+x}" ]; then tar cf - /build /src | pigz -6 | curl --upload-file - "${OUTPUT_DBG}" ; fi
 
 FROM alpine
 RUN apk add --no-cache libstdc++

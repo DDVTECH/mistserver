@@ -127,6 +127,10 @@ if ccpp.has_header('execinfo.h')
   option_defines += '-DHASEXECINFO'
 endif
 
+if ccpp.has_header('sys/wait.h')
+  option_defines += '-DHASSYSWAIT'
+endif
+
 if usessl
   mbedtls = ccpp.find_library('mbedtls', required: false)
   mbedx509 = ccpp.find_library('mbedx509', required: false)

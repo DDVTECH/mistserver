@@ -36,6 +36,7 @@ unsigned long long Bit::getMSB(char *pointer, unsigned int offsetBits, unsigned 
 /// WARNING: UNFINISHED. DO NOT USE.
 /// \todo Finish writing this - untested atm.
 void Bit::setMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits, unsigned long long value){
+  WARN_MSG("setMSB is unfinished");
   // Set the pointer to the last byte we need to be setting
   pointer += (offsetBits + dataBits) >> 3;
   // The offset is now guaranteed less than a whole byte.

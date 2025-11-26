@@ -371,15 +371,27 @@ namespace Mist{
     if (mistPath.size()){fullURL = mistPath;}
     std::string uAgent = req.GetHeader("User-Agent");
 
-    std::string forceType = "";
-    if (req.GetVar("forcetype").size()){
-      forceType = ",forceType:\"" + req.GetVar("forcetype") + "\"";
-    }
+    JSON::Value opts;
+    opts["host"] = fullURL.getUrl();
+    opts["urlappend"] = req.allVars();
+    opts["fillSpace"] = true;
 
-    std::string devSkin = "";
-    if (req.GetVar("dev").size()){devSkin = ",skin:\"dev\"";}
-    devSkin += ",urlappend:\"" + req.allVars() + "\"";
-    H.SetVar("stream", streamName);
+    // These parameters are checked if they are passed at all (unset is also accepted)
+    // This check works by comparing the global unset empty string pointer against the variables string pointer:
+    // If they match, it was not passed at all. If they mismatch, it was passed either with or without a value.
+    if (req.GetVar("dev").data() != req.GetVar("").data()) { opts["skin"] = "dev"; }
+    if (req.GetVar("muted").data() != req.GetVar("").data()) { opts["muted"] = true; }
+    if (req.GetVar("nounix").data() != req.GetVar("").data()) { opts["useDateTime"] = false; }
+    if (req.GetVar("nocatchup").data() != req.GetVar("").data()) { opts["liveCatchup"] = false; }
+
+    // These parameters must have a non-empty value set to take effect
+    if (req.GetVar("forceType").size()) { opts["forceType"] = req.GetVar("forceType"); }
+    if (req.GetVar("forcetype").size()) { opts["forceType"] = req.GetVar("forcetype"); }
+    if (req.GetVar("forcePlayer").size()) { opts["forcePlayer"] = req.GetVar("forcePlayer"); }
+    if (req.GetVar("forceplayer").size()) { opts["forcePlayer"] = req.GetVar("forceplayer"); }
+    if (req.GetVar("autoplay").size()) {
+      if ((req.GetVar("autoplay") == "false") || (req.GetVar("autoplay") == "0")) { opts["autoplay"] = false; }
+    }
 
     std::string seekTo = "";
     if (req.GetVar("t").size()){
@@ -427,9 +439,9 @@ namespace Mist{
               "\" type=\"application/vnd.apple.mpegurl\"><source src=\"" + mp4Url + "\" type=\"video/mp4\"><a href=\"" +
               hlsUrl + "\">Click here to play the video [Apple]</a><br><a href=\"" + mp4Url +
               "\">Click here to play the video [MP4]</a></video></noscript><script "
-              "src=\"player.js\"></script><script>var mv ={reference:false}; mistPlay('" +
-              streamName + "',{host:'" + fullURL.getUrl() + "',target:document.getElementById('" + streamName +
-              "'),MistVideoObject:mv" + forceType + devSkin + "});" + seekTo + "</script></div></body></html>");
+              "src=\"player.js\"></script><script>var mv={reference:false}; var opts=" +
+              opts.toString() + ";opts.target=document.getElementById('" + streamName +
+              "');opts.MistVideoObject = mv;mistPlay('" + streamName + "',opts);" + seekTo + "</script></div></body></html>");
     H.SendResponse("200", "OK", myConn);
     responded = true;
     H.Clean();

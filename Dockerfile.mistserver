@@ -1,17 +1,53 @@
 FROM alpine AS mist_build
+# Pull in build requirements
+RUN apk add --no-cache git patch meson ninja gcc g++ linux-headers pigz curl cjson pkgconfig
 
-RUN apk add --no-cache git patch meson ninja gcc g++ linux-headers pigz curl
+# Build dependencies librist, libsrt, libsrtp2, usrsctplib, mbedtls
+RUN mkdir -p /deps/build/mbedtls /deps/build/libsrtp /deps/build/libsrt /deps/build/librist /deps/build/usrsctp /deps/mbedtls /deps/libsrtp /deps/libsrt /deps/librist /deps/usrsctp
+
+# mbedtls
+ADD --unpack=true https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.5/mbedtls-3.6.5.tar.bz2 /deps
+ADD subprojects/packagefiles/mbedtls/meson.build /deps/mbedtls-3.6.5/
+ADD subprojects/packagefiles/mbedtls/include/mbedtls/mbedtls_config.h /deps/mbedtls-3.6.5/include/mbedtls/
+RUN cd /deps/build/mbedtls/ && meson setup /deps/mbedtls-3.6.5 -Dstrip=true && meson install
+
+# srtp
+ADD https://github.com/cisco/libsrtp.git#v2.6.0 /deps/libsrtp
+RUN cd /deps/build/libsrtp/ && meson setup /deps/libsrtp -Dstrip=true  && meson install
+
+# srt
+ADD https://github.com/Haivision/srt.git#v1.5.4 /deps/libsrt
+ADD subprojects/packagefiles/libsrt/meson.build /deps/libsrt/
+ADD subprojects/packagefiles/libsrt/srt/meson.build /deps/libsrt/srt/
+RUN cd /deps/build/libsrt/ && meson setup /deps/libsrt -Dstrip=true  && meson install
+
+# librist
+ADD https://code.videolan.org/rist/librist.git#v0.2.11 /deps/librist
+RUN cd /deps/build/librist/ && meson setup /deps/librist -Dstrip=true  && meson install
+
+# usrsctp
+ADD https://github.com/sctplab/usrsctp.git#0.9.5.0 /deps/usrsctp
+RUN cd /deps/build/usrsctp/ && meson setup /deps/usrsctp -Dstrip=true  && meson install
+
+# Build MistServer from local source
 ADD . /src/
+ARG MIST_OPTS
+ARG DEBUG=3
+ARG VERSION=Unknown
+ARG TARGETPLATFORM
+ARG RELEASE=Docker_${TARGETPLATFORM}
+RUN mkdir /build/ && cd /build && meson setup /src -DDOCKERRUN=true -DNOUPDATE=true -DDEBUG=${DEBUG} -DVERSION=${VERSION} -DRELEASE=${RELEASE} -Dstrip=true ${MIST_OPTS} && ninja install
 
+# Upload debug symbols if requested
 ARG OUTPUT_DBG
+RUN if [ -n "${OUTPUT_DBG+x}" ]; then tar cf - /build /src /deps | pigz -6 | curl --upload-file - "${OUTPUT_DBG}" ; fi
 
-RUN mkdir /build/; cd /build; meson setup /src -DDOCKERRUN=true -Dlibrist:default_library=static -Dmbedtls:default_library=static -DDEBUG=3 -Dstrip=true; ninja install; if [ -n "${OUTPUT_DBG+x}" ]; then tar cf - /build /src | pigz -6 | curl --upload-file - "${OUTPUT_DBG}" ; fi
-
+# Prepare final image from stripped (installed) copy of build
 FROM alpine
-RUN apk add --no-cache libstdc++
+RUN apk add --no-cache libstdc++ cjson
 COPY --from=mist_build /usr/local/ /usr/local/
-
 LABEL org.opencontainers.image.authors="Jaron Viëtor <jaron.vietor@ddvtech.com>"
-EXPOSE 4242 8080 1935 5554
+EXPOSE 4242 8080 1935 5554 8889/udp 18203/udp
 ENTRYPOINT ["MistController"]
 HEALTHCHECK CMD ["MistUtilHealth"]
+

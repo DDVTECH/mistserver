@@ -31,7 +31,7 @@ if git.found()
     if fs.is_file('VERSION')
       version = fs.read('VERSION').strip()
     else 
-      version = 'Unknown'
+      version = get_option('VERSION')
     endif
   endif
 else
@@ -39,7 +39,7 @@ else
   if fs.is_file('VERSION')
     version = fs.read('VERSION').strip()
   else 
-    version = 'Unknown'
+    version = get_option('VERSION')
   endif
 endif
 

@@ -31,6 +31,8 @@ namespace Mist{
     virtual void onWebsocketConnect(){};
     virtual void preWebsocketConnect(){};
     virtual void onCommandSend(const std::string & data);
+    virtual void atLivePoint();
+    virtual void atDeadPoint();
     bool handleWebsocketCommands();
     bool handleCommand(const JSON::Value & command);
     void handleWebsocketIdle();

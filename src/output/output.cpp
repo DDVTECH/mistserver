@@ -862,19 +862,15 @@ namespace Mist{
   /// Return the end time of the selected tracks, or 0 if unknown or live.
   /// Returns the end time of latest track if nothing is selected.
   /// Returns zero if no tracks exist.
-  uint64_t Output::endTime(){
-    std::set<size_t> validTracks = M.getValidTracks();
-    if (!validTracks.size()){return 0;}
+  uint64_t Output::endTime() {
     uint64_t end = 0;
-    if (userSelect.size()){
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        if (M.trackValid(it->first) && end < M.getLastms(it->first)){
-          end = meta.getLastms(it->first);
-        }
+    if (userSelect.size()) {
+      for (const auto & it : userSelect) {
+        if (M.trackValid(it.first) && end < M.getLastms(it.first)) { end = meta.getLastms(it.first); }
       }
-    }else{
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-        if (end < meta.getLastms(*it)){end = meta.getLastms(*it);}
+    } else {
+      for (const auto & T : M.getValidTracks()) {
+        if (end < meta.getLastms(T)) { end = meta.getLastms(T); }
       }
     }
     return end;
@@ -1990,6 +1986,7 @@ namespace Mist{
             ++timingBootMs;
             if (timingBootMs > thisBootMs) { timingBootMs = thisBootMs; }
           }
+          if (lastReadAttemptWasAtLivePoint) { atLivePoint(); }
         }else{
           // Packet prepared
           // End point reached?
@@ -2380,6 +2377,7 @@ namespace Mist{
   /// \returns true if thisPacket was filled with the next packet.
   /// \returns 0 if a packet was filled, suggested wait time in milliseconds otherwise
   size_t Output::prepareNext(){
+    lastReadAttemptWasAtLivePoint = false;
     size_t bufSize = buffer.size();
     if (!bufSize){
       thisPacket.null();
@@ -2432,6 +2430,12 @@ namespace Mist{
         return 1;
       }
 
+      // Check if we've reached the "dead point" - we're before the earliest buffer point!
+      if (nxt.time < M.getFirstms(nxt.tid)) {
+        atDeadPoint();
+        return 2000;
+      }
+
       // Ensure we have the lookahead available
       if (needsLookAhead && M.getLive() && M.getNowms(nxt.tid) < nxt.time + needsLookAhead){
         int64_t waitTime = (nxt.time + needsLookAhead) - M.getNowms(nxt.tid);
@@ -2452,6 +2456,7 @@ namespace Mist{
               buffer.replaceFirst(nxt);
               playbackSleep(5);
             }
+            lastReadAttemptWasAtLivePoint = true;
             return 5;
           }
         }
@@ -2642,8 +2647,9 @@ namespace Mist{
       //That means we're waiting for data to show up, somewhere.
       
       // If it's a live stream, request to be signalled on packet availability
-      if (M.getLive()){
+      if (M.getLive()) {
         userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
+        lastReadAttemptWasAtLivePoint = true;
       }
 
       // If now-ms is higher than current, we know we can safely return this packet at least

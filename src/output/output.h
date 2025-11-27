@@ -73,6 +73,8 @@ namespace Mist{
     virtual void sendHeader();
     virtual void onFail(const std::string &msg, bool critical = false);
     virtual void requestHandler(bool readable);
+    virtual void atLivePoint() {}
+    virtual void atDeadPoint() { stop(); }
     Util::Config *config;
     void playbackSleep(uint64_t millis);
 
@@ -107,7 +109,8 @@ namespace Mist{
     uint64_t totalPlaytime; ///< Appended to with current playback time every seek
     bool newUA;
     size_t maxWait; /// Maximum wait in milliseconds (scheduled next packet timing)
-    
+    bool lastReadAttemptWasAtLivePoint;
+
   protected:              // these are to be messed with by child classes
     std::string currentTarget;
     virtual bool inlineRestartCapable() const{

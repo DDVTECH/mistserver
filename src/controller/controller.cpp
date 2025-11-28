@@ -27,6 +27,7 @@
 #include <iostream>
 #include <mutex>
 #include <signal.h>
+#include <string>
 #include <sstream>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -513,7 +514,8 @@ int main_loop(int argc, char **argv){
     Util::Procs::socketList.insert(uSock.getSock());
     Controller::E.addSocket(uSock.getSock(), [&](void *) {
       while (uSock.Receive()) {
-        MEDIUM_MSG("UDP API: %s", (const char *)uSock.data);
+        std::string uSockData(uSock.data, uSock.data.size());
+        MEDIUM_MSG("UDP API: %s", uSockData.c_str());
         JSON::Value Request = JSON::fromString(uSock.data, uSock.data.size());
         Request["minimal"] = true;
         JSON::Value Response;

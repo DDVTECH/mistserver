@@ -513,7 +513,7 @@ int main_loop(int argc, char **argv){
     Util::Procs::socketList.insert(uSock.getSock());
     Controller::E.addSocket(uSock.getSock(), [&](void *) {
       while (uSock.Receive()) {
-        MEDIUM_MSG("UDP API: %s", (const char *)uSock.data);
+        MEDIUM_MSG("UDP API: %.*s", (int)uSock.data.size(), (const char *)uSock.data);
         JSON::Value Request = JSON::fromString(uSock.data, uSock.data.size());
         Request["minimal"] = true;
         JSON::Value Response;

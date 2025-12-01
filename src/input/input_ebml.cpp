@@ -1,7 +1,7 @@
 #include "input_ebml.h"
+
 #include <mist/bitfields.h>
 #include <mist/defines.h>
-#include <mist/ebml.h>
 #include <mist/procs.h>
 
 namespace Mist{
@@ -285,189 +285,7 @@ namespace Mist{
         return false;
       }
       EBML::Element E(readBuffer + readBufferOffset, readingMinimal);
-      if (E.getID() == EBML::EID_TRACKENTRY){
-        EBML::Element tmpElem = E.findChild(EBML::EID_TRACKNUMBER);
-        if (!tmpElem){
-          ERROR_MSG("Track without track number encountered, ignoring");
-          continue;
-        }
-        uint64_t trackID = tmpElem.getValUInt();
-        tmpElem = E.findChild(EBML::EID_CODECID);
-        if (!tmpElem){
-          ERROR_MSG("Track without codec id encountered, ignoring");
-          continue;
-        }
-        std::string codec = tmpElem.getValString(), trueCodec, trueType, lang, init;
-        if (codec == "V_MPEG4/ISO/AVC"){
-          trueCodec = "H264";
-          trueType = "video";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "V_MPEGH/ISO/HEVC"){
-          trueCodec = "HEVC";
-          trueType = "video";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "V_AV1"){
-          trueCodec = "AV1";
-          trueType = "video";
-        }
-        if (codec == "V_VP9"){
-          trueCodec = "VP9";
-          trueType = "video";
-        }
-        if (codec == "V_VP8"){
-          trueCodec = "VP8";
-          trueType = "video";
-        }
-        if (codec == "A_OPUS"){
-          trueCodec = "opus";
-          trueType = "audio";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "A_VORBIS"){
-          trueCodec = "vorbis";
-          trueType = "audio";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "V_THEORA"){
-          trueCodec = "theora";
-          trueType = "video";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "A_AAC"){
-          trueCodec = "AAC";
-          trueType = "audio";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "A_DTS"){
-          trueCodec = "DTS";
-          trueType = "audio";
-        }
-        if (codec == "A_PCM/INT/BIG"){
-          trueCodec = "PCM";
-          trueType = "audio";
-        }
-        if (codec == "A_PCM/INT/LIT"){
-          trueCodec = "PCMLE";
-          trueType = "audio";
-        }
-        if (codec == "A_AC3"){
-          trueCodec = "AC3";
-          trueType = "audio";
-        }
-        if (codec == "A_FLAC"){
-          trueCodec = "FLAC";
-          trueType = "audio";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "A_MPEG/L3"){
-          trueCodec = "MP3";
-          trueType = "audio";
-        }
-        if (codec == "A_MPEG/L2"){
-          trueCodec = "MP2";
-          trueType = "audio";
-        }
-        if (codec == "V_MPEG2"){
-          trueCodec = "MPEG2";
-          trueType = "video";
-        }
-        if (codec == "V_MJPEG"){
-          trueCodec = "JPEG";
-          trueType = "video";
-        }
-        if (codec == "V_MS/VFW/FOURCC"){
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){
-            std::string bitmapheader = tmpElem.getValStringUntrimmed();
-            if (bitmapheader.substr(16, 4) == "MJPG"){
-              trueCodec = "JPEG";
-              trueType = "video";
-            }
-          }
-        }
-        if (codec == "A_PCM/FLOAT/IEEE"){
-          trueCodec = "FLOAT";
-          trueType = "audio";
-        }
-        if (codec == "M_JSON"){
-          trueCodec = "JSON";
-          trueType = "meta";
-        }
-        if (codec == "S_TEXT/UTF8"){
-          trueCodec = "subtitle";
-          trueType = "meta";
-        }
-        if (codec == "S_TEXT/ASS" || codec == "S_TEXT/SSA"){
-          trueCodec = "subtitle";
-          trueType = "meta";
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
-        }
-        if (codec == "A_MS/ACM"){
-          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){
-            std::string WAVEFORMATEX = tmpElem.getValStringUntrimmed();
-            unsigned int formatTag = Bit::btohs_le(WAVEFORMATEX.data());
-            switch (formatTag){
-            case 3:
-              trueCodec = "FLOAT";
-              trueType = "audio";
-              break;
-            case 6:
-              trueCodec = "ALAW";
-              trueType = "audio";
-              break;
-            case 7:
-              trueCodec = "ULAW";
-              trueType = "audio";
-              break;
-            case 85:
-              trueCodec = "MP3";
-              trueType = "audio";
-              break;
-            default: ERROR_MSG("Unimplemented A_MS/ACM formatTag: %u", formatTag); break;
-            }
-          }
-        }
-        if (!trueCodec.size()){
-          WARN_MSG("Unrecognised codec id %s ignoring", codec.c_str());
-          continue;
-        }
-        tmpElem = E.findChild(EBML::EID_LANGUAGE);
-        if (tmpElem){lang = tmpElem.getValString();}
-        size_t idx = M.trackIDToIndex(trackID, getpid());
-        if (idx == INVALID_TRACK_ID){idx = meta.addTrack();}
-        meta.setID(idx, trackID);
-        meta.setLang(idx, lang);
-        meta.setCodec(idx, trueCodec);
-        meta.setType(idx, trueType);
-        meta.setInit(idx, init);
-        if (trueType == "video"){
-          tmpElem = E.findChild(EBML::EID_PIXELWIDTH);
-          meta.setWidth(idx, tmpElem ? tmpElem.getValUInt() : 0);
-          tmpElem = E.findChild(EBML::EID_PIXELHEIGHT);
-          meta.setHeight(idx, tmpElem ? tmpElem.getValUInt() : 0);
-          meta.setFpks(idx, 0);
-        }
-        if (trueType == "audio"){
-          tmpElem = E.findChild(EBML::EID_CHANNELS);
-          meta.setChannels(idx, tmpElem ? tmpElem.getValUInt() : 1);
-          tmpElem = E.findChild(EBML::EID_BITDEPTH);
-          meta.setSize(idx, tmpElem ? tmpElem.getValUInt() : 0);
-          tmpElem = E.findChild(EBML::EID_SAMPLINGFREQUENCY);
-          meta.setRate(idx, tmpElem ? (int)tmpElem.getValFloat() : 8000);
-        }
-        INFO_MSG("Detected track: %s", M.getTrackIdentifier(idx).c_str());
-      }
+      if (E.getID() == EBML::EID_TRACKENTRY) { readTrack(E); }
       if (E.getID() == EBML::EID_TIMECODESCALE){
         uint64_t timeScaleVal = E.getValUInt();
         meta.inputLocalVars["timescale"] = timeScaleVal;
@@ -569,6 +387,190 @@ namespace Mist{
     return true;
   }
 
+  void InputEBML::readTrack(const EBML::Element & E) {
+    EBML::Element tmpElem = E.findChild(EBML::EID_TRACKNUMBER);
+    if (!tmpElem) {
+      ERROR_MSG("Track without track number encountered, ignoring");
+      return;
+    }
+    uint64_t trackID = tmpElem.getValUInt();
+    tmpElem = E.findChild(EBML::EID_CODECID);
+    if (!tmpElem) {
+      ERROR_MSG("Track without codec id encountered, ignoring");
+      return;
+    }
+    std::string codec = tmpElem.getValString(), trueCodec, trueType, lang, init;
+    if (codec == "V_MPEG4/ISO/AVC") {
+      trueCodec = "H264";
+      trueType = "video";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "V_MPEGH/ISO/HEVC") {
+      trueCodec = "HEVC";
+      trueType = "video";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "V_AV1") {
+      trueCodec = "AV1";
+      trueType = "video";
+    }
+    if (codec == "V_VP9") {
+      trueCodec = "VP9";
+      trueType = "video";
+    }
+    if (codec == "V_VP8") {
+      trueCodec = "VP8";
+      trueType = "video";
+    }
+    if (codec == "A_OPUS") {
+      trueCodec = "opus";
+      trueType = "audio";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "A_VORBIS") {
+      trueCodec = "vorbis";
+      trueType = "audio";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "V_THEORA") {
+      trueCodec = "theora";
+      trueType = "video";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "A_AAC") {
+      trueCodec = "AAC";
+      trueType = "audio";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "A_DTS") {
+      trueCodec = "DTS";
+      trueType = "audio";
+    }
+    if (codec == "A_PCM/INT/BIG") {
+      trueCodec = "PCM";
+      trueType = "audio";
+    }
+    if (codec == "A_PCM/INT/LIT") {
+      trueCodec = "PCMLE";
+      trueType = "audio";
+    }
+    if (codec == "A_AC3") {
+      trueCodec = "AC3";
+      trueType = "audio";
+    }
+    if (codec == "A_FLAC") {
+      trueCodec = "FLAC";
+      trueType = "audio";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "A_MPEG/L3") {
+      trueCodec = "MP3";
+      trueType = "audio";
+    }
+    if (codec == "A_MPEG/L2") {
+      trueCodec = "MP2";
+      trueType = "audio";
+    }
+    if (codec == "V_MPEG2") {
+      trueCodec = "MPEG2";
+      trueType = "video";
+    }
+    if (codec == "V_MJPEG") {
+      trueCodec = "JPEG";
+      trueType = "video";
+    }
+    if (codec == "V_MS/VFW/FOURCC") {
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) {
+        std::string bitmapheader = tmpElem.getValStringUntrimmed();
+        if (bitmapheader.substr(16, 4) == "MJPG") {
+          trueCodec = "JPEG";
+          trueType = "video";
+        }
+      }
+    }
+    if (codec == "A_PCM/FLOAT/IEEE") {
+      trueCodec = "FLOAT";
+      trueType = "audio";
+    }
+    if (codec == "M_JSON") {
+      trueCodec = "JSON";
+      trueType = "meta";
+    }
+    if (codec == "S_TEXT/UTF8") {
+      trueCodec = "subtitle";
+      trueType = "meta";
+    }
+    if (codec == "S_TEXT/ASS" || codec == "S_TEXT/SSA") {
+      trueCodec = "subtitle";
+      trueType = "meta";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
+    }
+    if (codec == "A_MS/ACM") {
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) {
+        std::string WAVEFORMATEX = tmpElem.getValStringUntrimmed();
+        unsigned int formatTag = Bit::btohs_le(WAVEFORMATEX.data());
+        switch (formatTag) {
+          case 3:
+            trueCodec = "FLOAT";
+            trueType = "audio";
+            break;
+          case 6:
+            trueCodec = "ALAW";
+            trueType = "audio";
+            break;
+          case 7:
+            trueCodec = "ULAW";
+            trueType = "audio";
+            break;
+          case 85:
+            trueCodec = "MP3";
+            trueType = "audio";
+            break;
+          default: ERROR_MSG("Unimplemented A_MS/ACM formatTag: %u", formatTag); break;
+        }
+      }
+    }
+    if (!trueCodec.size()) {
+      WARN_MSG("Unrecognised codec id %s ignoring", codec.c_str());
+      return;
+    }
+    tmpElem = E.findChild(EBML::EID_LANGUAGE);
+    if (tmpElem) { lang = tmpElem.getValString(); }
+    size_t idx = M.trackIDToIndex(trackID, getpid());
+    if (idx == INVALID_TRACK_ID) { idx = meta.addTrack(); }
+    meta.setID(idx, trackID);
+    meta.setLang(idx, lang);
+    meta.setCodec(idx, trueCodec);
+    meta.setType(idx, trueType);
+    meta.setInit(idx, init);
+    if (trueType == "video") {
+      tmpElem = E.findChild(EBML::EID_PIXELWIDTH);
+      meta.setWidth(idx, tmpElem ? tmpElem.getValUInt() : 0);
+      tmpElem = E.findChild(EBML::EID_PIXELHEIGHT);
+      meta.setHeight(idx, tmpElem ? tmpElem.getValUInt() : 0);
+      meta.setFpks(idx, 0);
+    }
+    if (trueType == "audio") {
+      tmpElem = E.findChild(EBML::EID_CHANNELS);
+      meta.setChannels(idx, tmpElem ? tmpElem.getValUInt() : 1);
+      tmpElem = E.findChild(EBML::EID_BITDEPTH);
+      meta.setSize(idx, tmpElem ? tmpElem.getValUInt() : 0);
+      tmpElem = E.findChild(EBML::EID_SAMPLINGFREQUENCY);
+      meta.setRate(idx, tmpElem ? (int)tmpElem.getValFloat() : 8000);
+    }
+    INFO_MSG("Detected track: %s", M.getTrackIdentifier(idx).c_str());
+  }
+
   void InputEBML::postHeader(){
     //Record PCMLE tracks as being PCM with swapped endianness
     std::set<size_t> validTracks = M.getValidTracks();
@@ -629,9 +631,11 @@ namespace Mist{
       for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
         trackPredictor &TP = it->second;
         if (TP.hasPackets()){
-          packetData &C =
-              TP.getPacketData(M.getType(M.trackIDToIndex(it->first, getpid())) == "video");
-          fillPacket(C);
+          size_t tIdx = M.trackIDToIndex(it->first, getpid());
+          if (tIdx != INVALID_TRACK_ID) {
+            packetData & C = TP.getPacketData(M.getType(tIdx) == "video");
+            fillPacket(C);
+          }
           TP.remove();
           --bufferedPacks;
           if (singleTrack && it->first != wantedID){getNext(idx);}
@@ -649,8 +653,11 @@ namespace Mist{
             for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
               trackPredictor &TP = it->second;
               if (TP.hasPackets(true)){
-                packetData &C = TP.getPacketData(M.getType(M.trackIDToIndex(it->first, getpid())) == "video");
-                fillPacket(C);
+                size_t tIdx = M.trackIDToIndex(it->first, getpid());
+                if (tIdx != INVALID_TRACK_ID) {
+                  packetData & C = TP.getPacketData(M.getType(tIdx) == "video");
+                  fillPacket(C);
+                }
                 TP.remove();
                 --bufferedPacks;
                 if (singleTrack && it->first != wantedID){getNext(idx);}
@@ -673,9 +680,9 @@ namespace Mist{
     uint64_t newTime = lastClusterTime + B.getTimecode();
     trackPredictor &TP = packBuf[tNum];
     thisIdx = M.trackIDToIndex(tNum, getpid());
-    bool isVideo = (M.getType(thisIdx) == "video");
-    bool isAudio = (M.getType(thisIdx) == "audio");
-    bool isASS = (M.getCodec(thisIdx) == "subtitle" && M.getInit(thisIdx).size());
+    bool isVideo = (thisIdx != INVALID_TRACK_ID) && (M.getType(thisIdx) == "video");
+    bool isAudio = (thisIdx != INVALID_TRACK_ID) && (M.getType(thisIdx) == "audio");
+    bool isASS = (thisIdx != INVALID_TRACK_ID) && (M.getCodec(thisIdx) == "subtitle" && M.getInit(thisIdx).size());
 
     // If this is a new video keyframe, flush the corresponding trackPredictor
     if (isVideo && B.isKeyframe() && bufferedPacks){
@@ -694,11 +701,11 @@ namespace Mist{
 
     for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
       if (frameNo){
-        if (M.getCodec(thisIdx) == "AAC"){
+        if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "AAC"){
           newTime += (uint64_t)(1000000 / M.getRate(thisIdx)) / timeScale; // assume ~1000 samples per frame
-        }else if (M.getCodec(thisIdx) == "MP3"){
+        }else if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "MP3"){
           newTime += (uint64_t)(1152000 / M.getRate(thisIdx)) / timeScale; // 1152 samples per frame
-        }else if (M.getCodec(thisIdx) == "DTS"){
+        }else if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "DTS"){
           // Assume 512 samples per frame (DVD default)
           // actual amount can be calculated from data, but data
           // is not available during header generation...
@@ -706,7 +713,7 @@ namespace Mist{
           newTime += (uint64_t)(512000 / M.getRate(thisIdx)) / timeScale;
         }else{
           ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!",
-                    M.getCodec(thisIdx).c_str());
+                    (thisIdx != INVALID_TRACK_ID) ? M.getCodec(thisIdx).c_str() : "UNKNOWN");
         }
       }
       uint32_t frameSize = B.getFrameSize(frameNo);
@@ -726,10 +733,10 @@ namespace Mist{
     }
     if (TP.hasPackets()){
       packetData &C = TP.getPacketData(isVideo);
-      fillPacket(C);
+      if (thisIdx != INVALID_TRACK_ID) { fillPacket(C); }
       TP.remove();
       --bufferedPacks;
-      if (singleTrack && thisIdx != idx){getNext(idx);}
+      if ((thisIdx == INVALID_TRACK_ID) || (singleTrack && thisIdx != idx)) { getNext(idx); }
     }else{
       // We didn't set thisPacket yet. Read another.
       // Recursing is fine, this can only happen a few times in a row.

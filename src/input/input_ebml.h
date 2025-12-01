@@ -1,7 +1,9 @@
 #pragma once
 #include "input.h"
-#include <mist/util.h>
+
+#include <mist/ebml.h>
 #include <mist/urireader.h>
+#include <mist/util.h>
 
 namespace Mist{
 
@@ -148,6 +150,7 @@ namespace Mist{
     bool readHeader();
     void postHeader();
     bool readElement();
+    void readTrack(const EBML::Element & E);
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     void clearPredictors();

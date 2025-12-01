@@ -4186,11 +4186,11 @@ context_menu: function(){
             type: 'span',
             label: 'Server time',
             value: $servertime
-          },{
+          },"license" in mist.data.config ? {
             type: 'span',
             label: 'Licensed to',
-            value: ("license" in mist.data.config ? mist.data.config.license.user : "")
-          },{
+            value:  mist.data.config.license.user
+          } : $(""),{
             type: 'span',
             label: 'Active licenses',
             value: $activeproducts
@@ -4448,8 +4448,31 @@ context_menu: function(){
             }
           }
           function add_logs(log) {
+            //filter: only keep messages of type UPDR
             var msgs = log.filter(function(a){return a[1] == "UPDR"});
+
+            //filter: if multiple messages in a row are equal, remove duplicates and add "(xn)"
+            var last;
+            var n = 1;
+            for (var i in msgs) {
+              var row = msgs[i];
+              var text = row[2];
+              if (text == last) {
+                n++;
+                row[2] = text + " (×"+n+")"; //add (xn) to the current message
+                if (i > 0) msgs[i-1] = null; //remove the previous message (rows set to null will be removed s00n)
+              }
+              else {
+                last = text;
+                n = 1;
+              }
+            }
+
+            //remove any msgs that were nulled
+            msgs = msgs.filter(function(a){return a !== null;} );
+
             if (msgs.length) {
+              //display
               var $cont = $("<div>");
               $versioncheck.append($cont);
               for (var i in msgs) {

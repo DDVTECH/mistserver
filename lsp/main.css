@@ -1832,6 +1832,7 @@ main[data-tab="Logs"] section.logs { display: contents; }
 main[data-tab="Logs"] section.logs > div.logs {
   max-height: 100%;
   overflow: auto;
+  text-align: left;
 }
 main[data-tab="Logs"] .buttons button:after { content: ' (for saving and copying)'; }
 

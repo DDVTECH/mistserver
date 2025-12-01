@@ -2508,10 +2508,13 @@ namespace DTSC{
       INFO_MSG("Shared metadata not ready yet - no tracks valid");
       return res;
     }
+    uint64_t myPid = getpid();
     uint64_t firstValid = trackList.getDeleted();
     uint64_t beyondLast = trackList.getEndPos();
     for (size_t i = firstValid; i < beyondLast; i++){
-      if (!(trackList.getInt(trackValidField, i) & trackValidMask)){continue;}
+      if (!(trackList.getInt(trackValidField, i) & trackValidMask)) {
+        if (trackList.getInt(trackPidField, i) != myPid || !trackList.getInt(trackValidField, i)) { continue; }
+      }
       if (!tracks.count(i)){continue;}
       const Track & t = tracks.at(i);
       if (!t.track.isReady()){continue;}

@@ -874,6 +874,16 @@ const JSON::Value & JSON::Value::operator[](uint32_t i) const {
   return *arrVal[i];
 }
 
+/// Converts the type of the JSON::Value to string if needed, then appends the given string to it and returns it by reference.
+std::string & JSON::Value::operator+=(const std::string & str) {
+  if (myType != STRING) {
+    strVal = asString();
+    myType = STRING;
+  }
+  strVal.append(str);
+  return strVal;
+}
+
 /// Packs to a std::string for transfer over the network.
 /// If the object is a container type, this function will call itself recursively and contain all
 /// contents. As a side effect, this function clear the internal buffer of any object-types.

@@ -89,6 +89,8 @@ namespace JSON{
     const Value &operator[](const std::string &i) const;
     const Value &operator[](const char *i) const;
     const Value &operator[](uint32_t i) const;
+    // convenience operators
+    std::string & operator+=(const std::string & str);
     // handy functions and others
     std::string toPacked() const;
     void sendTo(Socket::Connection &socket) const;

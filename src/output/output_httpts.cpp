@@ -87,10 +87,9 @@ namespace Mist{
       srt_tx = Util::Procs::StartPiped(args, 0, 0, 0);
       if (srt_tx > 1){
         capa["push_urls"].append("srt://*");
-        capa["desc"].asStringRef() += ". Non-native SRT push output support (srt://*) is installed and available.";
-      }else{
-        capa["desc"].asStringRef() +=
-          ". To enable non-native SRT push output support, please install the srt-live-transmit binary.";
+        capa["desc"] += ". Non-native SRT push output support (srt://*) is installed and available.";
+      } else {
+        capa["desc"] += ". To enable non-native SRT push output support, please install the srt-live-transmit binary.";
       }
     }
 #endif

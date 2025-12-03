@@ -583,13 +583,28 @@ namespace TS{
       if (pesHeader[7] & 0x02){// crc - ignored
         pesOffset += 2;
       }
+      uint8_t padding = pesHeader[8] + 9;
 
-      if (paySize - offset - pesOffset != realPayloadSize){
-        WARN_MSG("Packet loss detected (%" PRIu64 " != %" PRIu64 "), throwing away data to compensate",
-                 paySize - offset - pesOffset, realPayloadSize);
-        realPayloadSize = paySize - offset - pesOffset;
-      }else{
-        const char *pesPayload = pesHeader + pesOffset;
+      if (paySize - offset - padding != realPayloadSize) {
+        if (paySize - offset - padding > realPayloadSize && paySize - offset - padding - realPayloadSize < 32) {
+          WARN_MSG("Declared PES packet size is %zu bytes too big - assuming muxer bug and compensating for it",
+                   (size_t)(paySize - offset - padding - realPayloadSize));
+          const char *pesPayload = pesHeader + padding;
+          parseBitstream(tid, pesPayload, paySize - offset - padding, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04);
+          lastms[tid] = timeStamp;
+        } else if (paySize - offset - padding < realPayloadSize && realPayloadSize - (paySize - offset - padding) < 32) {
+          WARN_MSG("Declared PES packet size is %zu bytes too small - assuming muxer bug and compensating for it",
+                   (size_t)(realPayloadSize - (paySize - offset - padding)));
+          const char *pesPayload = pesHeader + padding;
+          parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04);
+          lastms[tid] = timeStamp;
+        } else {
+          WARN_MSG("Packet loss detected (%" PRIu32 " != %" PRIu64 "), throwing away data to compensate",
+                   paySize - offset - padding, realPayloadSize);
+        }
+        realPayloadSize = paySize - offset - padding;
+      } else {
+        const char *pesPayload = pesHeader + padding;
         // A PES is aligned (= starts a new access unit) if the data_alignment_indicator bit is
         // set OR if it carries a PTS (PTS_flags != 0). Continuation PES packets never carry a PTS,
         // so PTS_flags==0 is the only reliable indicator of a mid-access-unit continuation.

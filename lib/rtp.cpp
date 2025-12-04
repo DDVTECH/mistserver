@@ -1062,7 +1062,7 @@ namespace RTP{
     // Trivial codecs just fill a packet with raw data and continue. Easy peasy, lemon squeezy.
     if (codec == "ALAW" || codec == "opus" || codec == "PCM" || codec == "ULAW"){
       if (codec == "opus"){
-        outInit(trackId, std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\000", 19));
+        outInit(trackId, std::string("OpusHead\001\002\000\170\200\273\000\000\000\000\000", 19));
       }
       DTSC::Packet nextPack;
       nextPack.genericFill(msTime, 0, trackId, pl, plSize, 0, false);

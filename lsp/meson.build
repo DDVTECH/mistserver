@@ -20,7 +20,3 @@ html_list = ['header.html',
 html_files = files(html_list)
 html_files += minified
 
-if not get_option('NOGA')
-    html_files += files('analytics.js')
-endif
-

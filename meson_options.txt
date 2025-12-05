@@ -19,7 +19,6 @@ option('NOSRT', description: 'Disable building SRT support, regardless of librar
 option('RELEASE', description: 'Release string used in the reported version information', type: 'string', value: 'DEFAULT')
 option('VERSION', description: 'Version string used in the reported version information', type: 'string', value: 'Unknown')
 option('DEBUG', description: 'Default debug level. Recommended value for development is 4, recommended value for production is 3', type: 'integer', value: 4)
-option('NOGA', description: 'Disables Google Analytics entirely in the LSP', type: 'boolean', value: false)
 option('LOAD_BALANCE', description: 'Build the load balancer (WIP)', type: 'boolean', value: false)
 option('WITH_AV', description: 'Build a generic libav-based input (not distributable!)', type: 'boolean', value: false)
 option('WITH_SANITY', description: 'Enable MistOutSanityCheck output for testing purposes', type: 'boolean', value: false)

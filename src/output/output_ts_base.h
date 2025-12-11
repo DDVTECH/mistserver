@@ -22,8 +22,10 @@ namespace Mist{
       sentHeader = true;
       packCounter = 0;
     }
+    size_t pidMapper(const DTSC::Meta & M, size_t idx);
 
   protected:
+    std::map<size_t, size_t> pidMap;
     virtual bool inlineRestartCapable() const{return true;}
     std::map<size_t, bool> first;
     std::map<size_t, uint16_t> contCounters;

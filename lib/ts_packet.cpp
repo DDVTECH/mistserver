@@ -1450,7 +1450,8 @@ namespace TS{
   ///\param selectedTracks tracks to include in PMT creation
   ///\param myMeta
   ///\returns character pointer to a static 188B TS packet
-  const char *createPMT(std::set<size_t> &selectedTracks, const DTSC::Meta &M, int contCounter){
+  const char *createPMT(std::set<size_t> & selectedTracks, const DTSC::Meta & M, int contCounter,
+                        const std::function<size_t(const DTSC::Meta &, size_t)> & pidMapper) {
     static ProgramMappingTable PMT;
     PMT.setPID(4096);
     PMT.setTableId(2);
@@ -1490,7 +1491,7 @@ namespace TS{
       }
     }
     if (vidTrack == -1){vidTrack = *(selectedTracks.begin());}
-    PMT.setPCRPID(getUniqTrackID(M, vidTrack));
+    PMT.setPCRPID(pidMapper(M, vidTrack));
     if (hasSCTE) {
       std::string progInfo("\005\004CUEI", 6);
       PMT.setProgramInfo(progInfo);
@@ -1500,7 +1501,7 @@ namespace TS{
     ProgramMappingEntry entry = PMT.getEntry(0);
     for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string codec = M.getCodec(*it);
-      entry.setElementaryPid(getUniqTrackID(M, *it));
+      entry.setElementaryPid(pidMapper(M, *it));
       std::string es_info;
       if (codec == "H264"){
         entry.setStreamType(0x1B);

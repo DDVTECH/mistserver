@@ -28,7 +28,8 @@ namespace Mist{
           tmpPack.FromPointer(TS::PAT);
           tmpPack.setContinuityCounter(++contPAT);
           sendTS(tmpPack.checkAndGetBuffer());
-          sendTS(TS::createPMT(selectedTracks, M, ++contPMT));
+          sendTS(TS::createPMT(selectedTracks, M, ++contPMT,
+                               [this](const DTSC::Meta & M, size_t idx) { return pidMapper(M, idx); }));
           sendTS(TS::createSDT(streamName, ++contSDT));
           packCounter += 3;
         }
@@ -62,6 +63,60 @@ namespace Mist{
     }while (dataLen);
   }
 
+  size_t TSOutput::pidMapper(const DTSC::Meta & M, size_t idx) {
+    if (pidMap.size() != userSelect.size() || !pidMap.count(idx)) {
+      pidMap.clear();
+      // Hardcoded PIDs first
+      for (const auto & T : userSelect) {
+        const std::string var = "mappid" + JSON::Value(T.first).asString();
+        if (targetParams.count(var)) { pidMap[T.first] = JSON::Value(targetParams[var]).asInt(); }
+      }
+      // Then, ranges, if any are set
+      if (targetParams.count("vidpidstart")) {
+        size_t currPid = JSON::Value(targetParams["vidpidstart"]).asInt();
+        for (const auto & T : userSelect) {
+          if (!pidMap.count(T.first) && M.getType(T.first) == "video") { pidMap[T.first] = currPid++; }
+        }
+      }
+      if (targetParams.count("audpidstart")) {
+        size_t currPid = JSON::Value(targetParams["audpidstart"]).asInt();
+        for (const auto & T : userSelect) {
+          if (!pidMap.count(T.first) && M.getType(T.first) == "audio") { pidMap[T.first] = currPid++; }
+        }
+      }
+      if (targetParams.count("metapidstart")) {
+        size_t currPid = JSON::Value(targetParams["metapidstart"]).asInt();
+        for (const auto & T : userSelect) {
+          if (!pidMap.count(T.first) && M.getType(T.first) == "meta" && M.getCodec(T.first) != "subtitle") {
+            pidMap[T.first] = currPid++;
+          }
+        }
+      }
+      if (targetParams.count("subpidstart")) {
+        size_t currPid = JSON::Value(targetParams["subpidstart"]).asInt();
+        for (const auto & T : userSelect) {
+          if (!pidMap.count(T.first) && M.getType(T.first) == "meta" && M.getCodec(T.first) == "subtitle") {
+            pidMap[T.first] = currPid++;
+          }
+        }
+      }
+      // Map any remaining unmapped PIDs incrementally, starting at the highest so far (or 255 if none)
+      {
+        size_t currPid = 255;
+        for (auto & P : pidMap) {
+          if (P.second >= currPid) { currPid = P.second + 1; }
+        }
+        for (const auto & T : userSelect) {
+          if (!pidMap.count(T.first)) { pidMap[T.first] = currPid++; }
+        }
+      }
+    }
+    // Return 0 if not found, or found mapping otherwise
+    auto f = pidMap.find(idx);
+    if (f == pidMap.end()) { return 0; }
+    return f->second;
+  }
+
   void TSOutput::sendNext(){
     static uint64_t lastMeta = 0;
     if (Util::epoch() > lastMeta + 5){
@@ -78,7 +133,7 @@ namespace Mist{
     std::string type = M.getType(thisIdx);
     std::string codec = M.getCodec(thisIdx);
     bool video = (type == "video");
-    size_t pkgPid = TS::getUniqTrackID(M, thisIdx);
+    size_t pkgPid = pidMapper(M, thisIdx);
     bool &firstPack = first[thisIdx];
     uint16_t &contPkg = contCounters[pkgPid];
     uint64_t packTime = thisPacket.getTime();

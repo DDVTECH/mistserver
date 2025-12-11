@@ -272,7 +272,8 @@ namespace TS{
 
   size_t getUniqTrackID(const DTSC::Meta &M, size_t idx);
 
-  const char *createPMT(std::set<size_t> &selectedTracks, const DTSC::Meta &M, int contCounter = 0);
+  const char *createPMT(std::set<size_t> & selectedTracks, const DTSC::Meta & M, int contCounter = 0,
+                        const std::function<size_t(const DTSC::Meta &, size_t)> & = getUniqTrackID);
   const char *createSDT(const std::string &streamName, int contCounter = 0);
 
 }// namespace TS

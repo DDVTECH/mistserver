@@ -3,6 +3,7 @@
 /// Written by Jaron Vietor in 2010 for DDVTech
 
 #pragma once
+#include "url.h"
 #include "util.h"
 
 #include <arpa/inet.h>
@@ -59,6 +60,7 @@ namespace Socket{
       Address(const std::string & rhs);
       Address(const void *rhs, size_t len = 0);
       Address(const Util::ResizeablePointer & rhs);
+      Address(const HTTP::URL & url);
       std::string toString() const;
       sa_family_t family() const;
       bool is4in6() const;
@@ -79,13 +81,15 @@ namespace Socket{
       std::string binForm() const;
   };
 
+  const Address unsetAddress;
+
   std::string sockaddrToString(const sockaddr* A);
   void hostBytesToStr(const char *bytes, size_t len, std::string &target);
   bool isBinAddress(const std::string &binAddr, std::string matchTo);
   bool matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix);
   bool compareAddress(const sockaddr* A, const sockaddr* B);
   std::string getBinForms(std::string addr);
-  std::deque<Socket::Address> getAddrs(std::string addr, uint16_t port, int family = AF_UNSPEC);
+  std::deque<Socket::Address> getAddrs(std::string addr, uint16_t port, int family = AF_UNSPEC, bool v4MappedResults = true);
   // Returns a list of local addresses
   void getLocal(std::deque<std::string> & addrs);
   /// Returns true if given human-readable address (address, not hostname) is a local address.
@@ -300,7 +304,7 @@ namespace Socket{
     UDPConnection(const UDPConnection &o);
     UDPConnection(bool nonblock = false);
     UDPConnection(const void * dest, size_t destLen, const void * loc, size_t locLen);
-    UDPConnection(const Socket::Address & remote, const Socket::Address & local);
+    UDPConnection(const Socket::Address & remote, const Socket::Address & local = unsetAddress);
     ~UDPConnection();
     void assimilate(int sock);
     bool operator==(const UDPConnection& b) const;

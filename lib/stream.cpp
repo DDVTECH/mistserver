@@ -872,9 +872,7 @@ void Util::sendUDPApi(JSON::Value & cmd){
     FAIL_MSG("Local UDP API address not defined; can't send command to MistController!");
     return;
   }
-  Socket::UDPConnection uSock;
-  uSock.allocateDestination();
-  uSock.SetDestination(UDPAddr.host, UDPAddr.getPort());
+  Socket::UDPConnection uSock(UDPAddr);
   uSock.SendNow(cmd.toString());
 }
 

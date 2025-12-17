@@ -93,6 +93,18 @@ Socket::Address::Address(const void *rhs, size_t len) {
   assign(rhs, len);
 }
 
+Socket::Address::Address(const HTTP::URL & url) {
+  std::deque<Socket::Address> A = getAddrs(url.host, url.getPort(), AF_UNSPEC, false);
+  if (!A.size()) {
+    WARN_MSG("Could not resolve address for %s:%" PRIu16, url.host.c_str(), url.getPort());
+    return;
+  }
+  assign(A.begin()->addr, A.begin()->addr.size());
+  if (A.size() > 1) {
+    WARN_MSG("Multiple addresses found for %s:%" PRIu16 "; only using %s", url.host.c_str(), url.getPort(), toString().c_str());
+  }
+}
+
 std::string Socket::Address::toString() const {
   if (!*this) { return "unset address"; }
   sa_family_t f = family();
@@ -476,7 +488,7 @@ std::string Socket::getBinForms(std::string addr){
   return ret;
 }
 
-std::deque<Socket::Address> Socket::getAddrs(std::string addr, uint16_t port, int family) {
+std::deque<Socket::Address> Socket::getAddrs(std::string addr, uint16_t port, int family, bool v4MappedResults) {
   std::deque<Socket::Address> ret;
   struct addrinfo *result, *rp, hints;
   if (addr.substr(0, 7) == "::ffff:"){addr = addr.substr(7);}
@@ -487,7 +499,8 @@ std::deque<Socket::Address> Socket::getAddrs(std::string addr, uint16_t port, in
   // For unspecified, we do IPv6, then do IPv4 separately after
   hints.ai_family = family==AF_UNSPEC?AF_INET6:family;
   hints.ai_socktype = SOCK_DGRAM;
-  hints.ai_flags = AI_ADDRCONFIG | AI_PASSIVE | AI_V4MAPPED | AI_ALL;
+  hints.ai_flags = AI_ADDRCONFIG | AI_PASSIVE;
+  if (v4MappedResults) { hints.ai_flags |= AI_V4MAPPED | AI_ALL; }
   hints.ai_protocol = IPPROTO_UDP;
   int s = getaddrinfo(addr.c_str(), ss.str().c_str(), &hints, &result);
   if (!s){

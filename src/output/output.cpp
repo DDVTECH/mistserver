@@ -2951,7 +2951,7 @@ namespace Mist{
     /*LTS-END*/
 
     if (IP != ""){
-      if (!myConn.isAddress(IP)){
+      if (!Socket::isBinAddress(getConnectedBinHost(), IP)) {
         WARN_MSG("Push from %s rejected; not whitelisted", getConnectedHost().c_str());
         pushing = false;
         return false;

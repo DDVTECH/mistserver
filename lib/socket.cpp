@@ -420,35 +420,22 @@ bool Socket::compareAddress(const sockaddr* A, const sockaddr* B){
 
 /// Attempts to match the given address with optional subnet to the given binary-form IPv6 address.
 /// Returns true if match could be made, false otherwise.
-bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
+bool Socket::isBinAddress(const std::string & binAddr, std::string addr) {
   // Check if we need to do prefix matching
   uint8_t prefixLen = 0;
-  if (addr.find('/') != std::string::npos){
+  if (addr.find('/') != std::string::npos) {
     prefixLen = atoi(addr.c_str() + addr.find('/') + 1);
     addr.erase(addr.find('/'), std::string::npos);
   }
   // Loops over all IPs for the given address and matches them in IPv6 form.
-  struct addrinfo *result, *rp, hints;
-  memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
-  hints.ai_protocol = 0;
-  hints.ai_canonname = NULL;
-  hints.ai_addr = NULL;
-  hints.ai_next = NULL;
-  int s = getaddrinfo(addr.c_str(), 0, &hints, &result);
-  if (s != 0){return false;}
-
-  for (rp = result; rp != NULL; rp = rp->ai_next){
-    std::string tBinAddr = Socket::Address(rp->ai_addr).binForm();
-    if (rp->ai_family == AF_INET){
-      if (matchIPv6Addr(tBinAddr, binAddr, prefixLen ? prefixLen + 96 : 0)){return true;}
-    }else{
-      if (matchIPv6Addr(tBinAddr, binAddr, prefixLen)){return true;}
+  std::deque<Socket::Address> addrs = getAddrs(addr, 0);
+  for (const auto & A : addrs) {
+    if (A.family() == AF_INET) {
+      if (matchIPv6Addr(A.binForm(), binAddr, prefixLen ? prefixLen + 96 : 0)) { return true; }
+    } else {
+      if (matchIPv6Addr(A.binForm(), binAddr, prefixLen)) { return true; }
     }
   }
-  freeaddrinfo(result);
   return false;
 }
 
@@ -1770,7 +1757,7 @@ std::string Socket::Connection::getBoundAddress() const{
 /// Guaranteed to be either empty or 16 bytes long.
 std::string Socket::Connection::getBinHost() const{
   if (!*this) { return ""; }
-  return Socket::Address(&remoteaddr, sizeof(remoteaddr)).binForm();
+  return Socket::Address(&remoteaddr).binForm();
 }
 
 /// Sets hostname for connection manually.
@@ -1881,9 +1868,7 @@ Socket::Connection &Socket::Connection::operator=(const Socket::Connection &rhs)
 /// Returns true if the given address can be matched with the remote host.
 /// Can no longer return true after any socket error have occurred.
 bool Socket::Connection::isAddress(const std::string &addr){
-  // Retrieve current socket binary address
-  std::string myBinAddr = getBinHost();
-  return isBinAddress(myBinAddr, addr);
+  return isBinAddress(Socket::Address(&remoteaddr).binForm(), addr);
 }
 
 bool Socket::Connection::isLocal(){

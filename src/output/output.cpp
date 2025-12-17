@@ -1910,7 +1910,6 @@ namespace Mist{
         if (maxWait == 2000 && parseData) { maxWait = avgBetweenPackets * 0.9; }
       }else{
         maxWait = avgBetweenPackets * 0.9;
-        if (maxWait > 2000) { maxWait = 2000; }
         // slow down processing, if real time speed is wanted
         if (parseData){
           nTime = buffer.nonGhost();
@@ -1934,6 +1933,9 @@ namespace Mist{
           maxWait = 2000;
         }
       }
+
+      // Always loop at least every 2s, no matter what
+      if (maxWait > 2000) { maxWait = 2000; }
 
       size_t task = evLp.await(maxWait);
       thisBootMs = Util::bootMS();

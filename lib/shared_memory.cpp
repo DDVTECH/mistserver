@@ -306,60 +306,69 @@ namespace IPC{
   ///\param len_ The size to make the page
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  void sharedPage::init(const std::string &name_, uint64_t len_, bool master_, bool autoBackoff){
+  void sharedPage::init(const std::string & name_, uint64_t len_, bool master_, bool autoBackoff) {
     close();
     name = name_;
     len = len_;
     master = master_;
     mapped = 0;
-    if (name.size()){
-      INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(),
-                 master ? "master" : "client", autoBackoff ? "with" : "without");
+    if (name.size()) {
+      INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master ? "master" : "client",
+                 autoBackoff ? "with" : "without");
       handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
-      if (handle == -1){
-        if (master){
-          if (len > 1){ERROR_MSG("Overwriting old page for %s", name.c_str());}
+      if (handle == -1) {
+        if (master) {
+          if (len > 1) { ERROR_MSG("Overwriting old page for %s", name.c_str()); }
           handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
-        }else{
+        } else {
           int i = 0;
-          while (i < 11 && handle == -1 && autoBackoff){
+          while (i < 11 && handle == -1 && autoBackoff) {
             i++;
-            Util::wait(Util::expBackoffMs(i-1, 10, 10000));
+            Util::wait(Util::expBackoffMs(i - 1, 10, 10000));
             handle = shm_open(name.c_str(), O_RDWR, ACCESSPERMS);
           }
         }
       }
-      if (handle == -1){
-        if (!master_ && autoBackoff){
-          HIGH_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno));
-        }
+      if (handle == -1) {
+        if (!master_ && autoBackoff) { HIGH_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno)); }
         return;
       }
-      if (handle >= 0 && handle < 3){
+      if (handle >= 0 && handle < 3) {
         int tmpHandle = fcntl(handle, F_DUPFD, 3);
-        if (tmpHandle >= 3){
+        if (tmpHandle >= 3) {
           DONTEVEN_MSG("Remapped handle for page %s from %d to %d!", name.c_str(), handle, tmpHandle);
           ::close(handle);
           handle = tmpHandle;
         }
       }
-      if (master){
-        if (ftruncate(handle, len) < 0){
+      if (master) {
+        if (ftruncate(handle, len) < 0) {
           FAIL_MSG("truncate to %" PRIu64 " for page %s failed: %s", len, name.c_str(), strerror(errno));
           return;
         }
-      }else{
-        struct stat buffStats;
-        int xRes = fstat(handle, &buffStats);
-        if (xRes < 0){return;}
-        len = buffStats.st_size;
-        if (!len){
+      } else {
+        // Attempt to read page size from existing object
+        // Retries every 5ms for up to 100 times - that should be plenty for all reasonable cases
+        len = 0;
+        int i = 0;
+        while (!len && ++i < 101) {
+          struct stat buffStats;
+          int xRes = fstat(handle, &buffStats);
+          if (xRes < 0 || !buffStats.st_size) {
+            Util::wait(5);
+          } else {
+            len = buffStats.st_size;
+          }
+        }
+        // Still no size after 500ms - something is seriously wrong. Abort!
+        if (!len) {
+          FAIL_MSG("Page %s could be opened, but was 0 bytes long", name.c_str());
           mapped = 0;
           return;
         }
       }
       mapped = (char *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
-      if (mapped == MAP_FAILED){
+      if (mapped == MAP_FAILED) {
         FAIL_MSG("mmap for page %s failed: %s", name.c_str(), strerror(errno));
         mapped = 0;
         return;

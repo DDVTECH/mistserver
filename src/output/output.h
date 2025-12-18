@@ -119,7 +119,15 @@ namespace Mist{
     uint64_t uaDelay;                                ///< Seconds to wait before setting the UA.
     uint64_t lastRecv;
     uint64_t dataWaitTimeout; ///< How long to wait for new packets before dropping a track, in milliseconds.
-    uint64_t firstTime; ///< Time of first packet after last seek. Used for real-time sending.
+
+    // Playback timing related
+    uint64_t timingBootMs; ///< System boot time of the last playback speed change.
+    uint64_t timingMdiaMs; ///< Media time of the last playback speed change.
+    uint64_t realTime; ///< Playback speed in ms of wallclock time per data-second. (0 is uncapped)
+    uint64_t maxSkipAhead; ///< Maximum ms that we will go ahead of the intended timestamps.
+    uint64_t needsLookAhead; ///< Amount of millis we need to be able to look ahead in the metadata
+    void resetTiming(uint64_t currTime);
+
     virtual std::string getConnectedHost();
     virtual std::string getConnectedBinHost();
     virtual std::string getStatsName();
@@ -136,11 +144,6 @@ namespace Mist{
     std::string tkn;    ///< Random identifier used to split connections into sessions
     uint64_t nextKeyTime();
 
-    // stream delaying variables
-    uint64_t maxSkipAhead;   ///< Maximum ms that we will go ahead of the intended timestamps.
-    uint64_t realTime;       ///< Playback speed in ms of wallclock time per data-second. eg: 0 is
-                             ///< infinite, 1000 real-time, 5000 is 0.2X speed, 500 = 2X speed.
-    uint64_t needsLookAhead; ///< Amount of millis we need to be able to look ahead in the metadata
 
     // Read/write status variables
     Socket::Connection &myConn; ///< Connection to the client.

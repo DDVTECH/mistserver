@@ -101,13 +101,13 @@ namespace Mist{
   Output::Output(Socket::Connection &conn) : myConn(conn){
     liveSeekDisabled = false;
     dataWaitTimeout = 25000;
-    thisBootMs = Util::bootMS();
+    timingBootMs = thisBootMs = Util::bootMS();
+    timingMdiaMs = 0;
     lastPacketBootMs = thisBootMs;
     for (size_t i = 0; i < 10; ++i){interPacketTimes[i] = 50;}
     avgBetweenPackets = 50;
     pushing = false;
     recursingSync = false;
-    firstTime = thisBootMs;
     thisTime = 0;
     firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
     lastPacketTime = 0;
@@ -832,7 +832,7 @@ namespace Mist{
   /// This takes into account the current playback speed as well as the maxSkipAhead setting.
   uint64_t Output::targetTime(){
     if (!realTime){return currentTime();}
-    return (((thisBootMs - firstTime) * 1000) / realTime + maxSkipAhead);
+    return (((thisBootMs - timingBootMs) * 1000) / realTime + timingMdiaMs + maxSkipAhead);
   }
 
   /// Return the start time of the selected tracks.
@@ -901,6 +901,12 @@ namespace Mist{
     }
   }
 
+  /// Sets timingBootMs and timingMdiaMs so that currTime would play at the current time
+  void Output::resetTiming(uint64_t currTime){
+    timingBootMs = thisBootMs;
+    timingMdiaMs = currTime;
+  }
+
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   /// If toKey is true, clips the seek to the nearest keyframe if the main track is a video track.
   bool Output::seek(uint64_t pos, bool toKey){
@@ -939,10 +945,10 @@ namespace Mist{
       }
     }
     bool ret = seekTracks.size();
-    for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
-      ret &= seek(*it, pos, false);
-    }
-    firstTime = thisBootMs - (currentTime() * realTime / 1000);
+    for (const size_t T : seekTracks) { ret &= seek(T, pos, false); }
+
+    resetTiming(currentTime());
+
     return ret;
   }
 
@@ -1487,7 +1493,7 @@ namespace Mist{
       }
       if (realTime != newSpeed){
         VERYHIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA)", realTime, newSpeed, needsLookAhead, mKa);
-        firstTime = thisBootMs - (cTime * newSpeed / 1000);
+        resetTiming(cTime);
         realTime = newSpeed;
       }
       if (!noReturn){return false;}
@@ -1553,7 +1559,8 @@ namespace Mist{
   /// related times as needed to keep smooth playback intact.
   void Output::playbackSleep(uint64_t millis){
     if (realTime && M.getLive() && buffer.getSyncMode()){
-      firstTime += millis;
+      timingBootMs += millis;
+      if (timingBootMs > thisBootMs) { timingBootMs = thisBootMs; }
     }
     Util::wait(millis);
   }
@@ -1970,7 +1977,10 @@ namespace Mist{
         if (suggestedWait){
           // No packet prepared
           ++prepFalse;
-          if (realTime){++firstTime;}
+          if (realTime) {
+            ++timingBootMs;
+            if (timingBootMs > thisBootMs) { timingBootMs = thisBootMs; }
+          }
         }else{
           // Packet prepared
           // End point reached?

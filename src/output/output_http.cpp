@@ -242,15 +242,14 @@ namespace Mist{
     //Finish fast-forwarding if forwardTo time was reached
     if (forwardTo && thisTime >= forwardTo){
       forwardTo = 0;
+      resetTiming(thisTime);
       if (target_rate == 0.0){
         realTime = 1000;//set playback speed to default
-        firstTime = Util::bootMS() - thisTime;
         maxSkipAhead = 0;//enable automatic rate control
       }else{
         stayLive = false;
         //Set new realTime speed
         realTime = 1000 / target_rate;
-        firstTime = Util::bootMS() - (thisTime / target_rate);
         maxSkipAhead = 1;//disable automatic rate control
       }
       JSON::Value r;
@@ -526,7 +525,7 @@ namespace Mist{
         lastPacketTime = targetTime();
       }else{
         //On resume, restore the timing to be where it was when pausing
-        firstTime = Util::bootMS() - (lastPacketTime / target_rate);
+        resetTiming(lastPacketTime);
       }
       onCommandSend(r.toString());
       return true;
@@ -581,11 +580,7 @@ namespace Mist{
         if (forwardTo > currentTime()){
           realTime = 0;
         }else{
-          if (target_rate == 0.0){
-            firstTime = Util::bootMS() - forwardTo;
-          }else{
-            firstTime = Util::bootMS() - (forwardTo / target_rate);
-          }
+          resetTiming(forwardTo);
           forwardTo = 0;
         }
       }else{
@@ -625,19 +620,17 @@ namespace Mist{
         r["data"]["play_rate_curr"] = set_rate;
       }
 
-      if (target_rate != set_rate){
+      if (target_rate != set_rate) {
         uint64_t prevTargetTime = targetTime();
         target_rate = set_rate;
-        if (target_rate == 0.0){
-          realTime = 1000;//set playback speed to default
-          firstTime = Util::bootMS() - prevTargetTime;
-          maxSkipAhead = 0;//enabled automatic rate control
-        }else{
+        resetTiming(prevTargetTime);
+        if (target_rate == 0.0) {
+          realTime = 1000; // set playback speed to default
+          maxSkipAhead = 0; // enabled automatic rate control
+        } else {
           stayLive = false;
-          //Set new realTime speed
           realTime = 1000.0 / target_rate;
-          firstTime = Util::bootMS() - prevTargetTime * realTime / 1000;
-          maxSkipAhead = 1;//disable automatic rate control
+          maxSkipAhead = 1; // disable automatic rate control
         }
       }
       if (M.getLive()){r["data"]["live_point"] = stayLive;}
@@ -663,21 +656,9 @@ namespace Mist{
         if (M.getLive() && currentTime() < startTime()){
           initialSeek();
         }else{
-          if (lastPacketTime){
-            //On resume, restore the timing to be where it was when pausing
-            if (target_rate == 0.0){
-              firstTime = Util::bootMS() - lastPacketTime;
-            }else{
-              firstTime = Util::bootMS() - (lastPacketTime / target_rate);
-            }
-          }else{
-            //We don't know? Guess.
-            if (target_rate == 0.0){
-              firstTime = Util::bootMS() - currentTime();
-            }else{
-              firstTime = Util::bootMS() - (currentTime() / target_rate);
-            }
-          }
+          // On resume, restore the timing to be where it was when pausing
+          // We don't know? Guess.
+          resetTiming(lastPacketTime ? lastPacketTime : currentTime());
         }
       }
       return true;
@@ -710,17 +691,17 @@ namespace Mist{
     //Finish fast-forwarding if forwardTo time was reached
     if (forwardTo && targetTime() >= forwardTo){
       forwardTo = 0;
+      uint64_t tTime = targetTime();
       if (target_rate == 0.0){
         realTime = 1000;//set playback speed to default
-        firstTime = Util::bootMS() - targetTime();
         maxSkipAhead = 0;//enable automatic rate control
       }else{
         stayLive = false;
         //Set new realTime speed
         realTime = 1000 / target_rate;
-        firstTime = Util::bootMS() - (targetTime() / target_rate);
         maxSkipAhead = 1;//disable automatic rate control
       }
+      resetTiming(tTime);
       JSON::Value r;
       r["type"] = "set_speed";
       r["data"]["play_rate_prev"] = "fast-forward";
@@ -893,11 +874,7 @@ namespace Mist{
         forwardTo = command["ff_to"].asInt();
       }
       if (forwardTo < currentTime()){
-        if (target_rate == 0.0){
-          firstTime = Util::bootMS() - forwardTo;
-        }else{
-          firstTime = Util::bootMS() - (forwardTo / target_rate);
-        }
+        resetTiming(forwardTo);
         forwardTo = 0;
       }else{
         realTime = 0;

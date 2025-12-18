@@ -79,7 +79,7 @@ namespace Mist{
       r["paused"] = !parseData;
       //Make sure we reset our timing code, too
       if (parseData){
-        firstTime = Util::bootMS() - (currentTime() / target_rate);
+        resetTiming(currentTime());
       }
       webSock->sendFrame(r.toString());
     }else if (command["type"] == "hold") {
@@ -271,15 +271,14 @@ namespace Mist{
       target_rate = set_rate;
       if (target_rate == 0.0){
         realTime = 1000;//set playback speed to default
-        firstTime = Util::bootMS() - currentTime();
         maxSkipAhead = 0;//enabled automatic rate control
       }else{
         stayLive = false;
         //Set new realTime speed
         realTime = 1000 / target_rate;
-        firstTime = Util::bootMS() - (currentTime() / target_rate);
         maxSkipAhead = 1;//disable automatic rate control
       }
+      resetTiming(currentTime());
     }
     if (M.getLive()){r["data"]["live_point"] = stayLive;}
     webSock->sendFrame(r.toString());
@@ -369,15 +368,14 @@ namespace Mist{
         forwardTo = 0;
         if (target_rate == 0.0){
           realTime = 1000;//set playback speed to default
-          firstTime = Util::bootMS() - currentTime();
           maxSkipAhead = 0;//enabled automatic rate control
         }else{
           stayLive = false;
           //Set new realTime speed
           realTime = 1000 / target_rate;
-          firstTime = Util::bootMS() - (currentTime() / target_rate);
           maxSkipAhead = 1;//disable automatic rate control
         }
+        resetTiming(currentTime());
         JSON::Value r;
         r["type"] = "set_speed";
         r["data"]["play_rate_prev"] = "fast-forward";

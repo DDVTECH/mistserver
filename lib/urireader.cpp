@@ -255,6 +255,11 @@ namespace HTTP{
     return false;
   }
 
+  /// Sets binary mode on the reader for more efficient reading of non-text content
+  void URIReader::binaryMode() {
+    downer.getSocket().Received().splitter.clear();
+  }
+
   // seek to pos, return true if succeeded.
   bool URIReader::seek(const uint64_t pos){
     //Seeking in a non-seekable source? No-op, always fails.

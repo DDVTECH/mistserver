@@ -159,6 +159,7 @@ namespace Mist{
       }
       dup2(fout, 0);
       inFile.open(0);
+      inFile.binaryMode();
       INFO_MSG("Reading from process %d: %s", inProc, config->getString("input").substr(9).c_str());
       return true;
     }
@@ -174,6 +175,7 @@ namespace Mist{
       }
       standAlone = inFile.isSeekable();
     }
+    inFile.binaryMode();
     return true;
   }
 
@@ -492,6 +494,16 @@ namespace Mist{
         std::string bitmapheader = tmpElem.getValStringUntrimmed();
         if (bitmapheader.substr(16, 4) == "MJPG") {
           trueCodec = "JPEG";
+          trueType = "video";
+        }
+      }
+    }
+    if (codec == "V_UNCOMPRESSED") {
+      tmpElem = E.findChild(EBML::EID_UNCOMPRESSEDFOURCC);
+      if (tmpElem) {
+        std::string fourcc = tmpElem.getValStringUntrimmed();
+        if (fourcc == "UYVY" || fourcc == "NV12" || fourcc == "YUYV") {
+          trueCodec = fourcc;
           trueType = "video";
         }
       }

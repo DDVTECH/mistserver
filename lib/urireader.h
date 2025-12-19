@@ -67,6 +67,7 @@ namespace HTTP{
     virtual size_t getDataCallbackPos() const;
 
     std::string userAgentOverride;
+    void binaryMode(); ///< Sets binary mode on the reader for more efficient reading of non-text content
 
     std::string getHost() const; ///< Gets hostname for connection, or [::] if local.
     std::string getBinHost() const; ///< Gets binary form hostname for connection, or [::] if local.

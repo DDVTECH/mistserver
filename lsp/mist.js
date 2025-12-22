@@ -6761,6 +6761,7 @@ context_menu: function(){
                 //it's a new wildcard stream
                 current_streams[streamname] = $.extend({},mist.data.streams[streambase]);
                 current_streams[streamname].name = streamname;
+                current_streams[streamname].online = data[1] > 0 ? 1 : 0;
                 if (current_streams[streambase].isfolderstream) {
                   current_streams[streamname].source += streamname.replace(streambase+"+");
                 }
@@ -7418,7 +7419,7 @@ context_menu: function(){
                   clipboard: true,
                   maxlength: 256,
                   validate: [function(val,me){
-                    if (mist.data.streamkeys && (val in mist.data.streamkeys) && (mist.data.streamkeys[val] != other)) {
+                    if (mist.data.streamkeys && (val in mist.data.streamkeys) && (mist.data.streamkeys[val] != other.split("+")[0])) {
                       //duplicates in the current field do not need to be tested - they're all for the same stream so it won't be an issue
                       return {
                         msg: "The key '"+val+"' is already in use (for the stream '"+mist.data.streamkeys[val]+"'). Duplicates are not allowed.",

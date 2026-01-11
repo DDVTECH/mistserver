@@ -651,6 +651,10 @@ namespace Socket{
       srt_close(sock);
       sock = INVALID_SRT_SOCKET;
     }
+    if (eid != -1) {
+      srt_epoll_release(eid);
+      eid = -1;
+    }
   }
 
   SRTServer::SRTServer(){}

@@ -2435,17 +2435,25 @@ namespace Mist {
         if (!reTrackToID.count(reTrack)){reTrackToID[reTrack] = INVALID_TRACK_ID;}
         F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
         if ((F.getDataLen() || (amf_storage && amf_storage->hasContent())) && !(F.needsInitData() && F.isInitData())){
+          thisBootMs = Util::bootMS();
           uint64_t tagTime = next.timestamp;
           if (!setRtmpOffset) {
             uint64_t timeOffset = 0;
             if (targetParams.count("timeoffset")) { timeOffset = JSON::Value(targetParams["timeoffset"]).asInt(); }
             if (!M.getBootMsOffset()) {
-              meta.setBootMsOffset(Util::bootMS() - tagTime);
+              meta.setBootMsOffset(thisBootMs - tagTime);
               rtmpOffset = timeOffset;
             } else {
-              rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset() + timeOffset;
+              rtmpOffset = (thisBootMs - tagTime) - M.getBootMsOffset() + timeOffset;
             }
             setRtmpOffset = true;
+          } else {
+            // Check if the current time with offsets would somehow end up in the future. If so, adjust it to be "now" instead.
+            if (tagTime + rtmpOffset + trackOffset[reTrack] + M.getBootMsOffset() > thisBootMs) {
+              size_t diff = (tagTime + rtmpOffset + trackOffset[reTrack] + M.getBootMsOffset()) - thisBootMs;
+              WARN_MSG("Shifting bootmsoffset by %zums", diff);
+              meta.setBootMsOffset(M.getBootMsOffset() - diff);
+            }
           }
           tagTime += rtmpOffset + trackOffset[reTrack];
           uint64_t &ltt = lastTagTime[reTrack];

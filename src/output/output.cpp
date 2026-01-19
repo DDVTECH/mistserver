@@ -1850,6 +1850,7 @@ namespace Mist{
       }
       parseData = true;
       wantRequest = false;
+      if (!targetParams.count("m3u8")) { config->getOption("target", true).append(currentTarget); }
       if (!targetParams.count("realtime")){
         realTime = 0;
       }

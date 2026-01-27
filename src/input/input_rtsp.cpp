@@ -138,11 +138,12 @@ namespace Mist{
       return false;
     }
     if (transport == "UDP" || transport == "udp"){TCPmode = false;}
-    url = HTTP::URL(config->getString("input"));
+    url = config->getString("input");
     username = url.user;
     password = url.pass;
     url.user = "";
     url.pass = "";
+    baseUrl = url.getUrl();
     return true;
   }
 
@@ -159,9 +160,9 @@ namespace Mist{
   void InputRTSP::parseStreamHeader(){
     tcpCon.setBlocking(false);
     std::map<std::string, std::string> extraHeaders;
-    sendCommand("OPTIONS", url.getUrl(), "");
+    sendCommand("OPTIONS", baseUrl, "");
     extraHeaders["Accept"] = "application/sdp";
-    sendCommand("DESCRIBE", url.getUrl(), "", &extraHeaders);
+    sendCommand("DESCRIBE", baseUrl, "", &extraHeaders);
     if (!tcpCon || !seenSDP){
       Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not get stream description!");
       return;
@@ -173,7 +174,7 @@ namespace Mist{
         transportSet = false;
         extraHeaders.clear();
         extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
-        lastRequestedSetup = HTTP::URL(url.getUrl() + "/").link(it->second.control).getUrl();
+        lastRequestedSetup = baseUrl + it->second.control;
         sendCommand("SETUP", lastRequestedSetup, "", &extraHeaders);
         if (tcpCon && transportSet){
           atLeastOne = true;
@@ -197,19 +198,19 @@ namespace Mist{
     INFO_MSG("Setup complete");
     extraHeaders.clear();
     extraHeaders["Range"] = "npt=0.000-";
-    sendCommand("PLAY", url.getUrl(), "", &extraHeaders);
+    sendCommand("PLAY", baseUrl, "", &extraHeaders);
     if (TCPmode){tcpCon.setBlocking(true);}
   }
 
   void InputRTSP::closeStreamSource(){
-    sendCommand("TEARDOWN", url.getUrl(), "");
+    sendCommand("TEARDOWN", baseUrl, "");
     tcpCon.close();
   }
 
   void InputRTSP::doTimers(){
     uint64_t currSecs = Util::bootSecs();
     if (currSecs - lastPing > 30){
-      sendCommand("GET_PARAMETER", url.getUrl(), "");
+      sendCommand("GET_PARAMETER", baseUrl, "");
       lastPing = Util::bootSecs();
     }
     if (lastSecs != currSecs){
@@ -268,14 +269,12 @@ namespace Mist{
             recH.Clean();
             return true;
           }
-          if (recH.hasHeader("Content-Location")){
-            url = HTTP::URL(recH.GetHeader("Content-Location"));
-          }
+          if (recH.hasHeader("Content-Location")) { url = baseUrl = recH.GetHeader("Content-Location"); }
           if (recH.hasHeader("Content-Base") && recH.GetHeader("Content-Base") != "" &&
               recH.GetHeader("Content-Base") != url.getUrl()){
             INFO_MSG("Changing base URL from %s to %s", url.getUrl().c_str(),
                      recH.GetHeader("Content-Base").c_str());
-            url = HTTP::URL(recH.GetHeader("Content-Base"));
+            url = baseUrl = recH.GetHeader("Content-Base");
           }
           if (recH.hasHeader("Session")){
             session = recH.GetHeader("Session");

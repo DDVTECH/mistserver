@@ -490,6 +490,49 @@ namespace SDP{
     // (UDP) Host will be set when a c= line is read
     std::string host = "127.0.0.1";
     size_t tid = INVALID_TRACK_ID;
+
+    auto parseFMTP = [&]() {
+      if (myMeta->getCodec(tid) == "AAC") {
+        if (tracks[tid].getParamString("mode") != "AAC-hbr") {
+          // a=fmtp:97
+          // profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;
+          // config=120856E500
+          FAIL_MSG("AAC transport mode not supported: %s", tracks[tid].getParamString("mode").c_str());
+          myMeta->removeTrack(tid);
+          tracks.erase(tid);
+          return false;
+        }
+        Track & T = tracks[tid];
+        RTP::toDTSC & D = tConv[tid];
+        D.mpeg4ConstSize = T.getParamInt("constantsize");
+        D.mpeg4SizeLen = T.getParamInt("sizelength");
+        D.mpeg4IdxALen = T.getParamInt("indexlength");
+        D.mpeg4IdxBLen = T.getParamInt("indexdeltalength");
+        D.mpeg4CTSLen = T.getParamInt("ctsdeltalength");
+        D.mpeg4DTSLen = T.getParamInt("dtsdeltalength");
+        D.mpeg4AuxLen = T.getParamInt("auxiliarydatasizelength");
+        D.mpeg4RAP = T.getParamInt("randomaccessindication");
+        myMeta->setInit(tid, Encodings::Hex::decode(T.getParamString("config")));
+      }
+      if (myMeta->getCodec(tid) == "H264") {
+        // a=fmtp:96 packetization-mode=1;
+        // sprop-parameter-sets=Z0LAHtkA2D3m//AUABqxAAADAAEAAAMAMg8WLkg=,aMuDyyA=;
+        // profile-level-id=42C01E
+        std::string sprop = tracks[tid].getParamString("sprop-parameter-sets");
+        size_t comma = sprop.find(',');
+        tracks[tid].spsData = Encodings::Base64::decode(sprop.substr(0, comma));
+        tracks[tid].ppsData = Encodings::Base64::decode(sprop.substr(comma + 1));
+        updateH264Init(tid);
+      }
+      if (myMeta->getCodec(tid) == "HEVC") {
+        tracks[tid].hevcInfo.addUnit(Encodings::Base64::decode(tracks[tid].getParamString("sprop-vps")));
+        tracks[tid].hevcInfo.addUnit(Encodings::Base64::decode(tracks[tid].getParamString("sprop-sps")));
+        tracks[tid].hevcInfo.addUnit(Encodings::Base64::decode(tracks[tid].getParamString("sprop-pps")));
+        updateH265Init(tid);
+      }
+      return true;
+    };
+
     bool nope = true; // true if we have no valid track to fill
     while (std::getline(ss, to, '\n')){
       if (!to.empty() && *to.rbegin() == '\r'){to.erase(to.size() - 1, 1);}
@@ -694,6 +737,7 @@ namespace SDP{
           ERROR_MSG("Unsupported RTP mapping: %s", mediaType.c_str());
         }else{
           tConv[tid].setProperties(*myMeta, tid);
+          if (tracks[tid].fmtp.size()) { nope |= !parseFMTP(); }
           HIGH_MSG("Incoming track %s", myMeta->getTrackIdentifier(tid).c_str());
         }
         continue;
@@ -718,39 +762,7 @@ namespace SDP{
       }
       if (to.substr(0, 7) == "a=fmtp:"){
         tracks[tid].fmtp = to.substr(7);
-        if (myMeta->getCodec(tid) == "AAC"){
-          if (tracks[tid].getParamString("mode") != "AAC-hbr"){
-            // a=fmtp:97
-            // profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;
-            // config=120856E500
-            FAIL_MSG("AAC transport mode not supported: %s", tracks[tid].getParamString("mode").c_str());
-            nope = true;
-            myMeta->removeTrack(tid);
-            tracks.erase(tid);
-            continue;
-          }
-          myMeta->setInit(tid, Encodings::Hex::decode(tracks[tid].getParamString("config")));
-          // myMeta.tracks[trackNo].rate = aac::AudSpecConf::rate(myMeta.tracks[trackNo].init);
-        }
-        if (myMeta->getCodec(tid) == "H264"){
-          // a=fmtp:96 packetization-mode=1;
-          // sprop-parameter-sets=Z0LAHtkA2D3m//AUABqxAAADAAEAAAMAMg8WLkg=,aMuDyyA=;
-          // profile-level-id=42C01E
-          std::string sprop = tracks[tid].getParamString("sprop-parameter-sets");
-          size_t comma = sprop.find(',');
-          tracks[tid].spsData = Encodings::Base64::decode(sprop.substr(0, comma));
-          tracks[tid].ppsData = Encodings::Base64::decode(sprop.substr(comma + 1));
-          updateH264Init(tid);
-        }
-        if (myMeta->getCodec(tid) == "HEVC"){
-          tracks[tid].hevcInfo.addUnit(
-              Encodings::Base64::decode(tracks[tid].getParamString("sprop-vps")));
-          tracks[tid].hevcInfo.addUnit(
-              Encodings::Base64::decode(tracks[tid].getParamString("sprop-sps")));
-          tracks[tid].hevcInfo.addUnit(
-              Encodings::Base64::decode(tracks[tid].getParamString("sprop-pps")));
-          updateH265Init(tid);
-        }
+        nope |= !parseFMTP();
         continue;
       }
       // We ignore bandwidth lines

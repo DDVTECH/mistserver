@@ -188,6 +188,15 @@ namespace RTP{
     uint32_t prevTime;
     uint64_t firstTime;
     int64_t milliSync;
+    bool warned{false}; ///< True if a warning has printed already and should not be repeated
+    size_t mpeg4ConstSize{0}; ///< mpeg4-generic constantSize
+    size_t mpeg4SizeLen{0}; ///< mpeg4-generic sizeLength
+    size_t mpeg4IdxALen{0}; ///< mpeg4-generic indexLength
+    size_t mpeg4IdxBLen{0}; ///< mpeg4-generic indexDeltaLength
+    size_t mpeg4CTSLen{0}; ///< mpeg4-generic CTSDeltaLength
+    size_t mpeg4DTSLen{0}; ///< mpeg4-generic DTSDeltaLength
+    size_t mpeg4AuxLen{0}; ///< mpeg4-generic auxiliaryDataSizeLength
+    bool mpeg4RAP{false}; ///< mpeg4-generic randomAccessIndication
     std::function<void(const DTSC::Packet &pkt)> cbPack;
     std::function<void(const uint64_t track, const std::string &initData)> cbInit;
     // Codec-specific handlers
@@ -196,9 +205,10 @@ namespace RTP{
     void handleMPEG2(uint64_t msTime, char *pl, uint32_t plSize);
     void handleHEVC(uint64_t msTime, char *pl, uint32_t plSize, bool missed);
     void handleHEVCSingle(uint64_t ts, const char *buffer, const uint32_t len, bool isKey);
-    h265::initData hevcInfo;            ///< For HEVC init parsing
-    Util::ResizeablePointer fuaBuffer;  ///< For H264/HEVC FU-A packets
+    h265::initData hevcInfo; ///< For HEVC init parsing
+    Util::ResizeablePointer fuaBuffer; ///< For H264/HEVC FU-A packets
     Util::ResizeablePointer packBuffer; ///< For H264/HEVC regular and STAP packets
+    uint64_t packBufferTime{0}; ///< Timestamp of current packBuffer contents
     uint64_t currH264Time;//Time of the DTSC packet currently being built (pre-conversion)
     Util::ResizeablePointer h264OutBuffer; ///< For collecting multiple timestamps into one packet
     bool h264BufferWasKey;

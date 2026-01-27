@@ -1078,25 +1078,56 @@ namespace RTP{
       WARN_MSG("Invalid AAC data: <= 2 bytes in length");
       return;
     }
-    // assume AAC packets are single AU units
-    /// \todo Support other input than single AU units
-    unsigned int headLen = (Bit::btohs(pl) >> 3) + 2; // in bits, so /8, plus two for the prepended size
+    if (mpeg4SizeLen != 13 || mpeg4IdxALen != 3 || mpeg4IdxBLen != 3) {
+      if (!warned) {
+        WARN_MSG("Non-standard aac-hbr RTP feed: size (%zub) is not 13 bits and/or index (%zub) not 3 bits!", mpeg4SizeLen, mpeg4IdxALen);
+        warned = true;
+      }
+    }
     DTSC::Packet nextPack;
     uint16_t samples = aac::AudSpecConf::samples(init);
     uint32_t sampleOffset = 0;
-    uint32_t offset = 0;
     uint32_t auSize = 0;
-    for (uint32_t i = 2; i < headLen && i + 2 < plSize; i += 2){
-      auSize = Bit::btohs(pl + i) >> 3; // only the upper 13 bits
-      if (auSize + headLen + offset > plSize){
-        WARN_MSG("Invalid AAC data: continues beyond packet size");
+    size_t auHeadBits = Bit::btohs(pl);
+    size_t auHeadBytes = (auHeadBits / 8) + ((auHeadBits % 8) ? 1 : 0);
+    size_t unitOffset = 2 + auHeadBytes;
+
+    if (auHeadBytes == 2) {
+      // Single unit, or single fragment of a single unit
+      auSize = Bit::btohs(pl + 2) >> 3; // only the upper 13 bits
+      if (auSize + unitOffset == plSize) {
+        packBuffer.truncate(0);
+        nextPack.genericFill(msTime, 0, trackId, pl + unitOffset, auSize, 0, false);
+        outPacket(nextPack);
+      } else {
+        if (!packBuffer.size() || packBufferTime != msTime) {
+          packBufferTime = msTime;
+          packBuffer.allocate(auSize);
+        }
+        if (packBuffer.size() + (plSize - unitOffset) <= auSize) {
+          packBuffer.append(pl + unitOffset, plSize - unitOffset);
+        }
+        if (packBuffer.size() == auSize) {
+          nextPack.genericFill(msTime, 0, trackId, packBuffer, packBuffer.size(), 0, false);
+          outPacket(nextPack);
+          packBuffer.truncate(0);
+        }
+      }
+      return;
+    }
+
+    // Multiple whole units
+    for (size_t offset = 2; offset < auHeadBytes + 2 && offset + 2 < plSize; offset += 2) {
+      auSize = Bit::btohs(pl + offset) >> 3; // only the upper 13 bits
+      if (auSize + unitOffset > plSize) {
+        WARN_MSG("Invalid AAC data: unit %zu continues %zub beyond packet size (%" PRIu32 "b)", offset / 2,
+                 (size_t)(auSize + unitOffset - plSize), plSize);
         break;
       }
-      nextPack.genericFill(msTime + sampleOffset / multiplier, 0, trackId, pl + headLen + offset,
-                           std::min(auSize, plSize - headLen - offset), 0, false);
-      offset += auSize;
-      sampleOffset += samples;
+      nextPack.genericFill(msTime + sampleOffset / multiplier, 0, trackId, pl + unitOffset, auSize, 0, false);
       outPacket(nextPack);
+      unitOffset += auSize;
+      sampleOffset += samples;
     }
   }
 

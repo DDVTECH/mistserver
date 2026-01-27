@@ -37,6 +37,7 @@ namespace Mist{
     Socket::Connection tcpCon;
     HTTP::Parser sndH, recH;
     HTTP::URL url;
+    std::string baseUrl;
     std::string username, password, authRequest;
     uint64_t cSeq;
     SDP::State sdpState;

@@ -100,7 +100,11 @@ namespace Mist{
       if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
         DTSC::trackValidDefault = opt["target_mask"].asInt();
       } else {
-        DTSC::trackValidDefault = TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH;
+        if (codecOut == "UYVY" || codecOut == "YUYV" || codecOut == "PCM" || codecOut == "NV12") {
+          DTSC::trackValidDefault = TRACK_VALID_EXT_HUMAN | TRACK_VALID_INT_PROCESS;
+        } else {
+          DTSC::trackValidDefault = TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH;
+        }
       }
     };
 

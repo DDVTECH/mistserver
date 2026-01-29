@@ -1435,7 +1435,7 @@ namespace Mist{
   }
 
   void OutMP4::onWebsocketConnect() {
-    capa["maxdelay"] = 250;
+    capa["maxdelay"] = 1500;
     fragSeqNum = 0;
     maxSkipAhead = 0;
     if (M.getLive()){dataWaitTimeout = 450;}

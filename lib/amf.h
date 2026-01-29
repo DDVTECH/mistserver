@@ -87,7 +87,8 @@ namespace AMF{
     double NumValue();
     std::string & StrValue();
     const char *Str();
-    int hasContent();
+    size_t hasContent() const;
+    bool hasContent(const std::string & indice) const;
     Object *addContent(const AMF::Object & c);
     Object *addContent(const std::string & strVal);
     Object *addContent(const double dblVal);

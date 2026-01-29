@@ -40,8 +40,16 @@ const char *AMF::Object::Str(){
 
 /// Returns a count of the amount of objects this object currently holds.
 /// If this object is not a container type, this function will always return 0.
-int AMF::Object::hasContent(){
+size_t AMF::Object::hasContent() const {
   return contents.size();
+}
+
+/// Returns true if the given indice exits in the object. False in all other cases.
+bool AMF::Object::hasContent(const std::string & indice) const {
+  for (const auto & it : contents) {
+    if (it.Indice() == indice) { return true; }
+  }
+  return false;
 }
 
 /// Adds an AMF::Object as contents, only makes sense for object-based types.

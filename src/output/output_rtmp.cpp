@@ -1531,16 +1531,16 @@ namespace Mist {
     if (amfData.getContentP(0)->StrValue() == "connect"){
       AMF::Object *cmd = amfData.getContentP(2);
       double objencoding = 0;
-      if (cmd->getContentP("objectEncoding")) { objencoding = cmd->getContentP("objectEncoding")->NumValue(); }
-      if (cmd->getContentP("flashVer")) { UA = cmd->getContentP("flashVer")->StrValue(); }
+      if (cmd->hasContent("objectEncoding")) { objencoding = cmd->getContentP("objectEncoding")->NumValue(); }
+      if (cmd->hasContent("flashVer")) { UA = cmd->getContentP("flashVer")->StrValue(); }
       enhancedCaps = 0;
       bool hasCaps = false;
-      if (cmd->getContentP("capsEx")) {
+      if (cmd->hasContent("capsEx")) {
         hasCaps = true;
         enhancedCaps = cmd->getContentP("capsEx")->NumValue();
       }
       bool hasCcList = false, hasAudioCc = false, hasVideoCc = false;
-      if (cmd->getContentP("fourCcList")) {
+      if (cmd->hasContent("fourCcList")) {
         hasCcList = true;
         for (auto & it : *(cmd->getContentP("fourCcList"))) {
           const std::string & fourcc = it.StrValue();
@@ -1555,7 +1555,7 @@ namespace Mist {
           if (fourcc == "*") { capa["codecs"][0u] = capa["codecs"][1u]; }
         }
       }
-      if (cmd->getContentP("audioFourCcInfoMap")) {
+      if (cmd->hasContent("audioFourCcInfoMap")) {
         hasAudioCc = true;
         for (auto & it : *(cmd->getContentP("audioFourCcInfoMap"))) {
           const std::string & fourcc = it.Indice();
@@ -1566,7 +1566,7 @@ namespace Mist {
           if (fourcc == "*") { capa["codecs"][0u][1u] = capa["codecs"][1u][1u]; }
         }
       }
-      if (cmd->getContentP("videoFourCcInfoMap")) {
+      if (cmd->hasContent("videoFourCcInfoMap")) {
         hasVideoCc = true;
         for (auto & it : *(cmd->getContentP("videoFourCcInfoMap"))) {
           const std::string & fourcc = it.Indice();

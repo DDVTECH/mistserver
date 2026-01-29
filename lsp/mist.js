@@ -11782,6 +11782,12 @@ context_menu: function(){
                                 for (var i in this.cells) {
                                   table.rows[i].append(this.cells[i]);
                                 }
+                              },
+                              remove: function(){
+                                this.header.remove();
+                                for (var i in this.cells) {
+                                  this.cells[i].remove();
+                                }
                               }
                             };
                           },
@@ -11900,6 +11906,14 @@ context_menu: function(){
                           else {
                             this.hide();
                           }
+                        },
+                        getEntries: function(original){
+                          //rewrite so that the object key is the track index, so it won't change if fps changes
+                          let out = {};
+                          for (let i in original) {
+                            out[original[i].idx] = original[i]
+                          }
+                          return out;
                         }
                       },id);
                       return tt;
@@ -13423,15 +13437,45 @@ context_menu: function(){
       });
 
       var tab = false;
+      var busy = false;
+      var queue = [];
+
+      function addMessages(){
+        busy = true;
+
+        requestAnimationFrame(function(){
+          while (queue.length) {
+            $logs.append(queue.shift());
+          }
+
+          if ($logs.children().length > 1000) {
+            $logs.children().first().remove();
+          }
+
+          if (scroll) $logs[0].scrollTop = $logs[0].scrollHeight; 
+
+          if (tab) {
+            try {
+              let s = (tab.document.scrollingElement.scrollTop >= tab.document.scrollingElement.scrollHeight - tab.document.scrollingElement.clientHeight);
+              tab.document.write($msg[0].outerHTML);
+              if (s) tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
+            }
+            catch (e) {}
+          }
+          busy = false;
+
+        });
+      }
 
       UI.sockets.ws.active_streams.subscribe(function(type,data){
+        var $msg;
         if (type == "log") {
           if (streamname && (data[3] != "") && (data[3] != streamname.split("+")[0])) { //filter out messages about other streams
             return;
           }
           if (data[1] == "ACCS") { return; } //the access log has its own container
 
-          var $msg = $("<div>").addClass("message").attr("data-debuglevel",data[1]).html(
+          $msg = $("<div>").addClass("message").attr("data-debuglevel",data[1]).html(
             $("<span>").addClass("time").html(
               $("<span>").append(
                 $("<span>").addClass("description").text("[")
@@ -13476,28 +13520,20 @@ context_menu: function(){
           ).append(
             $("<span>").addClass("line").addClass("copy_but_hide").attr("title","line number").html(data[6] ? "&nbsp;("+data[6]+")" : "")
           );
-          $logs.append($msg);
 
-          if ($logs.children().length > 1000) {
-            $logs.children().first().remove();
-          }
-
-          if (scroll) $logs[0].scrollTop = $logs[0].scrollHeight; 
-
-          if (tab) {
-            try {
-              let s = (tab.document.scrollingElement.scrollTop >= tab.document.scrollingElement.scrollHeight - tab.document.scrollingElement.clientHeight);
-              tab.document.write($msg[0].outerHTML);
-              if (s) tab.document.scrollingElement.scrollTop = tab.document.scrollingElement.scrollHeight;
-            }
-            catch (e) {}
-          }
+          queue.push($msg);
+          if (!busy) addMessages();
 
         }
         else if (type == "error") {
-          var $msg = $("<div>").text(data);
-          $logs.append($msg);
+          $msg = $("<div>").text(data);
         }
+
+        if ($msg) {
+          queue.push($msg);
+          if (!busy) addMessages();
+        }
+
       });
 
       return $("<section>").addClass("logs").append(

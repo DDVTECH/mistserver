@@ -78,9 +78,7 @@ namespace Mist{
       r["type"] = "pause";
       r["paused"] = !parseData;
       //Make sure we reset our timing code, too
-      if (parseData){
-        resetTiming(currentTime());
-      }
+      if (parseData) { resetTiming(currentTime()); }
       webSock->sendFrame(r.toString());
     }else if (command["type"] == "hold") {
       parseData = false;
@@ -270,7 +268,7 @@ namespace Mist{
     if (target_rate != set_rate){
       target_rate = set_rate;
       if (target_rate == 0.0){
-        realTime = 1000;//set playback speed to default
+        realTime = 1000; // set playback speed to default
         maxSkipAhead = 0;//enabled automatic rate control
       }else{
         stayLive = false;
@@ -367,7 +365,7 @@ namespace Mist{
       if (forwardTo && currentTime() >= forwardTo){
         forwardTo = 0;
         if (target_rate == 0.0){
-          realTime = 1000;//set playback speed to default
+          realTime = 1000; // set playback speed to default
           maxSkipAhead = 0;//enabled automatic rate control
         }else{
           stayLive = false;

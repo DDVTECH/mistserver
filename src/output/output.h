@@ -144,7 +144,6 @@ namespace Mist{
     std::string tkn;    ///< Random identifier used to split connections into sessions
     uint64_t nextKeyTime();
 
-
     // Read/write status variables
     Socket::Connection &myConn; ///< Connection to the client.
 

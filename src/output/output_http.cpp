@@ -244,7 +244,7 @@ namespace Mist{
       forwardTo = 0;
       resetTiming(thisTime);
       if (target_rate == 0.0){
-        realTime = 1000;//set playback speed to default
+        realTime = 1000; // set playback speed to default
         maxSkipAhead = 0;//enable automatic rate control
       }else{
         stayLive = false;
@@ -693,7 +693,7 @@ namespace Mist{
       forwardTo = 0;
       uint64_t tTime = targetTime();
       if (target_rate == 0.0){
-        realTime = 1000;//set playback speed to default
+        realTime = 1000; // set playback speed to default
         maxSkipAhead = 0;//enable automatic rate control
       }else{
         stayLive = false;

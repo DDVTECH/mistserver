@@ -832,7 +832,7 @@ namespace Mist{
   /// This takes into account the current playback speed as well as the maxSkipAhead setting.
   uint64_t Output::targetTime(){
     if (!realTime){return currentTime();}
-    return (((thisBootMs - timingBootMs) * 1000) / realTime + timingMdiaMs + maxSkipAhead);
+    return ((thisBootMs - timingBootMs) * 1000) / realTime + timingMdiaMs + maxSkipAhead;
   }
 
   /// Return the start time of the selected tracks.
@@ -902,7 +902,7 @@ namespace Mist{
   }
 
   /// Sets timingBootMs and timingMdiaMs so that currTime would play at the current time
-  void Output::resetTiming(uint64_t currTime){
+  void Output::resetTiming(uint64_t currTime) {
     timingBootMs = thisBootMs;
     timingMdiaMs = currTime;
   }

@@ -701,17 +701,17 @@ namespace Mist{
 
     for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
       if (frameNo){
-        if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "AAC"){
+        if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "AAC") {
           newTime += (uint64_t)(1000000 / M.getRate(thisIdx)) / timeScale; // assume ~1000 samples per frame
-        }else if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "MP3"){
+        } else if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "MP3") {
           newTime += (uint64_t)(1152000 / M.getRate(thisIdx)) / timeScale; // 1152 samples per frame
-        }else if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "DTS"){
+        } else if ((thisIdx != INVALID_TRACK_ID) && M.getCodec(thisIdx) == "DTS") {
           // Assume 512 samples per frame (DVD default)
           // actual amount can be calculated from data, but data
           // is not available during header generation...
           // See: http://www.stnsoft.com/DVD/dtshdr.html
           newTime += (uint64_t)(512000 / M.getRate(thisIdx)) / timeScale;
-        }else{
+        } else {
           ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!",
                     (thisIdx != INVALID_TRACK_ID) ? M.getCodec(thisIdx).c_str() : "UNKNOWN");
         }

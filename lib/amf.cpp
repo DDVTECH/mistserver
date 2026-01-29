@@ -47,7 +47,7 @@ size_t AMF::Object::hasContent() const {
 /// Returns true if the given indice exits in the object. False in all other cases.
 bool AMF::Object::hasContent(const std::string & indice) const {
   for (const auto & it : contents) {
-    if (it.Indice() == indice) { return true; }
+    if (it->Indice() == indice) { return true; }
   }
   return false;
 }

@@ -14705,7 +14705,7 @@ context_menu: function(){
                     latency: "Latency: ",
                     active_ms: "Active for: ",
                     bytes: "Data transferred: ",
-                    mediatime: "Last sent timestamp:",
+                    mediatime: "Last sent timestamp: ",
                     media_tx: "Media time transferred: ",
                     mediaremaining: "Media time until stream end: ",
                     pkt_retrans_count: "Packets retransmitted: ",

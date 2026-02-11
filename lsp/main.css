@@ -2480,19 +2480,25 @@ main[data-tab="Status"] div.processes:before {
   margin: -0.5em 0 0;*/
   display: block;
 }
-section.pushes div.pushes [data-index="Target"] {
-  text-align: left;
-}
+section.pushes div.pushes {
+  [data-index="Target"] {
+    text-align: left;
 
-section.pushes div.pushes [data-index="Target"] .param {
-  opacity: 0.8;
-  font-size: 0.9em;
-}
-section.pushes div.pushes [data-index="Target"] .param:before {
-  /*forces word-wrapping between the parameters, without showing any visible spaces*/
-  content: " ";
-  display: inline-block;
-  width: 0;
+    .param {
+      opacity: 0.8;
+      font-size: 0.9em;
+
+      &:before {
+        /*forces word-wrapping between the parameters, without showing any visible spaces*/
+        content: " ";
+        display: inline-block;
+        width: 0;
+      }
+    }
+  }
+  [data-index="Statistics"] {
+    text-align: left;
+  }
 }
 section.pushes .context_menu .target .param {
   display: none;
@@ -2547,11 +2553,14 @@ section.pushes div.pushes table[data-pushtype="auto"]:not(:has(tbody [data-index
   /*hide column when empty*/
   display: none;
 }
-section.pushes div.pushes table [data-index="Notes"] {
+section.pushes div.pushes table [data-index="Notes"],
+section.pushes div.pushes table [data-index="Target"],
+section.pushes div.pushes table .statistics div {
   max-width: 25vw;
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
+  min-width: 0;
 }
 main[data-tab="Push"] section.pushes > h3:first-child { display: none; }
 section.pushes table[data-pushtype] .hidden { display: none; }

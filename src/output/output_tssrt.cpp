@@ -138,7 +138,8 @@ namespace Mist {
         }
       }
 
-      target = HTTP::URL(config->getString("target"));
+      JSON::Value & targetOpt = config->getOption("target", true);
+      target = HTTP::URL(targetOpt.lastElem().asStringRef());
 
       std::deque<Socket::Address> remoteAddr = Socket::getAddrs(remoteIP, remotePort);
       std::deque<Socket::Address> localAddr = Socket::getAddrs(target.host, target.getPort());
@@ -147,7 +148,12 @@ namespace Mist {
         HTTP::URL newTgt = target;
         newTgt.host = remoteIP;
         newTgt.port = std::to_string(remotePort);
-        config->getOption("target", true).append(newTgt.getUrl());
+        targetOpt.append(newTgt.getUrl());
+        if (getenv("MST_ORIG_TARGET")) {
+          std::string origTarget = getenv("MST_ORIG_TARGET");
+          origTarget += " (accepted on)";
+          setenv("MST_ORIG_TARGET", origTarget.c_str(), 1);
+        }
       }
 
       // Create UDP socket

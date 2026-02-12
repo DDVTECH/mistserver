@@ -103,9 +103,13 @@ namespace JSON{
     Value &operator[](const std::string &i);
     Value &operator[](const char *i);
     Value &operator[](uint32_t i);
+    Value & firstElem();
+    Value & lastElem();
     const Value &operator[](const std::string &i) const;
     const Value &operator[](const char *i) const;
     const Value &operator[](uint32_t i) const;
+    const Value & firstElem() const;
+    const Value & lastElem() const;
     // convenience operators
     std::string & operator+=(const std::string & str);
     // handy functions and others

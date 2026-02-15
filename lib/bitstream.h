@@ -40,6 +40,8 @@ namespace Utils{
       return i;
     }
 
+    size_t getOffset(){return offset;}
+
   private:
     bool checkBufferSize(unsigned int size);
     long long unsigned int golombGetter();

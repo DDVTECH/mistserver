@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <iostream>
 #include <string>
 
 #include "bitfields.h"
@@ -92,8 +93,9 @@ namespace h264{
     nalUnit(const char *data, size_t len) : payload(data, len){}
     virtual ~nalUnit(){}
 
-    uint8_t getType(){return payload[0] & 0x1F;}
-    size_t getSize(){return payload.size();}
+    uint8_t getType() const{ return payload[0] & 0x1F;}
+    uint8_t getRefNalIdc() const{ return payload[0] >> 5;}
+    size_t getSize() const{ return payload.size();}
     virtual void toPrettyString(std::ostream &out){
       out << "Nal unit of type " << (((uint8_t)payload[0]) & 0x1F) << ", " << payload.size()
           << " bytes long" << std::endl;
@@ -206,7 +208,8 @@ namespace h264{
     uint64_t picOrderCntType;
     uint64_t log2MaxPicOrderCntLsbMinus4;
 
-    // Here go values for pic_order_cnt_type == 1
+    bool deltaPicOrderAlwaysZeroFlag;
+    uint64_t numRefFramesInPicOrderCntCycle;
 
     uint64_t maxNumRefFrames;
     bool gapsInFrameNumValueAllowedFlag;
@@ -295,13 +298,27 @@ namespace h264{
   };
   class codedSliceUnit : public nalUnit{
   public:
+    // "partial" constructor just to get picParameterSetId, as full parsing
+    // is not possible without PPS/SPS pair
     codedSliceUnit(const char *data, size_t len);
+    // "full" constructor when PPS/SPS pair is supplied
+    codedSliceUnit(const char *data, size_t len, const spsUnit &sps, const ppsUnit &pps);
     void setPPSNumber(size_t newNumber);
     void toPrettyString(std::ostream &out);
 
     uint64_t firstMbInSlice;
     uint64_t sliceType;
     uint64_t picParameterSetId;
+
+    uint64_t frameNum;
+    bool fieldPicFlag;
+    bool bottomFieldFlag;
+    uint64_t idrPicId;
+    uint64_t picOrderCntType;
+    uint64_t picOrderCntLsb;
+    uint64_t deltaPicOrderCntBottom;
+    uint64_t deltaPicOrderCnt[2];
+    uint64_t redundantPicCnt;
   };
 
   class seiUnit : public nalUnit{

@@ -75,14 +75,14 @@ namespace h264{
       initData(const std::string & data) : initData(data.data(), data.size()) {}
       initData(const char *ptr, size_t len);
       operator bool() const { return valid; }
-      uint8_t profile;
-      uint8_t constraints;
-      uint8_t level;
-      uint8_t NALULen;
-      uint32_t width;
-      uint32_t height;
-      double fps;
-      bool valid;
+      uint8_t profile{0};
+      uint8_t constraints{0};
+      uint8_t level{0};
+      uint8_t NALULen{0};
+      uint32_t width{0};
+      uint32_t height{0};
+      double fps{0};
+      bool valid{false};
   };
 
   bool isKeyframe(const char *data, uint32_t len);

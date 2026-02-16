@@ -26,6 +26,9 @@ namespace h265{
     uint32_t general_profile_compatflags;
     uint8_t constraint_flags[6];
     uint8_t general_level_idc;
+    const char *level();
+    const char *profile();
+    const char *tier();
   };
 
   class initData{

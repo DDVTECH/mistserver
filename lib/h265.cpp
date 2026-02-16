@@ -37,6 +37,38 @@ namespace h265{
     }
   }
 
+  const char *metaInfo::level() {
+    switch (general_level_idc) {
+      case 30: return "1";
+      case 60: return "2";
+      case 63: return "2.1";
+      case 90: return "3";
+      case 93: return "3.1";
+      case 120: return "4";
+      case 123: return "4.1";
+      case 150: return "5";
+      case 153: return "5.1";
+      case 156: return "5.2";
+      case 180: return "6";
+      case 183: return "6.1";
+      case 186: return "6.2";
+      default: return "Unknown";
+    }
+  }
+
+  const char *metaInfo::profile() {
+    if (general_profile_idc == 1 || (general_profile_compatflags & 0x1)) { return "Main"; }
+    if (general_profile_idc == 2 || (general_profile_compatflags & 0x2)) { return "Main 10"; }
+    if (general_profile_idc == 3 || (general_profile_compatflags & 0x4)) { return "Main Still Picture"; }
+    return "Unknown";
+  }
+
+  const char *metaInfo::tier() {
+    if (general_tier_flag == 0) { return "Main"; }
+    if (general_tier_flag == 1) { return "High"; }
+    return "Unknown";
+  }
+
   bool isKeyframe(const char *data, uint32_t len){
     if (!len){return false;}
     uint8_t nalType = (data[0] & 0x7E) >> 1;

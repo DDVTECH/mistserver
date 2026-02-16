@@ -8,6 +8,7 @@
 #include "defines.h"
 #include "encode.h"
 #include "h264.h"
+#include "h265.h"
 #include "langcodes.h"
 #include "mp4_generic.h"
 #include "shared_memory.h"
@@ -2461,6 +2462,15 @@ namespace DTSC{
         setSize(trackIdx, ((init[12] & 0x01) << 4) + ((init[13] & 0xf0) >> 4) + 1);
       }
     }
+    if (codec == "HEVC") {
+      h265::initData iData(std::string(init, initLen));
+      h265::metaInfo mInfo = iData.getMeta();
+      if (!t.track.getInt(t.trackWidthField) || !t.track.getInt(t.trackHeightField)) {
+        t.track.setInt(t.trackWidthField, mInfo.width);
+        t.track.setInt(t.trackHeightField, mInfo.height);
+      }
+      if (mInfo.fps >= 1 && !t.track.getInt(t.trackFpksField)) { t.track.setInt(t.trackFpksField, mInfo.fps * 1000.0); }
+    }
     if (initLen > t.trackInitField.size){
       FAIL_MSG("Attempting to store %zu bytes of init data, but we only have room for %" PRIu32 " bytes!", initLen, t.trackInitField.size);
       initLen = t.trackInitField.size;
@@ -3709,6 +3719,13 @@ namespace DTSC{
                                          std::to_string(((longest_key / shrtest_key) - 1) * 100) + "% variance)!");
             }
           }
+        }
+        if (getCodec(*it) == "HEVC") {
+          h265::initData hevcInit(getInit(*it));
+          h265::metaInfo mInfo = hevcInit.getMeta();
+          trackJSON["h265_level"] = mInfo.level();
+          trackJSON["h265_profile"] = mInfo.profile();
+          trackJSON["h265_tier"] = mInfo.tier();
         }
       }
     }

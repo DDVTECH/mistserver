@@ -10154,7 +10154,7 @@ context_menu: function(){
               },
               'function': function(){
                 if (other == "auto") {
-                  if (!saveas.enabled) {
+                  if (!saveas.enabled && (saveas.stream.slice(0,16) != "💤deactivated💤_")) {
                     saveas.stream = "💤deactivated💤_"+saveas.stream;
                   }
                   delete saveas.enabled;
@@ -14496,7 +14496,9 @@ context_menu: function(){
                     });
                   }
                   else {
-                    push.stream = "💤deactivated💤_"+push.stream;
+                    if (push.stream.slice(0,16) != "💤deactivated💤_") {
+                      push.stream = "💤deactivated💤_"+push.stream;
+                    }
                     var o = {};
                     o[push.id] = push;
                     mist.send(function(d){
@@ -14926,7 +14928,9 @@ context_menu: function(){
                     }
                     else {
                       actions.push(["Disable",function(){
-                        push.stream = "💤deactivated💤_"+push.stream;
+                        if (push.stream.slice(0,16) != "💤deactivated💤_") {
+                          push.stream = "💤deactivated💤_"+push.stream;
+                        }
                         var o = {};
                         o[push.id] = push;
                         mist.send(function(d){
@@ -14935,7 +14939,7 @@ context_menu: function(){
                         },{
                           push_auto_add: o
                         });
-			return false;
+                        return false;
                       },"sleep","Disable this automatic push: it will not start new pushes but will remain listed"]);
                     }
                     actions.push(["Remove",function(){

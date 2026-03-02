@@ -87,10 +87,10 @@ namespace Mist{
 
         // Query the device for any video input capabilities
         struct v4l2_fmtdesc fmt;
-        fmt.index = 0;
-        fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        if (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
-          output.append("v4l2:"+path);
+        for (v4l2_buf_type capType : {V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE}) {
+          fmt.type = capType;
+          fmt.index = 0;
+          if (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) { output.append("v4l2:" + path); }
         }
         close(fd);
       }
@@ -120,9 +120,9 @@ namespace Mist{
 
     // Query the device for pixel formats
     struct v4l2_fmtdesc fmt;
-    fmt.index = 0;
     for (v4l2_buf_type capType : {V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE}){
       fmt.type = capType;
+      fmt.index = 0;
       while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
         // For each pixel format, query supported resolutions
         struct v4l2_frmsizeenum frmSizes;
@@ -222,73 +222,77 @@ namespace Mist{
 
     // Set defaults for unset parameters, set FPS and sanity checks
     struct v4l2_fmtdesc fmt;
-    fmt.index = 0;
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     bool hasFPS = format.size(); //< Automatically adjust FPS is none was set
     bool hasResolution = width && height; //< Automatically adjust resolution is none was set
     bool hasPixFmt = pixelFmt; //< Automatically adjust pixel format is none was set
-    while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
-      // If we have a requested pixelFmt, skip any non-matching formats
-      if (hasPixFmt && fmt.pixelformat != pixelFmt){
-        fmt.index++;
-        continue;
-      }
+    for (v4l2_buf_type capType : {V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE}) {
+      fmt.type = capType;
+      fmt.index = 0;
+      while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
+        // If we have a requested pixelFmt, skip any non-matching formats
+        if (hasPixFmt && fmt.pixelformat != pixelFmt) {
+          fmt.index++;
+          continue;
+        }
 
-      // Else go through supported resolution and FPS combos
-      struct v4l2_frmsizeenum frmSizes;
-      frmSizes.pixel_format = fmt.pixelformat;
-      frmSizes.index = 0;
-      while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &frmSizes) >= 0) {
-        if (frmSizes.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
-          if (!hasResolution){
-            // If we have no resolution set, select the largest supported surface area
-            if (frmSizes.discrete.width * frmSizes.discrete.height > width * height){
-              width = frmSizes.discrete.width;
-              height = frmSizes.discrete.height;
-              pixelFmt = fmt.pixelformat;
-            }else{
-              // Current surface area is lower, so skip it
+        // Else go through supported resolution and FPS combos
+        struct v4l2_frmsizeenum frmSizes;
+        frmSizes.pixel_format = fmt.pixelformat;
+        frmSizes.index = 0;
+        while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &frmSizes) >= 0) {
+          if (frmSizes.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
+            if (!hasResolution) {
+              // If we have no resolution set, select the largest supported surface area
+              if (frmSizes.discrete.width * frmSizes.discrete.height > width * height) {
+                width = frmSizes.discrete.width;
+                height = frmSizes.discrete.height;
+                pixelFmt = fmt.pixelformat;
+              } else {
+                // Current surface area is lower, so skip it
+                frmSizes.index++;
+                continue;
+              }
+            } else if (frmSizes.discrete.width != width || frmSizes.discrete.height != height) {
+              // Current resolution does not match requested resolution, so skip it
               frmSizes.index++;
               continue;
             }
-          }else if (frmSizes.discrete.width != width || frmSizes.discrete.height != height){
-            // Current resolution does not match requested resolution, so skip it
-            frmSizes.index++;
-            continue;
-          }
 
-          // At this point we found the requested resolution or adjusted it upwards, so check supported FPS values
-          struct v4l2_frmivalenum frmIntervals;
-          memset(&frmIntervals, 0, sizeof(frmIntervals));
-          frmIntervals.pixel_format = pixelFmt;
-          frmIntervals.width = width;
-          frmIntervals.height = height;
-          ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals);
-          while (ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals) != -1) {
-            if (frmIntervals.type == V4L2_FRMIVAL_TYPE_DISCRETE){
-              if (!hasFPS){
-                // If we have no FPS set, select the largest FPS we can get for the current resolution
-                if (fpsNumerator && (float)frmIntervals.discrete.denominator / (float)frmIntervals.discrete.numerator
-                  <= (float)fpsDenominator / (float)fpsNumerator){
-                  // Current FPS is lower, so skip it
+            // At this point we found the requested resolution or adjusted it upwards, so check supported FPS values
+            struct v4l2_frmivalenum frmIntervals;
+            memset(&frmIntervals, 0, sizeof(frmIntervals));
+            frmIntervals.pixel_format = pixelFmt;
+            frmIntervals.width = width;
+            frmIntervals.height = height;
+            ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals);
+            while (ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals) != -1) {
+              if (frmIntervals.type == V4L2_FRMIVAL_TYPE_DISCRETE) {
+                if (!hasFPS) {
+                  // If we have no FPS set, select the largest FPS we can get for the current resolution
+                  if (fpsNumerator &&
+                      (float)frmIntervals.discrete.denominator / (float)frmIntervals.discrete.numerator <=
+                        (float)fpsDenominator / (float)fpsNumerator) {
+                    // Current FPS is lower, so skip it
+                    frmIntervals.index++;
+                    continue;
+                  }
+                } else if (int(frmIntervals.discrete.denominator / frmIntervals.discrete.numerator) != atoi(format.c_str())) {
+                  // Current FPS does not match requested FPS, so skip it
                   frmIntervals.index++;
                   continue;
                 }
-              }else if (int(frmIntervals.discrete.denominator / frmIntervals.discrete.numerator) != atoi(format.c_str())){
-                // Current FPS does not match requested FPS, so skip it
-                frmIntervals.index++;
-                continue;
+                // Store the denominator and numerator for the requested FPS
+                fpsDenominator = frmIntervals.discrete.denominator;
+                fpsNumerator = frmIntervals.discrete.numerator;
               }
-              // Store the denominator and numerator for the requested FPS
-              fpsDenominator = frmIntervals.discrete.denominator;
-              fpsNumerator = frmIntervals.discrete.numerator;
+              frmIntervals.index++;
             }
-            frmIntervals.index++;
           }
+          frmSizes.index++;
         }
-        frmSizes.index++;
+        fmt.index++;
       }
-      fmt.index++;
     }
 
     // Abort if this input does not support the requested pixel format

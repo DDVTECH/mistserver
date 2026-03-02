@@ -69,6 +69,8 @@ namespace Mist{
     capa["codecs"][0u][0u].append("YUYV");
     capa["codecs"][0u][0u].append("UYVY");
     capa["codecs"][0u][0u].append("NV12");
+    capa["codecs"][0u][0u].append("NV16");
+    capa["codecs"][0u][0u].append("NV24");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("FLAC");
     capa["codecs"][0u][1u].append("vorbis");
@@ -200,12 +202,26 @@ namespace Mist{
           newClusterTime = 0;
         }
       }
+
+      if (M.getCodec(thisIdx) == "NV16") { thisDataLen *= 0.75; }
       EBML::sendElemHead(myConn, EBML::EID_CLUSTER, clusterSize(currentClusterTime, newClusterTime));
       EBML::sendElemUInt(myConn, EBML::EID_TIMECODE, currentClusterTime-subtractTime);
     }
 
     bool isKey = (M.getType(thisIdx) != "video") || M.hasEmbeddedFrames(thisIdx) || thisPacket.getFlag("keyframe");
-    EBML::sendSimpleBlock(myConn, thisData, thisDataLen, thisIdx + 1, thisTime, isKey, currentClusterTime);
+    if (M.getCodec(thisIdx) == "NV16"){
+      static Util::ResizeablePointer nv12Buf;
+      nv12Buf.assign(thisData, thisDataLen / 0.75);
+      size_t iw = M.getWidth(thisIdx);
+      size_t ih = M.getHeight(thisIdx);
+      for (size_t h = 0; h < ih; h += 2) { // Jump 2 rows in source
+          // Each UV row has 'iw' bytes (actually iw/2 U values and iw/2 V values)
+          memcpy(nv12Buf + iw * ih + (h / 2) * iw, thisData + iw * ih + h * iw, iw);
+      }
+      EBML::sendSimpleBlock(myConn, nv12Buf, thisDataLen, thisIdx + 1, thisTime, isKey, currentClusterTime);
+    }else{
+      EBML::sendSimpleBlock(myConn, thisData, thisDataLen, thisIdx + 1, thisTime, isKey, currentClusterTime);
+    }
   }
 
   std::string OutEBML::trackCodecID(size_t idx){
@@ -233,6 +249,8 @@ namespace Mist{
     if (codec == "JSON"){return "M_JSON";}
     if (codec == "YUYV"){return "V_UNCOMPRESSED";}
     if (codec == "NV12"){return "V_UNCOMPRESSED";}
+    if (codec == "NV16"){return "V_UNCOMPRESSED";}
+    if (codec == "NV24"){return "V_UNCOMPRESSED";}
     if (codec == "UYVY"){return "V_UNCOMPRESSED";}
     return "E_UNKNOWN";
   }
@@ -265,7 +283,9 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_PIXELHEIGHT, M.getHeight(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYWIDTH, M.getWidth(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
-      if (codec == "YUYV" || codec == "NV12" || codec == "UYVY"){
+      if (codec == "NV16") {
+        subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, "NV12");
+      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY") {
         subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, codec);
       }
       sendLen += EBML::sizeElemHead(EBML::EID_VIDEO, subLen);
@@ -308,7 +328,9 @@ namespace Mist{
       EBML::sendElemUInt(myConn, EBML::EID_PIXELHEIGHT, M.getHeight(idx));
       EBML::sendElemUInt(myConn, EBML::EID_DISPLAYWIDTH, M.getWidth(idx));
       EBML::sendElemUInt(myConn, EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
-      if (codec == "YUYV" || codec == "NV12" || codec == "UYVY"){
+      if (codec == "NV16") {
+        EBML::sendElemStr(myConn, EBML::EID_UNCOMPRESSEDFOURCC, "NV12");
+      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY") {
         EBML::sendElemStr(myConn, EBML::EID_UNCOMPRESSEDFOURCC, codec);
       }
     }
@@ -350,7 +372,9 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_PIXELHEIGHT, M.getHeight(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYWIDTH, M.getWidth(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
-      if (codec == "YUYV" || codec == "NV12" || codec == "UYVY"){
+      if (codec == "NV16") {
+        subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, "NV12");
+      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY") {
         subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, codec);
       }
       sendLen += EBML::sizeElemHead(EBML::EID_VIDEO, subLen);

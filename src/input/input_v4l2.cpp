@@ -90,7 +90,11 @@ namespace Mist{
         for (v4l2_buf_type capType : {V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE}) {
           fmt.type = capType;
           fmt.index = 0;
-          if (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) { output.append("v4l2:" + path); }
+          if (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
+            std::string fmtStr = intToString(fmt.pixelformat);
+            INFO_MSG("Detected format: %d (%s)", fmt.pixelformat, fmtStr.c_str());
+            output.append("v4l2:" + path);
+          }
         }
         close(fd);
       }

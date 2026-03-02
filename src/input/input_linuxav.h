@@ -215,7 +215,8 @@ namespace Mist {
       std::string selectedVideoDevice; ///< Selected video device path
 
       // Multi-planar buffer support
-      v4l2_plane videoPlanes[VIDEO_MAX_PLANES]; ///< Video planes for multi-planar buffers
+      v4l2_plane videoPlanesQ[80]; ///< Video planes query for multi-planar buffers
+      v4l2_plane videoPlanesB[80]; ///< Video planes buffer for multi-planar buffers
       uint32_t numPlanes; ///< Number of planes for multi-planar buffers
 
       // === Audio Member Variables ===
@@ -279,20 +280,6 @@ namespace Mist {
        * @return true if stream creation successful
        */
       bool createPulseAudioStream();
-
-      /**
-       * @brief Converts pixel format integer to string
-       * @param n Pixel format integer
-       * @return String representation of pixel format
-       */
-      std::string intToString(int n);
-
-      /**
-       * @brief Converts string to pixel format integer
-       * @param str String representation of pixel format
-       * @return Pixel format integer
-       */
-      int strToInt(const std::string & str);
 
 #endif // __linux__
   };

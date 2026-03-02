@@ -1450,6 +1450,18 @@ namespace Util{
       if (rowBytes % 128){rowBytes += 128 - (rowBytes % 128);}
       return rowBytes*height;
     }
+    if (pixfmt == "NV12"){
+      // NV12 is planar YUV 4:2:0 - first all YUV samples, and then for each chroma channel 1/4 of all pixels
+      return width*height*1.5;
+    }
+    if (pixfmt == "NV16"){
+      // NV16 is planar YUV 4:2:2 - first all YUV samples, and then for each chroma channel 1/2 of all pixels
+      return width*height*2;
+    }
+    if (pixfmt == "NV24"){
+      // NV24 is planar YUV 4:4:4 - first all YUV samples, and then for each chroma channel all pixels
+      return width*height*3;
+    }
     return 0;
   }
 

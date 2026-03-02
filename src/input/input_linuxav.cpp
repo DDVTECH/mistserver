@@ -30,6 +30,24 @@
 #include <pulse/xmalloc.h>
 #endif
 
+std::string intToString(int n) {
+  std::string output;
+  while (n) {
+    output += (char)n & 0xFF;
+    n >>= 8;
+  }
+  return output;
+}
+
+int strToInt(const std::string & str) {
+  int output = 0;
+  for (int i = str.size() - 1; i >= 0; i--) {
+    output <<= 8;
+    output += (char)str[i];
+  }
+  return output;
+}
+
 namespace Mist {
 
   LinuxAV::LinuxAV(Util::Config *cfg) : Input(cfg) {
@@ -64,7 +82,6 @@ namespace Mist {
 
     // Multi-planar buffer support
     numPlanes = 0;
-    memset(videoPlanes, 0, sizeof(videoPlanes));
 
     // Audio parameters (auto-detected or configured)
     sampleRate = 48000;
@@ -194,40 +211,25 @@ namespace Mist {
     bool hasVideoDevice = false;
     bool hasAudioDevice = false;
 
-    // Handle linuxav scheme: linuxav://video=/dev/video0,audio=@DEFAULT_SOURCE@
-    // or linuxav:///dev/video0 (simple video device path)
-    if (input.substr(0, 9) == "linuxav:/") {
-      if (input.substr(0, 10) == "linuxav://") {
-        // Parse structured format: linuxav://video=/dev/video0,audio=@DEFAULT_SOURCE@
-        std::string params = input.substr(10);
+    if (input.size() >= 9 && input.substr(0, 8) == "linuxav:") {
+      std::string params = input.substr(8);
 
-        size_t videoPos = params.find("video=");
-        size_t audioPos = params.find("audio=");
-
-        if (videoPos != std::string::npos) {
-          size_t videoEnd = params.find(",", videoPos);
-          if (videoEnd == std::string::npos) videoEnd = params.length();
-          selectedVideoDevice = params.substr(videoPos + 6, videoEnd - videoPos - 6);
-          hasVideoDevice = true;
-          hasVideo = true;
-        }
-
-        if (audioPos != std::string::npos) {
-          size_t audioEnd = params.find(",", audioPos);
-          if (audioEnd == std::string::npos) audioEnd = params.length();
-          selectedAudioDevice = params.substr(audioPos + 6, audioEnd - audioPos - 6);
-          hasAudioDevice = true;
-          hasAudio = true;
-        }
-      } else {
-        // Simple format: linuxav:///dev/video0 (just video device)
-        selectedVideoDevice = input.substr(9);
-        if (selectedVideoDevice.substr(0, 5) != "/dev/") {
-          selectedVideoDevice = "/dev/" + selectedVideoDevice;
-        }
+      size_t videoPos = params.find("video=");
+      if (videoPos != std::string::npos) {
+        size_t videoEnd = params.find(",", videoPos);
+        if (videoEnd == std::string::npos) videoEnd = params.length();
+        selectedVideoDevice = params.substr(videoPos + 6, videoEnd - videoPos - 6);
         hasVideoDevice = true;
         hasVideo = true;
-        hasAudio = false;
+      }
+
+      size_t audioPos = params.find("audio=");
+      if (audioPos != std::string::npos) {
+        size_t audioEnd = params.find(",", audioPos);
+        if (audioEnd == std::string::npos) audioEnd = params.length();
+        selectedAudioDevice = params.substr(audioPos + 6, audioEnd - audioPos - 6);
+        hasAudioDevice = true;
+        hasAudio = true;
       }
     }
 
@@ -362,14 +364,14 @@ namespace Mist {
     while (config->is_active && isCapturing) {
       // Process video if enabled
       if (hasVideo && videoFd >= 0) {
-        // Dequeue the filled buffer from the drivers outgoing queue
-        HIGH_MSG("About to DQBUF video buffer (type=%d, index=%d)", videoBufferInfo.type,
-                 videoBufferInfo.index);
-        if (ioctl(videoFd, VIDIOC_DQBUF, &videoBufferInfo) < 0) {
+        videoBufferInfo.m.planes = videoPlanesB;
+        videoBufferInfo.length = numPlanes;
+        DONTEVEN_MSG("About to DQBUF video buffer (type=%d)", videoBufferInfo.type);
+        if (ioctl(videoFd, VIDIOC_DQBUF, &videoBufferInfo)) {
           ERROR_MSG("Could not dequeue video buffer: %s", strerror(errno));
           break;
         }
-        HIGH_MSG("DQBUF successful");
+        DONTEVEN_MSG("DQBUF successful");
 
         // Get bytes used from the appropriate location
         size_t bytesUsed;
@@ -387,12 +389,19 @@ namespace Mist {
           thisIdx = videoTrackIdx;
           bufferLivePacket(thisTime, 0, videoTrackIdx, videoBuffer, bytesUsed, 0, true);
           frameCount++;
-          MEDIUM_MSG("Buffered video packet, frame count: %lu", frameCount);
+          DONTEVEN_MSG("Buffered video packet, frame count: %lu", frameCount);
         }
 
         // Queue the buffer again for the next frame
-        HIGH_MSG("About to QBUF video buffer for next frame (type=%d, index=%d)", videoBufferInfo.type,
-                 videoBufferInfo.index);
+        DONTEVEN_MSG("About to QBUF video buffer for next frame (type=%d, index=%d)", videoBufferInfo.type,
+                     videoBufferInfo.index);
+
+        if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+          for (uint32_t i = 0; i < numPlanes; i++) {
+            videoPlanesB[i].bytesused = 0;
+            videoPlanesB[i].data_offset = 0;
+          }
+        }
         if (ioctl(videoFd, VIDIOC_QBUF, &videoBufferInfo) < 0) {
           ERROR_MSG("Could not enqueue video buffer: %s", strerror(errno));
           break;
@@ -529,7 +538,7 @@ namespace Mist {
     // Cleanup audio
     if (hasAudio) { cleanupAudioDevice(); }
 
-    INFO_MSG("A/V Input resources cleaned up");
+    VERYHIGH_MSG("A/V Input resources cleaned up");
 #endif
   }
 
@@ -539,7 +548,7 @@ namespace Mist {
 
     // Enumerate video devices (following V4L2 pattern)
     std::vector<std::string> videoDevices = getVideoDevices();
-    for (const auto & dev : videoDevices) { result.append("linuxav:" + dev); }
+    for (const auto & dev : videoDevices) { result.append("linuxav:video=" + dev); }
 
     // Enumerate audio devices
     std::vector<std::string> audioDevices = getAudioDevices();
@@ -586,94 +595,94 @@ namespace Mist {
         uint64_t maxWidth = 0, maxHeight = 0;
         std::string defaultFormat = "";
 
+        auto getFPS = [&testFd, &maxWidth, &maxHeight, &opts, &defaultFormat](__u32 w, __u32 h, v4l2_buf_type capType, __u32 pixfmt) {
+          struct v4l2_frmivalenum frmIntervals;
+          memset(&frmIntervals, 0, sizeof(frmIntervals));
+          frmIntervals.pixel_format = pixfmt;
+          frmIntervals.width = w;
+          frmIntervals.height = h;
+          bool setHighestFPS = false;
+          if (w * h > maxWidth * maxHeight) {
+            maxWidth = w;
+            maxHeight = h;
+            setHighestFPS = true;
+          }
+          double maxFPS = 0;
+          while (!ioctl(testFd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals)) {
+            if (frmIntervals.type == V4L2_FRMIVAL_TYPE_DISCRETE) {
+              double fps = (double)frmIntervals.discrete.denominator / (double)frmIntervals.discrete.numerator;
+              std::stringstream ss;
+              ss << intToString(pixfmt) << "-" << frmIntervals.width << "x" << frmIntervals.height << "@";
+              ss.setf(std::ios::fixed);
+              ss.precision(2);
+              ss << fps;
+              opts.append(ss.str());
+              if (setHighestFPS && fps >= maxFPS) {
+                maxFPS = fps;
+                defaultFormat = ss.str();
+              }
+            }else{
+              INFO_MSG("Unknown interval type: %d", frmIntervals.type);
+            }
+            frmIntervals.index += 1;
+          }
+          if (!frmIntervals.index){
+            std::stringstream ss;
+            ss << intToString(pixfmt) << "-" << frmIntervals.width << "x" << frmIntervals.height;
+            opts.append(ss.str());
+            if (setHighestFPS) { defaultFormat = ss.str(); }
+          }
+        };
+
         // Query the device for pixel formats (following V4L2 comprehensive approach)
         struct v4l2_fmtdesc fmt;
-        fmt.index = 0;
         for (v4l2_buf_type capType : {V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE}) {
+          fmt.index = 0;
           fmt.type = capType;
           while (ioctl(testFd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
+
             // For each pixel format, query supported resolutions
             struct v4l2_frmsizeenum frmSizes;
             frmSizes.pixel_format = fmt.pixelformat;
             frmSizes.index = 0;
             while (ioctl(testFd, VIDIOC_ENUM_FRAMESIZES, &frmSizes) >= 0) {
+
               if (frmSizes.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
-                // For each frame size, query supported FPS values
-                struct v4l2_frmivalenum frmIntervals;
-                memset(&frmIntervals, 0, sizeof(frmIntervals));
-                frmIntervals.pixel_format = fmt.pixelformat;
-                frmIntervals.width = frmSizes.discrete.width;
-                frmIntervals.height = frmSizes.discrete.height;
-                bool setHighestFPS = false;
-                if (frmSizes.discrete.width * frmSizes.discrete.height > maxWidth * maxHeight) {
-                  maxWidth = frmSizes.discrete.width;
-                  maxHeight = frmSizes.discrete.height;
-                  setHighestFPS = true;
-                }
-                ioctl(testFd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals);
-                double maxFPS = 0;
-                while (ioctl(testFd, VIDIOC_ENUM_FRAMEINTERVALS, &frmIntervals) != -1) {
-                  if (frmIntervals.type == V4L2_FRMIVAL_TYPE_DISCRETE) {
-                    double fps =
-                      (double)frmIntervals.discrete.denominator / (double)frmIntervals.discrete.numerator;
-                    std::stringstream ss;
-                    ss << intToString(fmt.pixelformat) << "-" << frmSizes.discrete.width << "x"
-                       << frmSizes.discrete.height << "@";
-                    ss.setf(std::ios::fixed);
-                    ss.precision(2);
-                    ss << fps;
-                    opts.append(ss.str());
-                    if (setHighestFPS && fps >= maxFPS) {
-                      maxFPS = fps;
-                      defaultFormat = ss.str();
-                    }
-                  }
-                  frmIntervals.index += 1;
-                }
-              } else if (frmSizes.type == V4L2_FRMSIZE_TYPE_CONTINUOUS) {
-                // For continuous frame sizes, use the actual range reported by the device
-                std::stringstream ss;
-                ss << intToString(fmt.pixelformat) << "-" << frmSizes.stepwise.max_width << "x"
-                   << frmSizes.stepwise.max_height << "@30.00";
-                opts.append(ss.str());
+                getFPS(frmSizes.discrete.width, frmSizes.discrete.height, capType, fmt.pixelformat);
+              } else if (frmSizes.type == V4L2_FRMSIZE_TYPE_CONTINUOUS || frmSizes.type == V4L2_FRMSIZE_TYPE_STEPWISE) {
+                // For continuous frame sizes, use the max and min (if different) reported by the device
+                getFPS(frmSizes.stepwise.max_width, frmSizes.stepwise.max_height, capType, fmt.pixelformat);
 
-                if (frmSizes.stepwise.max_width * frmSizes.stepwise.max_height > maxWidth * maxHeight) {
-                  maxWidth = frmSizes.stepwise.max_width;
-                  maxHeight = frmSizes.stepwise.max_height;
-                  defaultFormat = ss.str();
-                }
-
-                // Also add the minimum resolution for reference
                 if (frmSizes.stepwise.min_width != frmSizes.stepwise.max_width ||
                     frmSizes.stepwise.min_height != frmSizes.stepwise.max_height) {
-                  std::stringstream ss_min;
-                  ss_min << intToString(fmt.pixelformat) << "-" << frmSizes.stepwise.min_width
-                         << "x" << frmSizes.stepwise.min_height << "@30.00";
-                  opts.append(ss_min.str());
+                  getFPS(frmSizes.stepwise.min_width, frmSizes.stepwise.min_height, capType, fmt.pixelformat);
                 }
-              } else if (frmSizes.type == V4L2_FRMSIZE_TYPE_STEPWISE) {
-                // For stepwise frame sizes, use the maximum resolution
-                std::stringstream ss;
-                ss << intToString(fmt.pixelformat) << "-" << frmSizes.stepwise.max_width << "x"
-                   << frmSizes.stepwise.max_height << "@30.00";
-                opts.append(ss.str());
-
-                if (frmSizes.stepwise.max_width * frmSizes.stepwise.max_height > maxWidth * maxHeight) {
-                  maxWidth = frmSizes.stepwise.max_width;
-                  maxHeight = frmSizes.stepwise.max_height;
-                  defaultFormat = ss.str();
-                }
-
-                // Also add the minimum resolution for reference
-                if (frmSizes.stepwise.min_width != frmSizes.stepwise.max_width ||
-                    frmSizes.stepwise.min_height != frmSizes.stepwise.max_height) {
-                  std::stringstream ss_min;
-                  ss_min << intToString(fmt.pixelformat) << "-" << frmSizes.stepwise.min_width
-                         << "x" << frmSizes.stepwise.min_height << "@30.00";
-                  opts.append(ss_min.str());
-                }
+                break; // Discrete and continuous only have 1 entry
               }
               frmSizes.index++;
+            }
+            if (!frmSizes.index){
+              struct v4l2_format current;
+              current.type = capType;
+              if (!ioctl(testFd, VIDIOC_G_FMT, &current)) {
+                if (capType == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+                  current.fmt.pix.pixelformat = fmt.pixelformat;
+                  if (!ioctl(testFd, VIDIOC_TRY_FMT, &current)) {
+                    getFPS(current.fmt.pix.width, current.fmt.pix.height, capType, current.fmt.pix.pixelformat);
+                  } else {
+                    getFPS(current.fmt.pix.width, current.fmt.pix.height, capType, current.fmt.pix.pixelformat);
+                  }
+                } else if (capType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+                  current.fmt.pix_mp.pixelformat = fmt.pixelformat;
+                  if (!ioctl(testFd, VIDIOC_TRY_FMT, &current)) {
+                    getFPS(current.fmt.pix_mp.width, current.fmt.pix_mp.height, capType, current.fmt.pix_mp.pixelformat);
+                  } else {
+                    getFPS(current.fmt.pix_mp.width, current.fmt.pix_mp.height, capType, current.fmt.pix_mp.pixelformat);
+                  }
+                }
+              }else{
+                WARN_MSG("Zero valid frame types for format and no current format?!");
+              }
             }
             fmt.index++;
           }
@@ -730,6 +739,9 @@ namespace Mist {
     // Set video format and resolution
     struct v4l2_format imageFormat;
     imageFormat.type = videoBufferType;
+    if (ioctl(videoFd, VIDIOC_G_FMT, &imageFormat)) {
+      WARN_MSG("Could not get current parameters of video device: %s (%d)", strerror(errno), errno);
+    }
     if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
       imageFormat.fmt.pix_mp.width = videoWidth;
       imageFormat.fmt.pix_mp.height = videoHeight;
@@ -741,11 +753,24 @@ namespace Mist {
       imageFormat.fmt.pix.pixelformat = videoPixelFmt;
       imageFormat.fmt.pix.field = V4L2_FIELD_NONE;
     }
-    if (ioctl(videoFd, VIDIOC_S_FMT, &imageFormat) < 0) {
-      ERROR_MSG("Could not apply video format");
-      close(videoFd);
-      videoFd = -1;
-      return false;
+    if (ioctl(videoFd, VIDIOC_S_FMT, &imageFormat)) {
+      WARN_MSG("Could not set parameters of video device: %s (%d) - attempting to ignore...", strerror(errno), errno);
+      if (ioctl(videoFd, VIDIOC_G_FMT, &imageFormat)) {
+        FAIL_MSG("Could not get parameters of video device: %s (%d)", strerror(errno), errno);
+        close(videoFd);
+        videoFd = -1;
+        return false;
+      }else{
+        if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+          videoWidth = imageFormat.fmt.pix_mp.width;
+          videoHeight = imageFormat.fmt.pix_mp.height;
+          videoPixelFmt = imageFormat.fmt.pix_mp.pixelformat;
+        } else {
+          videoWidth = imageFormat.fmt.pix.width;
+          videoHeight = imageFormat.fmt.pix.height;
+          videoPixelFmt = imageFormat.fmt.pix.pixelformat;
+        }
+      }
     }
 
     // Set framerate
@@ -770,25 +795,15 @@ namespace Mist {
     requestBuffer.count = 1;
     requestBuffer.type = videoBufferType;
     requestBuffer.memory = V4L2_MEMORY_MMAP;
-    if (ioctl(videoFd, VIDIOC_REQBUFS, &requestBuffer) < 0) {
+    if (ioctl(videoFd, VIDIOC_REQBUFS, &requestBuffer)) {
       ERROR_MSG("Could not request video buffers");
       close(videoFd);
       videoFd = -1;
       return false;
     }
 
-    // Map buffer
-    v4l2_buffer queryBuffer = {0};
-    queryBuffer.type = videoBufferType;
-    queryBuffer.memory = V4L2_MEMORY_MMAP;
-    queryBuffer.index = 0;
-
-    // For multi-planar, we need to allocate the planes array
-    v4l2_plane planes[VIDEO_MAX_PLANES];
+    // Get numPlanes if needed
     if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-      memset(planes, 0, sizeof(planes));
-      queryBuffer.m.planes = planes;
-
       // Get the actual number of planes from the format
       struct v4l2_format fmt;
       memset(&fmt, 0, sizeof(fmt));
@@ -799,71 +814,85 @@ namespace Mist {
         videoFd = -1;
         return false;
       }
-
       numPlanes = fmt.fmt.pix_mp.num_planes;
-      queryBuffer.length = numPlanes;
-      INFO_MSG("Multi-planar format detected with %d planes", numPlanes);
-    }
-
-    if (ioctl(videoFd, VIDIOC_QUERYBUF, &queryBuffer) < 0) {
-      ERROR_MSG("Unable to query video buffer");
-      close(videoFd);
-      videoFd = -1;
-      return false;
-    }
-
-    size_t bufferLength;
-    __u32 bufferOffset;
-    if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-      bufferLength = queryBuffer.m.planes[0].length;
-      bufferOffset = queryBuffer.m.planes[0].m.mem_offset;
+      memset(videoPlanesQ, 0, sizeof(videoPlanesQ));
+      memset(videoPlanesB, 0, sizeof(videoPlanesB));
     } else {
-      bufferLength = queryBuffer.length;
-      bufferOffset = queryBuffer.m.offset;
+      numPlanes = 1;
     }
 
-    videoBuffer = (char *)mmap(NULL, bufferLength, PROT_READ | PROT_WRITE, MAP_SHARED, videoFd, bufferOffset);
-    memset(videoBuffer, 0, bufferLength);
 
-    // Initialize buffer info
-    memset(&videoBufferInfo, 0, sizeof(videoBufferInfo));
-    videoBufferInfo.type = videoBufferType;
-    videoBufferInfo.memory = V4L2_MEMORY_MMAP;
-    videoBufferInfo.index = 0;
+    for (size_t bufNo = 0; bufNo < requestBuffer.count; ++bufNo) {
+      // Map buffer
+      v4l2_buffer queryBuffer = {0};
+      queryBuffer.type = videoBufferType;
+      queryBuffer.memory = V4L2_MEMORY_MMAP;
+      queryBuffer.index = bufNo;
 
-    // For multi-planar, we need to setup the planes array for streaming operations too
-    if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-      memset(videoPlanes, 0, sizeof(videoPlanes));
-      videoBufferInfo.m.planes = videoPlanes;
+      // For multi-planar, we need to allocate the planes array
+      if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+        queryBuffer.m.planes = &(videoPlanesQ[numPlanes * bufNo]);
+        queryBuffer.length = numPlanes;
+        INFO_MSG("Multi-planar format detected with %d planes", numPlanes);
+      }
 
-      // Get the actual number of planes from the format
-      struct v4l2_format fmt;
-      memset(&fmt, 0, sizeof(fmt));
-      fmt.type = videoBufferType;
-      if (ioctl(videoFd, VIDIOC_G_FMT, &fmt) < 0) {
-        ERROR_MSG("Could not get format to determine number of planes for streaming");
+      if (ioctl(videoFd, VIDIOC_QUERYBUF, &queryBuffer) < 0) {
+        ERROR_MSG("Unable to query video buffer");
         close(videoFd);
         videoFd = -1;
         return false;
       }
 
-      numPlanes = fmt.fmt.pix_mp.num_planes;
-      videoBufferInfo.length = numPlanes;
-      INFO_MSG("Multi-planar streaming setup with %d planes", numPlanes);
-
-      // Copy the plane information from the queryBuffer to our streaming planes
-      for (uint32_t i = 0; i < numPlanes; i++) {
-        videoPlanes[i].length = queryBuffer.m.planes[i].length;
-        videoPlanes[i].bytesused = 0; // Will be filled by driver during DQBUF
-        videoPlanes[i].m.mem_offset = queryBuffer.m.planes[i].m.mem_offset;
-        videoPlanes[i].data_offset = 0;
+      size_t bufferLength;
+      __u32 bufferOffset;
+      if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+        bufferLength = queryBuffer.m.planes[0].length;
+        bufferOffset = queryBuffer.m.planes[0].m.mem_offset;
+      } else {
+        bufferLength = queryBuffer.length;
+        bufferOffset = queryBuffer.m.offset;
       }
-      HIGH_MSG("Initialized %d planes for streaming with proper buffer info", numPlanes);
+
+      videoBuffer = (char *)mmap(NULL, bufferLength, PROT_READ | PROT_WRITE, MAP_SHARED, videoFd, bufferOffset);
+      memset(videoBuffer, 0, bufferLength);
+
+      // Initialize buffer info
+      memset(&videoBufferInfo, 0, sizeof(videoBufferInfo));
+      videoBufferInfo.type = videoBufferType;
+      videoBufferInfo.memory = V4L2_MEMORY_MMAP;
+      videoBufferInfo.index = bufNo;
+
+      // For multi-planar, we need to setup the planes array for streaming operations too
+      if (videoBufferType == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+        videoBufferInfo.m.planes = videoPlanesB;
+
+        videoBufferInfo.length = numPlanes;
+        INFO_MSG("Multi-planar streaming setup with %d planes", numPlanes);
+
+        // Copy the plane information from the queryBuffer to our streaming planes
+        for (uint32_t i = 0; i < numPlanes; i++) {
+          videoPlanesB[i].length = videoPlanesQ[numPlanes * bufNo + i].length;
+          videoPlanesB[i].bytesused = 0; // Will be filled by driver during DQBUF
+          videoPlanesB[i].m.mem_offset = videoPlanesQ[numPlanes * bufNo + i].m.mem_offset;
+          videoPlanesB[i].data_offset = 0;
+        }
+        HIGH_MSG("Initialized %d planes for streaming with proper buffer info", numPlanes);
+      }
+
+      // Queue the initial buffer for capture
+      INFO_MSG("Queueing initial buffer for capture (type=%d, index=%d)", videoBufferInfo.type, videoBufferInfo.index);
+      if (ioctl(videoFd, VIDIOC_QBUF, &videoBufferInfo)) {
+        ERROR_MSG("Could not queue initial video buffer: %s", strerror(errno));
+        close(videoFd);
+        videoFd = -1;
+        return false;
+      }
+      HIGH_MSG("Initial buffer queued successfully");
     }
 
     // Start streaming
-    int type = videoBufferInfo.type;
-    HIGH_MSG("About to start streaming with type=%d", type);
+    int type = videoBufferType;
+    INFO_MSG("About to start streaming with type=%d", type);
     if (ioctl(videoFd, VIDIOC_STREAMON, &type) < 0) {
       ERROR_MSG("Unable to start video streaming: %s", strerror(errno));
       close(videoFd);
@@ -871,16 +900,6 @@ namespace Mist {
       return false;
     }
     HIGH_MSG("Video streaming started successfully");
-
-    // Queue the initial buffer for capture
-    HIGH_MSG("Queueing initial buffer for capture (type=%d, index=%d)", videoBufferInfo.type, videoBufferInfo.index);
-    if (ioctl(videoFd, VIDIOC_QBUF, &videoBufferInfo) < 0) {
-      ERROR_MSG("Could not queue initial video buffer: %s", strerror(errno));
-      close(videoFd);
-      videoFd = -1;
-      return false;
-    }
-    HIGH_MSG("Initial buffer queued successfully");
 
     INFO_MSG("Video device setup completed: %lux%lu @ %.1f fps", videoWidth, videoHeight,
              (float)videoFpsDenominator / (float)videoFpsNumerator);
@@ -1138,6 +1157,10 @@ namespace Mist {
       size_t fmtDelPos = format.find('-');
       if (fmtDelPos != std::string::npos) {
         std::string pixFmtStr = format.substr(0, fmtDelPos);
+        if (pixFmtStr == "NV12") { videoBufferType = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; }
+        if (pixFmtStr == "NV16") { videoBufferType = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; }
+        if (pixFmtStr == "NV24") { videoBufferType = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; }
+        if (pixFmtStr == "BGR3") { videoBufferType = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; }
         videoPixelFmt = strToInt(pixFmtStr);
         format = format.substr(fmtDelPos + 1);
 
@@ -1174,9 +1197,8 @@ namespace Mist {
         memset(&activeFormat, 0, sizeof(activeFormat));
         activeFormat.type = capType;
 
-        if (ioctl(videoFd, VIDIOC_G_FMT, &activeFormat) >= 0) {
-          if (activeFormat.fmt.pix.width > 0 && activeFormat.fmt.pix.height > 0 &&
-              activeFormat.fmt.pix.pixelformat > 0) {
+        if (!ioctl(videoFd, VIDIOC_G_FMT, &activeFormat)) {
+          if (activeFormat.fmt.pix.width > 0 && activeFormat.fmt.pix.height > 0 && activeFormat.fmt.pix.pixelformat > 0) {
             videoBufferType = capType;
             videoWidth = activeFormat.fmt.pix.width;
             videoHeight = activeFormat.fmt.pix.height;
@@ -1212,23 +1234,27 @@ namespace Mist {
     bool hasFPS = format.size(); // Automatically adjust FPS if none was set
     bool hasResolution = videoWidth && videoHeight; // Automatically adjust resolution if none was set
     bool hasPixFmt = videoPixelFmt; // Automatically adjust pixel format if none was set
+    bool haveMatch = false;
 
     // Check both capture types like enumeration and getSourceCapa do
     for (v4l2_buf_type capType : {V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE}) {
       fmt.type = capType;
       fmt.index = 0;
 
-      INFO_MSG("Checking buffer type %s", (capType == V4L2_BUF_TYPE_VIDEO_CAPTURE) ? "CAPTURE" : "CAPTURE_MPLANE");
+      VERYHIGH_MSG("Checking buffer type %s", (capType == V4L2_BUF_TYPE_VIDEO_CAPTURE) ? "CAPTURE" : "CAPTURE_MPLANE");
 
-      while (ioctl(videoFd, VIDIOC_ENUM_FMT, &fmt) >= 0) {
+      while (!ioctl(videoFd, VIDIOC_ENUM_FMT, &fmt)) {
         std::string detectedFormat = intToString(fmt.pixelformat);
-        INFO_MSG("Found format: %s (%u)", detectedFormat.c_str(), fmt.pixelformat);
+        VERYHIGH_MSG("Found format: %s (%u)", detectedFormat.c_str(), fmt.pixelformat);
 
         // If we have a requested pixelFmt, skip any non-matching formats
         if (hasPixFmt && fmt.pixelformat != videoPixelFmt) {
           fmt.index++;
           continue;
         }
+
+        videoBufferType = capType;
+        haveMatch = true;
 
         // Go through supported resolution and FPS combos
         struct v4l2_frmsizeenum frmSizes;
@@ -1344,17 +1370,14 @@ namespace Mist {
         if (foundValidSize && !videoFpsDenominator && !videoFpsNumerator) {
           videoFpsDenominator = 30;
           videoFpsNumerator = 1;
-          INFO_MSG("  Using default FPS: 30.0");
+          INFO_MSG("Using default frame rate");
         }
 
         fmt.index++;
       }
 
       // If we found a valid format, break out of the buffer type loop
-      if (videoPixelFmt != 0) {
-        videoBufferType = capType;
-        break;
-      }
+      if (haveMatch) { break; }
     }
 
     // If we still have no format/resolution, but detected active input, use that
@@ -1382,7 +1405,7 @@ namespace Mist {
     if (!videoFpsDenominator || !videoFpsNumerator) {
       videoFpsDenominator = 30;
       videoFpsNumerator = 1;
-      INFO_MSG("Using default FPS: 30.0");
+      INFO_MSG("Using default frame rate");
     }
 
     INFO_MSG("Video format configured: %s %lux%lu @ %.1f fps", pixFmtStr.c_str(), videoWidth,
@@ -1771,24 +1794,6 @@ namespace Mist {
 
     INFO_MSG("PulseAudio stream created and connected");
     return true;
-  }
-
-  std::string LinuxAV::intToString(int n) {
-    std::string output;
-    while (n) {
-      output += (char)n & 0xFF;
-      n >>= 8;
-    }
-    return output;
-  }
-
-  int LinuxAV::strToInt(const std::string & str) {
-    int output = 0;
-    for (int i = str.size() - 1; i >= 0; i--) {
-      output <<= 8;
-      output += (char)str[i];
-    }
-    return output;
   }
 
 #endif // __linux__

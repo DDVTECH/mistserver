@@ -1,7 +1,5 @@
 #include "pixels.h"
 
-#include "defines.h"
-
 /// Public domain IBM 8x8 pixel font for characters 0x20-0x7E
 uint8_t font8x8_basic[95][8] = {
   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // U+0020 (space)
@@ -609,6 +607,167 @@ namespace PixFmt {
   /// Copies RGB image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
   void copyScaled(const PixFmtRGB::SrcMatrix & src, PixFmtUYVY::DestMatrix & L) {}
+
+
+  /// Copies UYVY image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtYUYV::SrcMatrix & src, PixFmtUYVY::DestMatrix & L) {
+    // Calculate pixel pair dimensions (UYVY stores 2 pixels per 4-byte pair)
+    size_t srcPairsPerRow = src.width / 2;
+    size_t gridPairsPerRow = L.totWidth / 2;
+
+    // Default scaling dimensions (may be adjusted for aspect ratio handling)
+    size_t scaleWidth = L.cellWidth;
+    size_t scaleHeight = L.cellHeight;
+    int16_t offsetX = 0, offsetY = 0;
+    size_t intScale = 1;
+    size_t cropL = 0, cropR = 0, cropU = 0, cropD = 0;
+    calculateScaling(src.width, src.height, L, scaleWidth, scaleHeight, offsetX, offsetY, intScale, cropL, cropR, cropU, cropD);
+
+    // Calculate final grid position including any letterbox offsets
+    int16_t destX = L.cellX + offsetX;
+    int16_t destY = L.cellY + offsetY;
+    int16_t destPairX = destX / 2;
+    size_t scalePairsPerRow = scaleWidth / 2;
+
+    if (L.aspect == PixFmt::PATTERN) {
+      // Pattern fill, no scaling at all
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) break; // Bounds check
+        size_t srcY = y % src.height;
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+          size_t srcX = x % src.width;
+          L.pix[gridRowStart + x] = src.pix[srcY * srcPairsPerRow + srcX];
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::BILINEAR) {
+      uint32_t xRatio_fp = (uint32_t)((srcPairsPerRow << 16) / scalePairsPerRow);
+      uint32_t yRatio_fp = (uint32_t)((src.height << 16) / scaleHeight);
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        size_t destYPos = destY + y;
+        if (destYPos >= L.totHeight) break; // Bounds check
+
+        uint32_t srcY_fp = y * yRatio_fp;
+        size_t y1 = srcY_fp >> 16;
+        size_t y2 = std::min(y1 + 1, src.height - 1);
+        uint32_t wy = (srcY_fp >> 8) & 0xFF;
+        uint32_t iwy = 256 - wy;
+
+        size_t gridRowStart = destYPos * gridPairsPerRow + destPairX;
+        size_t row1 = y1 * srcPairsPerRow;
+        size_t row2 = y2 * srcPairsPerRow;
+
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destPairX + x < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+
+          uint32_t srcX_fp = x * xRatio_fp;
+          size_t x1 = srcX_fp >> 16;
+          size_t x2 = std::min(x1 + 1, srcPairsPerRow - 1);
+          uint32_t wx = (srcX_fp >> 8) & 0xFF;
+          uint32_t iwx = 256 - wx;
+
+          // Weights
+          uint32_t w11 = iwx * iwy;
+          uint32_t w12 = wx * iwy;
+          uint32_t w21 = iwx * wy;
+          uint32_t w22 = wx * wy;
+
+          const PixFmtYUYV::Pixels & p11 = src.pix[row1 + x1];
+          const PixFmtYUYV::Pixels & p12 = src.pix[row1 + x2];
+          const PixFmtYUYV::Pixels & p21 = src.pix[row2 + x1];
+          const PixFmtYUYV::Pixels & p22 = src.pix[row2 + x2];
+
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+          destPx.u = (uint8_t)((p11.u * w11 + p12.u * w12 + p21.u * w21 + p22.u * w22 + 32768) >> 16);
+          destPx.v = (uint8_t)((p11.v * w11 + p12.v * w12 + p21.v * w21 + p22.v * w22 + 32768) >> 16);
+          destPx.y1 = (uint8_t)((p11.y1 * w11 + p12.y1 * w12 + p21.y1 * w21 + p22.y1 * w22 + 32768) >> 16);
+          destPx.y2 = (uint8_t)((p11.y2 * w11 + p12.y2 * w12 + p21.y2 * w21 + p22.y2 * w22 + 32768) >> 16);
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::NEAREST) {
+      // Nearest neighbour: Fast, uses closest pixel without interpolation
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+
+        // Find nearest source row (integer math for speed)
+        size_t srcY = (y * src.height) / scaleHeight;
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destPairX + x < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) { break; } // Bounds check
+
+          // Find nearest source pixel pair and copy directly
+          size_t srcX = (x * srcPairsPerRow) / scalePairsPerRow;
+          L.pix[gridRowStart + x] = src.pix[srcY * srcPairsPerRow + srcX];
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::INTEGER) {
+      // Integer scaling, only divides by 2-multiples, quick and good quality but inflexible
+      size_t div = (intScale * intScale);
+      size_t rightSide = intScale / 2;
+      size_t middlePixel = 0;
+      if (intScale % 2) { middlePixel = rightSide; }
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+
+        // Find source row
+        size_t srcY = y * intScale;
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destPairX + x < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+
+          // Average the values of the pixels we represent with this pixel
+          size_t srcX = x * intScale;
+          if (intScale == 1) {
+            L.pix[gridRowStart + x] = src.pix[srcY * srcPairsPerRow + srcX];
+          } else {
+            uint16_t U = 0, V = 0, Y1 = 0, Y2 = 0;
+            for (size_t iY = 0; iY < intScale; ++iY) {
+              for (size_t iX = 0; iX < intScale; ++iX) {
+                const PixFmtYUYV::Pixels & S = src.pix[(srcY + iY) * srcPairsPerRow + srcX + iX];
+                U += S.u;
+                V += S.v;
+                if (iX < rightSide) {
+                  Y1 += S.y1 + S.y2;
+                } else if (iX == middlePixel) {
+                  Y1 += S.y1;
+                  Y2 += S.y2;
+                } else {
+                  Y2 += S.y1 + S.y2;
+                }
+              }
+            }
+            PixFmtUYVY::Pixels & R = L.pix[gridRowStart + x];
+            R.u = U / div;
+            R.v = V / div;
+            R.y1 = Y1 / div;
+            R.y2 = Y2 / div;
+          }
+        }
+      }
+      return;
+    }
+  }
+
 
   /// Copies RGBA image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.

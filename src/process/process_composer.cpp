@@ -51,6 +51,8 @@ std::recursive_mutex drawMutex;
 bool attemptSync = false;
 uint64_t targetDelay = 0;
 
+enum trackCodec { CODEC_UNSET = 0, CODEC_UYVY, CODEC_YUYV, CODEC_NV12, CODEC_NV16, CODEC_NV24 };
+
 namespace Mist {
 
   JSON::Value opt; ///< Global configuration for process
@@ -62,6 +64,7 @@ namespace Mist {
       std::recursive_mutex *ptrLock = 0;
       bool shouldStop{false};
       uint64_t ptrTime{0};
+      trackCodec trkCdc{CODEC_UNSET};
       uint64_t maxVidTime{0}; ///< Newest video timestamp in unix millis available
       uint64_t minVidTime{0}; ///< Oldest video timestamp in unix millis available
       uint8_t utcSource{UTCSRC_UNKNOWN}; ///< Source of UTC timestamp
@@ -116,6 +119,9 @@ namespace Mist {
         Output::init(cfg, capa);
         capa["name"] = "Multiview";
         capa["codecs"][0u][0u].append("UYVY");
+        capa["codecs"][0u][0u].append("YUYV");
+        capa["codecs"][0u][0u].append("NV12");
+        capa["codecs"][0u][0u].append("NV16");
         capa["codecs"][0u][1u].append("PCM");
         cfg->addOption("streamname", R"({"arg":"string","short":"s","long":"stream"})");
         cfg->addBasicConnectorOptions(capa);
@@ -142,6 +148,7 @@ namespace Mist {
         if (lastSelCheck + 1000 < Util::bootMS()) {
           if (selectDefaultTracks()) {
             INFO_MSG("Updated track selection: now have %zu selected", userSelect.size());
+            trkCdc = CODEC_UNSET;
           } else {
             VERYHIGH_MSG("Kept track selection: now have %zu selected", userSelect.size());
           }
@@ -204,6 +211,15 @@ namespace Mist {
           ptr.pix = (PixFmtUYVY::Pixels *)thisData;
           ptr.width = M.getWidth(thisIdx);
           ptr.height = M.getHeight(thisIdx);
+
+          if (trkCdc == CODEC_UNSET) {
+            std::string c = M.getCodec(thisIdx);
+            if (c == "UYVY") { trkCdc = CODEC_UYVY; }
+            if (c == "YUYV") { trkCdc = CODEC_YUYV; }
+            if (c == "NV12") { trkCdc = CODEC_NV12; }
+            if (c == "NV16") { trkCdc = CODEC_NV16; }
+            if (c == "NV24") { trkCdc = CODEC_NV24; }
+          }
 
 #ifdef HASQUIRC
           if (qrParser && lastQrCheck + 5000 < thisTime) {
@@ -1037,7 +1053,16 @@ namespace Mist {
                       dest.isBlack = false;
                     }
                     dest.ptrTimeCpy = s.P->ptrTime;
-                    PixFmtUYVY::copyScaled(s.P->ptr, dest);
+                    switch (s.P->trkCdc){
+                      case CODEC_UYVY: {
+                        PixFmtUYVY::copyScaled(s.P->ptr, dest);
+                      } break;
+                      case CODEC_YUYV: {
+                        PixFmtYUYV::SrcMatrix src{(PixFmtYUYV::Pixels*)s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height};
+                        PixFmt::copyScaled(src, dest);
+                      } break;
+                      default: INFO_MSG("Unimplemented source pixel format :-("); break;
+                    }
                     changed = true;
                     didCopy = true;
                   }

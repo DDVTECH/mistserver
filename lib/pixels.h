@@ -188,6 +188,47 @@ namespace PixFmtUYVY {
 
 } // namespace PixFmtUYVY
 
+namespace PixFmtYUYV {
+
+  /// Represents a single UYVY pixel pair (4 bytes = 2 pixels).
+  /// UYVY format stores chroma (U,V) shared between two adjacent luma (Y) samples.
+  /// Luma scales from 16 (black) to 240 (white)
+  struct Pixels {
+      uint8_t y1; ///< First luma sample
+      uint8_t u; ///< U chroma component (shared)
+      uint8_t y2; ///< Second luma sample
+      uint8_t v; ///< V chroma component (shared)
+
+      /// Returns true if the pixels are black
+      inline bool isBlack() { return u == 128 && y1 == 16 && v == 128 && y2 == 16; }
+
+      /// Returns true if the pixels are greyscale
+      inline bool isGrey() { return u == 128 && v == 128; }
+
+      /// Sets the pixels to black
+      inline void clear() {
+        u = v = 128;
+        y1 = y2 = 16;
+      }
+
+      operator PixFmtUYVY::Pixels() const {
+        return PixFmtUYVY::Pixels{u, y1, v, y2};
+      }
+
+      /// Sets the pixels to greyscale
+      inline void uncolor() { u = v = 128; }
+  };
+
+  /// Source pixel matrix
+  class SrcMatrix : public PixFmt::SrcMatrix {
+    public:
+      SrcMatrix() {}
+      SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
+      Pixels *pix{0};
+      inline size_t bytes() const { return 4; }
+  };
+} // namespace PixFmtYUYV
+
 namespace PixFmt {
   /// Copies Y image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
@@ -196,6 +237,10 @@ namespace PixFmt {
   /// Copies YA image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
   void copyScaled(const PixFmtYA::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
+
+  /// Copies YUYV image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtYUYV::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
 
   /// Copies RGB image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
@@ -206,3 +251,4 @@ namespace PixFmt {
   void copyScaled(const PixFmtRGBA::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
 
 } // namespace PixFmt
+

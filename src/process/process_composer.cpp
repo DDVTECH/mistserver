@@ -235,12 +235,24 @@ namespace Mist {
               int w, h;
               size_t i = 0;
               image = quirc_begin(qrParser, &w, &h);
-              for (h = 0; h < ptr.height; ++h) {
-                for (w = 0; w < ptr.width / 2; ++w) {
-                  PixFmtUYVY::Pixels & P = ptr.pix[h * ptr.width / 2 + w];
-                  image[i++] = P.y1;
-                  image[i++] = P.y2;
+              if (trkCdc == CODEC_UYVY) {
+                for (h = 0; h < ptr.height; ++h) {
+                  for (w = 0; w < ptr.width / 2; ++w) {
+                    PixFmtUYVY::Pixels & P = ptr.pix[h * ptr.width / 2 + w];
+                    image[i++] = P.y1;
+                    image[i++] = P.y2;
+                  }
                 }
+              } else if (trkCdc == CODEC_YUYV) {
+                for (h = 0; h < ptr.height; ++h) {
+                  for (w = 0; w < ptr.width / 2; ++w) {
+                    PixFmtYUYV::Pixels & P = ((PixFmtYUYV::Pixels *)ptr.pix)[h * ptr.width / 2 + w];
+                    image[i++] = P.y1;
+                    image[i++] = P.y2;
+                  }
+                }
+              } else if (trkCdc == CODEC_NV24 || trkCdc == CODEC_NV16 || trkCdc == CODEC_NV12) {
+                memcpy(image, ptr.pix, w*h);
               }
               quirc_end(qrParser);
               size_t num_codes = quirc_count(qrParser);

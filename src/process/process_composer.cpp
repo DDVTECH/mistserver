@@ -122,6 +122,7 @@ namespace Mist {
         capa["codecs"][0u][0u].append("YUYV");
         capa["codecs"][0u][0u].append("NV12");
         capa["codecs"][0u][0u].append("NV16");
+        capa["codecs"][0u][0u].append("NV24");
         capa["codecs"][0u][1u].append("PCM");
         cfg->addOption("streamname", R"({"arg":"string","short":"s","long":"stream"})");
         cfg->addBasicConnectorOptions(capa);
@@ -1058,8 +1059,16 @@ namespace Mist {
                         PixFmtUYVY::copyScaled(s.P->ptr, dest);
                       } break;
                       case CODEC_YUYV: {
-                        PixFmtYUYV::SrcMatrix src{(PixFmtYUYV::Pixels*)s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height};
-                        PixFmt::copyScaled(src, dest);
+                        PixFmt::copyScaled(PixFmtYUYV::SrcMatrix(s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height), dest);
+                      } break;
+                      case CODEC_NV12: {
+                        PixFmt::copyScaled(PixFmtNV12::SrcMatrix(s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height), dest);
+                      } break;
+                      case CODEC_NV16: {
+                        PixFmt::copyScaled(PixFmtNV16::SrcMatrix(s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height), dest);
+                      } break;
+                      case CODEC_NV24: {
+                        PixFmt::copyScaled(PixFmtNV24::SrcMatrix(s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height), dest);
                       } break;
                       default: INFO_MSG("Unimplemented source pixel format :-("); break;
                     }

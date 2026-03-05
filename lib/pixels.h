@@ -16,7 +16,6 @@ namespace PixFmt {
       SrcMatrix(size_t w, size_t h) : width(w), height(h) {}
       size_t width{0};
       size_t height{0};
-      inline size_t bytes() const { return 0; }
   };
 } // namespace PixFmt
 
@@ -33,7 +32,6 @@ namespace PixFmtY {
       SrcMatrix() {}
       SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
       Pixels *pix{0};
-      inline size_t bytes() const { return 1; }
   };
 
 } // namespace PixFmtY
@@ -52,7 +50,6 @@ namespace PixFmtYA {
       SrcMatrix() {}
       SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
       Pixels *pix{0};
-      inline size_t bytes() const { return 2; }
   };
 
 } // namespace PixFmtYA
@@ -76,7 +73,6 @@ namespace PixFmtRGB {
       SrcMatrix() {}
       SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
       Pixels *pix{0};
-      inline size_t bytes() const { return 3; }
   };
 
 } // namespace PixFmtRGB
@@ -101,7 +97,7 @@ namespace PixFmtRGBA {
       SrcMatrix() {}
       SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
       Pixels *pix{0};
-      inline size_t bytes() const { return 4; }
+      inline const Pixels & ref(size_t x, size_t y) const { return pix[y * width + x]; }
   };
 
 } // namespace PixFmtRGBA
@@ -160,7 +156,6 @@ namespace PixFmtUYVY {
       SrcMatrix() {}
       SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
       Pixels *pix{0};
-      inline size_t bytes() const { return 4; }
   };
 
   void calculateScaling(const size_t W, const size_t H, PixFmtUYVY::DestMatrix & L, size_t & scaleWidth,
@@ -190,7 +185,7 @@ namespace PixFmtUYVY {
 
 namespace PixFmtYUYV {
 
-  /// Represents a single UYVY pixel pair (4 bytes = 2 pixels).
+  /// Represents a single YUYV pixel pair (4 bytes = 2 pixels).
   /// UYVY format stores chroma (U,V) shared between two adjacent luma (Y) samples.
   /// Luma scales from 16 (black) to 240 (white)
   struct Pixels {
@@ -225,9 +220,76 @@ namespace PixFmtYUYV {
       SrcMatrix() {}
       SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
       Pixels *pix{0};
-      inline size_t bytes() const { return 4; }
   };
 } // namespace PixFmtYUYV
+
+namespace PixFmtUV {
+  /// Represents a single 2-byte UV pair.
+  struct Pixels {
+      uint8_t u; ///< U chroma component (shared)
+      uint8_t v; ///< V chroma component (shared)
+
+      /// Returns true if the pixels are black
+      inline bool isBlack() { return u == 128 && v == 128; }
+
+      /// Returns true if the pixels are greyscale
+      inline bool isGrey() { return u == 128 && v == 128; }
+
+      /// Sets the pixels to black
+      inline void clear() { u = v = 128; }
+
+      /// Sets the pixels to greyscale
+      inline void uncolor() { u = v = 128; }
+  };
+} // namespace PixFmtUV8
+
+namespace PixFmtNV16 {
+  /// Source pixel matrix
+  class SrcMatrix : public PixFmt::SrcMatrix {
+    public:
+      SrcMatrix() {}
+      SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h) {
+        pixY = (PixFmtY::Pixels *)ptr;
+        pixUV = (PixFmtUV::Pixels *)(((char *)ptr) + w * h);
+      }
+      PixFmtY::Pixels *pixY{0};
+      PixFmtUV::Pixels *pixUV{0};
+      inline const PixFmtY::Pixels & refY(size_t x, size_t y) const { return pixY[y * width + x]; }
+      inline const PixFmtUV::Pixels & refUV(size_t x, size_t y) const { return pixUV[y * width / 2 + x / 2]; }
+  };
+} // namespace PixFmtNV16
+
+namespace PixFmtNV12 {
+  /// Source pixel matrix
+  class SrcMatrix : public PixFmt::SrcMatrix {
+    public:
+      SrcMatrix() {}
+      SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h) {
+        pixY = (PixFmtY::Pixels *)ptr;
+        pixUV = (PixFmtUV::Pixels *)(((char *)ptr) + w * h);
+      }
+      PixFmtY::Pixels *pixY{0};
+      PixFmtUV::Pixels *pixUV{0};
+      inline const PixFmtY::Pixels & refY(size_t x, size_t y) const { return pixY[y * width + x]; }
+      inline const PixFmtUV::Pixels & refUV(size_t x, size_t y) const { return pixUV[y / 2 * width / 2 + x / 2]; }
+  };
+} // namespace PixFmtNV12
+
+namespace PixFmtNV24 {
+  /// Source pixel matrix
+  class SrcMatrix : public PixFmt::SrcMatrix {
+    public:
+      SrcMatrix() {}
+      SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h) {
+        pixY = (PixFmtY::Pixels *)ptr;
+        pixUV = (PixFmtUV::Pixels *)(((char *)ptr) + w * h);
+      }
+      PixFmtY::Pixels *pixY{0};
+      PixFmtUV::Pixels *pixUV{0};
+      inline const PixFmtY::Pixels & refY(size_t x, size_t y) const { return pixY[y * width + x]; }
+      inline const PixFmtUV::Pixels & refUV(size_t x, size_t y) const { return pixUV[y * width + x]; }
+  };
+} // namespace PixFmtNV12
 
 namespace PixFmt {
   /// Copies Y image src to fit within UYVY DestMatrix L, using given
@@ -249,6 +311,18 @@ namespace PixFmt {
   /// Copies RGBA image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
   void copyScaled(const PixFmtRGBA::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
+
+  /// Copies NV12 image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtNV12::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
+
+  /// Copies NV16 image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtNV16::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
+
+  /// Copies NV24 image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtNV24::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
 
 } // namespace PixFmt
 

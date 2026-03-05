@@ -990,4 +990,526 @@ namespace PixFmt {
     }
   }
 
+  /// Copies NV12 image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtNV12::SrcMatrix & src, PixFmtUYVY::DestMatrix & L) {
+    // Calculate pixel pair dimensions (UYVY stores 2 pixels per 4-byte pair)
+    const size_t gridPairsPerRow = L.totWidth / 2;
+
+    // Default scaling dimensions (may be adjusted for aspect ratio handling)
+    size_t scaleWidth = L.cellWidth;
+    size_t scaleHeight = L.cellHeight;
+    int16_t offsetX = 0, offsetY = 0;
+    size_t intScale = 1;
+    size_t cropL = 0, cropR = 0, cropU = 0, cropD = 0;
+    calculateScaling(src.width, src.height, L, scaleWidth, scaleHeight, offsetX, offsetY, intScale, cropL, cropR, cropU, cropD);
+
+    // Calculate final grid position including any letterbox offsets
+    const int16_t destX = L.cellX + offsetX;
+    const int16_t destY = L.cellY + offsetY;
+    const int16_t destPairX = destX / 2;
+    const size_t scalePairsPerRow = scaleWidth / 2;
+
+    if (L.aspect == PixFmt::PATTERN) {
+      // Pattern fill, no scaling at all
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) break; // Bounds check
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+        size_t srcY = y % src.height;
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+
+          size_t leftX = x * 2 % src.width;
+          size_t rightX = (x * 2 + 1) % src.width;
+          // Find nearest source pixel pair and copy directly
+          destPx.y1 = src.refY(leftX, srcY).y;
+          destPx.y2 = src.refY(rightX, srcY).y;
+          const auto & uv = src.refUV(leftX, srcY);
+          destPx.u = uv.u;
+          destPx.v = uv.v;
+        }
+      }
+      return;
+    }
+    if (L.scale == BILINEAR) {
+      uint32_t xRatio = ((src.width << 16) / scaleWidth);
+      uint32_t yRatio = ((src.height << 16) / scaleHeight);
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        size_t destYPos = destY + y;
+        if (destY + y < 0) { continue; }
+        if (destYPos >= L.totHeight) break; // Bounds check
+
+        uint32_t srcY_fp = y * yRatio;
+        size_t y1 = srcY_fp >> 16;
+        size_t y2 = std::min(y1 + 1, src.height - 1);
+        uint32_t wy = (srcY_fp >> 8) & 0xFF; // Fractional part (0-255)
+        uint32_t iwy = 256 - wy;
+
+        size_t gridRowStart = destYPos * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scaleWidth / 2 - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+                                                       //
+          /// \TODO This is pretty damn wrong as far as Y1/Y2 are concerned -_-
+
+          uint32_t srcX1_fp = (2 * x) * xRatio;
+          uint32_t srcX2_fp = (2 * x + 1) * xRatio;
+
+          size_t x1 = srcX1_fp >> 16;
+          size_t x2 = srcX2_fp >> 16;
+          uint32_t wx = (srcX1_fp >> 8) & 0xFF;
+          uint32_t iwx = 256 - wx;
+
+          const auto & y11 = src.refY(x1,y1);
+          const auto & y12 = src.refY(x2,y1);
+          const auto & y21 = src.refY(x1,y2);
+          const auto & y22 = src.refY(x2,y2);
+          const auto & u11 = src.refUV(x1, y1);
+          const auto & u12 = src.refUV(x2, y1);
+          const auto & u21 = src.refUV(x1, y2);
+          const auto & u22 = src.refUV(x2, y2);
+
+          auto interp = [&](uint8_t v11, uint8_t v12, uint8_t v21, uint8_t v22, uint32_t wx, uint32_t iwx) {
+            return (v11 * iwx * iwy + v12 * wx * iwy + v21 * iwx * wy + v22 * wx * wy + 32768) >> 16;
+          };
+
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+          destPx.y1 = interp(y11.y, y12.y, y21.y, y22.y, wx, iwx);
+          destPx.y2 = interp(y11.y, y12.y, y21.y, y22.y, wx, iwx);
+          destPx.u = interp(u11.v, u12.v, u21.v, u22.v, wx, iwx);
+          destPx.v = interp(u11.v, u12.v, u21.v, u22.v, wx, iwx);
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::NEAREST) {
+      // Nearest neighbour: Fast, uses closest pixel without interpolation
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+
+        // Find nearest source row (integer math for speed)
+        size_t srcY = (y * src.height) / scaleHeight;
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) { break; } // Bounds check
+
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+          size_t leftX = (x * 2 * src.width) / scaleWidth;
+          size_t rightX = ((x * 2 + 1) * src.width) / scaleWidth;
+          // Find nearest source pixel pair and copy directly
+          destPx.y1 = src.refY(leftX, srcY).y;
+          destPx.y2 = src.refY(rightX, srcY).y;
+          const auto & uv = src.refUV(leftX, srcY);
+          destPx.u = uv.u;
+          destPx.v = uv.v;
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::INTEGER) {
+      // Integer scaling, only divides by 2-multiples, quick and good quality but inflexible
+      size_t div = (intScale * intScale);
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+        size_t srcY = y * intScale;
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) { break; } // Bounds check
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+
+          // Average the values of the pixels we represent with this pixel
+          if (intScale == 1) {
+            size_t leftX = x * 2;
+            size_t rightX = (x * 2 + 1);
+
+            destPx.y1 = src.refY(leftX, srcY).y;
+            destPx.y2 = src.refY(rightX, srcY).y;
+            const auto & uv = src.refUV(leftX, srcY);
+            destPx.u = uv.u;
+            destPx.v = uv.v;
+          } else {
+            /// \TODO This is pretty damn wrong as far as Y1/Y2 are concerned -_-
+            uint16_t Y1 = 0, Y2 = 0, U = 0, V = 0;
+            for (size_t iY = 0; iY < intScale; ++iY) {
+              for (size_t iX = 0; iX < intScale; ++iX) {
+                size_t leftX = (x * 2 - cropL) * intScale + iX;
+                size_t rightX = (x * 2 - cropL + 1) * intScale + iX;
+                const auto & uv = src.refUV(leftX, srcY);
+                U += uv.u;
+                V += uv.v;
+                Y1 += src.refY(leftX, srcY + iY).y;
+                Y2 += src.refY(rightX, srcY + iY).y;
+              }
+            }
+            destPx.u = U / div;
+            destPx.v = V / div;
+            destPx.y1 = Y1 / div;
+            destPx.y2 = Y2 / div;
+          }
+        }
+      }
+      return;
+    }
+  }
+
+  /// Copies NV16 image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtNV16::SrcMatrix & src, PixFmtUYVY::DestMatrix & L) {
+    // Calculate pixel pair dimensions (UYVY stores 2 pixels per 4-byte pair)
+    const size_t gridPairsPerRow = L.totWidth / 2;
+
+    // Default scaling dimensions (may be adjusted for aspect ratio handling)
+    size_t scaleWidth = L.cellWidth;
+    size_t scaleHeight = L.cellHeight;
+    int16_t offsetX = 0, offsetY = 0;
+    size_t intScale = 1;
+    size_t cropL = 0, cropR = 0, cropU = 0, cropD = 0;
+    calculateScaling(src.width, src.height, L, scaleWidth, scaleHeight, offsetX, offsetY, intScale, cropL, cropR, cropU, cropD);
+
+    // Calculate final grid position including any letterbox offsets
+    const int16_t destX = L.cellX + offsetX;
+    const int16_t destY = L.cellY + offsetY;
+    const int16_t destPairX = destX / 2;
+    const size_t scalePairsPerRow = scaleWidth / 2;
+
+    if (L.aspect == PixFmt::PATTERN) {
+      // Pattern fill, no scaling at all
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) break; // Bounds check
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+        size_t srcY = y % src.height;
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+
+          size_t leftX = x * 2 % src.width;
+          size_t rightX = (x * 2 + 1) % src.width;
+          // Find nearest source pixel pair and copy directly
+          destPx.y1 = src.refY(leftX, srcY).y;
+          destPx.y2 = src.refY(rightX, srcY).y;
+          const auto & uv = src.refUV(leftX, srcY);
+          destPx.u = uv.u;
+          destPx.v = uv.v;
+        }
+      }
+      return;
+    }
+    if (L.scale == BILINEAR) {
+      uint32_t xRatio = ((src.width << 16) / scaleWidth);
+      uint32_t yRatio = ((src.height << 16) / scaleHeight);
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        size_t destYPos = destY + y;
+        if (destY + y < 0) { continue; }
+        if (destYPos >= L.totHeight) break; // Bounds check
+
+        uint32_t srcY_fp = y * yRatio;
+        size_t y1 = srcY_fp >> 16;
+        size_t y2 = std::min(y1 + 1, src.height - 1);
+        uint32_t wy = (srcY_fp >> 8) & 0xFF; // Fractional part (0-255)
+        uint32_t iwy = 256 - wy;
+
+        size_t gridRowStart = destYPos * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scaleWidth / 2 - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+                                                       //
+          /// \TODO This is pretty damn wrong as far as Y1/Y2 are concerned -_-
+
+          uint32_t srcX1_fp = (2 * x) * xRatio;
+          uint32_t srcX2_fp = (2 * x + 1) * xRatio;
+
+          size_t x1 = srcX1_fp >> 16;
+          size_t x2 = srcX2_fp >> 16;
+          uint32_t wx = (srcX1_fp >> 8) & 0xFF;
+          uint32_t iwx = 256 - wx;
+
+          const auto & y11 = src.refY(x1,y1);
+          const auto & y12 = src.refY(x2,y1);
+          const auto & y21 = src.refY(x1,y2);
+          const auto & y22 = src.refY(x2,y2);
+          const auto & u11 = src.refUV(x1, y1);
+          const auto & u12 = src.refUV(x2, y1);
+          const auto & u21 = src.refUV(x1, y2);
+          const auto & u22 = src.refUV(x2, y2);
+
+          auto interp = [&](uint8_t v11, uint8_t v12, uint8_t v21, uint8_t v22, uint32_t wx, uint32_t iwx) {
+            return (v11 * iwx * iwy + v12 * wx * iwy + v21 * iwx * wy + v22 * wx * wy + 32768) >> 16;
+          };
+
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+          destPx.y1 = interp(y11.y, y12.y, y21.y, y22.y, wx, iwx);
+          destPx.y2 = interp(y11.y, y12.y, y21.y, y22.y, wx, iwx);
+          destPx.u = interp(u11.v, u12.v, u21.v, u22.v, wx, iwx);
+          destPx.v = interp(u11.v, u12.v, u21.v, u22.v, wx, iwx);
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::NEAREST) {
+      // Nearest neighbour: Fast, uses closest pixel without interpolation
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+
+        // Find nearest source row (integer math for speed)
+        size_t srcY = (y * src.height) / scaleHeight;
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) { break; } // Bounds check
+
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+          size_t leftX = (x * 2 * src.width) / scaleWidth;
+          size_t rightX = ((x * 2 + 1) * src.width) / scaleWidth;
+          // Find nearest source pixel pair and copy directly
+          destPx.y1 = src.refY(leftX, srcY).y;
+          destPx.y2 = src.refY(rightX, srcY).y;
+          const auto & uv = src.refUV(leftX, srcY);
+          destPx.u = uv.u;
+          destPx.v = uv.v;
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::INTEGER) {
+      // Integer scaling, only divides by 2-multiples, quick and good quality but inflexible
+      size_t div = (intScale * intScale);
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+        size_t srcY = y * intScale;
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) { break; } // Bounds check
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+
+          // Average the values of the pixels we represent with this pixel
+          if (intScale == 1) {
+            size_t leftX = x * 2;
+            size_t rightX = (x * 2 + 1);
+
+            destPx.y1 = src.refY(leftX, srcY).y;
+            destPx.y2 = src.refY(rightX, srcY).y;
+            const auto & uv = src.refUV(leftX, srcY);
+            destPx.u = uv.u;
+            destPx.v = uv.v;
+          } else {
+            /// \TODO This is pretty damn wrong as far as Y1/Y2 are concerned -_-
+            uint16_t Y1 = 0, Y2 = 0, U = 0, V = 0;
+            for (size_t iY = 0; iY < intScale; ++iY) {
+              for (size_t iX = 0; iX < intScale; ++iX) {
+                size_t leftX = (x * 2 - cropL) * intScale + iX;
+                size_t rightX = (x * 2 - cropL + 1) * intScale + iX;
+                const auto & uv = src.refUV(leftX, srcY);
+                U += uv.u;
+                V += uv.v;
+                Y1 += src.refY(leftX, srcY + iY).y;
+                Y2 += src.refY(rightX, srcY + iY).y;
+              }
+            }
+            destPx.u = U / div;
+            destPx.v = V / div;
+            destPx.y1 = Y1 / div;
+            destPx.y2 = Y2 / div;
+          }
+        }
+      }
+      return;
+    }
+  }
+
+  /// Copies NV24 image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtNV24::SrcMatrix & src, PixFmtUYVY::DestMatrix & L) {
+    // Calculate pixel pair dimensions (UYVY stores 2 pixels per 4-byte pair)
+    const size_t gridPairsPerRow = L.totWidth / 2;
+
+    // Default scaling dimensions (may be adjusted for aspect ratio handling)
+    size_t scaleWidth = L.cellWidth;
+    size_t scaleHeight = L.cellHeight;
+    int16_t offsetX = 0, offsetY = 0;
+    size_t intScale = 1;
+    size_t cropL = 0, cropR = 0, cropU = 0, cropD = 0;
+    calculateScaling(src.width, src.height, L, scaleWidth, scaleHeight, offsetX, offsetY, intScale, cropL, cropR, cropU, cropD);
+
+    // Calculate final grid position including any letterbox offsets
+    const int16_t destX = L.cellX + offsetX;
+    const int16_t destY = L.cellY + offsetY;
+    const int16_t destPairX = destX / 2;
+    const size_t scalePairsPerRow = scaleWidth / 2;
+
+    if (L.aspect == PixFmt::PATTERN) {
+      // Pattern fill, no scaling at all
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) break; // Bounds check
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+        size_t srcY = y % src.height;
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+
+          size_t leftX = x * 2 % src.width;
+          size_t rightX = (x * 2 + 1) % src.width;
+          // Find nearest source pixel pair and copy directly
+          destPx.y1 = src.refY(leftX, srcY).y;
+          destPx.y2 = src.refY(rightX, srcY).y;
+          const auto & uvL = src.refUV(leftX, srcY);
+          const auto & uvR = src.refUV(rightX, srcY);
+          destPx.u = (uvL.u + uvR.u)/2;
+          destPx.v = (uvL.v + uvR.v)/2;
+        }
+      }
+      return;
+    }
+    if (L.scale == BILINEAR) {
+      uint32_t xRatio = ((src.width << 16) / scaleWidth);
+      uint32_t yRatio = ((src.height << 16) / scaleHeight);
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        size_t destYPos = destY + y;
+        if (destY + y < 0) { continue; }
+        if (destYPos >= L.totHeight) break; // Bounds check
+
+        uint32_t srcY_fp = y * yRatio;
+        size_t y1 = srcY_fp >> 16;
+        size_t y2 = std::min(y1 + 1, src.height - 1);
+        uint32_t wy = (srcY_fp >> 8) & 0xFF; // Fractional part (0-255)
+        uint32_t iwy = 256 - wy;
+
+        size_t gridRowStart = destYPos * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scaleWidth / 2 - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) break; // Bounds check
+                                                       //
+          /// \TODO This is pretty damn wrong as far as Y1/Y2 are concerned -_-
+
+          uint32_t srcX1_fp = (2 * x) * xRatio;
+          uint32_t srcX2_fp = (2 * x + 1) * xRatio;
+
+          size_t x1 = srcX1_fp >> 16;
+          size_t x2 = srcX2_fp >> 16;
+          uint32_t wx = (srcX1_fp >> 8) & 0xFF;
+          uint32_t iwx = 256 - wx;
+
+          const auto & y11 = src.refY(x1,y1);
+          const auto & y12 = src.refY(x2,y1);
+          const auto & y21 = src.refY(x1,y2);
+          const auto & y22 = src.refY(x2,y2);
+          const auto & u11 = src.refUV(x1, y1);
+          const auto & u12 = src.refUV(x2, y1);
+          const auto & u21 = src.refUV(x1, y2);
+          const auto & u22 = src.refUV(x2, y2);
+
+          auto interp = [&](uint8_t v11, uint8_t v12, uint8_t v21, uint8_t v22, uint32_t wx, uint32_t iwx) {
+            return (v11 * iwx * iwy + v12 * wx * iwy + v21 * iwx * wy + v22 * wx * wy + 32768) >> 16;
+          };
+
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+          destPx.y1 = interp(y11.y, y12.y, y21.y, y22.y, wx, iwx);
+          destPx.y2 = interp(y11.y, y12.y, y21.y, y22.y, wx, iwx);
+          destPx.u = interp(u11.v, u12.v, u21.v, u22.v, wx, iwx);
+          destPx.v = interp(u11.v, u12.v, u21.v, u22.v, wx, iwx);
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::NEAREST) {
+      // Nearest neighbour: Fast, uses closest pixel without interpolation
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+
+        // Find nearest source row (integer math for speed)
+        size_t srcY = (y * src.height) / scaleHeight;
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) { break; } // Bounds check
+
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+          size_t leftX = (x * 2 * src.width) / scaleWidth;
+          size_t rightX = ((x * 2 + 1) * src.width) / scaleWidth;
+          // Find nearest source pixel pair and copy directly
+          destPx.y1 = src.refY(leftX, srcY).y;
+          destPx.y2 = src.refY(rightX, srcY).y;
+          const auto & uvL = src.refUV(leftX, srcY);
+          const auto & uvR = src.refUV(rightX, srcY);
+          destPx.u = (uvL.u + uvR.u)/2;
+          destPx.v = (uvL.v + uvR.v)/2;
+        }
+      }
+      return;
+    }
+    if (L.scale == PixFmt::INTEGER) {
+      // Integer scaling, only divides by 2-multiples, quick and good quality but inflexible
+      size_t div = (intScale * intScale);
+
+      for (size_t y = cropU; y < scaleHeight - cropD; y++) {
+        if (destY + y < 0) { continue; }
+        if (destY + y >= L.totHeight) { break; } // Bounds check
+        size_t gridRowStart = (destY + y) * gridPairsPerRow + destPairX;
+        size_t srcY = y * intScale;
+        for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
+          if (destX + y < 0) { continue; }
+          if (destPairX + x >= gridPairsPerRow) { break; } // Bounds check
+          PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
+
+          // Average the values of the pixels we represent with this pixel
+          if (intScale == 1) {
+            size_t leftX = x * 2;
+            size_t rightX = (x * 2 + 1);
+
+            destPx.y1 = src.refY(leftX, srcY).y;
+            destPx.y2 = src.refY(rightX, srcY).y;
+            const auto & uv = src.refUV(leftX, srcY);
+            destPx.u = uv.u;
+            destPx.v = uv.v;
+          } else {
+            /// \TODO This is pretty damn wrong as far as Y1/Y2 are concerned -_-
+            uint16_t Y1 = 0, Y2 = 0, U = 0, V = 0;
+            for (size_t iY = 0; iY < intScale; ++iY) {
+              for (size_t iX = 0; iX < intScale; ++iX) {
+                size_t leftX = (x * 2 - cropL) * intScale + iX;
+                size_t rightX = (x * 2 - cropL + 1) * intScale + iX;
+                const auto & uvL = src.refUV(leftX, srcY);
+                const auto & uvR = src.refUV(rightX, srcY);
+                U += (uvL.u + uvR.u);
+                V += (uvL.v + uvR.v);
+                Y1 += src.refY(leftX, srcY + iY).y;
+                Y2 += src.refY(rightX, srcY + iY).y;
+              }
+            }
+            destPx.u = U / div / 2;
+            destPx.v = V / div / 2;
+            destPx.y1 = Y1 / div;
+            destPx.y2 = Y2 / div;
+          }
+        }
+      }
+      return;
+    }
+  }
+
 } // namespace PixFmt

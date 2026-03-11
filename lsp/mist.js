@@ -4428,14 +4428,6 @@ context_menu: function(){
         break;
       case 'Overview':
         
-        if (typeof mist.data.bandwidth == 'undefined') {
-          mist.send(function(d){
-            UI.navto(tab);
-          },{bandwidth: true});
-          $main.append('Loading..');
-          return;
-        }
-        
         var $versioncheck = $('<span>').text('Loading..');
         var $streamsactive = $('<span>');
         var $errors = $('<span>').addClass('logs');
@@ -4872,7 +4864,7 @@ context_menu: function(){
         
         function updateViewers() {
           var request = {
-            totals:{
+            totals: {
               fields: ['clients'],
               start: -10
             },
@@ -4968,7 +4960,8 @@ context_menu: function(){
           accesslog: mist.data.config.accesslog,
           prometheus: mist.data.config.prometheus,
           defaultStream: mist.data.config.defaultStream,
-          trustedproxy: mist.data.config.trustedproxy
+          trustedproxy: mist.data.config.trustedproxy,
+          weights: mist.data.config.weights
         };
         var s_sessions = {
           sessionViewerMode: mist.data.config.sessionViewerMode,
@@ -5010,16 +5003,14 @@ context_menu: function(){
               ["LOG","Log to MistServer log"],
               [{
                 type:"str",
-                label:"Path",
-                LTSonly: true
+                label:"Path"
               },"Log to file"]
             ],
             pointer: {
               main: s_general,
               index: "accesslog"
             },
-            help: "Enable access logs.",
-            LTSonly: true
+            help: "Enable access logs."
           },{
             type: "selectinput",
             label: "Prometheus stats output",
@@ -5027,16 +5018,14 @@ context_menu: function(){
               ["","Disabled"],
               [{
                 type: "str",
-                label:"Passphrase",
-                LTSonly: true
+                label:"Passphrase"
               },"Enabled"]
             ],
             pointer: {
               main: s_general,
               index: "prometheus"
             },
-            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
-            LTSonly: true
+            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json."
           },{
             type: "inputlist",
             label: "Trusted proxies",
@@ -5053,8 +5042,268 @@ context_menu: function(){
               main: s_general,
               index: "defaultStream"
             },
-            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
-            LTSonly: true
+            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name."
+          },{
+            type: "selectinput",
+            label: "Playback source priority weighing",
+            selectinput: [
+              ["","Default (Balanced)"],
+              ["latency","Latency"],
+              ["ttff","Time to first frame"],
+              [{},"Custom"]
+            ],
+            _presets: {
+              "": {
+                latency: 50,
+                ttff: 50,
+                cpu_server: 20,
+                cpu_viewer_batt: 100,
+                cpu_viewer_pwrd: 60,
+                abr: 20,
+                bw: 20,
+                control: 20,
+                stability: 50,
+                permissibility: 20,
+                recovery: 80,
+              },
+              latency: { //makes latency very important, ttff important, and reduces importance of stability
+                ttff: 250,
+                latency: 500,
+                stability: 20
+              },
+              ttff: { //makes ttff very important
+                ttff: 500
+              }
+            },
+            _build: function($input,weights){
+              if (!weights) weights = $input.data("value");
+              var defaults = Object.assign({},this._presets[""]);
+              if (!weights) weights = defaults;
+              $input.data("value",weights);
+              var func = function(e,val){
+                weights[$(this).attr("name")] = val;
+              };
+
+              var build = [];
+              function addOpts(o,i){
+                switch (i) {
+                  case "abr": {
+                    o.label = "Adaptive bitrate";
+                    o.help = "If a protocol supports adaptive bitrate, it will get a better priority score.";
+                    break;
+                  }
+                  case "bw": {
+                    o.label = "Bandwidth required";
+                    o.help = "If a protocol requires less bandwidth, it will get a better priority score.";
+                    break;
+                  }
+                  case "cpu_server": {
+                    o.label = "Server-side CPU usage";
+                    o.help = "If a protocol requires less cpu usage (on the media server), it will get a better priority score.";
+                    break;
+                  }
+                  case "cpu_viewer_pwrd": {
+                    o.label = "Client-side CPU usage";
+                    o.help = "If a protocol requires less cpu usage (on the viewing device), it will get a better priority score.";
+                    break;
+                  }
+                  case "cpu_viewer_batt": {
+                    o.label = "Client-side CPU usage (battery)";
+                    o.help = "If a protocol requires less cpu usage (on the viewing device), it will get a better priority score. \nThis weight is used when the player can detect that the client is using their device's battery.";
+                    break;
+                  }
+                  case "latency": {
+                    o.label = "Latency";
+                    o.help = "If a protocol can play closer to live, it will get a better priority score. For video on demand, this score is always 0.";
+                    break;
+                  }
+                  case "ttff": {
+                    o.label = "Time to first frame";
+                    o.help = "If a protocol requires less time to begin playback, it will get a better priority score.";
+                    break;
+                  }
+                  case "stability": {
+                    o.label = "Stability";
+                    o.help = "If a protocol has good playback stability (e.g. relatively few stutters or buffering), it will get a better priority score.";
+                    break;
+                  }
+                  case "control": {
+                    o.label = "Controllability";
+                    o.help = "If a protocol supports more control actions (e.g. pausing or seeking), it will get a better priority score.";
+                    break;
+                  }
+                  case "permissibility": {
+                    o.label = "Permissibility";
+                    o.help = "If a protocol works better in restrictive environments (e.g. caused by firewalls), it will get a better priority score.";
+                    break;
+                  }
+                  case "recovery": {
+                    o.label = "Recoverability";
+                    o.help = "If a protocol can more reliably recover from playback errors (e.g. caused by encoding errors or missing frames), it will get a better priority score.";
+                    break;
+                  }
+                }
+              }
+
+              for (var i in defaults) {
+                var opts = {
+                  type: "int",
+                  min: 0,
+                  pointer: { main: weights, index: i },
+                  placeholder: defaults[i],
+                  "function": func
+                };
+                addOpts(opts,i);
+                build.push(opts);
+              }
+              $input.find("> .UIelement").html(UI.buildUI(build));
+                return;
+              $input.find("> .UIelement").html(UI.buildUI([{
+              },{
+                label: "Serverside CPU usage",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "cpu_server" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Clientside CPU usage (powered)",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "cpu_viewer_pwrd" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Clientside CPU usage (battery)",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "cpu_viewer_batt" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Latency",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "latency" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Time to first frame",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "ttff" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Stability",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "stability" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Controllability",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "latency" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Permissibility",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "permissibility" },
+                placeholder: defaults.abr,
+                "function": func
+              },{
+                label: "Recoverability",
+                type: "int",
+                min: 0,
+                pointer: { main: weights, index: "recovery" },
+                placeholder: defaults.abr,
+                "function": func
+              }]));
+            },
+            getval: function(val,me){
+              var preset = $(me).find("> select").val();
+              if (preset == "CUSTOM") return $(me).data("value");
+              if (preset in this._presets) {
+                return Object.assign({},this._presets[""],this._presets[preset]);
+              }
+              return preset;
+            },
+            "function": function(e,val){
+              var val = $(this).find("> select").val();
+              if ((val == "CUSTOM") && ($(this).find("> .UIelement").html() == "")) {
+                $(this).data("opts")._build($(this));
+              }
+            },
+            setval: function(val,opts,$input){
+              let presets = this._presets;
+              var preset = null;
+              if ((typeof val == "string") && (val in presets)) {
+                preset = val;
+              }
+              else if (typeof val == "object") {
+                //check if the current value matches one of the presets
+                var p = "";
+                mainloop:
+                for (var i in val) {
+                  if (i in presets[""]) {
+                    //check if the value equals the defaults or one of the other presets
+                    if (p === "") {
+                      if (presets[p][i] == val[i]) continue; //this value matches the default preset
+
+                      var ps = Object.keys(presets);
+                      ps.shift();
+                      for (var j of ps) {
+                        if (presets[j][i] == val[i]) {
+                          p = j;
+                          break;
+                        }
+                      }
+                      if (p === "") {
+                        //it didn't match one of the other presets
+                        p = null;
+                        break;
+                      }
+                    }
+                    else {
+                      var compare = presets[""][i];
+                      if (i in presets[p]) {
+                        compare = presets[p][i];
+                      }
+                      if (val[i] != compare) {
+                        p = null;
+                        break;
+                      }
+                    }
+                  }
+                  else {
+                    //val is not one of the presets
+                    p = null;
+                    break; 
+                  }
+                }
+
+                preset = p;
+              }
+
+              if (preset === null){
+                //show UI to set custom values
+                this._build($input,Object.assign({},presets[""],val));
+              }
+              else {
+                //put select at preset
+                $input.find("> select").val(preset);
+                $input.find("> .UIelement").html("");
+              }
+            },
+            help: "When requesting the list of playback sources, these are sorted by how well they are expected to perform. This algorithm calculates a score for a list of categories, applies a weight to each score, and then sorts the sources, putting the highest scores first. These weights can be configured based on your preferences.",
+            pointer: {
+              main: s_general,
+              index: "weights"
+            }
           },{
             type: 'buttons',
             buttons: [{
@@ -11907,19 +12156,19 @@ context_menu: function(){
                           var headers = {
                             audio: {
                               vheader: 'Audio',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Player track index','Track id']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Player track index','Track id',"Process id","Created from","Masked"]
                             },
                             video: {
                               vheader: 'Video',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Size','Framerate','Language','Player track index','Track id','Has B-Frames']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Size','Framerate','Language','Player track index','Track id',"Process id","Created from","Masked",'Has B-Frames',"Keyframe interval","Frame duration","Frames per GOP","Issues"]
                             },
                             subtitle: {
                               vheader: 'Subtitles',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Language','Player track index','Track id']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Language','Player track index',"Process id","Created from","Masked",'Track id']
                             },
                             meta: {
                               vheader: 'Metadata',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Track id']
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Track id',"Process id","Created from","Masked"]
                             }
                           };
                           table.headers = headers[id].labels;
@@ -11988,12 +12237,37 @@ context_menu: function(){
                                 return out;
                               }
                               var type = track.codec == "subtitle" ? "subtitle" : track.type;
+     
+                              function formatTrackMask(mask){
+                                var map = {
+                                  1: "viewers",
+                                  2: "push outputs",
+                                  4: "processes"
+                                };
+                                //if the bit is off, that type of requester cannot see the track
+                                var masked_for = [];
+                                for (var key in map) {
+                                  if ((mask & key) == 0) {
+                                    //bit is off
+                                    masked_for.push(map[key]);
+                                  }
+                                }
+                                if (!masked_for.length) { return "Not hidden"; }
+                                else if (masked_for.length == Object.keys(map).length) { return "Hidden for everything"; }
+                                else { return "🔒 Hidden for "+masked_for.join(" and "); }
+                              }
+                              function formatMinMax(min,max,format_func){
+                                if (!format_func) format_func = function(a){return a};
+                                if (min == max) return format_func(min);
+                                return [format_func(min),format_func(max)].join(" - ");
+                              }
+
                               switch (type) {
                                 case 'audio':
                                   return {
                                     header: 'Track '+track.idx,
                                     body: [
-                                      track.codec,
+                                      track.codec+(track.codecstring ? " ("+track.codecstring+")" : ""),
                                       displayDuration(track),
                                       UI.format.addUnit(UI.format.number(track.jitter),"ms"),
                                       peakoravg(track,"bps"),
@@ -12002,7 +12276,10 @@ context_menu: function(){
                                       UI.format.addUnit(UI.format.number(track.rate),'Hz'),
                                       ('language' in track ? track.language : 'unknown'),
                                       track.nth,
-                                      track.trackid
+                                      track.trackid,
+                                      track.pid == 0 ? "none" : track.pid,
+                                      "source" in track ? "Track "+track.source : "N/A",
+                                      formatTrackMask(track.mask)
                                     ]
                                   };
                                   break;
@@ -12010,7 +12287,7 @@ context_menu: function(){
                                   return {
                                     header: 'Track '+track.idx,
                                     body: [
-                                      track.codec,
+                                      track.codec+(track.codecstring ? " ("+track.codecstring+")" : ""),
                                       displayDuration(track),
                                       UI.format.addUnit(UI.format.number(track.jitter),"ms"),
                                       peakoravg(track,"bps"),
@@ -12020,7 +12297,20 @@ context_menu: function(){
                                       ('language' in track ? track.language : 'unknown'),
                                       track.nth,
                                       track.trackid,
-                                      ("bframes" in track ? "yes" : "no")
+                                      track.pid == 0 ? "none" : track.pid,
+                                      "source" in track ? "Track "+track.source : "N/A",
+                                      formatTrackMask(track.mask),
+                                      ("bframes" in track ? "yes" : "no"),
+                                      formatMinMax(track.keys.ms_min,track.keys.ms_max,function(v){
+                                        return UI.format.addUnit(UI.format.number(v),"ms")
+                                      }),
+                                      formatMinMax(track.keys.frame_ms_min,track.keys.frame_ms_max,function(v){
+                                        return UI.format.addUnit(UI.format.number(v),"ms")
+                                      }),
+                                      formatMinMax(track.keys.frames_min,track.keys.frames_max,function(v){
+                                        return UI.format.number(v)
+                                      }),
+                                      "issues" in track ? "<ul><li>"+track.issues.join("</li><li>")+"</li></ul>" : "None ✅"
                                     ]
                                   }
                                   break;
@@ -12035,7 +12325,10 @@ context_menu: function(){
                                       peakoravg(track,"maxbps"),
                                       ('language' in track ? track.language : 'unknown'),
                                       track.nth,
-                                      track.trackid
+                                      track.trackid,
+                                      track.pid == 0 ? "none" : track.pid,
+                                      "source" in track ? "Track "+track.source : "N/A",
+                                      formatTrackMask(track.mask)
                                     ]
                                   }
                                   break;
@@ -12048,7 +12341,10 @@ context_menu: function(){
                                       UI.format.addUnit(UI.format.number(track.jitter),"ms"),
                                       peakoravg(track,"bps"),
                                       peakoravg(track,"maxbps"),
-                                      track.trackid
+                                      track.trackid,
+                                      track.pid == 0 ? "none" : track.pid,
+                                      "source" in track ? "Track "+track.source : "N/A",
+                                      formatTrackMask(track.mask)
                                     ]
                                   }
                                   break;
@@ -12186,26 +12482,9 @@ context_menu: function(){
 
         }
 
-        var firsttime = true;
-        UI.sockets.ws.info_json.subscribe(function(d){
+        //var firsttime = true;
+        UI.sockets.ws.stream.subscribe(streamname,function(type,d){
           ondata(d);
-
-          if (firsttime && !d.error) { //activate the interval after the first message without error entry
-            firsttime = false;
-            if (d.type == "live") {
-              //the websocket will not update values that change often, like firstms, lastms, etc
-              //hax
-              //this will. ugly but meh.
-              UI.interval.set(function(){
-                $.ajax({
-                  type: "GET",
-                  url: UI.sockets.http_host + "json_"+streamname+".js",
-                  success: ondata
-                });
-              },5e3);
-            }
-
-          }
         },streamname);
 
 
@@ -16176,6 +16455,83 @@ context_menu: function(){
       }
     },
     ws: {
+      stream: {
+        children: {},
+        subscribe: function(streamname,callback){
+          if (!(streamname in this.children)) {
+            this.children[streamname] = {
+              ws: false,
+              listeners: [],
+              messages: [],
+              init: function(error_callback){
+                var url = parseURL(mist.user.host);
+                url = parseURL(mist.user.host,{pathname:url.pathname.replace(/\/api$/,"")+"ws/stream/"+streamname});
+                var metaWs = UI.websockets.create(url.full.replace(/^http/,"ws"),error_callback);
+                this.ws = metaWs;
+                var me = this;
+                metaWs.authState = 0;
+                metaWs.onmessage = function(d){
+                  var da = JSON.parse(d.data);
+                  var type = da[0];
+                  var data = da[1];
+
+                  if (type == "auth") {
+                    if (data === true) { this.authState = 2; }
+                    else if (data === false) {
+                      this.send(JSON.stringify(["auth",{
+                        password: MD5(mist.user.password+mist.user.authstring),
+                        username: mist.user.name
+                      }]));
+                      this.authState = 1;
+                    }
+                    else if (typeof data == "object") {
+                      if ("challenge" in data) {
+                        this.send(JSON.stringify(["auth",{
+                          password: MD5(mist.user.password+data.challenge),
+                          username: mist.user.name
+                        }]));
+                        this.authState = 1;
+                      }
+                      else if (("status" in data) && (data.status == "OK")) {
+                        this.authState = 2;
+                      }
+                    }
+                    return;
+                  }
+                  var stream = da[1];
+                  data = da[2];
+
+                  me.messages.push([type,data]);
+                  for (var i in me.listeners){
+                    me.listeners[i](type,data);
+                  }
+                }
+                var close = metaWs.close;
+                metaWs.close = function(){
+                  //to prevent race conditions, overwrite the websocket close function to remove itself from the list before closing is complete
+                  me.listeners = [];
+                  me.messages = [];
+                  me.ws = false;
+                  return close.apply(this,arguments);
+                };
+
+              }
+            };
+          }
+          for (var i in this.children[streamname].messages) {
+            callback(this.children[streamname].messages[i][0],this.children[streamname].messages[i][1]);
+          }
+          var me = this.children[streamname];
+          if (!me.ws || (me.ws.readyState > 1)) { 
+            me.init(function(){
+              for (var i in me.listeners) {
+                me.listeners[i]("error","An error occured: failed to connect to the stream meta websocket.");
+              }
+            }); 
+          }
+          me.listeners.push(callback);
+        }
+      },
       info_json: {
         children: {},
         init: function(url){

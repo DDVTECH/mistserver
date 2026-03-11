@@ -1875,6 +1875,48 @@ button[data-icon]:after {
 [afterifnotempty]:not(:empty):after { content: attr(afterifnotempty); }
 [beforeifnotempty]:not(:empty):before { content: attr(beforeifnotempty); }
 
+.selectinput[name="weights"] {
+  & > .UIelement > .input_container {
+    width: 100%;
+    margin-bottom: 1em;
+
+    & > .UIelement {
+      position: relative;
+
+      & > .label {
+        width: 15em;
+      }
+      & > .field_container {
+        flex-shrink: 1;
+
+        & > .field {
+          width: 100%
+        }
+      }
+      & > .help_container {
+        position: absolute;
+        left: 100%;
+      }
+
+      &.active, 
+      &:focus-within {
+        & > .help_container {
+          display: initial;
+          z-index: 2;
+        }
+      }
+    }
+
+    label.active,
+    label:focus-within {
+      .ih_balloon {
+      display: initial;
+    }
+
+    }
+  }
+}
+
 main[data-tab="Status"] .dashboard,
 main[data-tab="Preview"] .dashboard {
   display: grid;
@@ -2091,6 +2133,26 @@ main[data-tab="Status"] .dashboard > section.logcont:has([onempty]):not(:has([on
 }
 .dashboard .meta table {
   margin: 0.5em 0.5em 0 0;
+
+  tr:has(ul) > td {
+    vertical-align: top;
+
+    ul {
+      margin: 0;
+      list-style: none;
+      padding-inline: 1.8em;
+
+      li {
+        position: relative;
+
+        &:before {
+          content: "⚠️";
+          margin-left: -1.5em;
+          position: absolute;
+        }
+      }
+    }
+  }
 }
 .activestream [data-streamstatus] {
   white-space: nowrap;

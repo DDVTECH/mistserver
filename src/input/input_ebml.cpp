@@ -417,6 +417,8 @@ namespace Mist{
     if (codec == "V_AV1") {
       trueCodec = "AV1";
       trueType = "video";
+      tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+      if (tmpElem) { init = tmpElem.getValStringUntrimmed(); }
     }
     if (codec == "V_VP9") {
       trueCodec = "VP9";

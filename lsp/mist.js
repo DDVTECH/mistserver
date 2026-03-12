@@ -4973,7 +4973,8 @@ context_menu: function(){
           sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode
         };
         var s_balancer = {
-          location: "location" in mist.data.config ? mist.data.config.location : {}
+          location: "location" in mist.data.config ? mist.data.config.location : {},
+          tags: "tags" in mist.data ? mist.data.tags : []
         };
 
         $main.html(UI.buildUI([
@@ -5539,7 +5540,7 @@ context_menu: function(){
           $balancer
         ]));
         mist.send(function(d){
-          var b = {limit:""};
+          var b = {limit:"", tags:[]};
           if ("bandwidth" in d) {
             b = d.bandwidth;
             if (b == null) { b = {}; }
@@ -5547,6 +5548,7 @@ context_menu: function(){
               b.limit = "";
             }
           }
+          if ("tags" in d) b.tags = d.tags;
 
           $balancer.html(UI.buildUI([
             {
@@ -5606,6 +5608,14 @@ context_menu: function(){
               },
               help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location."
             },{
+              type: "inputlist",
+              label: "Server tags",
+              pointer: {
+                main: b,
+                index: "tags"
+              },
+              help: "This setting is only useful when MistServer is combined with a load balancer. These may be used to choose which server to send a user to."
+            },{
               type: 'buttons',
               buttons: [{
                 type: 'save',
@@ -5614,6 +5624,8 @@ context_menu: function(){
                   $(ele).text("Saving..");
 
                   var save = {config: s_balancer};
+
+                  save.tags = b.tags;
 
                   var bandwidth = {};
                   bandwidth.limit = b.limit;
@@ -5624,14 +5636,14 @@ context_menu: function(){
                   save.bandwidth = bandwidth;
 
                   mist.send(function(){
-                    UI.navto('Overview');
+                    UI.navto('General');
                   },save)
                 }
               }]
             }
           ]));
 
-        },{bandwidth:true});
+        },{bandwidth:true,tags:true});
 
         var $uploaders = $("<div>").html("Loading..");
         $main.append(UI.buildUI([

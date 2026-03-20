@@ -713,6 +713,12 @@ namespace Mist{
         }
         av_dict_set(&avDict, "look_ahead", "0", 0);
         ret = avcodec_open2(tmpCtx, codec_out, &avDict);
+      }else if (encoder.find("rkmpp") != std::string::npos){
+        AVDictionary *avDict = NULL;
+        if (tmpCtx->bit_rate > 0){
+          av_dict_set(&avDict, "rc", "cbr", 0);
+        }
+        ret = avcodec_open2(tmpCtx, codec_out, &avDict);
       }else{
         AVDictionary *avDict = NULL;
         if (codecOut == "H264"){
@@ -755,9 +761,7 @@ namespace Mist{
         INFO_MSG("Initting %s encoder", codecOut.c_str());
         if(codecOut == "H264"){
           // if (!allowHW || !tryEncoder("h264_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){
-#ifdef AV_HWDEVICE_TYPE_RKMPP
-          if (!allowHW || !tryEncoder("h264_rkmpp", AV_HWDEVICE_TYPE_RKMPP, AV_PIX_FMT_DRM_PRIME, AV_PIX_FMT_YUV420P)){
-#endif
+          if (!allowHW || !tryEncoder("h264_rkmpp", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE)){
             if (!allowHW || !tryEncoder("h264_nvenc", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
               INFO_MSG("Falling back to software encoder.");
               if (!allowSW || !tryEncoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE)){
@@ -765,9 +769,7 @@ namespace Mist{
                 exit(1);
               }
             }
-#ifdef AV_HWDEVICE_TYPE_RKMPP
           }
-#endif
           // }
         }else if(codecOut == "AV1"){
           // if (!allowHW || !tryEncoder("av1_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){
@@ -1032,10 +1034,10 @@ namespace Mist{
           pixelFormat = AV_PIX_FMT_NV16;
         }else if(codecIn == "NV24"){
           pixelFormat = AV_PIX_FMT_NV24;
+        }else if(codecIn == "YUV420P"){
+          pixelFormat = AV_PIX_FMT_YUV420P;
         }else if(codecIn == "H264"){
-#ifdef AV_HWDEVICE_TYPE_RKMPP
-          if (!allowHW || !tryDecoder("h264_rkmpp", AV_HWDEVICE_TYPE_RKMPP, AV_PIX_FMT_DRM_PRIME, AV_PIX_FMT_YUV420P)){
-#endif
+          if (!allowHW || !tryDecoder("h264_rkmpp", AV_HWDEVICE_TYPE_DRM, AV_PIX_FMT_DRM_PRIME, AV_PIX_FMT_YUV420P)){
           if (!allowHW || !tryDecoder("h264_cuvid", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
             // if (!allowHW || !tryDecoder("h264_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){
               if (!allowSW){
@@ -1046,9 +1048,7 @@ namespace Mist{
               tryDecoder("", AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE);
             // }
           }
-#ifdef AV_HWDEVICE_TYPE_RKMPP
           }
-#endif
         }else if(codecIn == "AV1"){
           if (!allowHW || !tryDecoder("av1_cuvid", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
             // if (!allowHW || !tryDecoder("av1_qsv", AV_HWDEVICE_TYPE_QSV, AV_PIX_FMT_QSV, AV_PIX_FMT_YUV420P)){

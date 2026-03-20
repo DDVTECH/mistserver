@@ -1451,7 +1451,11 @@ namespace Util{
       return rowBytes*height;
     }
     if (pixfmt == "NV12"){
-      // NV12 is planar YUV 4:2:0 - first all YUV samples, and then for each chroma channel 1/4 of all pixels
+      // NV12 is semi-planar YUV 4:2:0 - first all Y samples, then interleaved UV at 1/4 resolution each
+      return width*height*1.5;
+    }
+    if (pixfmt == "YUV420P"){
+      // YUV420P is planar YUV 4:2:0 - first all Y samples, then all U at 1/4 resolution, then all V at 1/4 resolution
       return width*height*1.5;
     }
     if (pixfmt == "NV16"){

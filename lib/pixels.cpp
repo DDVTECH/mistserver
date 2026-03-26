@@ -419,20 +419,38 @@ namespace PixFmtUYVY {
           uint32_t wx = (srcX_fp >> 8) & 0xFF;
           uint32_t iwx = 256 - wx;
 
+          uint32_t srcV_fp = (x + 0.5) * xRatio_fp - 0.5;
+          size_t v1 = srcV_fp >> 16;
+          size_t v2 = std::min(v1 + 1, srcPairsPerRow - 1);
+          uint32_t wuv = (srcV_fp >> 8) & 0xFF;
+          uint32_t iwuv = 256 - wuv;
+          
           // Weights
           uint32_t w11 = iwx * iwy;
           uint32_t w12 = wx * iwy;
           uint32_t w21 = iwx * wy;
           uint32_t w22 = wx * wy;
 
+          uint32_t v11 = iwuv * iwy;
+          uint32_t v12 = wuv * iwy;
+          uint32_t v21 = iwuv * wy;
+          uint32_t v22 = wuv * wy;
+
           const Pixels & p11 = src.pix[row1 + x1];
           const Pixels & p12 = src.pix[row1 + x2];
           const Pixels & p21 = src.pix[row2 + x1];
           const Pixels & p22 = src.pix[row2 + x2];
 
+          const Pixels & pv11 = src.pix[row1 + v1];
+          const Pixels & pv12 = src.pix[row1 + v2];
+          const Pixels & pv21 = src.pix[row2 + v1];
+          const Pixels & pv22 = src.pix[row2 + v2];
+
           Pixels & destPx = L.pix[gridRowStart + x];
-          destPx.u = (uint8_t)((p11.u * w11 + p12.u * w12 + p21.u * w21 + p22.u * w22 + 32768) >> 16);
-          destPx.v = (uint8_t)((p11.v * w11 + p12.v * w12 + p21.v * w21 + p22.v * w22 + 32768) >> 16);
+          destPx.u = (uint8_t)((pv11.u * v11 + pv12.u * v12 + pv21.u * v21 + pv22.u * v22 + 32768) >> 16);
+          destPx.v = (uint8_t)((pv11.v * v11 + pv12.v * v12 + pv21.v * v21 + pv22.v * v22 + 32768) >> 16);
+          // destPx.u = (uint8_t)((p11.u * iwy + p21.u * wy + 128) >> 8);
+          // destPx.v = (uint8_t)((p11.v * iwy + p21.v * wy + 128) >> 8);
           destPx.y1 = (uint8_t)((p11.y1 * w11 + p12.y1 * w12 + p21.y1 * w21 + p22.y1 * w22 + 32768) >> 16);
           destPx.y2 = (uint8_t)((p11.y2 * w11 + p12.y2 * w12 + p21.y2 * w21 + p22.y2 * w22 + 32768) >> 16);
         }

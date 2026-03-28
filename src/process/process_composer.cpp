@@ -51,7 +51,7 @@ std::recursive_mutex drawMutex;
 bool attemptSync = false;
 uint64_t targetDelay = 0;
 
-enum trackCodec { CODEC_UNSET = 0, CODEC_UYVY, CODEC_YUYV, CODEC_NV12, CODEC_NV16, CODEC_NV24 };
+enum trackCodec { CODEC_UNSET = 0, CODEC_UYVY, CODEC_YUYV, CODEC_NV12, CODEC_NV16, CODEC_NV24, CODEC_BGR3 };
 
 namespace Mist {
 
@@ -123,6 +123,7 @@ namespace Mist {
         capa["codecs"][0u][0u].append("NV12");
         capa["codecs"][0u][0u].append("NV16");
         capa["codecs"][0u][0u].append("NV24");
+        capa["codecs"][0u][0u].append("BGR3");
         capa["codecs"][0u][1u].append("PCM");
         cfg->addOption("streamname", R"({"arg":"string","short":"s","long":"stream"})");
         cfg->addBasicConnectorOptions(capa);
@@ -220,6 +221,7 @@ namespace Mist {
             if (c == "NV12") { trkCdc = CODEC_NV12; }
             if (c == "NV16") { trkCdc = CODEC_NV16; }
             if (c == "NV24") { trkCdc = CODEC_NV24; }
+            if (c == "BGR3") { trkCdc = CODEC_BGR3; }
           }
 
 #ifdef HASQUIRC
@@ -249,6 +251,13 @@ namespace Mist {
                     PixFmtYUYV::Pixels & P = ((PixFmtYUYV::Pixels *)ptr.pix)[h * ptr.width / 2 + w];
                     image[i++] = P.y1;
                     image[i++] = P.y2;
+                  }
+                }
+              } else if (trkCdc == CODEC_BGR3) {
+                for (h = 0; h < ptr.height; ++h) {
+                  for (w = 0; w < ptr.width; ++w) {
+                    PixFmtBGR::Pixels & P = ((PixFmtBGR::Pixels *)ptr.pix)[h * ptr.width + w];
+                    image[i++] = P.Y();
                   }
                 }
               } else if (trkCdc == CODEC_NV24 || trkCdc == CODEC_NV16 || trkCdc == CODEC_NV12) {
@@ -1081,6 +1090,9 @@ namespace Mist {
                       } break;
                       case CODEC_NV24: {
                         PixFmt::copyScaled(PixFmtNV24::SrcMatrix(s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height), dest);
+                      } break;
+                      case CODEC_BGR3: {
+                        PixFmt::copyScaled(PixFmtBGR::SrcMatrix(s.P->ptr.pix, s.P->ptr.width, s.P->ptr.height), dest);
                       } break;
                       default: INFO_MSG("Unimplemented source pixel format :-("); break;
                     }

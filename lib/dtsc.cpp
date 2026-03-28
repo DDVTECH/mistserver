@@ -1130,7 +1130,7 @@ namespace DTSC{
 
     std::string codec = trak.getMember("codec").asString();
 
-    if (codec == "UYVY" || codec == "YUYV" || codec == "NV12") {
+    if (codec == "UYVY" || codec == "YUYV" || codec == "NV12" || codec == "NV16" || codec == "NV24" || codec == "BGR3") {
       size_t staticSize = Util::pixfmtToSize(codec, trak.getMember("width").asInt(), trak.getMember("height").asInt());
       tIdx = addTrack(0, 0, 0, 0, true, staticSize);
       fragCount = 0;
@@ -1647,7 +1647,7 @@ namespace DTSC{
 
       size_t newIdx = INVALID_TRACK_ID;
       std::string codec = M.getCodec(*it);
-      if (codec == "UYVY" || codec == "YUYV" || codec == "NV12") {
+      if (codec == "UYVY" || codec == "YUYV" || codec == "NV12" || codec == "NV16" || codec == "NV24" || codec == "BGR3") {
         size_t staticSize = Util::pixfmtToSize(codec, M.getWidth(*it), M.getHeight(*it));
         newIdx = addTrack(0, 0, 0, 0, true, staticSize);
         fragCount = 0;

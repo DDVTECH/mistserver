@@ -1444,6 +1444,10 @@ namespace Util{
       // 8-bit YUV422, 2 bytes per pixel, no padding
       return width*height*2;
     }
+    if (pixfmt == "BGR3"){
+      // 8-bit BGR, 3 bytes per pixel, no padding
+      return width*height*3;
+    }
     if (pixfmt == "V210"){
       // 10-bit YUV422, 16 bytes per 6 pixels, width padded to 128-byte multiple
       size_t rowBytes = width * 16 / 6;

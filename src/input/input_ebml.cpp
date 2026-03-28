@@ -502,7 +502,7 @@ namespace Mist{
       tmpElem = E.findChild(EBML::EID_UNCOMPRESSEDFOURCC);
       if (tmpElem) {
         std::string fourcc = tmpElem.getValStringUntrimmed();
-        if (fourcc == "UYVY" || fourcc == "NV12" || fourcc == "YUYV") {
+        if (Util::pixfmtToSize(fourcc, 1, 1)) {
           trueCodec = fourcc;
           trueType = "video";
         }

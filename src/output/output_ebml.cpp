@@ -71,6 +71,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("NV12");
     capa["codecs"][0u][0u].append("NV16");
     capa["codecs"][0u][0u].append("NV24");
+    capa["codecs"][0u][0u].append("BGR3");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("FLAC");
     capa["codecs"][0u][1u].append("vorbis");
@@ -252,6 +253,7 @@ namespace Mist{
     if (codec == "NV16"){return "V_UNCOMPRESSED";}
     if (codec == "NV24"){return "V_UNCOMPRESSED";}
     if (codec == "UYVY"){return "V_UNCOMPRESSED";}
+    if (codec == "BGR3"){return "V_UNCOMPRESSED";}
     return "E_UNKNOWN";
   }
 
@@ -285,7 +287,7 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
       if (codec == "NV16") {
         subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, "NV12");
-      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY") {
+      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY" || codec == "BGR3") {
         subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, codec);
       }
       sendLen += EBML::sizeElemHead(EBML::EID_VIDEO, subLen);
@@ -330,7 +332,7 @@ namespace Mist{
       EBML::sendElemUInt(myConn, EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
       if (codec == "NV16") {
         EBML::sendElemStr(myConn, EBML::EID_UNCOMPRESSEDFOURCC, "NV12");
-      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY") {
+      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY" || codec == "BGR3") {
         EBML::sendElemStr(myConn, EBML::EID_UNCOMPRESSEDFOURCC, codec);
       }
     }
@@ -374,7 +376,7 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
       if (codec == "NV16") {
         subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, "NV12");
-      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY") {
+      } else if (codec == "YUYV" || codec == "NV12" || codec == "NV24" || codec == "UYVY" || codec == "BGR3") {
         subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, codec);
       }
       sendLen += EBML::sizeElemHead(EBML::EID_VIDEO, subLen);

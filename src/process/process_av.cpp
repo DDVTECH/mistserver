@@ -114,7 +114,7 @@ namespace Mist{
       if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
         DTSC::trackValidDefault = opt["target_mask"].asInt();
       } else {
-        if (codecOut == "UYVY" || codecOut == "YUYV" || codecOut == "PCM" || codecOut == "NV12") {
+        if (Util::pixfmtToSize(codecOut, 1, 1)){
           DTSC::trackValidDefault = TRACK_VALID_EXT_HUMAN | TRACK_VALID_INT_PROCESS;
         } else {
           DTSC::trackValidDefault = TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH;
@@ -498,6 +498,7 @@ namespace Mist{
         capa["codecs"].append().append().append("NV12");
         capa["codecs"].append().append().append("NV16");
         capa["codecs"].append().append().append("NV24");
+        capa["codecs"].append().append().append("BGR3");
         capa["codecs"].append().append().append("H264");
         capa["codecs"].append().append().append("AV1");
         capa["codecs"].append().append().append("JPEG");
@@ -1036,6 +1037,8 @@ namespace Mist{
           pixelFormat = AV_PIX_FMT_NV24;
         }else if(codecIn == "YUV420P"){
           pixelFormat = AV_PIX_FMT_YUV420P;
+        }else if(codecIn == "BGR3"){
+          pixelFormat = AV_PIX_FMT_BGR24;
         }else if(codecIn == "H264"){
           if (!allowHW || !tryDecoder("h264_rkmpp", AV_HWDEVICE_TYPE_DRM, AV_PIX_FMT_DRM_PRIME, AV_PIX_FMT_YUV420P)){
           if (!allowHW || !tryDecoder("h264_cuvid", AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA, AV_PIX_FMT_YUV420P)){
@@ -2010,7 +2013,10 @@ int main(int argc, char *argv[]){
 
   capa["codecs"][0u][0u].append("YUYV");
   capa["codecs"][0u][0u].append("NV12");
+  capa["codecs"][0u][0u].append("NV16");
+  capa["codecs"][0u][0u].append("NV24");
   capa["codecs"][0u][0u].append("UYVY");
+  capa["codecs"][0u][0u].append("BGR3");
   capa["codecs"][0u][0u].append("H264");
   capa["codecs"][0u][0u].append("AV1");
   capa["codecs"][0u][0u].append("JPEG");

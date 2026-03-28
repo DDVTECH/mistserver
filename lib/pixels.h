@@ -77,6 +77,29 @@ namespace PixFmtRGB {
 
 } // namespace PixFmtRGB
 
+namespace PixFmtBGR {
+  /// Represents a single B/G/R pixel (3 bytes = 1 pixel).
+  /// BGR format stores red (R), green (G) and blue (B) samples, in reverse order.
+  struct Pixels {
+      uint8_t b;
+      uint8_t g;
+      uint8_t r;
+
+      inline uint8_t Y() const { return ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16; }
+      inline uint8_t U() const { return ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128; }
+      inline uint8_t V() const { return ((112 * r - 94 * g - 18 * b + 128) >> 8) + 128; }
+  };
+
+  /// Source pixel matrix
+  class SrcMatrix : public PixFmt::SrcMatrix {
+    public:
+      SrcMatrix() {}
+      SrcMatrix(void *ptr, size_t w, size_t h) : PixFmt::SrcMatrix(w, h), pix((Pixels *)ptr) {}
+      Pixels *pix{0};
+  };
+
+} // namespace PixFmtRGB
+
 namespace PixFmtRGBA {
   /// Represents a single RGBA pixel (4 bytes = 1 pixel).
   /// RGB format stores red (R), green (G), blue (B) and alpha (A) samples.
@@ -307,6 +330,10 @@ namespace PixFmt {
   /// Copies RGB image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
   void copyScaled(const PixFmtRGB::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
+
+  /// Copies BGR image src to fit within UYVY DestMatrix L, using given
+  /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.
+  void copyScaled(const PixFmtBGR::SrcMatrix & src, PixFmtUYVY::DestMatrix & L);
 
   /// Copies RGBA image src to fit within UYVY DestMatrix L, using given
   /// scaling algoritm and aspect ratio algorithm. Uses no intermediary buffers and copies in one go directly.

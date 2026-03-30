@@ -667,46 +667,64 @@ namespace PixFmt {
     if (L.scale == PixFmt::BILINEAR) {
       uint32_t xRatio_fp = (uint32_t)((srcPairsPerRow << 16) / scalePairsPerRow);
       uint32_t yRatio_fp = (uint32_t)((src.height << 16) / scaleHeight);
-
+      
       for (size_t y = cropU; y < scaleHeight - cropD; y++) {
         if (destY + y < 0) { continue; }
         size_t destYPos = destY + y;
         if (destYPos >= L.totHeight) break; // Bounds check
-
+      
         uint32_t srcY_fp = y * yRatio_fp;
         size_t y1 = srcY_fp >> 16;
         size_t y2 = std::min(y1 + 1, src.height - 1);
         uint32_t wy = (srcY_fp >> 8) & 0xFF;
         uint32_t iwy = 256 - wy;
-
+      
         size_t gridRowStart = destYPos * gridPairsPerRow + destPairX;
         size_t row1 = y1 * srcPairsPerRow;
         size_t row2 = y2 * srcPairsPerRow;
-
+      
         for (size_t x = cropL / 2; x < scalePairsPerRow - cropR / 2; x++) {
           if (destPairX + x < 0) { continue; }
           if (destPairX + x >= gridPairsPerRow) break; // Bounds check
-
+      
           uint32_t srcX_fp = x * xRatio_fp;
           size_t x1 = srcX_fp >> 16;
           size_t x2 = std::min(x1 + 1, srcPairsPerRow - 1);
           uint32_t wx = (srcX_fp >> 8) & 0xFF;
           uint32_t iwx = 256 - wx;
-
+      
+          uint32_t srcV_fp = (x + 0.5) * xRatio_fp - 0.5;
+          size_t v1 = srcV_fp >> 16;
+          size_t v2 = std::min(v1 + 1, srcPairsPerRow - 1);
+          uint32_t wuv = (srcV_fp >> 8) & 0xFF;
+          uint32_t iwuv = 256 - wuv;
+          
           // Weights
           uint32_t w11 = iwx * iwy;
           uint32_t w12 = wx * iwy;
           uint32_t w21 = iwx * wy;
           uint32_t w22 = wx * wy;
-
+      
+          uint32_t v11 = iwuv * iwy;
+          uint32_t v12 = wuv * iwy;
+          uint32_t v21 = iwuv * wy;
+          uint32_t v22 = wuv * wy;
+      
           const PixFmtYUYV::Pixels & p11 = src.pix[row1 + x1];
           const PixFmtYUYV::Pixels & p12 = src.pix[row1 + x2];
           const PixFmtYUYV::Pixels & p21 = src.pix[row2 + x1];
           const PixFmtYUYV::Pixels & p22 = src.pix[row2 + x2];
-
+      
+          const PixFmtYUYV::Pixels & pv11 = src.pix[row1 + v1];
+          const PixFmtYUYV::Pixels & pv12 = src.pix[row1 + v2];
+          const PixFmtYUYV::Pixels & pv21 = src.pix[row2 + v1];
+          const PixFmtYUYV::Pixels & pv22 = src.pix[row2 + v2];
+      
           PixFmtUYVY::Pixels & destPx = L.pix[gridRowStart + x];
-          destPx.u = (uint8_t)((p11.u * w11 + p12.u * w12 + p21.u * w21 + p22.u * w22 + 32768) >> 16);
-          destPx.v = (uint8_t)((p11.v * w11 + p12.v * w12 + p21.v * w21 + p22.v * w22 + 32768) >> 16);
+          destPx.u = (uint8_t)((pv11.u * v11 + pv12.u * v12 + pv21.u * v21 + pv22.u * v22 + 32768) >> 16);
+          destPx.v = (uint8_t)((pv11.v * v11 + pv12.v * v12 + pv21.v * v21 + pv22.v * v22 + 32768) >> 16);
+          // destPx.u = (uint8_t)((p11.u * iwy + p21.u * wy + 128) >> 8);
+          // destPx.v = (uint8_t)((p11.v * iwy + p21.v * wy + 128) >> 8);
           destPx.y1 = (uint8_t)((p11.y1 * w11 + p12.y1 * w12 + p21.y1 * w21 + p22.y1 * w22 + 32768) >> 16);
           destPx.y2 = (uint8_t)((p11.y2 * w11 + p12.y2 * w12 + p21.y2 * w21 + p22.y2 * w22 + 32768) >> 16);
         }

@@ -2609,6 +2609,51 @@ namespace DTSC{
     return t.track.getInt(t.trackBpsField);
   }
 
+  uint64_t Meta::getQuality(size_t trackIdx) const {
+    const std::string type = trackList.getPointer(trackTypeField, trackIdx);
+    const std::string codec = trackList.getPointer(trackCodecField, trackIdx);
+    const DTSC::Track & t = tracks.at(trackIdx);
+    if (type == "video") {
+      uint64_t w = t.track.getInt(t.trackWidthField);
+      if (!w) { w = 1920; }
+      uint64_t h = t.track.getInt(t.trackHeightField);
+      if (!h) { h = 1080; }
+      uint64_t fpks = t.track.getInt(t.trackEfpksField);
+      if (!fpks) { fpks = t.track.getInt(t.trackFpksField); }
+      if (!fpks) { fpks = 1000; } // Default to 1 FPS if unknown
+      uint64_t pxPerSec = w * h * fpks / 1000;
+      // Compression factors compared to raw RGB pixels for equal visual quality
+      if (codec == "UYVY") { pxPerSec *= 1.5; }
+      if (codec == "YUYV") { pxPerSec *= 1.5; }
+      if (codec == "JPEG") { pxPerSec *= 8; }
+      if (codec == "VP8") { pxPerSec *= 85; }
+      if (codec == "H264") { pxPerSec *= 100; }
+      if (codec == "VP9") { pxPerSec *= 166; }
+      if (codec == "HEVC") { pxPerSec *= 200; }
+      if (codec == "AV1") { pxPerSec *= 250; }
+      return pxPerSec;
+    }
+    if (type == "audio") {
+      uint64_t s = t.track.getInt(t.trackSizeField);
+      if (!s) { s = 32; }
+      uint64_t c = t.track.getInt(t.trackChannelsField);
+      if (!c) { c = 2; }
+      uint64_t r = t.track.getInt(t.trackRateField);
+      if (!r) { r = 48000; }
+      uint64_t smpPerSec = s * c * r;
+      if (codec == "FLAC") { smpPerSec *= 2; }
+      if (codec == "ULAW") { smpPerSec *= 1.75; }
+      if (codec == "ALAW") { smpPerSec *= 1.75; }
+      if (codec == "MP2") { smpPerSec *= 7; }
+      if (codec == "MP3") { smpPerSec *= 10; }
+      if (codec == "Vorbis") { smpPerSec *= 14; }
+      if (codec == "AAC") { smpPerSec *= 16; }
+      if (codec == "Opus") { smpPerSec *= 40; }
+      return smpPerSec;
+    }
+    return 0;
+  }
+
   void Meta::setMaxBps(size_t trackIdx, uint64_t bps){
     DTSC::Track &t = tracks.at(trackIdx);
     t.track.setInt(t.trackMaxbpsField, bps);

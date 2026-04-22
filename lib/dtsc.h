@@ -467,6 +467,8 @@ namespace DTSC{
     void setBps(size_t trackIdx, uint64_t bps);
     uint64_t getBps(size_t trackIdx) const;
 
+    uint64_t getQuality(size_t trackIdx) const;
+
     void setMaxBps(size_t trackIdx, uint64_t bps);
     uint64_t getMaxBps(size_t trackIdx) const;
 

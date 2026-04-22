@@ -44,6 +44,7 @@ int main(int argc, char *argv[]){
       if (defTrkSrt == "id_htl") { Util::defaultTrackSortOrder = Util::TRKSORT_ID_HTL; }
       if (defTrkSrt == "res_lth") { Util::defaultTrackSortOrder = Util::TRKSORT_RES_LTH; }
       if (defTrkSrt == "res_htl") { Util::defaultTrackSortOrder = Util::TRKSORT_RES_HTL; }
+      if (defTrkSrt == "optimal") { Util::defaultTrackSortOrder = Util::TRKSORT_OPTIMAL; }
     }
   }
 

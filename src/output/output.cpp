@@ -66,7 +66,11 @@ namespace Mist{
     capa["optional"]["default_track_sorting"]["option"] = "--default_track_sorting";
     capa["optional"]["default_track_sorting"]["short"] = "S";
     option.append("");
-    option.append("Default (last added for live, first added for VoD)");
+    option.append("Default (optimal encoding)");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+    option.null();
+    option.append("optimal");
+    option.append("Optimal encoding");
     capa["optional"]["default_track_sorting"]["select"].append(option);
     option.null();
     option.append("bps_lth");

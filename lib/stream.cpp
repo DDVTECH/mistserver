@@ -1794,55 +1794,49 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
               }
               if (problems){break;}
               found = true;
+              INFO_MSG("Selected manually: %s", M.getTrackIdentifier(*itd, true).c_str());
               break;
             }
           }
         }
         if (!found || multiFind){
-          jsonForEachConst((*itb), itc){
-            const std::string &strRef = (*itc).asStringRef();
-            bool byType = false;
-            bool multiSel = false;
-            uint8_t shift = 0;
-            if (strRef[shift] == '@'){
-              byType = true;
-              ++shift;
-            }
-            if (strRef[shift] == '+'){
-              multiSel = true;
-              ++shift;
-            }
-            if (found && !multiSel){continue;}
+          for (std::list<size_t>::iterator trit = srtTrks.begin(); trit != srtTrks.end(); trit++) {
+            jsonForEachConst (*itb, itc) {
+              const std::string & strRef = (*itc).asStringRef();
+              bool byType = false;
+              bool multiSel = false;
+              uint8_t shift = 0;
+              if (strRef[shift] == '@') {
+                byType = true;
+                ++shift;
+              }
+              if (strRef[shift] == '+') {
+                multiSel = true;
+                ++shift;
+              }
+              if (found && !multiSel) { continue; }
 
-            for (std::list<size_t>::iterator trit = srtTrks.begin();
-                 trit != srtTrks.end(); trit++){
               if ((!byType && M.getCodec(*trit) == strRef.substr(shift)) ||
-                  (byType && M.getType(*trit) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                  (byType && M.getType(*trit) == strRef.substr(shift)) || strRef.substr(shift) == "*") {
                 // user-agent-check
                 bool problems = false;
-                if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
-                    capa["exceptions"].size()){
-                  jsonForEachConst(capa["exceptions"], ex){
-                    if (ex.key() == "codec:" + strRef.substr(shift)){
+                if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()) {
+                  jsonForEachConst (capa["exceptions"], ex) {
+                    if (ex.key() == "codec:" + strRef.substr(shift)) {
                       problems = !Util::checkException(*ex, UA);
                       break;
                     }
                   }
                 }
-                if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
-                if (problems){break;}
-                /*LTS-START*/
-                if (noSelAudio && M.getType(*trit) == "audio"){continue;}
-                if (noSelVideo && M.getType(*trit) == "video"){continue;}
-                if (noSelMeta && M.getType(*trit) == "meta"){continue;}
-                if (noSelSub &&
-                    (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
-                  continue;
-                }
-                /*LTS-END*/
+                if (!allowBFrames && M.hasBFrames(*trit)) { problems = true; }
+                if (problems) { break; }
+                if (noSelAudio && M.getType(*trit) == "audio") { continue; }
+                if (noSelVideo && M.getType(*trit) == "video") { continue; }
+                if (noSelMeta && M.getType(*trit) == "meta") { continue; }
+                if (noSelSub && (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")) { continue; }
                 result.insert(*trit);
                 found = true;
-                if (!multiSel){break;}
+                if (!multiSel) { break; }
               }
             }
           }
@@ -1871,13 +1865,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
 /// Will clear the list automatically if not empty.
 void Util::sortTracks(std::set<size_t> & validTracks, const DTSC::Meta & M, Util::trackSortOrder sorting, std::list<size_t> & srtTrks){
   srtTrks.clear();
-  if (sorting == TRKSORT_DEFAULT){
-    if (M.getLive()){
-      sorting = TRKSORT_ID_HTL;
-    }else{
-      sorting = TRKSORT_ID_LTH;
-    }
-  }
+  if (sorting == TRKSORT_DEFAULT) { sorting = TRKSORT_OPTIMAL; }
   if (!validTracks.size()){return;}
   for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
     //The first element is always at the beginning of the list. Yeah. That makes sense.
@@ -1896,25 +1884,31 @@ void Util::sortTracks(std::set<size_t> & validTracks, const DTSC::Meta & M, Util
     }
     bool inserted = false;
     for (std::list<size_t>::iterator lt = srtTrks.begin(); lt != srtTrks.end(); ++lt){
-      if (sorting == TRKSORT_BPS_LTH){
+      if (sorting == TRKSORT_OPTIMAL) {
+        if (M.getQuality(*it) >= M.getQuality(*lt)) {
+          srtTrks.insert(lt, *it);
+          inserted = true;
+          break;
+        }
+      } else if (sorting == TRKSORT_BPS_LTH) {
         if (M.getBps(*it) <= M.getBps(*lt)){
           srtTrks.insert(lt, *it);
           inserted = true;
           break;
         }
-      }else if (sorting == TRKSORT_BPS_HTL){
+      } else if (sorting == TRKSORT_BPS_HTL) {
         if (M.getBps(*it) >= M.getBps(*lt)){
           srtTrks.insert(lt, *it);
           inserted = true;
           break;
         }
-      }else if (sorting == TRKSORT_RES_LTH){
+      } else if (sorting == TRKSORT_RES_LTH) {
         if (M.getWidth(*it) * M.getHeight(*it) < M.getWidth(*lt) * M.getHeight(*lt) || M.getRate(*it) < M.getRate(*lt)){
           srtTrks.insert(lt, *it);
           inserted = true;
           break;
         }
-      }else if (sorting == TRKSORT_RES_HTL){
+      } else if (sorting == TRKSORT_RES_HTL) {
         if (M.getWidth(*it) * M.getHeight(*it) > M.getWidth(*lt) * M.getHeight(*lt) || M.getRate(*it) > M.getRate(*lt)){
           srtTrks.insert(lt, *it);
           inserted = true;
@@ -1925,6 +1919,9 @@ void Util::sortTracks(std::set<size_t> & validTracks, const DTSC::Meta & M, Util
     //Insert at end of list if not inserted yet
     if (!inserted){srtTrks.push_back(*it);}
   }
-
+  INFO_MSG("Tracks sorted:");
+  for (const auto & T : srtTrks) {
+    INFO_MSG("Track %s = %" PRIu64, M.getTrackIdentifier(T, true).c_str(), M.getQuality(T));
+  }
 }
 

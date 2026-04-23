@@ -1,7 +1,9 @@
+#include "socket_srt.h"
+
 #include "defines.h"
 #include "http_parser.h"
-#include "socket_srt.h"
 #include "json.h"
+#include "procs.h"
 #include "timing.h"
 
 #include <cstdlib>
@@ -26,7 +28,9 @@ namespace Socket{
     // SRT documentation states explicitly that this is unreliable behaviour
     bool libraryInit(){
       if (!isInited){
+        Util::Procs::blockSignals();
         int res = srt_startup();
+        Util::Procs::unblockSignals();
         if (res == -1){ERROR_MSG("Unable to initialize SRT Library!");}
         isInited = (res != -1);
 
@@ -160,7 +164,9 @@ namespace Socket{
     remoteaddr = _udpsocket.getRemoteAddr();
     HIGH_MSG("SRT remote address: %s", remoteaddr.toString().c_str());
 
+    Util::Procs::blockSignals();
     sock = srt_create_socket();
+    Util::Procs::unblockSignals();
     HIGH_MSG("Opened SRT socket %d", sock);
 
     if (_direction == "rendezvous"){
@@ -320,7 +326,10 @@ namespace Socket{
 
   bool SRTConnection::open() {
     close();
+
+    Util::Procs::blockSignals();
     sock = srt_create_socket();
+    Util::Procs::unblockSignals();
     if (sock == SRT_INVALID_SOCK) {
       ERROR_MSG("Error creating an SRT socket");
       return false;
@@ -394,7 +403,10 @@ namespace Socket{
         remoteaddr = it;
         if (!open()) { return; }
         HIGH_MSG("Going to connect sock %d", sock);
-        if (srt_connect(sock, remoteaddr, remoteaddr.size()) != SRT_ERROR) {
+        Util::Procs::blockSignals();
+        int connResult = srt_connect(sock, remoteaddr, remoteaddr.size());
+        Util::Procs::unblockSignals();
+        if (connResult != SRT_ERROR) {
           if (postConfigureSocket() == SRT_ERROR){ERROR_MSG("Error during postconfigure socket");}
           INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s:%u -> %s", sock, getStateStr(), _host.c_str(), _port,
                    it.toString().c_str());
@@ -442,7 +454,10 @@ namespace Socket{
       remoteaddr = addr;
       if (!open()) { return; }
       HIGH_MSG("Going to connect sock %d", sock);
-      if (srt_connect(sock, remoteaddr, remoteaddr.size()) != SRT_ERROR) {
+      Util::Procs::blockSignals();
+      int connResult = srt_connect(sock, remoteaddr, remoteaddr.size());
+      Util::Procs::unblockSignals();
+      if (connResult != SRT_ERROR) {
         if (postConfigureSocket() == SRT_ERROR) { ERROR_MSG("Error during postconfigure socket"); }
         INFO_MSG("Caller SRT socket %" PRId32 " %s targetting %s", sock, getStateStr(), addr.toString().c_str());
         lastGood = Util::bootMS();

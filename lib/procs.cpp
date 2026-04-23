@@ -196,22 +196,33 @@ void Util::Procs::fork_prepare(){
 void grim_reaper(){
   Util::nameThread("grim_reaper");
   // Block most signals, so we don't catch them in this thread
+  Util::Procs::blockSignals();
+
+  VERYHIGH_MSG("Grim reaper start");
+  while (thread_handler) {
+    Util::Procs::reap();
+    if (thread_handler) { Util::sleep(1000); }
+  }
+  VERYHIGH_MSG("Grim reaper stop");
+}
+
+void Util::Procs::blockSignals() {
   sigset_t x;
   sigemptyset(&x);
   sigaddset(&x, SIGUSR1);
   sigaddset(&x, SIGUSR2);
   sigaddset(&x, SIGHUP);
   sigaddset(&x, SIGINT);
+  sigaddset(&x, SIGTERM);
   sigaddset(&x, SIGCONT);
   sigaddset(&x, SIGPIPE);
   pthread_sigmask(SIG_SETMASK, &x, 0);
+}
 
-  VERYHIGH_MSG("Grim reaper start");
-  while (thread_handler){
-    Util::Procs::reap();
-    if (thread_handler){Util::sleep(1000);}
-  }
-  VERYHIGH_MSG("Grim reaper stop");
+void Util::Procs::unblockSignals() {
+  sigset_t x;
+  sigemptyset(&x);
+  pthread_sigmask(SIG_SETMASK, &x, 0);
 }
 
 /// Restarts reaper thread if it was joined

@@ -37,6 +37,8 @@ namespace Util{
     static bool isRunning(pid_t pid);
     static void forget(pid_t pid);
     static void remember(pid_t pid);
+    static void blockSignals();
+    static void unblockSignals();
     static std::set<int> socketList; ///< Holds sockets that should be closed before forking
     static int kill_timeout;
   };

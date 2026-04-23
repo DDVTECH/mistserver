@@ -553,27 +553,12 @@ namespace Mist{
       json_resp["width"] = 640;
       json_resp["height"] = (hasVideo ? 480 : 20);
     }
-    json_resp["type"] = (M.getLive() ? "live" : "vod");
-    if (M.getLive()){
-      if (M.getUTCOffset()){
-        json_resp["unixoffset"] = M.getUTCOffset();
-      }else{
-        json_resp["unixoffset"] = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS());
-      }
-    }else{
-      if (M.getUTCOffset()){
-        json_resp["unixoffset"] = M.getUTCOffset();
-      }
-    }
 
     // show ALL the meta datas!
     M.toJSON(json_resp["meta"], true);
-    jsonForEach(json_resp["meta"]["tracks"], it){
-      if (it->isMember("lang")){
-        (*it)["language"] = Encodings::ISO639::decode((*it)["lang"].asStringRef());
-      }
-    }
     json_resp["meta"].removeMember("source");
+    if (json_resp["meta"].isMember("type")) { json_resp["type"] = json_resp["meta"]["type"]; }
+    if (json_resp["meta"].isMember("unixoffset")) { json_resp["unixoffset"] = json_resp["meta"]["unixoffset"]; }
 
     // Get sources/protocols information
     Util::DTSCShmReader rCapa(SHM_CAPA);

@@ -30,6 +30,7 @@
 std::set<APIConn *> reggedLoggers;
 std::set<APIConn *> reggedAccess;
 std::set<APIConn *> reggedStreams;
+std::map<std::string, std::set<APIConn *>> reggedStreamMeta;
 
 void Controller::registerLogger(APIConn *aConn) {
   reggedLoggers.insert(aConn);
@@ -43,10 +44,21 @@ void Controller::registerStreams(APIConn *aConn) {
   reggedStreams.insert(aConn);
 }
 
+void Controller::registerStreamMeta(const std::string & strm, APIConn *aConn) {
+  reggedStreamMeta[strm].insert(aConn);
+}
+
 void Controller::deregister(APIConn *aConn) {
   reggedLoggers.erase(aConn);
   reggedAccess.erase(aConn);
   reggedStreams.erase(aConn);
+
+  std::set<std::string> toErase;
+  for (auto & L : reggedStreamMeta) {
+    L.second.erase(aConn);
+    if (!L.second.size()) { toErase.insert(L.first); }
+  }
+  for (const auto & S : toErase) { reggedStreamMeta.erase(S); }
 }
 
 void Controller::callLogger(uint64_t time, const std::string & kind, const std::string & message, const std::string & stream,
@@ -77,6 +89,49 @@ void Controller::callStreams(const std::string & stream, uint8_t status, uint64_
     if (!A->C) { toDel.insert(A); }
   }
   for (auto A : toDel) { delete A; }
+}
+
+void Controller::callStreamMeta(const std::string & stream, const DTSC::Meta & M) {
+  std::set<APIConn *> toDel;
+  auto & R = reggedStreamMeta[stream];
+  JSON::Value J;
+  if (R.size()) {
+    uint8_t streamStatus = Util::getStreamStatus(stream);
+    uint8_t streamStatusPerc = Util::getStreamStatusPercentage(stream);
+    if (streamStatus != STRMSTAT_READY) {
+      switch (streamStatus) {
+        case STRMSTAT_OFF: J["error"] = "Stream is offline"; break;
+        case STRMSTAT_INIT: J["error"] = "Stream is initializing"; break;
+        case STRMSTAT_BOOT: J["error"] = "Stream is booting"; break;
+        case STRMSTAT_WAIT: J["error"] = "Stream is waiting for data"; break;
+        case STRMSTAT_SHUTDOWN: J["error"] = "Stream is shutting down"; break;
+        case STRMSTAT_INVALID: J["error"] = "Stream status is invalid?!"; break;
+        default: J["error"] = "Stream status is unknown?!"; break;
+      }
+      if (streamStatusPerc) { J["perc"] = ((double)streamStatusPerc) / 2.55; }
+    }
+    if (M) {
+      M.toJSON(J["meta"], true, false, true);
+      if (J["meta"].isMember("type")) { J["type"] = J["meta"]["type"]; }
+      if (J["meta"].isMember("unixoffset")) { J["unixoffset"] = J["meta"]["unixoffset"]; }
+    }
+  }
+  for (auto A : reggedStreamMeta[stream]) {
+    A->streamMeta(stream, J);
+    if (!A->C) { toDel.insert(A); }
+  }
+  for (auto A : toDel) { delete A; }
+}
+
+size_t Controller::handleStreamMeta() {
+  std::set<std::string> streams;
+  for (const auto & R : reggedStreamMeta) { streams.insert(R.first); }
+  for (const auto & R : streams) {
+    if (!reggedStreamMeta.count(R)) { continue; }
+    DTSC::Meta M(R, false, false);
+    callStreamMeta(R, M);
+  }
+  return 1000;
 }
 
 APIConn::APIConn(Event::Loop & evLp, Socket::Server & srv) : E(evLp) {
@@ -264,6 +319,8 @@ void APIConn::log(uint64_t time, const std::string & kind, const std::string & m
   // If we have more than ~10k pending bytes to send, stop sending logs
   if (C.sendingBlocked(10000)) { return; }
 
+  if (strmSingle.size() && stream != strmSingle) { return; }
+
   JSON::Value tmp;
   tmp[0u] = "log";
   tmp[1u].append(time);
@@ -282,6 +339,8 @@ void APIConn::access(uint64_t time, const std::string & session, const std::stri
 
   // If we have more than ~10k pending bytes to send, stop sending logs
   if (C.sendingBlocked(10000)) { return; }
+
+  if (strmSingle.size() && stream != strmSingle) { return; }
 
   JSON::Value tmp;
   tmp[0u] = "access";
@@ -304,6 +363,8 @@ void APIConn::stream(const std::string & stream, uint8_t status, uint64_t viewer
   // If we have more than ~10k pending bytes to send, stop sending logs
   if (C.sendingBlocked(10000)) { return; }
 
+  if (strmSingle.size() && stream != strmSingle) { return; }
+
   JSON::Value tmp;
   tmp[0u] = "stream";
   tmp[1u].append(stream);
@@ -313,6 +374,24 @@ void APIConn::stream(const std::string & stream, uint8_t status, uint64_t viewer
   tmp[1u].append(outputs);
   tmp[1u].append(tags);
   W->sendFrame(tmp.toString());
+}
+
+void APIConn::streamMeta(const std::string & stream, const JSON::Value & meta) {
+  if (!isWebSocket || !W || !*W) { return; }
+
+  // If we have more than ~10k pending bytes to send, stop sending logs
+  if (C.sendingBlocked(10000)) { return; }
+
+  if (strmSingle.size() && stream != strmSingle) { return; }
+
+  if (lastStreamMeta.count(stream) && lastStreamMeta[stream] == meta) { return; }
+
+  JSON::Value tmp;
+  tmp.append("streammeta");
+  tmp.append(stream);
+  tmp.append(meta);
+  W->sendFrame(tmp.toString());
+  lastStreamMeta["stream"] = meta;
 }
 
 void Controller::handleWebSocket(APIConn *aConn) {
@@ -480,6 +559,13 @@ void Controller::handleWebSocket(APIConn *aConn) {
     aConn->strmsArg.clear();
   }
 
+  if (aConn->strmSingle.size()) {
+    registerStreamMeta(aConn->strmSingle, aConn);
+
+    DTSC::Meta M(aConn->strmSingle, false, false);
+    if (M) {}
+  }
+
   // Ignore any incoming frames
   while (aConn->W->readFrame(true)) {}
 }
@@ -526,6 +612,11 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
     }
     // Catch websocket requests
     if (aConn->H.url == "/ws") {
+      handleWebSocket(aConn);
+      return aConn->C;
+    }
+    if (aConn->H.url.size() > 11 && aConn->H.url.substr(0, 11) == "/ws/stream/") {
+      aConn->strmSingle = aConn->H.url.substr(11);
       handleWebSocket(aConn);
       return aConn->C;
     }

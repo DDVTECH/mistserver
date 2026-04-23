@@ -1,3 +1,4 @@
+#include <mist/dtsc.h>
 #include <mist/ev.h>
 #include <mist/http_parser.h>
 #include <mist/json.h>
@@ -20,7 +21,9 @@ class APIConn {
     std::string logArg;
     std::string accsArg;
     std::string strmsArg;
+    std::string strmSingle;
     uint64_t authTime;
+    std::map<std::string, JSON::Value> lastStreamMeta;
 
     void log(uint64_t time, const std::string & kind, const std::string & message, const std::string & stream,
              uint64_t progPid, const std::string & exe, const std::string & line);
@@ -28,6 +31,7 @@ class APIConn {
                 const std::string & host, uint64_t duration, uint64_t up, uint64_t down, const std::string & tags);
     void stream(const std::string & stream, uint8_t status, uint64_t viewers, uint64_t inputs, uint64_t outputs,
                 const std::string & tags);
+    void streamMeta(const std::string & stream, const JSON::Value & meta);
 
     APIConn(Event::Loop & evLp, Socket::Server & srv);
     ~APIConn();
@@ -41,6 +45,7 @@ namespace Controller{
   void registerLogger(APIConn *aConn);
   void registerAccess(APIConn *aConn);
   void registerStreams(APIConn *aConn);
+  void registerStreamMeta(const std::string & strm, APIConn *aConn);
   void deregister(APIConn *aConn);
 
   void callLogger(uint64_t time, const std::string & kind, const std::string & message, const std::string & stream,
@@ -49,6 +54,8 @@ namespace Controller{
                   const std::string & host, uint64_t duration, uint64_t up, uint64_t down, const std::string & tags);
   void callStreams(const std::string & stream, uint8_t status, uint64_t viewers, uint64_t inputs, uint64_t outputs,
                    const std::string & tags);
+  void callStreamMeta(const std::string & stream, const DTSC::Meta & M);
+  size_t handleStreamMeta();
 
   bool authorize(JSON::Value &Request, JSON::Value &Response, Socket::Connection &conn);
   bool handleAPIConnection(APIConn *aConn);

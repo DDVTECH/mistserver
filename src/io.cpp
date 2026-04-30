@@ -202,7 +202,9 @@ namespace Mist{
         newPartCount += keys.getParts(i);
       }
       uint64_t partCount = tPages.getInt("parts", pageIdx);
-      HIGH_MSG("Adjusting meta info for page %" PRIu64 " track %lu before unloading it. First key %" PRIu64 " -> %" PRIu64 ". Key count %" PRIu64 " -> %" PRIu64 ". Part count %" PRIu64 " -> %" PRIu64, firstKeyNum, idx, firstKeyNum, newFirstKey, keyCount, keyCount - (newFirstKey - firstKeyNum), partCount, newPartCount);
+      HIGH_MSG("Adjusting meta info for page %" PRIu64 " track %zu before unloading it. First key %" PRIu64
+               " -> %" PRIu64 ". Key count %" PRIu64 " -> %" PRIu64 ". Part count %" PRIu64 " -> %" PRIu64,
+               firstKeyNum, idx, firstKeyNum, newFirstKey, keyCount, keyCount - (newFirstKey - firstKeyNum), partCount, newPartCount);
       tPages.setInt("keycount", keyCount - (newFirstKey - firstKeyNum), pageIdx);
       tPages.setInt("parts", newPartCount, pageIdx);
       tPages.setInt("firstkey", newFirstKey, pageIdx);

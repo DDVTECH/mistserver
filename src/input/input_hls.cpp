@@ -1108,7 +1108,7 @@ namespace Mist{
     segDowner.reset();
     currentPlaylist = getMappedTrackPlaylist(M.getID(idx));
 
-    unsigned long plistEntry = 0;
+    size_t plistEntry = 0;
     DTSC::Keys keys = M.getKeys(idx);
     for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); i++){
       if (keys.getTime(i) > seekTime){

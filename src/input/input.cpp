@@ -1318,7 +1318,7 @@ namespace Mist{
         if (cTime > it2->second + timeout){
           deletedEntries.insert(it2->first);
           bufferRemove(it->first, it2->first);
-          HIGH_MSG("Unloading page %u track %lu", it2->first, it->first);
+          HIGH_MSG("Unloading page %" PRIu32 " track %zu", it2->first, it->first);
         }
       }
       while (deletedEntries.size()){

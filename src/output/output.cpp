@@ -2558,9 +2558,7 @@ namespace Mist{
           buffer.replaceFirst(nxt);
 
           // If it's a live stream, request to be signalled on packet availability
-          if (M.getLive()){
-            userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
-          }
+          if (M.getLive()) { userSelect[nxt.tid].setKeyNum(std::string::npos); }
 
           // In non-sync mode, retry (replaceFirst already shuffled the packet order for us)
           if (!buffer.getSyncMode()) { continue; }
@@ -2652,7 +2650,7 @@ namespace Mist{
       
       // If it's a live stream, request to be signalled on packet availability
       if (M.getLive()) {
-        userSelect[nxt.tid].setKeyNum(0xFFFFFFFFFFFFFFFFull);
+        userSelect[nxt.tid].setKeyNum(std::string::npos);
         lastReadAttemptWasAtLivePoint = true;
       }
 

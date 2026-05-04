@@ -165,7 +165,8 @@ namespace Mist{
     playlist_startTime.clear();
     while (inFile.good()){
       std::getline(inFile, line);
-      if (inFile.good() && line.size() && line.at(0) != '#'){
+      while (line.size() && *line.rbegin() == '\r') { line.erase(line.size() - 1); }
+      if (line.size() && line.at(0) != '#'){
         playlist.push_back(line);
         playlist_startTime.push_back(plsStartTime);
         if (plsStartTime != 0xFFFF){

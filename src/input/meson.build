@@ -37,7 +37,6 @@ if get_option('WITH_AV')
 endif
 
 if ccpp.has_header('linux/videodev2.h')
-  inputs += {'name' : 'V4L2', 'format' : 'v4l2'}
   inputs += {'name' : 'LinuxAV', 'format' : 'linuxav', 'extra' : 'with_pulse'}
 endif
 

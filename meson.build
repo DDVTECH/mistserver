@@ -225,6 +225,7 @@ if host_machine.system() == 'linux'
   have_pulseaudio = libpulse.found()
   if have_pulseaudio
     message('PulseAudio support enabled')
+    option_defines += '-DWITH_PULSE'
   else
     message('PulseAudio support disabled - libpulse not found')
   endif

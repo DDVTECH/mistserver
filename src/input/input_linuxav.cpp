@@ -20,8 +20,9 @@
 #include <thread>
 #include <unistd.h>
 
-#ifdef __linux__
 #include <linux/videodev2.h>
+
+#ifdef WITH_PULSE
 #include <pulse/error.h>
 #include <pulse/introspect.h>
 #include <pulse/operation.h>
@@ -30,6 +31,7 @@
 #include <pulse/xmalloc.h>
 #endif
 
+/// Converts 32-bit number into 4 ascii bytes in host byte order
 std::string intToString(int n) {
   std::string output;
   while (n) {
@@ -39,6 +41,7 @@ std::string intToString(int n) {
   return output;
 }
 
+/// Converts 4 ascii bytes into a 32-bit number in host byte order
 int strToInt(const std::string & str) {
   int output = 0;
   for (int i = str.size() - 1; i >= 0; i--) {
@@ -67,7 +70,6 @@ namespace Mist {
     capa["codecs"][0u][1u].append("NV24");
     capa["codecs"][0u][1u].append("NV16");
 
-#ifdef __linux__
     // Initialize video state (from V4L2)
     videoFd = -1;
     videoBuffer = nullptr;
@@ -83,37 +85,20 @@ namespace Mist {
     // Multi-planar buffer support
     numPlanes = 0;
 
-    // Audio parameters (auto-detected or configured)
-    sampleRate = 48000;
-    channels = 2;
-    bufferSize = 1024;
-
     // State tracking
-    isCapturing = false;
     hasVideo = true;
+#ifdef WITH_PULSE
     hasAudio = true;
+#else
+    hasAudio = false;
+#endif
+    isCapturing = false;
     frameCount = 0;
     startTimestamp = 0;
 
     // Initialize track indices
     videoTrackIdx = INVALID_TRACK_ID;
     audioTrackIdx = INVALID_TRACK_ID;
-    selectedAudioDevice = "";
-
-#ifdef WITH_PULSE
-    // Initialize PulseAudio state
-    mainloop = nullptr;
-    context = nullptr;
-    stream = nullptr;
-    mainloopApi = nullptr;
-    contextReady = false;
-    streamReady = false;
-    inputGain = 0.5f;
-#else
-    hasAudio = false;
-    inputGain = 0.0f;
-#endif
-#endif
 
     // Video format option (from V4L2)
     JSON::Value option;
@@ -126,55 +111,106 @@ namespace Mist {
     config->addOption("format", option);
 
     capa["optional"]["format"]["name"] = "Video resolution, framerate and pixel format";
-    capa["optional"]["format"]["help"] =
-      "Video format like 'MJPG-1920x1080@30.00'. FPS is optional";
+    capa["optional"]["format"]["help"] = "Video format like 'MJPG-1920x1080@30.00'. FPS is optional";
     capa["optional"]["format"]["option"] = "--format";
     capa["optional"]["format"]["short"] = "F";
     capa["optional"]["format"]["default"] = "";
     capa["optional"]["format"]["type"] = "string";
 
-    // Audio options (from PulseAudio)
+#ifdef WITH_PULSE
     option.null();
     option["arg"] = "integer";
     option["long"] = "samplerate";
+    option["short"] = "R";
     option["help"] = "Audio sample rate in Hz";
     option["value"].append(48000);
     config->addOption("samplerate", option);
 
+    capa["optional"]["samplerate"]["name"] = "Audio sample rate";
+    capa["optional"]["samplerate"]["help"] = "Sample rate for audio";
+    capa["optional"]["samplerate"]["unit"] = "Hz";
+    capa["optional"]["samplerate"]["option"] = "--samplerate";
+    capa["optional"]["samplerate"]["short"] = "R";
+    capa["optional"]["samplerate"]["default"] = 48000;
+    capa["optional"]["samplerate"]["type"] = "int";
+
     option.null();
     option["arg"] = "integer";
     option["long"] = "channels";
+    option["short"] = "C";
     option["help"] = "Number of audio channels";
     option["value"].append(2);
     config->addOption("channels", option);
 
+    capa["optional"]["channels"]["name"] = "Audio channel count";
+    capa["optional"]["channels"]["help"] = "Number of audio channels to ingest";
+    capa["optional"]["channels"]["option"] = "--channels";
+    capa["optional"]["channels"]["short"] = "C";
+    capa["optional"]["channels"]["default"] = 2;
+    capa["optional"]["channels"]["type"] = "int";
+
     option.null();
     option["arg"] = "integer";
     option["long"] = "buffersize";
-    option["help"] = "Audio buffer size";
+    option["short"] = "B";
+    option["help"] = "Audio buffer size in samples";
     option["value"].append(1024);
     config->addOption("buffersize", option);
+
+    capa["optional"]["buffersize"]["name"] = "Audio buffer size";
+    capa["optional"]["buffersize"]["help"] = "Buffer size for audio (in samples per channel)";
+    capa["optional"]["buffersize"]["unit"] = "samples";
+    capa["optional"]["buffersize"]["option"] = "--buffersize";
+    capa["optional"]["buffersize"]["short"] = "B";
+    capa["optional"]["buffersize"]["default"] = 1024;
+    capa["optional"]["buffersize"]["type"] = "int";
 
     option.null();
     option["arg"] = "double";
     option["long"] = "gain";
+    option["short"] = "G";
     option["help"] = "Audio input gain (0.0-2.0)";
     option["value"].append(0.5);
     config->addOption("gain", option);
 
-    option.null();
-    option["arg"] = "string";
-    option["long"] = "video-device";
-    option["help"] = "Video device path (e.g., /dev/video0)";
-    option["value"].append("");
-    config->addOption("video-device", option);
+    capa["optional"]["gain"]["name"] = "Audio gain";
+    capa["optional"]["gain"]["help"] = "Amplication to apply to audio volume";
+    capa["optional"]["gain"]["option"] = "--gain";
+    capa["optional"]["gain"]["short"] = "G";
+    capa["optional"]["gain"]["default"] = 0.5;
+    capa["optional"]["gain"]["type"] = "float";
 
     option.null();
     option["arg"] = "string";
     option["long"] = "audio-device";
+    option["short"] = "A";
     option["help"] = "Audio device name";
     option["value"].append("");
     config->addOption("audio-device", option);
+
+    capa["optional"]["audio-device"]["name"] = "Audio device name";
+    capa["optional"]["audio-device"]["help"] = "Name of audio device to use, or blank for none";
+    capa["optional"]["audio-device"]["option"] = "--audio-device";
+    capa["optional"]["audio-device"]["short"] = "A";
+    capa["optional"]["audio-device"]["default"] = "";
+    capa["optional"]["audio-device"]["type"] = "str";
+
+#endif
+
+    option.null();
+    option["arg"] = "string";
+    option["long"] = "video-device";
+    option["short"] = "V";
+    option["help"] = "Video device name or path (e.g. video0 or /dev/video0)";
+    option["value"].append("");
+    config->addOption("video-device", option);
+
+    capa["optional"]["video-device"]["name"] = "Video device name";
+    capa["optional"]["video-device"]["help"] = "Name of video device to use, or blank for none";
+    capa["optional"]["video-device"]["option"] = "--video-device";
+    capa["optional"]["video-device"]["short"] = "V";
+    capa["optional"]["video-device"]["default"] = "";
+    capa["optional"]["video-device"]["type"] = "str";
 
     // Enumeration support (from V4L2)
     capa["enum_static_prefix"] = "linuxav:";
@@ -200,10 +236,6 @@ namespace Mist {
   }
 
   bool LinuxAV::checkArguments() {
-#ifndef __linux__
-    FAIL_MSG("Combined A/V input is only supported on Linux systems");
-    return false;
-#else
     // Parse input string to determine video and audio devices
     std::string input = config->getString("input");
 
@@ -223,6 +255,7 @@ namespace Mist {
         hasVideo = true;
       }
 
+#ifdef WITH_PULSE
       size_t audioPos = params.find("audio=");
       if (audioPos != std::string::npos) {
         size_t audioEnd = params.find(",", audioPos);
@@ -232,6 +265,7 @@ namespace Mist {
         hasAudio = true;
       }
     }
+#endif
 
     // Check command-line device options (override URL params)
     if (config->hasOption("video-device") && !config->getString("video-device").empty()) {
@@ -240,11 +274,13 @@ namespace Mist {
       hasVideo = true;
     }
 
+#ifdef WITH_PULSE
     if (config->hasOption("audio-device") && !config->getString("audio-device").empty()) {
       selectedAudioDevice = resolveAudioDevice(config->getString("audio-device"));
       hasAudioDevice = true;
       hasAudio = true;
     }
+#endif
 
     // Auto-detect ONLY if no device parameters were provided at all
     if (!hasVideoDevice && !hasAudioDevice) {
@@ -261,6 +297,7 @@ namespace Mist {
         hasVideo = false;
       }
 
+#ifdef WITH_PULSE
       // Auto-detect first audio device
       std::vector<std::string> audioDevices = getAudioDevices();
       if (!audioDevices.empty()) {
@@ -268,14 +305,18 @@ namespace Mist {
         hasAudio = true;
         INFO_MSG("Auto-detected audio device: %s", selectedAudioDevice.c_str());
       } else {
+#endif
         WARN_MSG("No audio devices found or PulseAudio server unavailable, audio capture disabled");
         hasAudio = false;
+#ifdef WITH_PULSE
       }
     } else {
       // Resolve partial names for any provided audio device
       if (hasAudioDevice) { selectedAudioDevice = resolveAudioDevice(selectedAudioDevice); }
+#endif
     }
 
+#ifdef WITH_PULSE
     // Read audio configuration parameters
     if (hasAudio) {
       sampleRate = config->getInteger("samplerate");
@@ -290,6 +331,7 @@ namespace Mist {
       inputGain = atof(config->getString("gain").c_str());
       if (inputGain <= 0.0) inputGain = 0.5;
     }
+#endif
 
     // Final validation
     if (!hasVideo && !hasAudio) {
@@ -302,59 +344,162 @@ namespace Mist {
              hasAudio ? "yes" : "no");
 
     return true;
-#endif
   }
 
   bool LinuxAV::preRun() {
-#ifdef __linux__
-    if (hasAudio && !initializePulseAudio()) {
-      ERROR_MSG("Failed to initialize PulseAudio");
-      return false;
+#ifdef WITH_PULSE
+    if (hasAudio) {
+      INFO_MSG("Starting PulseAudio initialization...");
+
+      if (!(mainloop = pa_mainloop_new())) {
+        ERROR_MSG("Failed to create PulseAudio main loop");
+        return false;
+      }
+
+      if (!(mainloopApi = pa_mainloop_get_api(mainloop))) {
+        ERROR_MSG("Failed to get PulseAudio main loop API");
+        return false;
+      }
+
+      if (!(context = pa_context_new(mainloopApi, "MistServer A/V Input"))) {
+        ERROR_MSG("Failed to create PulseAudio context");
+        return false;
+      }
+
+      // Set context state callback
+      pa_context_set_state_callback(context, [](pa_context *c, void *userdata) {
+        LinuxAV *input = static_cast<LinuxAV *>(userdata);
+        pa_context_state_t state = pa_context_get_state(c);
+
+        switch (state) {
+          case PA_CONTEXT_CONNECTING: INFO_MSG("PulseAudio context connecting..."); break;
+          case PA_CONTEXT_AUTHORIZING: INFO_MSG("PulseAudio context authorizing..."); break;
+          case PA_CONTEXT_SETTING_NAME: INFO_MSG("PulseAudio context setting name..."); break;
+          case PA_CONTEXT_READY:
+            INFO_MSG("PulseAudio context ready");
+            input->contextReady = true;
+            break;
+          case PA_CONTEXT_FAILED:
+            ERROR_MSG("PulseAudio context failed: %s", pa_strerror(pa_context_errno(c)));
+            input->contextReady = false;
+            break;
+          case PA_CONTEXT_TERMINATED:
+            INFO_MSG("PulseAudio context terminated");
+            input->contextReady = false;
+            break;
+          default: break;
+        }
+      }, this);
+
+      // Connect to server
+      if (pa_context_connect(context, NULL, PA_CONTEXT_NOFLAGS, NULL) < 0) {
+        ERROR_MSG("Failed to connect to PulseAudio server");
+        return false;
+      }
+
+      // Wait for context to be ready using mainloop iteration
+      contextReady = false;
+      while (!contextReady) {
+        pa_mainloop_iterate(mainloop, 1, NULL);
+        pa_context_state_t state = pa_context_get_state(context);
+        if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) {
+          ERROR_MSG("PulseAudio context failed to become ready");
+          return false;
+        }
+      }
+
+      mainloopThread = std::thread([&]() {
+        INFO_MSG("PulseAudio main loop thread started");
+        while (config->is_active) { pa_mainloop_iterate(mainloop, 1, NULL); }
+        INFO_MSG("PulseAudio main loop thread finished");
+      });
     }
-    return true;
-#else
-    return false;
 #endif
+    return true;
   }
 
   bool LinuxAV::readHeader() {
-#ifdef __linux__
     meta.reInit(streamName, false);
 
+    bool videoAvailable = true;
+    bool audioAvailable = true;
+
+    // Check video device availability
     if (hasVideo && !selectedVideoDevice.empty()) {
-      if (!areDevicesAvailable()) {
-        ERROR_MSG("Video device not available");
-        return false;
+      int testFd = open(selectedVideoDevice.c_str(), O_RDWR);
+      if (testFd < 0) {
+        videoAvailable = false;
+      } else {
+        // Verify it's actually a video capture device
+        struct v4l2_capability cap;
+        if (ioctl(testFd, VIDIOC_QUERYCAP, &cap) < 0 || !(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
+          videoAvailable = false;
+        }
+        close(testFd);
       }
     }
 
+#ifdef WITH_PULSE
+    // Check audio device availability
     if (hasAudio && !selectedAudioDevice.empty()) {
-      if (!areDevicesAvailable()) {
-        ERROR_MSG("Audio device not available");
-        return false;
+      // For PulseAudio, we'll do a quick connection test
+      pa_mainloop *testMainloop = pa_mainloop_new();
+      if (testMainloop) {
+        pa_mainloop_api *testApi = pa_mainloop_get_api(testMainloop);
+        pa_context *testContext = pa_context_new(testApi, "MistServer Device Test");
+        if (testContext) {
+          if (pa_context_connect(testContext, nullptr, PA_CONTEXT_NOFLAGS, nullptr) >= 0) {
+            // Wait briefly for connection
+            int iterations = 0;
+            while (iterations < 50) {
+              if (pa_mainloop_iterate(testMainloop, 0, nullptr) < 0) break;
+              pa_context_state_t state = pa_context_get_state(testContext);
+              if (state == PA_CONTEXT_READY) {
+                break;
+              } else if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) {
+                audioAvailable = false;
+                break;
+              }
+              iterations++;
+            }
+          } else {
+            audioAvailable = false;
+          }
+          pa_context_disconnect(testContext);
+          pa_context_unref(testContext);
+        } else {
+          audioAvailable = false;
+        }
+        pa_mainloop_free(testMainloop);
+      } else {
+        audioAvailable = false;
       }
+    }
+#endif
+
+    if (!audioAvailable && !videoAvailable){
+      FAIL_MSG("No devices available for input, aborting");
+      return false;
     }
 
     INFO_MSG("A/V Input header read completed: video=%s, audio=%s",
              hasVideo ? "enabled" : "disabled", hasAudio ? "enabled" : "disabled");
     return true;
-#else
-    return false;
-#endif
   }
 
   void LinuxAV::streamMainLoop() {
-#ifdef __linux__
-    INFO_MSG("Starting A/V capture loop");
-
-    // Audio mainloop thread is already started in initializePulseAudio()
-    // Just wait for stream to be ready if audio is enabled
+#ifdef WITH_PULSE
     if (hasAudio) {
-      if (!waitForStreamReady()) {
-        ERROR_MSG("Failed to create PulseAudio stream");
-        return;
+      uint64_t start = Util::bootMS();
+      while (!streamReady && config->is_active) {
+        if (start + 5000 < Util::bootMS()) {
+          ERROR_MSG("Timeout waiting for PulseAudio stream");
+          return;
+        }
+        Util::sleep(10);
       }
     }
+#endif
 
     INFO_MSG("A/V capture ready, starting main loop");
     isCapturing = true;
@@ -409,6 +554,7 @@ namespace Mist {
         HIGH_MSG("QBUF successful");
       }
 
+#ifdef WITH_PULSE
       // Process audio if enabled
       if (hasAudio) {
         std::unique_lock<std::mutex> lock(bufferMutex);
@@ -418,7 +564,7 @@ namespace Mist {
         if (!isCapturing) break;
 
         while (!audioQueue.empty() && config->is_active) {
-          std::vector<uint8_t> audioData = audioQueue.front();
+          std::vector<uint32_t> audioData = audioQueue.front();
           uint64_t timestamp = timestampQueue.front();
           audioQueue.pop();
           timestampQueue.pop();
@@ -433,21 +579,123 @@ namespace Mist {
           lock.lock();
         }
       }
+#endif
 
       // Small delay to prevent excessive CPU usage
       if (!hasVideo) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
     }
 
     INFO_MSG("A/V capture loop finished, captured %lu frames", frameCount);
-#endif
   }
 
   bool LinuxAV::openStreamSource() {
-#ifdef __linux__
     bool success = true;
 
     if (hasVideo) { success &= setupVideoDevice(); }
-    if (hasAudio) { success &= setupAudioDevice(); }
+#ifdef WITH_PULSE
+    if (hasAudio) {
+      if (!context || !contextReady) {
+        ERROR_MSG("PulseAudio not connected");
+        success = false;
+      }
+
+      pa_sample_spec sampleSpec; ///< Sample specification
+      if (success) {
+        // Configure sample spec
+        sampleSpec.format = PA_SAMPLE_S32BE;
+        sampleSpec.rate = sampleRate;
+        sampleSpec.channels = channels;
+
+        if (!pa_sample_spec_valid(&sampleSpec)) {
+          ERROR_MSG("Invalid PulseAudio sample specification");
+          success = false;
+        }
+      }
+      pa_buffer_attr bufferAttr; ///< Buffer attributes
+      if (success) {
+        // Configure channel map
+        pa_channel_map channelMap; ///< Channel map
+        pa_channel_map_init_stereo(&channelMap);
+        if (channels != 2) { pa_channel_map_init_extend(&channelMap, channels, PA_CHANNEL_MAP_DEFAULT); }
+
+        // Configure buffer attributes
+        bufferAttr.maxlength = (uint32_t)-1;
+        bufferAttr.fragsize = bufferSize * channels * 4;
+        bufferAttr.minreq = (uint32_t)-1;
+        bufferAttr.prebuf = (uint32_t)-1;
+        bufferAttr.tlength = (uint32_t)-1;
+
+        INFO_MSG("Audio format configured: %uHz, %u channels, float32", sampleRate, channels);
+
+        // Create stream
+        stream = pa_stream_new(context, "MistServer A/V Audio Input", &sampleSpec, &channelMap);
+        if (!stream) {
+          ERROR_MSG("Failed to create PulseAudio stream: %s", pa_strerror(pa_context_errno(context)));
+          success = false;
+        }
+      }
+      if (success) {
+        // Set stream callbacks
+        pa_stream_set_state_callback(stream, [](pa_stream *stream, void *userdata) {
+          LinuxAV *input = static_cast<LinuxAV *>(userdata);
+          if (!input || !stream) return;
+
+          pa_stream_state_t state = pa_stream_get_state(stream);
+
+          switch (state) {
+            case PA_STREAM_READY:
+              INFO_MSG("PulseAudio stream ready");
+              input->streamReady = true;
+              break;
+            case PA_STREAM_FAILED:
+              ERROR_MSG("PulseAudio stream failed: %s", pa_strerror(pa_context_errno(input->context)));
+              input->streamReady = false;
+              break;
+            case PA_STREAM_TERMINATED:
+              INFO_MSG("PulseAudio stream terminated");
+              input->streamReady = false;
+              break;
+            default: break;
+          }
+        }, this);
+
+        pa_stream_set_read_callback(stream, [](pa_stream *stream, size_t length, void *userdata) {
+          LinuxAV *input = static_cast<LinuxAV *>(userdata);
+          if (!input || !stream) return;
+
+          const void *data;
+          size_t bytesRead;
+
+          if (pa_stream_peek(stream, &data, &bytesRead) < 0) {
+            ERROR_MSG("Failed to read from PulseAudio stream: %s", pa_strerror(pa_context_errno(input->context)));
+            return;
+          }
+
+          if (data && bytesRead) {
+            uint64_t timestamp = Util::bootMS();
+            input->bufferAudioData(data, bytesRead, timestamp);
+          }
+
+          if (bytesRead) { pa_stream_drop(stream); }
+        }, this);
+
+        // Connect stream
+        pa_stream_flags_t flags = static_cast<pa_stream_flags_t>(PA_STREAM_ADJUST_LATENCY | PA_STREAM_AUTO_TIMING_UPDATE);
+
+        const char *deviceName = selectedAudioDevice.c_str();
+        if (selectedAudioDevice == "@DEFAULT_SOURCE@") {
+          deviceName = nullptr; // Use default
+        }
+
+        if (pa_stream_connect_record(stream, deviceName, &bufferAttr, flags) < 0) {
+          ERROR_MSG("Failed to connect PulseAudio stream: %s", pa_strerror(pa_context_errno(context)));
+          success = false;
+        } else {
+          INFO_MSG("Audio device setup completed for %s", selectedAudioDevice.c_str());
+        }
+      }
+    }
+#endif
 
     if (!success) {
       ERROR_MSG("Failed to setup devices");
@@ -495,73 +743,97 @@ namespace Mist {
         return false;
       }
     }
+    if (hasVideo && videoTrackIdx != INVALID_TRACK_ID) {
+      if (!userSelect.count(videoTrackIdx)) {
+        userSelect[videoTrackIdx].reload(streamName, videoTrackIdx, COMM_STATUS_ACTSOURCEDNT);
+      }
+    }
 
+#ifdef WITH_PULSE
     if (hasAudio && !selectedAudioDevice.empty()) {
       audioTrackIdx = meta.addTrack();
       meta.setType(audioTrackIdx, "audio");
-      meta.setCodec(audioTrackIdx, "FLOAT");
+      meta.setCodec(audioTrackIdx, "PCM");
       meta.setID(audioTrackIdx, 2);
       meta.setRate(audioTrackIdx, sampleRate);
       meta.setChannels(audioTrackIdx, channels);
       meta.setSize(audioTrackIdx, 32);
     }
-
-    if (hasVideo && videoTrackIdx != INVALID_TRACK_ID) {
-      if (!userSelect.count(videoTrackIdx)) {
-        userSelect[videoTrackIdx].reload(streamName, videoTrackIdx,
-                                         COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
-      }
-    }
     if (hasAudio && audioTrackIdx != INVALID_TRACK_ID) {
       if (!userSelect.count(audioTrackIdx)) {
-        userSelect[audioTrackIdx].reload(streamName, audioTrackIdx,
-                                         COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[audioTrackIdx].reload(streamName, audioTrackIdx, COMM_STATUS_ACTSOURCEDNT);
       }
     }
+#endif
+
 
     INFO_MSG("A/V Input tracks created: video=%s, audio=%s", hasVideo ? "enabled" : "disabled",
              hasAudio ? "enabled" : "disabled");
 
     return true;
-#else
-    return false;
-#endif
   }
 
   void LinuxAV::closeStreamSource() {
-#ifdef __linux__
     isCapturing = false;
 
     // Cleanup video
     if (hasVideo) { cleanupVideoDevice(); }
 
+#ifdef WITH_PULSE
     // Cleanup audio
-    if (hasAudio) { cleanupAudioDevice(); }
+    if (hasAudio) {
+      // Stop and cleanup stream
+      if (stream) {
+        pa_stream_disconnect(stream);
+        pa_stream_unref(stream);
+        stream = nullptr;
+      }
+
+      // Cleanup context
+      if (context) {
+        pa_context_disconnect(context);
+        pa_context_unref(context);
+        context = nullptr;
+      }
+
+      // Stop main loop
+      if (mainloop) { pa_mainloop_quit(mainloop, 0); }
+
+      // Wait for main loop thread
+      if (mainloopThread.joinable()) { mainloopThread.join(); }
+
+      // Cleanup main loop
+      if (mainloop) {
+        pa_mainloop_free(mainloop);
+        mainloop = nullptr;
+      }
+
+      mainloopApi = nullptr;
+      contextReady = false;
+      streamReady = false;
+    }
+#endif
 
     VERYHIGH_MSG("A/V Input resources cleaned up");
-#endif
   }
 
   JSON::Value LinuxAV::enumerateSources(const std::string & device) {
-#ifdef __linux__
     JSON::Value result;
 
     // Enumerate video devices (following V4L2 pattern)
     std::vector<std::string> videoDevices = getVideoDevices();
     for (const auto & dev : videoDevices) { result.append("linuxav:video=" + dev); }
 
+#ifdef WITH_PULSE
     // Enumerate audio devices
     std::vector<std::string> audioDevices = getAudioDevices();
     for (const auto & dev : audioDevices) { result.append("linuxav:audio=" + dev); }
+#endif
 
     return result;
-#else
-    return JSON::Value();
-#endif
   }
 
   JSON::Value LinuxAV::getSourceCapa(const std::string & device) {
-#ifdef __linux__
     JSON::Value result = capa;
 
     // Parse device to determine what capabilities to query
@@ -585,11 +857,10 @@ namespace Mist {
     // Get video capabilities if video device specified (following V4L2 pattern)
     if (!videoDevice.empty()) {
       if (videoDevice.substr(0, 5) != "/dev/") { videoDevice = "/dev/" + videoDevice; }
+      result["optional"]["video-device"]["default"] = videoDevice;
 
       int testFd = open(videoDevice.c_str(), O_RDWR);
       if (testFd >= 0) {
-        result["optional"]["format"]["short"] = "F";
-        result["optional"]["format"]["type"] = "string";
         JSON::Value & opts = result["optional"]["format"]["datalist"];
 
         uint64_t maxWidth = 0, maxHeight = 0;
@@ -694,29 +965,16 @@ namespace Mist {
       }
     }
 
+#ifdef WITH_PULSE
     // Get audio capabilities if audio device specified
     if (!audioDevice.empty()) {
-      result["audio_formats"].append("PCM");
-      result["audio_sample_rates"].append(8000);
-      result["audio_sample_rates"].append(16000);
-      result["audio_sample_rates"].append(22050);
-      result["audio_sample_rates"].append(44100);
-      result["audio_sample_rates"].append(48000);
-      result["audio_sample_rates"].append(96000);
-      result["audio_channels"].append(1);
-      result["audio_channels"].append(2);
-      result["audio_channels"].append(4);
-      result["audio_channels"].append(6);
-      result["audio_channels"].append(8);
+      result["optional"]["audio-device"]["default"] = audioDevice;
     }
+#endif
 
     return result;
-#else
-    return JSON::Value();
-#endif
   }
 
-#ifdef __linux__
   // === Video Methods (from V4L2) ===
 
   bool LinuxAV::setupVideoDevice() {
@@ -975,6 +1233,7 @@ namespace Mist {
     return devices;
   }
 
+#ifdef WITH_PULSE
   std::vector<std::string> LinuxAV::getAudioDevices() {
     std::vector<std::string> devices;
 
@@ -1146,6 +1405,36 @@ namespace Mist {
       return partialName;
     }
   }
+
+  void LinuxAV::bufferAudioData(const void *buffer, size_t length, uint64_t timestamp) {
+    if (!buffer || length == 0) return;
+
+
+    /// \TODO This logic is really bad - let's replace it with a single sample buffer and we read from it whole milliseconds at a time.
+
+    // Apply input gain to prevent clipping
+    size_t sampleCount = length / sizeof(uint32_t);
+    std::vector<uint32_t> processedBuffer(sampleCount);
+    const uint32_t *input = static_cast<const uint32_t *>(buffer);
+    uint32_t *output = reinterpret_cast<uint32_t *>(processedBuffer.data());
+
+    memcpy(output, input, length);
+
+    // Add to buffer queue
+    {
+      std::lock_guard<std::mutex> lock(bufferMutex);
+      audioQueue.push(std::move(processedBuffer));
+      timestampQueue.push(timestamp);
+
+      // Limit buffer size to prevent memory issues
+      while (audioQueue.size() > 100) {
+        audioQueue.pop();
+        timestampQueue.pop();
+      }
+    }
+    bufferCondition.notify_one();
+  }
+#endif
 
   bool LinuxAV::configureVideoFormat() {
     // Parse format from config if provided
@@ -1412,390 +1701,5 @@ namespace Mist {
              videoHeight, (float)videoFpsDenominator / (float)videoFpsNumerator);
     return true;
   }
-
-  bool LinuxAV::configureAudioFormat() {
-    // Configure sample spec
-    sampleSpec.format = PA_SAMPLE_FLOAT32LE;
-    sampleSpec.rate = sampleRate;
-    sampleSpec.channels = channels;
-
-    if (!pa_sample_spec_valid(&sampleSpec)) {
-      ERROR_MSG("Invalid PulseAudio sample specification");
-      return false;
-    }
-
-    // Configure channel map
-    pa_channel_map_init_stereo(&channelMap);
-    if (channels != 2) {
-      pa_channel_map_init_extend(&channelMap, channels, PA_CHANNEL_MAP_DEFAULT);
-    }
-
-    // Configure buffer attributes
-    bufferAttr.maxlength = (uint32_t)-1;
-    bufferAttr.fragsize = bufferSize * channels * sizeof(float);
-    bufferAttr.minreq = (uint32_t)-1;
-    bufferAttr.prebuf = (uint32_t)-1;
-    bufferAttr.tlength = (uint32_t)-1;
-
-    INFO_MSG("Audio format configured: %uHz, %u channels, float32", sampleRate, channels);
-    return true;
-  }
-
-  // === Audio Methods (from PulseAudio) ===
-
-  void LinuxAV::bufferAudioData(const void *buffer, size_t length, uint64_t timestamp) {
-    if (!buffer || length == 0) return;
-
-    // Apply input gain to prevent clipping
-    std::vector<uint8_t> processedBuffer(length);
-    const float *input = static_cast<const float *>(buffer);
-    float *output = reinterpret_cast<float *>(processedBuffer.data());
-    size_t sampleCount = length / sizeof(float);
-
-    for (size_t i = 0; i < sampleCount; ++i) {
-      float sample = input[i] * inputGain;
-      // Soft clipping to prevent distortion
-      if (sample > 1.0f)
-        sample = 1.0f;
-      else if (sample < -1.0f)
-        sample = -1.0f;
-      output[i] = sample;
-    }
-
-    // Add to buffer queue
-    {
-      std::lock_guard<std::mutex> lock(bufferMutex);
-      audioQueue.push(std::move(processedBuffer));
-      timestampQueue.push(timestamp);
-
-      // Limit buffer size to prevent memory issues
-      while (audioQueue.size() > 100) {
-        audioQueue.pop();
-        timestampQueue.pop();
-      }
-    }
-    bufferCondition.notify_one();
-  }
-
-  bool LinuxAV::setupAudioDevice() {
-    if (!contextReady) {
-      ERROR_MSG("PulseAudio not connected");
-      return false;
-    }
-
-    // Configure audio format
-    if (!configureAudioFormat()) {
-      ERROR_MSG("Failed to configure audio format");
-      return false;
-    }
-
-    // Create PulseAudio stream
-    if (!createPulseAudioStream()) {
-      ERROR_MSG("Failed to create PulseAudio stream");
-      return false;
-    }
-
-    INFO_MSG("Audio device setup completed for %s", selectedAudioDevice.c_str());
-    return true;
-  }
-
-  void LinuxAV::cleanupAudioDevice() {
-    // Stop and cleanup stream
-    if (stream) {
-      pa_stream_disconnect(stream);
-      pa_stream_unref(stream);
-      stream = nullptr;
-    }
-
-    // Cleanup context
-    if (context) {
-      pa_context_disconnect(context);
-      pa_context_unref(context);
-      context = nullptr;
-    }
-
-    // Stop main loop
-    if (mainloop) { pa_mainloop_quit(mainloop, 0); }
-
-    // Wait for main loop thread
-    if (mainloopThread.joinable()) { mainloopThread.join(); }
-
-    // Cleanup main loop
-    if (mainloop) {
-      pa_mainloop_free(mainloop);
-      mainloop = nullptr;
-    }
-
-    mainloopApi = nullptr;
-    contextReady = false;
-    streamReady = false;
-  }
-
-  // === Device Management ===
-
-  bool LinuxAV::setVideoDevice(const std::string & devicePath) {
-    selectedVideoDevice = devicePath;
-    INFO_MSG("Video device set to: %s", selectedVideoDevice.c_str());
-    return true;
-  }
-
-  bool LinuxAV::setAudioDevice(const std::string & deviceName) {
-    if (deviceName.empty()) {
-      selectedAudioDevice = "@DEFAULT_SOURCE@";
-    } else {
-      selectedAudioDevice = deviceName;
-    }
-    INFO_MSG("Audio device set to: %s", selectedAudioDevice.c_str());
-    return true;
-  }
-
-  bool LinuxAV::areDevicesAvailable() {
-    bool videoAvailable = true;
-    bool audioAvailable = true;
-
-    // Check video device availability
-    if (hasVideo && !selectedVideoDevice.empty()) {
-      int testFd = open(selectedVideoDevice.c_str(), O_RDWR);
-      if (testFd < 0) {
-        videoAvailable = false;
-      } else {
-        // Verify it's actually a video capture device
-        struct v4l2_capability cap;
-        if (ioctl(testFd, VIDIOC_QUERYCAP, &cap) < 0 || !(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
-          videoAvailable = false;
-        }
-        close(testFd);
-      }
-    }
-
-    // Check audio device availability
-    if (hasAudio && !selectedAudioDevice.empty()) {
-      // For PulseAudio, we'll do a quick connection test
-      pa_mainloop *testMainloop = pa_mainloop_new();
-      if (testMainloop) {
-        pa_mainloop_api *testApi = pa_mainloop_get_api(testMainloop);
-        pa_context *testContext = pa_context_new(testApi, "MistServer Device Test");
-        if (testContext) {
-          if (pa_context_connect(testContext, nullptr, PA_CONTEXT_NOFLAGS, nullptr) >= 0) {
-            // Wait briefly for connection
-            int iterations = 0;
-            while (iterations < 50) {
-              if (pa_mainloop_iterate(testMainloop, 0, nullptr) < 0) break;
-              pa_context_state_t state = pa_context_get_state(testContext);
-              if (state == PA_CONTEXT_READY) {
-                break;
-              } else if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) {
-                audioAvailable = false;
-                break;
-              }
-              iterations++;
-            }
-          } else {
-            audioAvailable = false;
-          }
-          pa_context_disconnect(testContext);
-          pa_context_unref(testContext);
-        } else {
-          audioAvailable = false;
-        }
-        pa_mainloop_free(testMainloop);
-      } else {
-        audioAvailable = false;
-      }
-    }
-
-    return (!hasVideo || videoAvailable) && (!hasAudio || audioAvailable);
-  }
-
-  // === PulseAudio Callbacks ===
-
-  void LinuxAV::streamReadCallback(pa_stream *stream, size_t length, void *userdata) {
-    LinuxAV *input = static_cast<LinuxAV *>(userdata);
-    if (!input || !stream) return;
-
-    const void *data;
-    size_t bytesRead;
-
-    if (pa_stream_peek(stream, &data, &bytesRead) < 0) {
-      ERROR_MSG("Failed to read from PulseAudio stream: %s", pa_strerror(pa_context_errno(input->context)));
-      return;
-    }
-
-    if (data && bytesRead > 0) {
-      uint64_t timestamp = Util::bootMS();
-      input->bufferAudioData(data, bytesRead, timestamp);
-    }
-
-    pa_stream_drop(stream);
-  }
-
-  void LinuxAV::streamStateCallback(pa_stream *stream, void *userdata) {
-    LinuxAV *input = static_cast<LinuxAV *>(userdata);
-    if (!input || !stream) return;
-
-    pa_stream_state_t state = pa_stream_get_state(stream);
-
-    switch (state) {
-      case PA_STREAM_READY:
-        INFO_MSG("PulseAudio stream ready");
-        input->streamReady = true;
-        break;
-      case PA_STREAM_FAILED:
-        ERROR_MSG("PulseAudio stream failed: %s", pa_strerror(pa_context_errno(input->context)));
-        input->streamReady = false;
-        break;
-      case PA_STREAM_TERMINATED:
-        INFO_MSG("PulseAudio stream terminated");
-        input->streamReady = false;
-        break;
-      default: break;
-    }
-  }
-
-  void LinuxAV::contextStateCallback(pa_context *c, void *userdata) {
-    LinuxAV *input = static_cast<LinuxAV *>(userdata);
-    pa_context_state_t state = pa_context_get_state(c);
-
-    switch (state) {
-      case PA_CONTEXT_CONNECTING: INFO_MSG("PulseAudio context connecting..."); break;
-      case PA_CONTEXT_AUTHORIZING: INFO_MSG("PulseAudio context authorizing..."); break;
-      case PA_CONTEXT_SETTING_NAME: INFO_MSG("PulseAudio context setting name..."); break;
-      case PA_CONTEXT_READY:
-        INFO_MSG("PulseAudio context ready");
-        input->contextReady = true;
-        break;
-      case PA_CONTEXT_FAILED:
-        ERROR_MSG("PulseAudio context failed: %s", pa_strerror(pa_context_errno(c)));
-        input->contextReady = false;
-        break;
-      case PA_CONTEXT_TERMINATED:
-        INFO_MSG("PulseAudio context terminated");
-        input->contextReady = false;
-        break;
-      default: break;
-    }
-  }
-
-  void LinuxAV::sourceInfoCallback(pa_context *context, const pa_source_info *info, int eol, void *userdata) {
-    if (eol) return;
-
-    LinuxAV *input = static_cast<LinuxAV *>(userdata);
-    if (!input || !info) return;
-
-    INFO_MSG("Found PulseAudio source: %s (%s)", info->name,
-             info->description ? info->description : info->name);
-  }
-
-  void LinuxAV::mainloopThreadFunction() {
-    INFO_MSG("PulseAudio main loop thread started");
-
-    while (config->is_active) { pa_mainloop_iterate(mainloop, 1, NULL); }
-
-    INFO_MSG("PulseAudio main loop thread finished");
-  }
-
-  bool LinuxAV::waitForStreamReady(uint32_t timeout_ms) {
-    auto start = std::chrono::steady_clock::now();
-    auto timeout = std::chrono::milliseconds(timeout_ms);
-
-    while (!streamReady && config->is_active) {
-      if (std::chrono::steady_clock::now() - start > timeout) {
-        ERROR_MSG("Timeout waiting for PulseAudio stream");
-        return false;
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    return streamReady;
-  }
-
-  bool LinuxAV::initializePulseAudio() {
-    INFO_MSG("Starting PulseAudio initialization...");
-
-    // Create main loop
-    mainloop = pa_mainloop_new();
-    if (!mainloop) {
-      ERROR_MSG("Failed to create PulseAudio main loop");
-      return false;
-    }
-
-    mainloopApi = pa_mainloop_get_api(mainloop);
-    if (!mainloopApi) {
-      ERROR_MSG("Failed to get PulseAudio main loop API");
-      return false;
-    }
-
-    // Create context
-    context = pa_context_new(mainloopApi, "MistServer A/V Input");
-    if (!context) {
-      ERROR_MSG("Failed to create PulseAudio context");
-      return false;
-    }
-
-    // Set context state callback
-    pa_context_set_state_callback(context, contextStateCallback, this);
-
-    // Connect to server
-    if (pa_context_connect(context, NULL, PA_CONTEXT_NOFLAGS, NULL) < 0) {
-      ERROR_MSG("Failed to connect to PulseAudio server");
-      return false;
-    }
-
-    // Wait for context to be ready using mainloop iteration
-    contextReady = false;
-    while (!contextReady) {
-      pa_mainloop_iterate(mainloop, 1, NULL);
-
-      pa_context_state_t state = pa_context_get_state(context);
-      if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) {
-        ERROR_MSG("PulseAudio context failed to become ready");
-        return false;
-      }
-    }
-
-    INFO_MSG("PulseAudio context ready");
-
-    // Now start the mainloop thread for ongoing operations
-    mainloopThread = std::thread(&LinuxAV::mainloopThreadFunction, this);
-
-    return true;
-  }
-
-  bool LinuxAV::createPulseAudioStream() {
-    if (!context || !contextReady) {
-      ERROR_MSG("PulseAudio context not ready");
-      return false;
-    }
-
-    // Create stream
-    stream = pa_stream_new(context, "MistServer A/V Audio Input", &sampleSpec, &channelMap);
-    if (!stream) {
-      ERROR_MSG("Failed to create PulseAudio stream: %s", pa_strerror(pa_context_errno(context)));
-      return false;
-    }
-
-    // Set stream callbacks
-    pa_stream_set_state_callback(stream, streamStateCallback, this);
-    pa_stream_set_read_callback(stream, streamReadCallback, this);
-
-    // Connect stream
-    pa_stream_flags_t flags =
-      static_cast<pa_stream_flags_t>(PA_STREAM_ADJUST_LATENCY | PA_STREAM_AUTO_TIMING_UPDATE);
-
-    const char *deviceName = selectedAudioDevice.c_str();
-    if (selectedAudioDevice == "@DEFAULT_SOURCE@") {
-      deviceName = nullptr; // Use default
-    }
-
-    if (pa_stream_connect_record(stream, deviceName, &bufferAttr, flags) < 0) {
-      ERROR_MSG("Failed to connect PulseAudio stream: %s", pa_strerror(pa_context_errno(context)));
-      return false;
-    }
-
-    INFO_MSG("PulseAudio stream created and connected");
-    return true;
-  }
-
-#endif // __linux__
 
 } // namespace Mist

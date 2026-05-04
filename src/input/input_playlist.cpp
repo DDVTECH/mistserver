@@ -165,7 +165,8 @@ namespace Mist{
     playlist_startTime.clear();
     while (inFile.good()){
       std::getline(inFile, line);
-      if (inFile.good() && line.size() && line.at(0) != '#'){
+      while (line.size() && *line.rbegin() == '\r') { line.erase(line.size() - 1); }
+      if (line.size() && line.at(0) != '#') {
         playlist.push_back(line);
         playlist_startTime.push_back(plsStartTime);
         if (plsStartTime != 0xFFFF){
@@ -179,7 +180,7 @@ namespace Mist{
           HIGH_MSG("Start %s on %d (min: %zu, max: %zu)", line.c_str(), plsStartTime, minIndex, maxIndex);
         }
         plsStartTime = 0xFFFF;
-      }else{
+      } else {
         if (line.size() > 13 && line.at(0) == '#' && line.substr(0, 13) == "#X-STARTTIME:"){
           int hour, min;
           if (sscanf(line.c_str() + 13, "%d:%d", &hour, &min) == 2){

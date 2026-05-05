@@ -153,32 +153,17 @@ namespace Mist {
     option["arg"] = "integer";
     option["long"] = "buffersize";
     option["short"] = "B";
-    option["help"] = "Audio buffer size in samples";
-    option["value"].append(1024);
+    option["help"] = "Audio buffer size in samples (0 = auto)";
+    option["value"].append(0);
     config->addOption("buffersize", option);
 
     capa["optional"]["buffersize"]["name"] = "Audio buffer size";
-    capa["optional"]["buffersize"]["help"] = "Buffer size for audio (in samples per channel)";
+    capa["optional"]["buffersize"]["help"] = "Buffer size for audio (in samples per channel, 0 = auto)";
     capa["optional"]["buffersize"]["unit"] = "samples";
     capa["optional"]["buffersize"]["option"] = "--buffersize";
     capa["optional"]["buffersize"]["short"] = "B";
-    capa["optional"]["buffersize"]["default"] = 1024;
+    capa["optional"]["buffersize"]["default"] = 0;
     capa["optional"]["buffersize"]["type"] = "int";
-
-    option.null();
-    option["arg"] = "double";
-    option["long"] = "gain";
-    option["short"] = "G";
-    option["help"] = "Audio input gain (0.0-2.0)";
-    option["value"].append(0.5);
-    config->addOption("gain", option);
-
-    capa["optional"]["gain"]["name"] = "Audio gain";
-    capa["optional"]["gain"]["help"] = "Amplication to apply to audio volume";
-    capa["optional"]["gain"]["option"] = "--gain";
-    capa["optional"]["gain"]["short"] = "G";
-    capa["optional"]["gain"]["default"] = 0.5;
-    capa["optional"]["gain"]["type"] = "float";
 
     option.null();
     option["arg"] = "string";
@@ -305,14 +290,9 @@ namespace Mist {
         hasAudio = true;
         INFO_MSG("Auto-detected audio device: %s", selectedAudioDevice.c_str());
       } else {
-#endif
         WARN_MSG("No audio devices found or PulseAudio server unavailable, audio capture disabled");
         hasAudio = false;
-#ifdef WITH_PULSE
       }
-    } else {
-      // Resolve partial names for any provided audio device
-      if (hasAudioDevice) { selectedAudioDevice = resolveAudioDevice(selectedAudioDevice); }
 #endif
     }
 
@@ -322,14 +302,19 @@ namespace Mist {
       sampleRate = config->getInteger("samplerate");
       if (sampleRate <= 0) sampleRate = 48000;
 
+      if ((sampleRate / 1000) * 1000 == sampleRate){
+        wholeMs = sampleRate / 1000;
+      }else if ((sampleRate / 100) * 100 == sampleRate){
+        wholeMs = sampleRate / 100;
+      }else if (sampleRate == 11025 || sampleRate == 22050){
+        wholeMs = 441;
+      }
+
       channels = config->getInteger("channels");
       if (channels <= 0) channels = 2;
 
       bufferSize = config->getInteger("buffersize");
-      if (bufferSize <= 0) bufferSize = 1024;
-
-      inputGain = atof(config->getString("gain").c_str());
-      if (inputGain <= 0.0) inputGain = 0.5;
+      if (bufferSize <= 0) bufferSize = wholeMs * 10;
     }
 #endif
 
@@ -534,7 +519,7 @@ namespace Mist {
           thisIdx = videoTrackIdx;
           bufferLivePacket(thisTime, 0, videoTrackIdx, videoBuffer, bytesUsed, 0, true);
           frameCount++;
-          DONTEVEN_MSG("Buffered video packet, frame count: %lu", frameCount);
+          INSANE_MSG("Buffered video packet %" PRIu64 " at " PRETTY_PRINT_MSTIME, frameCount, PRETTY_ARG_MSTIME(thisTime));
         }
 
         // Queue the buffer again for the next frame
@@ -558,25 +543,19 @@ namespace Mist {
       // Process audio if enabled
       if (hasAudio) {
         std::unique_lock<std::mutex> lock(bufferMutex);
-        bufferCondition.wait_for(lock, std::chrono::milliseconds(100),
-                                 [this] { return !audioQueue.empty() || !isCapturing; });
+        size_t multiplier = audioData.size() / (wholeMs * channels * 4);
+        if (multiplier){
+          // Calculate bytes we'll put in a packet
+          size_t bytes = (wholeMs * channels * 4) * multiplier;
+          // Calculate milliseconds we'll put in a packet
+          size_t mills = (1000 * wholeMs / sampleRate) * multiplier;
 
-        if (!isCapturing) break;
-
-        while (!audioQueue.empty() && config->is_active) {
-          std::vector<uint32_t> audioData = audioQueue.front();
-          uint64_t timestamp = timestampQueue.front();
-          audioQueue.pop();
-          timestampQueue.pop();
-          lock.unlock();
-
-          // Buffer the audio packet
-          thisTime = timestamp - startTimestamp;
+          thisTime = audioTime - startTimestamp;
           thisIdx = audioTrackIdx;
-          bufferLivePacket(thisTime, 0, audioTrackIdx,
-                           reinterpret_cast<const char *>(audioData.data()), audioData.size(), 0, true);
-
-          lock.lock();
+          bufferLivePacket(thisTime, 0, thisIdx, audioData, bytes, 0, true);
+          INSANE_MSG("Buffered audio packet at " PRETTY_PRINT_MSTIME, PRETTY_ARG_MSTIME(thisTime));
+          audioData.shift(bytes);
+          audioTime += mills;
         }
       }
 #endif
@@ -625,7 +604,7 @@ namespace Mist {
         bufferAttr.prebuf = (uint32_t)-1;
         bufferAttr.tlength = (uint32_t)-1;
 
-        INFO_MSG("Audio format configured: %uHz, %u channels, float32", sampleRate, channels);
+        INFO_MSG("Audio format configured: %" PRIu32 "Hz, %" PRIu32 "ch", sampleRate, channels);
 
         // Create stream
         stream = pa_stream_new(context, "MistServer A/V Audio Input", &sampleSpec, &channelMap);
@@ -671,12 +650,10 @@ namespace Mist {
             return;
           }
 
-          if (data && bytesRead) {
-            uint64_t timestamp = Util::bootMS();
-            input->bufferAudioData(data, bytesRead, timestamp);
+          if (bytesRead) {
+            input->bufferAudioData(data, bytesRead);
+            pa_stream_drop(stream);
           }
-
-          if (bytesRead) { pa_stream_drop(stream); }
         }, this);
 
         // Connect stream
@@ -1297,7 +1274,8 @@ namespace Mist {
 
     INFO_MSG("Requesting PulseAudio source list...");
 
-    auto sourceListCallback = +[](pa_context *c, const pa_source_info *info, int eol, void *userdata) {
+    pa_operation *op =
+      pa_context_get_source_info_list(tempContext, [](pa_context *c, const pa_source_info *info, int eol, void *userdata) {
       SourceEnumData *data = static_cast<SourceEnumData *>(userdata);
       if (eol) {
         INFO_MSG("End of PulseAudio source list reached");
@@ -1306,12 +1284,9 @@ namespace Mist {
       }
       if (info && info->name) {
         data->devices->push_back(info->name);
-        INFO_MSG("Found PulseAudio source: %s (%s)", info->name,
-                 info->description ? info->description : "no description");
+        INFO_MSG("Found PulseAudio source: %s (%s)", info->name, info->description ? info->description : "no description");
       }
-    };
-
-    pa_operation *op = pa_context_get_source_info_list(tempContext, sourceListCallback, &enumData);
+    }, &enumData);
     if (op) {
       INFO_MSG("PulseAudio operation started, waiting for completion...");
       while (!enumData.done) {
@@ -1406,33 +1381,17 @@ namespace Mist {
     }
   }
 
-  void LinuxAV::bufferAudioData(const void *buffer, size_t length, uint64_t timestamp) {
-    if (!buffer || length == 0) return;
-
-
-    /// \TODO This logic is really bad - let's replace it with a single sample buffer and we read from it whole milliseconds at a time.
-
-    // Apply input gain to prevent clipping
-    size_t sampleCount = length / sizeof(uint32_t);
-    std::vector<uint32_t> processedBuffer(sampleCount);
-    const uint32_t *input = static_cast<const uint32_t *>(buffer);
-    uint32_t *output = reinterpret_cast<uint32_t *>(processedBuffer.data());
-
-    memcpy(output, input, length);
-
-    // Add to buffer queue
+  void LinuxAV::bufferAudioData(const void *buffer, size_t length) {
+    if (!length) return;
     {
       std::lock_guard<std::mutex> lock(bufferMutex);
-      audioQueue.push(std::move(processedBuffer));
-      timestampQueue.push(timestamp);
-
-      // Limit buffer size to prevent memory issues
-      while (audioQueue.size() > 100) {
-        audioQueue.pop();
-        timestampQueue.pop();
+      if (!audioTime) { audioTime = Util::bootMS(); }
+      if (!buffer) {
+        audioData.appendNull(length);
+      } else {
+        audioData.append(buffer, length);
       }
     }
-    bufferCondition.notify_one();
   }
 #endif
 
@@ -1671,8 +1630,7 @@ namespace Mist {
 
     // If we still have no format/resolution, but detected active input, use that
     if (!videoPixelFmt && foundActiveInput) {
-      ERROR_MSG(
-        "No supported formats found, but active input was detected - this shouldn't happen");
+      ERROR_MSG("No supported formats found, but active input was detected - this shouldn't happen");
       return false;
     }
 

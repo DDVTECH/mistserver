@@ -71,11 +71,11 @@ namespace Mist {
       // Pulseaudio related
       std::vector<std::string> getAudioDevices();
       std::string resolveAudioDevice(const std::string & partialName);
-      void bufferAudioData(const void *buffer, size_t length, uint64_t timestamp);
+      void bufferAudioData(const void *buffer, size_t length);
       // Audio parameters
       uint32_t sampleRate{48000}; ///< Sample rate in Hz
       uint32_t channels{2}; ///< Number of channels
-      uint32_t bufferSize{1024}; ///< Audio buffer size in samples
+      uint32_t bufferSize{0}; ///< Audio buffer size in samples
       float inputGain{0.5f}; ///< Input gain level (0.0-1.0)
       // Audio variables
       pa_mainloop *mainloop{0}; ///< PulseAudio main loop
@@ -86,10 +86,10 @@ namespace Mist {
       bool contextReady{false}; ///< Audio context ready flag
       bool streamReady{false}; ///< Audio stream ready flag
       std::thread mainloopThread; ///< PulseAudio mainloop thread
-      std::queue<std::vector<uint32_t>> audioQueue; ///< Audio data queue
-      std::condition_variable bufferCondition; ///< Condition variable for buffer
+      Util::ResizeablePointer audioData; ///< Audio data buffer
+      uint64_t audioTime{0}; ///< Millisecond timestamp of the first value in the audioData buffer
       std::mutex bufferMutex; ///< Mutex for buffer access
-      std::queue<uint64_t> timestampQueue; ///< Timestamp queue
+      size_t wholeMs{48}; ///< How many samples is a while number of millis?
 #endif
 
       // State tracking

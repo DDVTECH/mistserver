@@ -55,11 +55,11 @@ namespace Mist {
 
   LinuxAV::LinuxAV(Util::Config *cfg) : Input(cfg) {
     capa["name"] = "LinuxAV";
-    capa["desc"] =
-      "Enables combined audio and video input on Linux systems using V4L2 and PulseAudio";
-    capa["source_match"] = "linuxav:*";
+    capa["desc"] = "Enables (combined) audio/video input on Linux systems using V4L2 and/or PulseAudio";
+    capa["source_match"] = "linuxav";
     capa["always_match"] = capa["source_match"];
     capa["priority"] = 9;
+    capa["dynamic_capa"] = true;
     capa["codecs"][0u][0u].append("PCM");
     capa["codecs"][0u][1u].append("JPEG");
     capa["codecs"][0u][1u].append("YUYV");
@@ -87,11 +87,7 @@ namespace Mist {
 
     // State tracking
     hasVideo = true;
-#ifdef WITH_PULSE
-    hasAudio = true;
-#else
     hasAudio = false;
-#endif
     isCapturing = false;
     frameCount = 0;
     startTimestamp = 0;
@@ -179,7 +175,6 @@ namespace Mist {
     capa["optional"]["audio-device"]["short"] = "A";
     capa["optional"]["audio-device"]["default"] = "";
     capa["optional"]["audio-device"]["type"] = "str";
-
 #endif
 
     option.null();
@@ -206,7 +201,6 @@ namespace Mist {
     option["value"].append("");
     config->addOption("enumerate", option);
 
-    capa["dynamic_capa"] = true;
     option.null();
     option["long"] = "getcapa";
     option["arg"] = "string";
@@ -227,30 +221,6 @@ namespace Mist {
     // Check if any device parameters were provided
     bool hasVideoDevice = false;
     bool hasAudioDevice = false;
-
-    if (input.size() >= 9 && input.substr(0, 8) == "linuxav:") {
-      std::string params = input.substr(8);
-
-      size_t videoPos = params.find("video=");
-      if (videoPos != std::string::npos) {
-        size_t videoEnd = params.find(",", videoPos);
-        if (videoEnd == std::string::npos) videoEnd = params.length();
-        selectedVideoDevice = params.substr(videoPos + 6, videoEnd - videoPos - 6);
-        hasVideoDevice = true;
-        hasVideo = true;
-      }
-
-#ifdef WITH_PULSE
-      size_t audioPos = params.find("audio=");
-      if (audioPos != std::string::npos) {
-        size_t audioEnd = params.find(",", audioPos);
-        if (audioEnd == std::string::npos) audioEnd = params.length();
-        selectedAudioDevice = params.substr(audioPos + 6, audioEnd - audioPos - 6);
-        hasAudioDevice = true;
-        hasAudio = true;
-      }
-    }
-#endif
 
     // Check command-line device options (override URL params)
     if (config->hasOption("video-device") && !config->getString("video-device").empty()) {

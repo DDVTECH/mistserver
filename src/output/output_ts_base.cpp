@@ -235,7 +235,7 @@ namespace Mist{
       if (codec == "SCTE35") {
         if (dataLen && dataPointer[0] == '{') {
           uint64_t duration = 30000;
-          JSON::Value cmd = JSON::fromString(dataPointer, dataLen);
+          JSON::Value cmd(PARSEJSON, dataPointer, dataLen);
           if (cmd.isMember("splice_out")) { duration = cmd["splice_out"].asInt(); }
           TS::SpliceInfoSection sis;
           sis.randomizeSpliceID();

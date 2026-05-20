@@ -1446,8 +1446,7 @@ namespace Mist{
   }
 
   void OutMP4::onWebsocketFrame() {
-    JSON::Value command;
-    command.fromString(webSock->data, webSock->data.size());
+    JSON::Value command(PARSEJSON, webSock->data, webSock->data.size());
     if (!command.isMember("type")) {return;}
     
     if (command["type"] == "request_codec_data") {

@@ -511,8 +511,7 @@ namespace Mist{
     if (webSock->frameType != 1){return false;}
 
     //Parse JSON and check command type
-    JSON::Value command;
-    command.fromString(webSock->data, webSock->data.size());
+    JSON::Value command(PARSEJSON, webSock->data, webSock->data.size());
     if (!command || !command.isMember("type")){return false;}
 
     return handleCommand(command);

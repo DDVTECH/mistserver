@@ -701,7 +701,6 @@ namespace Mist{
 
     // used for building args
     int err = fileno(stderr);
-    char *argarr[5];
 
     // Convert to strings
     jsonForEachConst(procs, it){
@@ -785,70 +784,57 @@ namespace Mist{
 
     std::string debugLvl;
     // start up new/changed connectors
-    while (newProcs.size() && config->is_active){
-      const std::string & config = (*newProcs.begin());
-      JSON::Value args;
-      args.fromString(config);
-      if (!runningProcs.count(config) || !Util::Procs::isActive(runningProcs[config])){
-        // Check restart behaviour - default to instant (re)starts
-        std::string restartType = "fixed";
-        uint64_t restartDelay = 0;
-        if (args.isMember("restart_type")){
-          restartType = args["restart_type"].asString();
-        }
-        if (args.isMember("restart_delay")){
-          restartDelay = args["restart_delay"].asInt();
-        }
+    for (const std::string & config : newProcs) {
+      if (runningProcs.count(config) && Util::Procs::isActive(runningProcs[config])) { continue; }
+      JSON::Value args(PARSEJSON, config);
+      // Check restart behaviour - default to instant (re)starts
+      std::string restartType = "fixed";
+      uint64_t restartDelay = 0;
+      if (args.isMember("restart_type")) { restartType = args["restart_type"].asString(); }
+      if (args.isMember("restart_delay")) { restartDelay = args["restart_delay"].asInt(); }
 
-        // Skip if restarts are disabled and this buffer has already booted an instance of this process
-        if (restartType == "disabled" && procBoots[config]){
-          VERYHIGH_MSG("Skipping process `%s`, as restarts are disabled", args["process"].asString().c_str());
-          newProcs.erase(newProcs.begin());
-          continue;
-        }
-        // Apply any delayed start time if we've booted before
-        if (restartDelay && procBoots[config] && !procNextBoot[config]){
-          if (restartType == "fixed"){
-            procNextBoot[config] = now + restartDelay;
-          }else if (restartType == "backoff"){
-            uint64_t thisTries = procBoots[config];
-            if (thisTries > 10){
-              thisTries = 10;
-            }
-            procNextBoot[config] = now + Util::expBackoffMs(thisTries, 10, restartDelay);
-          }
-        }
-        // Skip if we have a delayed start time
-        if (procNextBoot[config] > now){
-          VERYHIGH_MSG("Delaying start of process `%s`, %" PRIu64 " ms remaining", args["process"].asString().c_str(), procNextBoot[config] - now);
-          newProcs.erase(newProcs.begin());
-          continue;
-        }
-
-        std::string procname = Util::getMyPath() + "MistProc" + args["process"].asString();
-        argarr[0] = (char *)procname.c_str();
-        argarr[1] = (char *)config.c_str();
-        argarr[2] = 0;
-        if (Util::printDebugLevel != DEBUG || args.isMember("debug")){
-          if (args.isMember("debug")){
-            debugLvl = args["debug"].asString();
-          }else{
-            debugLvl = std::to_string(Util::printDebugLevel);
-          }
-          argarr[2] = (char*)"--debug";
-          argarr[3] = (char*)debugLvl.c_str();;
-          argarr[4] = 0;
-        }
-        // Only count process as not-running if it's not inconsequential
-        if (!args.isMember("inconsequential") || !args["inconsequential"].asBool()) { allProcsRunning = false; }
-        runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
-        INFO_MSG("Started process %zu: %s %s", (size_t)runningProcs[*newProcs.begin()], argarr[0], argarr[1]);
-        // Increment per-process boot counter
-        procBoots[*newProcs.begin()]++;
-        // Remove the delayed start counter
-        procNextBoot.erase(*newProcs.begin());
+      // Skip if restarts are disabled and this buffer has already booted an instance of this process
+      if (restartType == "disabled" && procBoots[config]) {
+        VERYHIGH_MSG("Skipping process `%s`, as restarts are disabled", args["process"].asString().c_str());
+        continue;
       }
-      newProcs.erase(newProcs.begin());
+      // Apply any delayed start time if we've booted before
+      if (restartDelay && procBoots[config] && !procNextBoot[config]) {
+        if (restartType == "fixed") {
+          procNextBoot[config] = now + restartDelay;
+        } else if (restartType == "backoff") {
+          uint64_t thisTries = procBoots[config];
+          if (thisTries > 10) { thisTries = 10; }
+          procNextBoot[config] = now + Util::expBackoffMs(thisTries, 10, restartDelay);
+        }
+      }
+      // Skip if we have a delayed start time
+      if (procNextBoot[config] > now) {
+        VERYHIGH_MSG("Delaying start of process `%s`, %" PRIu64 " ms remaining", args["process"].asString().c_str(),
+                     procNextBoot[config] - now);
+        continue;
+      }
+
+      std::string procname = Util::getMyPath() + "MistProc" + args["process"].asString();
+      std::deque<std::string> argarr;
+      argarr.push_back(procname);
+      argarr.push_back(config);
+      if (Util::printDebugLevel != DEBUG || args.isMember("debug")) {
+        argarr.push_back("--debug");
+        if (args.isMember("debug")) {
+          argarr.push_back(args["debug"].asString());
+        } else {
+          argarr.push_back(std::to_string(Util::printDebugLevel));
+        }
+      }
+      // Only count process as not-running if it's not inconsequential
+      if (!args.isMember("inconsequential") || !args["inconsequential"].asBool()) { allProcsRunning = false; }
+      runningProcs[config] = Util::Procs::StartPiped(argarr, 0, 0, &err);
+      INFO_MSG("Started process %zu: %s %s", (size_t)runningProcs[config], argarr[0].c_str(), argarr[1].c_str());
+      // Increment per-process boot counter
+      procBoots[*newProcs.begin()]++;
+      // Remove the delayed start counter
+      procNextBoot.erase(*newProcs.begin());
     }
   }
   /*LTS-END*/

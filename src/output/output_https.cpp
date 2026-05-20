@@ -161,8 +161,7 @@ namespace Mist{
       crtAndKey & srvcert = srvcerts.back();
       if (cFile[0] == '[') {
         ignoreKeys = true;
-        JSON::Value crtCnf;
-        crtCnf.fromString(cFile);
+        JSON::Value crtCnf(PARSEJSON, cFile);
         jsonForEachConst (crtCnf, jt) {
           if (!jt->asStringRef().size()) { continue; }
           if (jt.num() + 1 != crtCnf.size()) {

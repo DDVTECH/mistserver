@@ -41,9 +41,7 @@ namespace Mist{
   }
 
   void OutH264::onWebsocketFrame() {
-
-    JSON::Value command;
-    command.fromString(webSock->data, webSock->data.size());
+    JSON::Value command(PARSEJSON, webSock->data, webSock->data.size());
     if (!command.isMember("type")) {
       JSON::Value r;
       r["type"] = "error";

@@ -241,8 +241,8 @@ namespace JWT {
     Util::RelAccXFieldData fKid = keys.getFieldData("kid");
     for (uint64_t i = delled; i < max; ++i) {
       if (kid == keys.getPointer(fKid, i)) {
-        key = Key(JSON::fromString(keys.getPointer("key", i)), JSON::fromString(keys.getPointer("stream", i)),
-                  keys.getInt("perms", i));
+        key = Key(JSON::Value(PARSEJSON, keys.getPointer("key", i)),
+                  JSON::Value(PARSEJSON, keys.getPointer("stream", i)), keys.getInt("perms", i));
         break;
       }
     }
@@ -313,8 +313,8 @@ namespace JWT {
       if (!kty || *kty != aty) continue;
 
       // Retrieve the full key and attempt to verify with the respective algorithm
-      Key key = Key(JSON::fromString(keys.getPointer("key", i)), JSON::fromString(keys.getPointer("stream", i)),
-                    keys.getInt("perms", i));
+      Key key = Key(JSON::Value(PARSEJSON, keys.getPointer("key", i)),
+                    JSON::Value(PARSEJSON, keys.getPointer("stream", i)), keys.getInt("perms", i));
       if (key.matchKeyPerms(streamName, perms) && verify(msg, key, sig, alg)) return true;
     }
     WARN_MSG("Could not verify the signature with known stored keys");

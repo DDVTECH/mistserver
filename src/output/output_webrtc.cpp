@@ -788,8 +788,7 @@ namespace Mist{
   void OutWebRTC::setIceHeaders(HTTP::Parser & H){
     if (!config->getString("iceservers").size()){return;}
     std::deque<std::string> links;
-    JSON::Value iceConf;
-    iceConf.fromString(config->getString("iceservers"));
+    JSON::Value iceConf(PARSEJSON, config->getString("iceservers"));
     jsonForEach(iceConf, i){
       if (i->isMember("url") && (*i)["url"].isString()){
         JSON::Value &u = (*i)["url"];
@@ -993,8 +992,7 @@ namespace Mist{
       return;
     }
 
-    JSON::Value command;
-    command.fromString(webSock->data, webSock->data.size());
+    JSON::Value command(PARSEJSON, webSock->data, webSock->data.size());
     JSON::Value commandResult;
 
     if(command.isMember("encrypt")){
@@ -2440,8 +2438,7 @@ namespace Mist{
       }
     }else if (ppid == 51){
       if (wsCmdForce && wSock.dataChannels.count("MistControl") && wSock.dataChannels["MistControl"] == stream){
-        JSON::Value command;
-        command.fromString(data, len);
+        JSON::Value command(PARSEJSON, data, len);
         if (!command || !command.isMember("type")){return;}
         handleCommand(command);
         return;

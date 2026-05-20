@@ -21,9 +21,10 @@ namespace Mist{
     capa["desc"] = "Serves static files over HTTP from a set folder";
     capa["url_rel"] = "/static/";
     capa["url_prefix"] = "/static/";
-    cfg->addOption("webroot", JSON::fromString("{\"arg\":\"string\", "
-                                               "\"short\":\"w\",\"long\":\"webroot\",\"help\":"
-                                               "\"Root directory for static files to serve.\"}"));
+    cfg->addOption("webroot", R"-({
+      "short":"w", "long":"webroot", "arg":"string",
+      "help": "Root directory for static files to serve."
+    }")-");
     capa["required"]["webroot"]["name"] = "Web root directory";
     capa["required"]["webroot"]["help"] = "Main directory where files are served from.";
     capa["required"]["webroot"]["type"] = "str";

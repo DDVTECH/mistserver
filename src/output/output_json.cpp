@@ -52,7 +52,7 @@ namespace Mist{
       size_t dLen;
       thisPacket.getString("data", dPtr, dLen);
       if (dLen == 0 || (dLen == 1 && dPtr[0] == ' ')){return;}
-      jPack["data"] = JSON::fromString(dPtr, dLen);
+      jPack["data"].fromString(dPtr, dLen);
       jPack["time"] = thisTime;
       jPack["track"] = (uint64_t)thisIdx;
     }else if (M.getCodec(thisIdx) == "subtitle"){
@@ -226,7 +226,7 @@ namespace Mist{
     }
 
     // We now know we're allowed to push. Read a JSON object.
-    JSON::Value inJSON = JSON::fromString(ptr, len);
+    JSON::Value inJSON(PARSEJSON, ptr, len);
     // Let's create a new track for pushing purposes, if needed
     if (pushTrack == INVALID_TRACK_ID) {
       // First attempt to resume a track if we can

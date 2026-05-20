@@ -569,7 +569,7 @@ AMF::Object AMF::parse(std::string data){
 // Helper which converts raw JSON bytes into a AMF::Object.
 AMF::Object AMF::fromJSON(const char *data, unsigned int len, bool root) {
   if (!data || !len) { return AMF::Object(); }
-  return AMF::fromJSON(JSON::fromString(data, len), "", root);
+  return AMF::fromJSON(JSON::Value(PARSEJSON, data, len), "", root);
 }
 
 // Helper which convert a JSON string into a AMF::Object.

@@ -436,22 +436,22 @@ int dashAnalyser::doAnalyse(){
 int main(int argc, char **argv){
   Util::Config conf = Util::Config(argv[0]);
 
-  conf.addOption(
-      "mode",
-      JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", "
-                       "\"default\":\"analyse\", \"help\":\"What to "
-                       "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
-  conf.addOption("url", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"URL to "
-                                         "HLS stream index file to retrieve.\"}"));
-  conf.addOption("abort",
-                 JSON::fromString("{\"long\":\"abort\", \"short\":\"a\", \"arg\":\"integer\", "
-                                  "\"default\":-1, \"help\":\"Abort after "
-                                  "this many seconds of downloading. Negative values mean "
-                                  "unlimited, which is the default.\"}"));
-
-  conf.addOption("detail",
-                 JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", "
-                                  "\"default\":2, \"help\":\"Detail level of analysis. \"}"));
+  conf.addOption("mode", R"-({
+    "long":"mode", "short":"m", "arg":"string", "default":"analyse",
+    "help":"What to do with the stream. Valid modes are 'analyse', 'validate', 'output'."
+  })-");
+  conf.addOption("url", R"-({
+    "arg_num":1, "arg":"string",
+    "help":"URL to HLS stream index file to retrieve."
+  })-");
+  conf.addOption("abort", R"-({
+    "long":"abort", "short":"a", "arg":"integer", "default":-1,
+    "help":"Abort after this many seconds of downloading. Negative values mean unlimited, which is the default."
+  })-");
+  conf.addOption("detail", R"-({
+    "long":"detail", "short":"D", "arg":"num", "default":2,
+    "help":"Detail level of analysis."
+  })-");
 
   conf.parseArgs(argc, argv);
   conf.activate();
@@ -464,18 +464,18 @@ int main(int argc, char **argv){
 
 int main2(int argc, char **argv){
   Util::Config conf = Util::Config(argv[0]);
-  conf.addOption(
-      "mode",
-      JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", "
-                       "\"default\":\"analyse\", \"help\":\"What to "
-                       "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
-  conf.addOption("url", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"URL to "
-                                         "HLS stream index file to retrieve.\"}"));
-  conf.addOption("abort",
-                 JSON::fromString("{\"long\":\"abort\", \"short\":\"a\", \"arg\":\"integer\", "
-                                  "\"default\":-1, \"help\":\"Abort after "
-                                  "this many seconds of downloading. Negative values mean "
-                                  "unlimited, which is the default.\"}"));
+  conf.addOption("mode", R"-({
+    "long":"mode", "arg":"string", "short":"m", "default":"analyse",
+    "help":"What to do with the stream. Valid modes are 'analyse', 'validate', 'output'."
+  })-");
+  conf.addOption("url", R"-({
+    "arg_num":1, "arg":"string",
+    "help":"URL to HLS stream index file to retrieve."
+  })-");
+  conf.addOption("abort", R"-({
+    "long":"abort", "short":"a", "arg":"integer", "default":-1,
+    "help":"Abort after this many seconds of downloading. Negative values mean unlimited, which is the default."
+  })-");
   conf.parseArgs(argc, argv);
   conf.activate();
 

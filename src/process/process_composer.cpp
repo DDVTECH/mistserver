@@ -630,7 +630,7 @@ namespace Mist {
           jsonForEach (Mist::opt["source"], it) {
             // Normalize the source config
             if (it->isString() && it->asStringRef().size() && *(it->asStringRef().begin()) == '{') {
-              *it = JSON::fromString(it->asString());
+              it->fromString(it->asString());
             }
 
             // Start an output thread for each unique stream name

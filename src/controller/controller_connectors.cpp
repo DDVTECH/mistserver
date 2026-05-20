@@ -193,35 +193,30 @@ namespace Controller{
     }
 
     // start up new/changed connectors
-    while (runningConns.size() && conf.is_active){
-      if (!currentConnectors.count(*runningConns.begin()) ||
-          !Util::Procs::isActive(currentConnectors[*runningConns.begin()])){
+    for (const std::string & C : runningConns) {
+      if (currentConnectors.count(C) && Util::Procs::isActive(currentConnectors[C])) { continue; }
 
-        JSON::Value cnf;
-        cnf.fromString(*runningConns.begin());
+      JSON::Value cnf(PARSEJSON, C);
+      std::string bin = Util::getMyPath() + "MistOut" + cnf["connector"].asStringRef();
 
-        std::string tmparg;
-        struct stat buf;
-        tmparg = Util::getMyPath() + "MistOut" + cnf["connector"].asStringRef();
-        // Abort if binary not found
-        if (::stat(tmparg.c_str(), &buf)) { continue; }
+      // Abort if binary not found
+      struct stat buf;
+      if (::stat(bin.c_str(), &buf)) { continue; }
 
-        std::deque<std::string> args;
-        args.push_back(tmparg);
-        Util::optionsToArguments(cnf, capabilities["connectors"][cnf["connector"].asStringRef()], args);
+      std::deque<std::string> args;
+      args.push_back(bin);
+      Util::optionsToArguments(cnf, capabilities["connectors"][cnf["connector"].asStringRef()], args);
 
-        int err = 2; // stderr goes to current stderr
-        pid_t newPid = Util::Procs::StartPiped(args, 0, 0, &err);
-        if (newPid) {
-          LOG_MSG("CONF", "Started connector: %s", runningConns.begin()->c_str());
-          action = true;
-          currentConnectors[*runningConns.begin()] = newPid;
-          Triggers::doTrigger("OUTPUT_START", *runningConns.begin());
-        } else {
-          WARN_MSG("Started connector: %s", runningConns.begin()->c_str());
-        }
+      int err = 2; // stderr goes to current stderr
+      pid_t newPid = Util::Procs::StartPiped(args, 0, 0, &err);
+      if (newPid) {
+        LOG_MSG("CONF", "Started connector: %s", C.c_str());
+        action = true;
+        currentConnectors[C] = newPid;
+        Triggers::doTrigger("OUTPUT_START", C);
+      } else {
+        WARN_MSG("Started connector: %s", C.c_str());
       }
-      runningConns.erase(runningConns.begin());
     }
     if (action){saveActiveConnectors();}
     return action;

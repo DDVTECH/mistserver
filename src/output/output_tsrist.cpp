@@ -39,7 +39,7 @@ namespace Mist{
   }
 
   int cb_stats(void *arg, const struct rist_stats *stats_container){
-    JSON::Value stats = JSON::fromString(stats_container->stats_json, stats_container->json_size);
+    JSON::Value stats(PARSEJSON, stats_container->stats_json, stats_container->json_size);
     JSON::Value & sObj = stats["sender-stats"]["peer"]["stats"];
     pktSent += sObj["sent"].asInt();
     pktRetransmitted += sObj["retransmitted"].asInt();

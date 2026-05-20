@@ -709,6 +709,18 @@ JSON::Value::Value(const char *val){
   intVal = 0;
 }
 
+/// Sets this JSON::Value to the given parsed JSON string.
+JSON::Value::Value(JSON::parse, const std::string & val) {
+  unset();
+  fromString(val);
+}
+
+/// Sets this JSON::Value to the given parsed JSON string.
+JSON::Value::Value(JSON::parse, const char *val, size_t len) {
+  unset();
+  fromString(val, len);
+}
+
 /// Sets this JSON::Value to the given integer.
 JSON::Value::Value(uint32_t val){
   myType = INTEGER;
@@ -1609,17 +1621,13 @@ unsigned int JSON::Value::size() const{
 }
 
 /// Converts a std::string to a JSON::Value.
-JSON::Value JSON::fromString(const char *data, uint32_t data_len){
-  JSON::Value R;
-  R.fromString(data, data_len);
-  return R;
+JSON::Value JSON::fromString(const char *data, uint32_t data_len) {
+  return JSON::Value(PARSEJSON, data, data_len);
 }
 
 /// Converts a std::string to a JSON::Value.
 JSON::Value JSON::fromString(const std::string &json){
-  JSON::Value R;
-  R.fromString(json);
-  return R;
+  return JSON::Value(PARSEJSON, json);
 }
 
 /// Converts a file to a JSON::Value.

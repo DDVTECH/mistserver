@@ -179,8 +179,7 @@ namespace Controller{
       if (pos != std::string::npos) { uriExpiresAt[mostExpiredUri] = nowTime + 1000 * std::atoi(cc.data() + pos + 8); }
 
       // Get the response, should be either a 'well-known' response or an array of keys
-      JSON::Value response;
-      response.fromString(jwkDL.data());
+      JSON::Value response(PARSEJSON, jwkDL.data());
 
       // In the event that the endpoint changed remove all old keys associated with it
       std::string jwksUri = response["jwks_uri"].asString();

@@ -193,8 +193,7 @@ namespace Mist {
       crtAndKey & srvcert = srvcerts.back();
       if (cFile[0] == '[') {
         ignoreKeys = true;
-        JSON::Value crtCnf;
-        crtCnf.fromString(cFile);
+        JSON::Value crtCnf(PARSEJSON, cFile);
         jsonForEachConst (crtCnf, jt) {
           if (!jt->asStringRef().size()) { continue; }
           if (jt.num() + 1 != crtCnf.size()) {
@@ -1269,8 +1268,7 @@ namespace Mist {
     vidMultiMap.clear();
     audMultiMap.clear();
     if (targetParams.count("vidmap")) {
-      JSON::Value vidMap;
-      vidMap.fromString(targetParams["vidmap"]);
+      JSON::Value vidMap(PARSEJSON, targetParams["vidmap"]);
       jsonForEachConst (vidMap, it) {
         int k = atoi(it.key().c_str());
         if (vidTracks.count(k)) {
@@ -1280,8 +1278,7 @@ namespace Mist {
       }
     }
     if (targetParams.count("audmap")) {
-      JSON::Value audMap;
-      audMap.fromString(targetParams["audmap"]);
+      JSON::Value audMap(PARSEJSON, targetParams["audmap"]);
       jsonForEachConst (audMap, it) {
         int k = atoi(it.key().c_str());
         if (audTracks.count(k)) {

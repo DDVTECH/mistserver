@@ -437,8 +437,7 @@ void Controller::handleWebSocket(APIConn *aConn) {
       if (aConn->W->frameType != 1) { return; }
 
       // Parse JSON and check command type
-      JSON::Value command;
-      command.fromString(aConn->W->data, aConn->W->data.size());
+      JSON::Value command(PARSEJSON, aConn->W->data, aConn->W->data.size());
       if (command.isArray() && command[0u].asString() == "auth") {
         std::lock_guard<std::mutex> guard(configMutex);
         JSON::Value req;

@@ -17,6 +17,11 @@ namespace JSON{
   /// Lists all types of JSON::Value.
   enum ValueType { EMPTY, BOOL, INTEGER, DOUBLE, STRING, RAWSTRING, ARRAY, OBJECT, UNSET };
 
+  /// Used to switch the string constructor into parsing mode
+  struct parse {};
+#define PARSEJSON \
+  JSON::parse {}
+
   /// JSON-string-escapes a value
   std::string string_escape(const std::string & val, bool isRaw = false);
 
@@ -42,6 +47,8 @@ namespace JSON{
     Value(std::istream &fromstream);
     Value(const std::string &val);
     Value(const char *val);
+    Value(parse, const std::string & val);
+    Value(parse, const char *val, size_t len);
     Value(int32_t val);
     Value(int64_t val);
     Value(uint32_t val);

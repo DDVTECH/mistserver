@@ -237,14 +237,12 @@ int main_loop(int argc, char **argv){
   if (!isatty(fileno(stdin))){Controller::isTerminal = false;}
   Controller::Storage = JSON::fromFile("config.json");
 
-  JSON::Value stored_port;
-  stored_port.fromString(R"-({"long":"port", "short":"p", "arg":"integer", "help":"TCP port to listen on."})-");
+  JSON::Value stored_port(PARSEJSON, R"-({"long":"port", "short":"p", "arg":"integer", "help":"TCP port to listen on."})-");
   stored_port["default"] = Controller::Storage["config"]["controller"]["port"];
   if (!stored_port["default"]){stored_port["default"] = 4242;}
   Controller::conf.addOption("port", stored_port);
 
-  JSON::Value stored_interface;
-  stored_interface.fromString(R"-({
+  JSON::Value stored_interface(PARSEJSON, R"-({
     "long":"interface",
     "short":"i",
     "arg":"string",
@@ -254,8 +252,7 @@ int main_loop(int argc, char **argv){
   if (!stored_interface["default"]){stored_interface["default"] = "0.0.0.0";}
   Controller::conf.addOption("interface", stored_interface);
 
-  JSON::Value stored_user;
-  stored_user.fromString(R"-({
+  JSON::Value stored_user(PARSEJSON, R"-({
     "long":"username",
     "short":"u",
     "arg":"string",
@@ -535,8 +532,7 @@ int main_loop(int argc, char **argv){
     Controller::E.addSocket(uSock.getSock(), [&](void *) {
       while (uSock.Receive()) {
         MEDIUM_MSG("UDP API: %.*s", (int)uSock.data.size(), (const char *)uSock.data);
-        JSON::Value Request;
-        Request.fromString(uSock.data, uSock.data.size());
+        JSON::Value Request(PARSEJSON, uSock.data, uSock.data.size());
         Request["minimal"] = true;
         JSON::Value Response;
         if (Request.isObject()) {

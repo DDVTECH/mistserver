@@ -68,9 +68,6 @@ namespace Mist{
     capa["required"]["streamname"]["option"] = "--stream";
     capa["required"]["streamname"]["short"] = "s";
 
-    cfg->addOption("codec",
-                   JSON::fromString("{\"arg\":\"string\",\"default\":\"JSON\",\"short\":\"c\",\"long\":"
-                                    "\"codec\",\"help\":\"Codec to use for data ingest, JSON by default\"}"));
     capa["optional"]["codec"]["name"] = "Codec";
     capa["optional"]["codec"]["help"] = "What codec to ingest as";
     capa["optional"]["codec"]["default"] = "JSON";
@@ -78,10 +75,6 @@ namespace Mist{
     capa["optional"]["codec"]["option"] = "--codec";
     capa["optional"]["codec"]["short"] = "c";
 
-    cfg->addOption(
-      "language",
-      JSON::fromString("{\"arg\":\"string\",\"default\":\"JSON\",\"short\":\"l\",\"long\":"
-                       "\"language\",\"help\":\"Language to use for data ingest, undetermined by default\"}"));
     capa["optional"]["language"]["name"] = "Language";
     capa["optional"]["language"]["help"] = "What language to ingest as";
     capa["optional"]["language"]["default"] = "";

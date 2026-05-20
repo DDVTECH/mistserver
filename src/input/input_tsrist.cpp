@@ -39,8 +39,7 @@ uint64_t pktRetransmitted = 0;
 uint64_t downBytes = 0;
 
 int cb_stats(void *arg, const struct rist_stats *stats_container){
-  JSON::Value stats;
-  stats.fromString(stats_container->stats_json, stats_container->json_size);
+  JSON::Value stats(PARSEJSON, stats_container->stats_json, stats_container->json_size);
   JSON::Value & sObj = stats["receiver-stats"]["flowinstant"]["stats"];
   pktReceived += sObj["received"].asInt();
   pktLost += sObj["lost"].asInt();

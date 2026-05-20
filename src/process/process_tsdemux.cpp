@@ -219,7 +219,7 @@ namespace Mist {
         Output::init(cfg, capa);
         capa["name"] = "TSDemux";
         capa["codecs"][0u][0u].append("rawts");
-        cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\"}"));
+        cfg->addOption("streamname", R"-({"short":"s", "long":"stream", "arg":"string"})-");
         cfg->addBasicConnectorOptions(capa);
       }
       virtual bool onFinish() {
@@ -406,12 +406,10 @@ int main(int argc, char *argv[]) {
 
   // read configuration
   if (config.getString("configuration") != "-") {
-    Mist::opt = JSON::fromString(config.getString("configuration"));
+    Mist::opt.fromString(config.getString("configuration"));
   } else {
-    std::string json, line;
     INFO_MSG("Reading configuration from standard input");
-    while (std::getline(std::cin, line)) { json.append(line); }
-    Mist::opt = JSON::fromString(json.c_str());
+    Mist::opt.fromStream(std::cin);
   }
 
   if (!Mist::opt.isMember("source") || !Mist::opt["source"] || !Mist::opt["source"].isString()) {

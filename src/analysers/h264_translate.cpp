@@ -71,8 +71,7 @@ namespace Analysers{
 
 int main(int argc, char **argv){
   Util::Config conf = Util::Config(argv[0]);
-  conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Full "
-                                              "path of the file to analyse.\"}"));
+  conf.addOption("filename", R"-({"arg_num":1, "arg":"string", "help":"Full path of the file to analyse."})-");
   conf.parseArgs(argc, argv);
   return Analysers::analyseH264(conf);
 }

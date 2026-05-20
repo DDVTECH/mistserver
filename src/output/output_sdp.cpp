@@ -103,10 +103,19 @@ namespace Mist{
     capa["codecs"][0u][12u].append("+MP2");
     capa["codecs"][0u][12u].append("+AV1");
 
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/application/sdp";
-    capa["methods"][0u]["url_rel"] = "/$.sdp";
-    capa["methods"][0u]["priority"] = 11;
+    { // SDP playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "RTP-based SDP";
+      M["handler"] = "http";
+      M["type"] = "html5/application/sdp";
+      M["ttff"] = "key";
+      M["latency"] = 0;
+      M["bw"].fromString("[12, 1472]");
+      M["control"] = 0;
+      M["stability"] = 3;
+      M["cpu_server"] = 10;
+      M["permissibility"] = 1;
+    }
 
     cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.sdp");

@@ -72,10 +72,20 @@ namespace Mist{
     capa["codecs"][0u][2u].append("+JSON");
     capa["codecs"][0u][2u].append("+SCTE35");
     capa["codecs"][1u][0u].append("rawts");
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/video/mpeg";
-    capa["methods"][0u]["hrn"] = "TS HTTP progressive";
-    capa["methods"][0u]["priority"] = 1;
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "TS HTTP progressive";
+      M["handler"] = "http";
+      M["type"] = "html5/video/mpeg";
+      M["ttff"] = "ms";
+      M["ttff_ms"] = 4000;
+      M["latency"] = 2000;
+      M["bw"].fromString("[4, 184, 16, true]");
+      M["control"] = 0;
+      M["stability"] = 5;
+      M["cpu_server"] = 2;
+      M["permissibility"] = 10;
+    }
     cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("https://*/http_upload_hls?"); // Youtube-specific HLS push URL

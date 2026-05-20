@@ -78,11 +78,22 @@ namespace Mist {
     capa["codecs"][0u][1u].append("+*");
     capa["codecs"][0u][2u].append("+*");
 
-    capa["methods"][0u]["handler"] = "ws";
-    capa["methods"][0u]["type"] = "ws/video/raw";
-    capa["methods"][0u]["hrn"] = "Raw WebSocket";
-    capa["methods"][0u]["priority"] = 2;
-    capa["methods"][0u]["url_rel"] = "/$.raw";
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "Raw WebSocket";
+      M["handler"] = "ws";
+      M["type"] = "ws/video/raw";
+      M["ttff"] = "ms";
+      M["ttff_ms"] = 0;
+      M["latency"] = 100;
+      M["bw"].fromString("[0, 0, 12]");
+      M["control"] = 10;
+      M["stability"] = 6;
+      M["cpu_server"] = 10;
+      M["permissibility"] = 10;
+      M["abr"] = true;
+      M["url_rel"] = "/$.raw";
+    }
   }
 
   void OutWSRaw::sendNext() {

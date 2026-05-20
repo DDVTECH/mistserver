@@ -26,11 +26,22 @@ namespace Mist{
     capa["codecs"][0u][1u].append("ADPCM");
     capa["codecs"][0u][1u].append("ALAW");
     capa["codecs"][0u][1u].append("ULAW");
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "flash/7";
-    capa["methods"][0u]["hrn"] = "FLV progressive";
-    capa["methods"][0u]["priority"] = 5;
-    capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "FLV progressive";
+      M["handler"] = "http";
+      M["type"] = "flash/7";
+      M["ttff"] = "ms";
+      M["ttff_ms"] = 2000;
+      M["latency"] = 3000;
+      M["bw"].fromString("[0, 0, 12]");
+      M["control"] = 0;
+      M["stability"] = 3;
+      M["cpu_server"] = 10;
+      M["permissibility"] = 10;
+      M["player_url"] = "/oldflashplayer.swf";
+    }
+
     cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.flv");
 

@@ -81,6 +81,7 @@ namespace DTSC{
     std::string getIndiceName(size_t num) const;
     size_t getSize() const;
     void forEachMember(std::function<void(const DTSC::Scan &, const std::string &)> cb) const;
+    void forEachMember(std::function<void(const DTSC::Scan &)> cb) const;
 
     bool isString() const;
     bool isInt() const;

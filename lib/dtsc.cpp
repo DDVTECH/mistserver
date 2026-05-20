@@ -645,6 +645,8 @@ namespace DTSC{
     return arr_indice;
   }
 
+  /// Loops over all members of an object or array and calls the callback function for each.
+  /// If an object, sets the second argument to the name of the member.
   void Scan::forEachMember(std::function<void(const Scan &, const std::string &)> cb) const {
     if (getType() == DTSC_ARR) {
       char *i = p + 1;
@@ -661,6 +663,29 @@ namespace DTSC{
         unsigned int strlen = Bit::btohs(i);
         i += 2;
         cb(Scan(i + strlen, len - (i - p)), std::string(i, strlen));
+        i = skipDTSC(i + strlen, p + len);
+        if (!i) { return; }
+      }
+    }
+  }
+
+  /// Loops over all members of an object or array and calls the callback function for each.
+  void Scan::forEachMember(std::function<void(const Scan &)> cb) const {
+    if (getType() == DTSC_ARR) {
+      char *i = p + 1;
+      while (i[0] + i[1] != 0 && i < p + len) { // while not encountering 0x0000 (we assume 0x0000EE)
+        cb(Scan(i, len - (i - p)));
+        i = skipDTSC(i, p + len);
+        if (!i) { return; }
+      }
+    }
+    if (getType() == DTSC_OBJ || getType() == DTSC_CON) {
+      char *i = p + 1;
+      while (i[0] + i[1] != 0 && i < p + len) { // while not encountering 0x0000 (we assume 0x0000EE)
+        if (i + 2 >= p + len) { return; } // out of packet!
+        unsigned int strlen = Bit::btohs(i);
+        i += 2;
+        cb(Scan(i + strlen, len - (i - p)));
         i = skipDTSC(i + strlen, p + len);
         if (!i) { return; }
       }

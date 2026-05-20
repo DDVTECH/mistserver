@@ -136,16 +136,39 @@ namespace Mist{
     capa["codecs"][0u][1u].append("opus");
     jsonForEach(capa["codecs"][0u][0u], i){supportedVideo.insert(i->asStringRef());}
     jsonForEach(capa["codecs"][0u][1u], i){supportedAudio.insert(i->asStringRef());}
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/video/mp4";
-    capa["methods"][0u]["hrn"] = "MP4 progressive";
-    capa["methods"][0u]["priority"] = 9;
-    capa["methods"][0u]["url_rel"] = "/$.mp4";
-    capa["methods"][1u]["handler"] = "ws";
-    capa["methods"][1u]["type"] = "ws/video/mp4";
-    capa["methods"][1u]["hrn"] = "MP4 WebSocket";
-    capa["methods"][1u]["priority"] = 10;
-    capa["methods"][1u]["url_rel"] = "/$.mp4";
+
+    { // Progressive playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "MP4 progressive";
+      M["handler"] = "http";
+      M["type"] = "html5/video/mp4";
+      M["ttff"] = "live_ms_vod_bytes";
+      M["ttff_bytes"] = "header";
+      M["ttff_ms"] = 1500;
+      M["latency"] = 2000;
+      M["bw"].fromString("[0, 0, 12]");
+      M["control"] = 5;
+      M["stability"] = 5;
+      M["cpu_server"] = 6;
+      M["permissibility"] = 10;
+      M["url_rel"] = "/$.mp4";
+    }
+    { // Websocket playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "MP4 WebSocket";
+      M["handler"] = "ws";
+      M["type"] = "ws/video/mp4";
+      M["ttff"] = "ms";
+      M["ttff_ms"] = 1000;
+      M["latency"] = 100;
+      M["bw"].fromString("[0, 0, 120]");
+      M["control"] = 10;
+      M["stability"] = 6;
+      M["cpu_server"] = 6;
+      M["permissibility"] = 10;
+      M["abr"] = true;
+      M["url_rel"] = "/$.mp4";
+    }
 
     capa["push_urls"].append("/*.fmp4");
     capa["push_urls"].append("/*.mp4");

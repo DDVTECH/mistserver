@@ -565,6 +565,28 @@ namespace Controller{
     if (!Controller::Storage["config"].isMember("tknMode")){
       Controller::Storage["config"]["tknMode"] = SESS_TKN_DEFAULT_MODE;
     }
+    {
+      JSON::Value defWeights(PARSEJSON, R"-({
+        "ttff": 50,
+        "latency": 50,
+        "abr": 20,
+        "bw": 20,
+        "control": 20,
+        "stability": 50,
+        "cpu_server": 20,
+        "permissibility": 20,
+        "cpu_viewer_batt": 100,
+        "cpu_viewer_pwrd": 60,
+        "recovery": 80
+      })-");
+      if (!Controller::Storage["config"].isMember("weights")) { Controller::Storage["config"]["weights"] = defWeights; }
+      {
+        JSON::Value & weights = Controller::Storage["config"]["weights"];
+        for (const char *w : MIST_WEIGHTS) {
+          if (!weights.isMember(w) || !weights[w].isInt()) { weights[w] = defWeights[w]; }
+        }
+      }
+    }
     if (!Controller::Storage.isMember("bandwidth") || !Controller::Storage["bandwidth"].isMember("exceptions") || !Controller::Storage["bandwidth"]["exceptions"].size()){
       LOG_MSG("CONF", "Adding default bandwidth exception ranges (local networks) because nothing is configured");
       Controller::Storage["bandwidth"]["exceptions"].append("::1");
@@ -818,18 +840,18 @@ namespace Controller{
           if(globAccX.getFieldAccX("systemBoot") && globAccX.getInt("systemBoot")){
             systemBoot = globAccX.getInt("systemBoot");
           }
-          if(!globAccX.getFieldAccX("defaultStream")
-             || !globAccX.getFieldAccX("systemBoot")
-             || !globAccX.getFieldAccX("sessionViewerMode")
-             || !globAccX.getFieldAccX("sessionInputMode")
-             || !globAccX.getFieldAccX("sessionOutputMode")
-             || !globAccX.getFieldAccX("sessionUnspecifiedMode")
-             || !globAccX.getFieldAccX("sessionStreamInfoMode")
-             || !globAccX.getFieldAccX("tknMode")
-             || !globAccX.getFieldAccX("udpApi")
-             || !globAccX.getFieldAccX("iid")
-             || !globAccX.getFieldAccX("hrn")
-             ){
+          bool haveWeights = true;
+          for (const char *w : MIST_WEIGHTS) {
+            if (!globAccX.getFieldAccX(std::string("weight_") + w)) {
+              haveWeights = false;
+              break;
+            }
+          }
+          if (!globAccX.getFieldAccX("defaultStream") || !globAccX.getFieldAccX("systemBoot") ||
+              !globAccX.getFieldAccX("sessionViewerMode") || !globAccX.getFieldAccX("sessionInputMode") ||
+              !globAccX.getFieldAccX("sessionOutputMode") || !globAccX.getFieldAccX("sessionUnspecifiedMode") ||
+              !globAccX.getFieldAccX("sessionStreamInfoMode") || !globAccX.getFieldAccX("tknMode") ||
+              !globAccX.getFieldAccX("udpApi") || !globAccX.getFieldAccX("iid") || !globAccX.getFieldAccX("hrn") || !haveWeights) {
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();
@@ -849,6 +871,7 @@ namespace Controller{
           globAccX.addField("udpApi", RAX_128STRING);
           globAccX.addField("iid", RAX_64STRING);
           globAccX.addField("hrn", RAX_128STRING);
+          for (const char *w : MIST_WEIGHTS) { globAccX.addField(std::string("weight_") + w, RAX_16UINT); }
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
@@ -864,6 +887,9 @@ namespace Controller{
         globAccX.setInt("systemBoot", systemBoot);
         globAccX.setString("iid", instanceId);
         globAccX.setString("hrn", Storage["config"]["serverid"].asString());
+        for (const char *w : MIST_WEIGHTS) {
+          globAccX.setInt(std::string("weight_") + w, Storage["config"]["weights"][w].asInt());
+        }
         globCfg.master = false; // leave the page after closing
         addShmPage(SHM_GLOBAL_CONF);
       }

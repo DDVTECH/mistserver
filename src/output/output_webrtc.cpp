@@ -565,17 +565,39 @@ namespace Mist{
     capa["codecs"][0u][1u].append("ULAW");
     capa["codecs"][0u][2u].append("JSON");
     capa["codecs"][0u][2u].append("subtitle");
-    capa["methods"][0u]["handler"] = "ws";
-    capa["methods"][0u]["type"] = "webrtc";
-    capa["methods"][0u]["hrn"] = "WebRTC with WebSocket signalling";
-    capa["methods"][0u]["priority"] = 2;
-    capa["methods"][0u]["nobframes"] = 1;
 
-    capa["methods"][1u]["handler"] = "http";
-    capa["methods"][1u]["type"] = "whep";
-    capa["methods"][1u]["hrn"] = "WebRTC with WHEP signalling";
-    capa["methods"][1u]["priority"] = 5;
-    capa["methods"][1u]["nobframes"] = 1;
+    { // WebSocket playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "WebRTC with WebSocket signalling";
+      M["handler"] = "ws";
+      M["type"] = "webrtc";
+      M["ttff"] = "ms";
+      M["ttff_ms"] = 500;
+      M["latency"] = 0;
+      M["bw"].fromString("[22, 1322]");
+      M["control"] = 10;
+      M["stability"] = 6;
+      M["cpu_server"] = 6;
+      M["permissibility"] = 4;
+      M["nobframes"] = true;
+      M["abr"] = true;
+    }
+    { // WHIP/WHEP playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "WebRTC with WHEP signalling";
+      M["handler"] = "http";
+      M["type"] = "whep";
+      M["ttff"] = "ms";
+      M["ttff_ms"] = 500;
+      M["latency"] = 0;
+      M["bw"].fromString("[22, 1322]");
+      M["control"] = 10;
+      M["stability"] = 6;
+      M["cpu_server"] = 6;
+      M["permissibility"] = 4;
+      M["nobframes"] = true;
+      M["abr"] = true;
+    }
 
     capa["optional"]["preferredvideocodec"]["name"] = "Preferred video codecs";
     capa["optional"]["preferredvideocodec"]["help"] =

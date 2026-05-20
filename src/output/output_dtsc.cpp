@@ -110,10 +110,18 @@ namespace Mist{
 
     capa["url_rel"] = "/$";
 
-    capa["methods"][0u]["handler"] = "dtsc";
-    capa["methods"][0u]["type"] = "dtsc";
-    capa["methods"][0u]["hrn"] = "DTSC";
-    capa["methods"][0u]["priority"] = 10;
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "DTSC";
+      M["handler"] = "dtsc";
+      M["type"] = "dtsc";
+      M["latency"] = 0;
+      M["bw"].fromString("[0, 0, 14]");
+      M["control"] = 10;
+      M["stability"] = 10;
+      M["cpu_server"] = 10;
+      M["permissibility"] = 7;
+    }
 
     capa["optional"]["syncmode"]["name"] = "Default sync mode";
     capa["optional"]["syncmode"]["help"] = "0 for async (default), 1 for sync";

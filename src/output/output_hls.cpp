@@ -204,21 +204,33 @@ namespace Mist{
     capa["codecs"][0u][5u].append("+AC3");
     capa["codecs"][0u][6u].append("+MP2");
     capa["codecs"][0u][7u].append("+subtitle");
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
-    capa["methods"][0u]["hrn"] = "HLS (TS)";
-    capa["methods"][0u]["priority"] = 9;
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "HLS (TS)";
+      M["handler"] = "http";
+      M["type"] = "html5/application/vnd.apple.mpegurl";
+      M["ttff"] = "segs";
+      M["ttff_segs"] = 3;
+      M["latency"] = "frag*1.5";
+      M["bw"].fromString("[4, 184, 16, true]");
+      M["control"] = 10;
+      M["stability"] = 8;
+      M["cpu_server"] = 2;
+      M["permissibility"] = 10;
+      M["abr"] = true;
+    }
     // MP3 only works on Edge/Apple
-    capa["exceptions"]["codec:MP3"] = JSON::fromString(
-        "[[\"blacklist\",[\"Mozilla/"
-        "\"]],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
-    capa["exceptions"]["codec:HEVC"] = JSON::fromString("[[\"blacklist\"]]");
+    capa["exceptions"]["codec:MP3"].fromString(R"-([
+      ["blacklist",["Mozilla/"]],
+      ["whitelist",["iPad","iPhone","iPod","MacIntel","Edge"]]
+    ])-");
+    capa["exceptions"]["codec:HEVC"].fromString("[[\"blacklist\"]]");
 
-    cfg->addOption(
-        "listlimit",
-        JSON::fromString(
-            "{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\","
-            "\"help\":\"Maximum number of segments in live playlists (0 = infinite).\"}"));
+    cfg->addOption("listlimit", R"-({
+      "arg":"integer","default":0,
+      "short":"y","long":"list-limit",
+      "help":"Maximum number of segments in live playlists (0 = infinite)."
+    })-");
     capa["optional"]["listlimit"]["name"] = "Live playlist limit";
     capa["optional"]["listlimit"]["help"] =
         "Maximum number of parts in live playlists. (0 = infinite)";
@@ -226,19 +238,21 @@ namespace Mist{
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
 
-    cfg->addOption("nonchunked",
-                   JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not "
-                                    "send chunked, but buffer whole segments.\"}"));
+    cfg->addOption("nonchunked", R"-({
+      "short":"C","long":"nonchunked"
+      "help":"Do not send chunked, but buffer whole segments.",
+    })-");
     capa["optional"]["nonchunked"]["name"] = "Send whole segments";
     capa["optional"]["nonchunked"]["help"] =
         "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance "
         "significantly, but increases compatibility somewhat.";
     capa["optional"]["nonchunked"]["option"] = "--nonchunked";
 
-    cfg->addOption("chunkpath",
-                   JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\":\"e\",\"long\":"
-                                    "\"chunkpath\",\"help\":\"Alternate URL path to "
-                                    "prepend to chunk paths, for serving through e.g. a CDN\"}"));
+    cfg->addOption("chunkpath", R"-({
+      "arg":"string","default":"",
+      "short":"e","long":"chunkpath",
+      "help":"Alternate URL path to prepend to chunk paths, for serving through e.g. a CDN"
+    })-");
     capa["optional"]["chunkpath"]["name"] = "Prepend path for chunks";
     capa["optional"]["chunkpath"]["help"] =
         "Chunks will be served from this path.";

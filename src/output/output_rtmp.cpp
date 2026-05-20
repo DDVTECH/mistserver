@@ -535,11 +535,22 @@ namespace Mist {
     capa["codecs"][1u][1u].append("EAC-3");
     capa["codecs"][1u][1u].append("FLAC");
 
-    capa["methods"][0u]["handler"] = "rtmp";
-    capa["methods"][0u]["type"] = "flash/10";
-    capa["methods"][0u]["hrn"] = "RTMP";
-    capa["methods"][0u]["priority"] = 7;
-    capa["methods"][0u]["player_url"] = "/flashplayer.swf";
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "RTMP";
+      M["handler"] = "rtmp";
+      M["type"] = "flash/10";
+      M["ttff"] = "ms";
+      M["ttff_ms"] = 1000;
+      M["latency"] = 2000;
+      M["bw"].fromString("[0, 0, 18]");
+      M["control"] = 0;
+      M["stability"] = 2;
+      M["cpu_server"] = 10;
+      M["permissibility"] = 7;
+      M["player_url"] = "/flashplayer.swf";
+    }
+
     capa["optional"]["acceptable"]["name"] = "Acceptable connection types";
     capa["optional"]["acceptable"]["help"] =
         "Whether to allow only incoming pushes (2), only outgoing pulls (1), or both (0, default)";

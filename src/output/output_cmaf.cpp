@@ -140,23 +140,54 @@ namespace Mist{
     capa["codecs"][0u][5u].append("+subtitle");
     capa["encryption"].append("CTR128");
 
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "dash/video/mp4";
-    capa["methods"][0u]["hrn"] = "DASH";
-    capa["methods"][0u]["url_rel"] = "/cmaf/$/index.mpd";
-    capa["methods"][0u]["priority"] = 8;
-
-    capa["methods"][1u]["handler"] = "http";
-    capa["methods"][1u]["type"] = "html5/application/vnd.apple.mpegurl;version=7";
-    capa["methods"][1u]["hrn"] = "HLS (CMAF)";
-    capa["methods"][1u]["url_rel"] = "/cmaf/$/index.m3u8";
-    capa["methods"][1u]["priority"] = 8;
-
-    capa["methods"][2u]["handler"] = "http";
-    capa["methods"][2u]["type"] = "html5/application/vnd.ms-sstr+xml";
-    capa["methods"][2u]["hrn"] = "MS Smooth Streaming";
-    capa["methods"][2u]["url_rel"] = "/cmaf/$/Manifest";
-    capa["methods"][2u]["priority"] = 8;
+    { // DASH playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "DASH";
+      M["handler"] = "http";
+      M["type"] = "dash/video/mp4";
+      M["ttff"] = "segs";
+      M["ttff_segs"] = 3;
+      M["latency"] = "frag*1.5";
+      M["bw"].fromString("[0, 0, 12, false, 100]");
+      M["control"] = 10;
+      M["stability"] = 4;
+      M["cpu_server"] = 4;
+      M["permissibility"] = 10;
+      M["url_rel"] = "/cmaf/$/index.mpd";
+      M["abr"] = true;
+    }
+    { // HLS CMAF playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "HLS (CMAF)";
+      M["handler"] = "http";
+      M["type"] = "html5/application/vnd.apple.mpegurl;version=7";
+      M["ttff"] = "segs";
+      M["ttff_segs"] = 3;
+      M["latency"] = "frag*1.5";
+      M["bw"].fromString("[0, 0, 12, false, 100]");
+      M["control"] = 10;
+      M["stability"] = 8;
+      M["cpu_server"] = 4;
+      M["permissibility"] = 10;
+      M["url_rel"] = "/cmaf/$/index.m3u8";
+      M["abr"] = true;
+    }
+    { // MSS playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "MS Smooth Streaming";
+      M["handler"] = "http";
+      M["type"] = "html5/application/vnd.ms-sstr+xml";
+      M["ttff"] = "segs";
+      M["ttff_segs"] = 3;
+      M["latency"] = "frag*1.5";
+      M["bw"].fromString("[0, 0, 12, false, 100]");
+      M["control"] = 1;
+      M["stability"] = 3;
+      M["cpu_server"] = 4;
+      M["permissibility"] = 10;
+      M["url_rel"] = "/cmaf/$/Manifest";
+      M["abr"] = true;
+    }
 
     // MP3 does not work in browsers
     capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]]]");

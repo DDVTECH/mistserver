@@ -58,6 +58,10 @@ namespace Mist{
     capa["url_rel"] = "/$.webm";
     capa["url_match"].append("/$.mkv");
     capa["url_match"].append("/$.webm");
+    capa["push_urls"].append("/*.mkv");
+    capa["push_urls"].append("/*.webm");
+    capa["push_urls"].append("mkv-exec:*");
+
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("VP8");
@@ -82,52 +86,65 @@ namespace Mist{
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("DTS");
     capa["codecs"][0u][2u].append("+JSON");
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/video/webm";
-    capa["methods"][0u]["hrn"] = "MKV progressive";
-    capa["methods"][0u]["priority"] = 9;
-    // Browsers only support VP8/VP9/Opus codecs, except Chrome which is more lenient.
-    JSON::Value blacklistNonChrome = JSON::fromString(
-        "[[\"blacklist\", [\"Mozilla/\"]], [\"whitelist\",[\"Chrome\",\"Chromium\"]], "
-        "[\"blacklist\",[\"Edge\",\"OPR/\"]], [\"blacklist\",[\"Android\"]]]");
-    capa["exceptions"]["codec:H264"] = blacklistNonChrome;
-    capa["exceptions"]["codec:HEVC"] = blacklistNonChrome;
-    capa["exceptions"]["codec:theora"] = blacklistNonChrome;
-    capa["exceptions"]["codec:MPEG2"] = blacklistNonChrome;
-    capa["exceptions"]["codec:AAC"] = blacklistNonChrome;
-    capa["exceptions"]["codec:vorbis"] = blacklistNonChrome;
-    capa["exceptions"]["codec:PCM"] = blacklistNonChrome;
-    capa["exceptions"]["codec:ALAW"] = blacklistNonChrome;
-    capa["exceptions"]["codec:ULAW"] = blacklistNonChrome;
-    capa["exceptions"]["codec:MP2"] = blacklistNonChrome;
-    capa["exceptions"]["codec:MP3"] = blacklistNonChrome;
-    capa["exceptions"]["codec:FLOAT"] = blacklistNonChrome;
-    capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
-    capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
+
+    { // Progressive MKV playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "MKV progressive";
+      M["handler"] = "http";
+      M["type"] = "html5/video/webm";
+      M["ttff"] = "bytes_or_ms";
+      M["ttff_bytes"] = 5 * 1024 * 1024;
+      M["ttff_ms"] = 60000;
+      M["latency"] = 3000;
+      M["bw"].fromString("[0, 0, 10]");
+      M["control"] = 5;
+      M["stability"] = 5;
+      M["cpu_server"] = 6;
+      M["permissibility"] = 10;
+    }
+
+    { // Browsers only support VP8/VP9/Opus codecs, except Chrome which is more lenient.
+      JSON::Value & E = capa["exceptions"];
+      JSON::Value chromeOnly(PARSEJSON, R"-([
+        ["blacklist", ["Mozilla/"]],
+        ["whitelist",["Chrome","Chromium"]],
+        ["blacklist",["Edge","OPR/"]],
+        ["blacklist",["Android"]]
+      ])-");
+      E["codec:H264"] = chromeOnly;
+      E["codec:HEVC"] = chromeOnly;
+      E["codec:theora"] = chromeOnly;
+      E["codec:MPEG2"] = chromeOnly;
+      E["codec:AAC"] = chromeOnly;
+      E["codec:vorbis"] = chromeOnly;
+      E["codec:PCM"] = chromeOnly;
+      E["codec:ALAW"] = chromeOnly;
+      E["codec:ULAW"] = chromeOnly;
+      E["codec:MP2"] = chromeOnly;
+      E["codec:MP3"] = chromeOnly;
+      E["codec:FLOAT"] = chromeOnly;
+      E["codec:AC3"] = chromeOnly;
+      E["codec:DTS"] = chromeOnly;
+    }
+
     cfg->addStandardPushCapabilities(capa);
+    {
+      JSON::Value & p = capa["push_parameters"]["ts"];
+      p["name"] = "Timestamps";
+      p["help"] = "How to transform the timestamps.";
+      p["type"] = "select";
+      p["select"].fromString(R"-([
+        ["unix", "Convert to unix time in milliseconds, or as-is if unknown time"],
+        ["zero", "Start the timestamps at zero"],
+        ["keep", "Keep timestamps as-is"]
+      ])-");
+      p["default"] = "unix";
+    }
 
-    JSON::Value & pp = capa["push_parameters"];
-    pp["ts"]["name"] = "Timestamps";
-    pp["ts"]["help"] = "How to transform the timestamps.";
-    pp["ts"]["type"] = "select";
-    pp["ts"]["select"][0u][0u] = "unix";
-    pp["ts"]["select"][0u][1u] = "Convert to unix time in milliseconds, or as-is if unknown time";
-    pp["ts"]["select"][1u][0u] = "zero";
-    pp["ts"]["select"][1u][1u] = "Start the timestamps at zero";
-    pp["ts"]["select"][2u][0u] = "keep";
-    pp["ts"]["select"][2u][1u] = "Keep timestamps as-is";
-    pp["ts"]["default"] = "unix";
-
-    capa["push_urls"].append("/*.mkv");
-    capa["push_urls"].append("/*.webm");
-    capa["push_urls"].append("mkv-exec:*");
-
-    JSON::Value opt;
-    opt["arg"] = "string";
-    opt["default"] = "";
-    opt["arg_num"] = 1;
-    opt["help"] = "Target filename to store EBML file as, or - for stdout.";
-    cfg->addOption("target", opt);
+    cfg->addOption("target", R"-({
+      "arg_num": 1, "arg": "string", "default": "",
+      "help": "Target filename to store EBML file as, or - for stdout."
+    })-");
   }
 
   /// Calculates the size of a Cluster (contents only) and returns it.

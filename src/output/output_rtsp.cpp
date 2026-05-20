@@ -81,10 +81,19 @@ namespace Mist{
     capa["codecs"][0u][12u].append("+MP2");
     capa["codecs"][0u][13u].append("+AV1");
 
-    capa["methods"][0u]["handler"] = "rtsp";
-    capa["methods"][0u]["type"] = "rtsp";
-    capa["methods"][0u]["hrn"] = "RTSP";
-    capa["methods"][0u]["priority"] = 2;
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "RTSP";
+      M["handler"] = "rtsp";
+      M["type"] = "rtsp";
+      M["ttff"] = "key";
+      M["latency"] = 0;
+      M["bw"].fromString("[12, 1472]");
+      M["control"] = 0;
+      M["stability"] = 4;
+      M["cpu_server"] = 8;
+      M["permissibility"] = 1;
+    }
 
     capa["optional"]["maxsend"]["name"] = "Max RTP packet size";
     capa["optional"]["maxsend"]["help"] = "Maximum size of RTP packets in bytes";

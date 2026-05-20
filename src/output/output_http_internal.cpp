@@ -207,164 +207,13 @@ namespace Mist{
   }
 
   /// Sorts the JSON::Value objects that hold source information by preference.
-  struct sourceCompare{
-    bool operator()(const JSON::Value &lhs, const JSON::Value &rhs) const{
-      // first compare simultaneous tracks
-      if (lhs["simul_tracks"].asInt() > rhs["simul_tracks"].asInt()){
-        // more tracks = higher priority = true.
-        return true;
+  struct sourceCompare {
+      bool operator()(const JSON::Value & a, const JSON::Value & b) const {
+        if (a["s"].asInt() > b["s"].asInt()) return true;
+        if (a["s"].asInt() < b["s"].asInt()) return false;
+        return a["hrn"].asStringRef() > b["hrn"].asStringRef();
       }
-      if (lhs["simul_tracks"].asInt() < rhs["simul_tracks"].asInt()){
-        // less tracks = lower priority = false
-        return false;
-      }
-      // same amount of tracks - compare "hardcoded" priorities
-      if (lhs["priority"].asInt() > rhs["priority"].asInt()){
-        // higher priority = true.
-        return true;
-      }
-      if (lhs["priority"].asInt() < rhs["priority"].asInt()){
-        // lower priority = false
-        return false;
-      }
-      // same priority - compare total matches
-      if (lhs["total_matches"].asInt() > rhs["total_matches"].asInt()){
-        // more matches = higher priority = true.
-        return true;
-      }
-      if (lhs["total_matches"].asInt() < rhs["total_matches"].asInt()){
-        // less matches = lower priority = false
-        return false;
-      }
-      // also same amount of matches? just compare the URL then.
-      return lhs["url"].asStringRef() < rhs["url"].asStringRef();
-    }
   };
-
-  void addSources(std::string &streamname, std::set<JSON::Value, sourceCompare> &sources, HTTP::URL url,
-                  JSON::Value &conncapa, JSON::Value &strmMeta, const std::string &useragent, bool metaEverywhere){
-    url.path += "/";
-    if (strmMeta.isMember("live") && conncapa.isMember("exceptions") &&
-        conncapa["exceptions"].isObject() && conncapa["exceptions"].size()){
-      jsonForEach(conncapa["exceptions"], ex){
-        if (ex.key() == "live"){
-          if (!Util::checkException(*ex, useragent)){return;}
-        }
-      }
-    }
-    bool allowBFrames = true;
-    if (conncapa.isMember("methods")){
-      jsonForEach(conncapa["methods"], mthd){
-        if (mthd->isMember("nobframes") && (*mthd)["nobframes"]){
-          allowBFrames = false;
-          break;
-        }
-      }
-    }
-    const std::string &rel = conncapa["url_rel"].asStringRef();
-    unsigned int most_simul = 0;
-    unsigned int total_matches = 0;
-    if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
-      jsonForEach(conncapa["codecs"], it){
-        unsigned int simul = 0;
-        if ((*it).size() > 0){
-          jsonForEach((*it), itb){
-            unsigned int matches = 0;
-            if ((*itb).size() > 0){
-              jsonForEach((*itb), itc){
-                const std::string &strRef = (*itc).asStringRef();
-                bool byType = false;
-                uint8_t shift = 0;
-                if (strRef[shift] == '@'){
-                  byType = true;
-                  ++shift;
-                }
-                if (strRef[shift] == '+'){
-                  ++shift;
-                }
-                jsonForEach(strmMeta["tracks"], trit){
-                  if ((!byType && (*trit)["codec"].asStringRef() == strRef.substr(shift)) ||
-                      (byType && (*trit)["type"].asStringRef() == strRef.substr(shift)) ||
-                      strRef.substr(shift) == "*"){
-                    if (metaEverywhere && (*trit)["type"] == "meta"){continue;}
-                    if (allowBFrames || !(trit->isMember("bframes") && (*trit)["bframes"])){
-                      matches++;
-                      total_matches++;
-                      if (conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() &&
-                          conncapa["exceptions"].size()){
-                        jsonForEach(conncapa["exceptions"], ex){
-                          if (ex.key() == "codec:" + strRef.substr(shift)){
-                            if (!Util::checkException(*ex, useragent)){
-                              matches--;
-                              total_matches--;
-                            }
-                            break;
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            if (matches){simul++;}
-          }
-        }
-
-        // Simulate support for all metadata tracks in every protocol
-        if (metaEverywhere){
-          size_t matches = 0;
-          jsonForEach(strmMeta["tracks"], trit){
-            if ((*trit)["type"] == "meta"){++matches;}
-          }
-          if (matches){
-            total_matches += matches;
-            ++simul;
-          }
-        }
-
-        if (simul > most_simul){most_simul = simul;}
-      }
-    }
-    if (conncapa.isMember("methods") && conncapa["methods"].size() > 0){
-      std::string relurl;
-      size_t found = rel.find('$');
-      if (found != std::string::npos){
-        relurl = rel.substr(1, found - 1) + Encodings::URL::encode(streamname) + rel.substr(found + 1);
-      }else{
-        relurl = "";
-      }
-      jsonForEach(conncapa["methods"], it){
-        if (it->isMember("url_rel")){
-          size_t foundb = (*it)["url_rel"].asStringRef().find('$');
-          if (foundb != std::string::npos){
-            relurl = (*it)["url_rel"].asStringRef().substr(1, foundb - 1) +
-                     Encodings::URL::encode(streamname) + (*it)["url_rel"].asStringRef().substr(foundb + 1);
-          }
-        }
-        if (!strmMeta.isMember("live") || !it->isMember("nolive")){
-          bool isSSL = false;
-          if (url.protocol == "https" || url.protocol == "wss"){isSSL = true;}
-          if (it->isMember("handler")){
-            url.protocol = (*it)["handler"].asStringRef() + (isSSL?"s":"");
-          }
-          JSON::Value tmp;
-          tmp["type"] = (*it)["type"];
-          if (it->isMember("hrn")){tmp["hrn"] = (*it)["hrn"];}
-          tmp["relurl"] = relurl;
-          tmp["priority"] = (*it)["priority"];
-          if ((*it).isMember("player_url")){
-            tmp["player_url"] = (*it)["player_url"].asStringRef();
-          }
-          if (conncapa.isMember("cnf") && conncapa["cnf"].isMember("iceservers")){tmp["RTCIceServers"] = conncapa["cnf"]["iceservers"];}
-          tmp["simul_tracks"] = most_simul;
-          tmp["total_matches"] = total_matches;
-          tmp["url"] = url.link(relurl).getUrl();
-          sources.insert(tmp);
-        }
-      }
-    }
-  }
 
   void OutHTTP::HTMLResponse(const HTTP::Parser & req, bool headersOnly){
     HTTPOutput::respondHTTP(req, headersOnly);
@@ -537,6 +386,12 @@ namespace Mist{
 #else
     json_resp["capa"]["ssl"] = false;
 #endif
+    {
+      JSON::Value & W = json_resp["capa"]["weights"];
+      W["cpu_viewer_batt"] = Util::getGlobalConfig("weight_cpu_viewer_batt");
+      W["cpu_viewer_pwrd"] = Util::getGlobalConfig("weight_cpu_viewer_pwrd");
+      W["recovery"] = Util::getGlobalConfig("weight_recovery");
+    }
 
     bool hasVideo = false;
     std::set<size_t> validTracks = M.getValidTracks();
@@ -554,11 +409,12 @@ namespace Mist{
       json_resp["height"] = (hasVideo ? 480 : 20);
     }
 
-    // show ALL the meta datas!
-    M.toJSON(json_resp["meta"], true);
-    json_resp["meta"].removeMember("source");
-    if (json_resp["meta"].isMember("type")) { json_resp["type"] = json_resp["meta"]["type"]; }
-    if (json_resp["meta"].isMember("unixoffset")) { json_resp["unixoffset"] = json_resp["meta"]["unixoffset"]; }
+    // Convert stream metadata to JSON, then strip source property away and copy type/unixoffset properties to highest level.
+    JSON::Value & strmMeta = json_resp["meta"];
+    M.toJSON(strmMeta, true);
+    strmMeta.removeMember("source");
+    if (strmMeta.isMember("type")) { json_resp["type"] = strmMeta["type"]; }
+    if (strmMeta.isMember("unixoffset")) { json_resp["unixoffset"] = strmMeta["unixoffset"]; }
 
     // Get sources/protocols information
     Util::DTSCShmReader rCapa(SHM_CAPA);
@@ -571,103 +427,326 @@ namespace Mist{
     }
 
     // create a set for storing source information
-    std::set<JSON::Value, sourceCompare> sources;
+    std::deque<JSON::Value> unsorted_sources;
 
-    // find out which connectors are enabled
-    std::set<std::string> conns;
-    unsigned int prots_ctr = prots.getSize();
-    for (unsigned int i = 0; i < prots_ctr; ++i){
-      conns.insert(prots.getIndice(i).getMember("connector").asString());
-    }
-    // loop over the connectors.
-    for (unsigned int i = 0; i < prots_ctr; ++i){
-      std::string cName = prots.getIndice(i).getMember("connector").asString();
-      DTSC::Scan capa = connectors.getMember(cName);
-      // if the connector has a port,
-      if (capa.getMember("optional").getMember("port") && !capa.getMember("provides_dependency")){
-        HTTP::URL outURL(reqHost);
-        // get the default port if none is set
-        outURL.port = prots.getIndice(i).getMember("port").asString();
-        if (!outURL.port.size()){
-          outURL.port = capa.getMember("optional").getMember("port").getMember("default").asString();
+    std::string encStrmName = Encodings::URL::encode(streamName);
+    auto addSources = [&](HTTP::URL url, JSON::Value & conncapa) {
+      url.path += "/";
+      if (M.getLive() && conncapa.isMember("exceptions") && conncapa["exceptions"].isMember("live")) {
+        if (!Util::checkException(conncapa["exceptions"]["live"], useragent)) { return; }
+      }
+      const std::string & rel = conncapa["url_rel"].asStringRef();
+      std::set<size_t> defaultTracks;
+      std::set<size_t> supportTracks;
+      if (conncapa.isMember("codecs") && conncapa["codecs"].size()) {
+        defaultTracks = Util::wouldSelect(M, targetParams, conncapa, useragent);
+        supportTracks = Util::getSupportedTracks(M, conncapa, "", useragent);
+        if (!defaultTracks.size() && !supportTracks.size()) { return; }
+      }
+      if (conncapa.isMember("methods") && conncapa["methods"].size()) {
+        std::string relurl;
+        size_t found = rel.find('$');
+        if (found != std::string::npos) {
+          relurl = rel.substr(1, found - 1) + encStrmName + rel.substr(found + 1);
+        } else {
+          relurl = "";
         }
-        outURL.protocol = capa.getMember("protocol").asString();
-        if (outURL.protocol.find(':') != std::string::npos){
-          outURL.protocol.erase(outURL.protocol.find(':'));
-        }
-        JSON::Value pubAddrs;
-        pubAddrs.append("");
-        if (prots.getIndice(i).hasMember("pubaddr") &&
-            prots.getIndice(i).getMember("pubaddr").getType() == DTSC_STR){
-          if (prots.getIndice(i).getMember("pubaddr").asString().size()){
-            pubAddrs[0u] = prots.getIndice(i).getMember("pubaddr").asString();
+        jsonForEach (conncapa["methods"], it) {
+          if (it->isMember("url_rel")) {
+            const std::string & mRelUrl = (*it)["url_rel"].asStringRef();
+            size_t foundb = mRelUrl.find('$');
+            if (foundb != std::string::npos) {
+              relurl = mRelUrl.substr(1, foundb - 1) + encStrmName + mRelUrl.substr(foundb + 1);
+            }
           }
-        }
-        if (prots.getIndice(i).hasMember("pubaddr") &&
-            prots.getIndice(i).getMember("pubaddr").getType() == DTSC_ARR){
-          pubAddrs = prots.getIndice(i).getMember("pubaddr").asJSON();
-          if (!pubAddrs.size()){pubAddrs.append("");}
-        }
-        if (mistPath.size()){
-          pubAddrs.null();
-          pubAddrs.append(mistPath);
-        }
-        // and a URL - then list the URL
-        JSON::Value capa_json = capa.asJSON();
-        capa_json["cnf"] = prots.getIndice(i).asJSON();
-        if (capa.getMember("url_rel") || capa.getMember("methods")){
-          jsonForEach(pubAddrs, jit){
-            HTTP::URL altURL = outURL;
-            if (jit->asString().size()){altURL = jit->asString();}
-            if (!altURL.host.size()){altURL.host = outURL.host;}
-            if (!altURL.protocol.size()){altURL.protocol = outURL.protocol;}
-            addSources(streamName, sources, altURL, capa_json, json_resp["meta"], useragent, metaEverywhere);
-          }
-        }
-        // Make note if this connector can be depended upon by other connectors
-        if (capa.getMember("provides")){
-          std::string cProv = capa.getMember("provides").asString();
-          // if this connector can be depended upon by other connectors, loop over the rest
-          // check each enabled protocol separately to see if it depends on this connector
-          unsigned int capa_lst_ctr = connectors.getSize();
-          for (unsigned int j = 0; j < capa_lst_ctr; ++j){
-            // if it depends on this connector and has a URL, list it
-            if (conns.count(connectors.getIndiceName(j)) &&
-                connectors.getIndice(j).getMember("deps").asString() == cProv &&
-                connectors.getIndice(j).getMember("methods")){
-              JSON::Value subcapa_json = connectors.getIndice(j).asJSON();
-              subcapa_json["cnf"] = prots.getIndice(i).asJSON();
-              for (unsigned int k = 0; k < prots_ctr; ++k){
-                if (prots.getIndice(k).getMember("connector").asString() == connectors.getIndiceName(j)){
-                  subcapa_json["cnf"].extend(prots.getIndice(k).asJSON());
-                  break;
+          if (!M.getLive() || !it->isMember("nolive")) {
+            bool isSSL = false;
+            if (url.protocol == "https" || url.protocol == "wss") { isSSL = true; }
+            if (it->isMember("handler")) { url.protocol = (*it)["handler"].asStringRef() + (isSSL ? "s" : ""); }
+            JSON::Value tmp;
+            tmp["type"] = (*it)["type"];
+            if (it->isMember("hrn")) { tmp["hrn"] = (*it)["hrn"]; }
+            tmp["relurl"] = relurl;
+            if ((*it).isMember("player_url")) { tmp["player_url"] = (*it)["player_url"].asStringRef(); }
+            if (conncapa.isMember("cnf") && conncapa["cnf"].isMember("iceservers")) {
+              tmp["RTCIceServers"] = conncapa["cnf"]["iceservers"];
+            }
+            tmp["simul_tracks"] = defaultTracks.size();
+            {
+              JSON::Value & S = tmp["sup_trk"];
+              for (const size_t & T : supportTracks) { S.append(T); }
+            }
+            {
+              JSON::Value & S = tmp["def_trk"];
+              for (const size_t & T : defaultTracks) { S.append(T); }
+            }
+            tmp["url"] = url.link(relurl).getUrl();
+
+            if (it->isMember("ttff")) {
+              size_t ttff_ms = 0;
+              const std::string & ttff = (*it)["ttff"].asStringRef();
+              if (ttff == "key") {
+                ttff_ms = M.biggestFragment() / 2;
+              } else if (ttff == "ms") {
+                ttff_ms = (*it)["ttff_ms"].asInt();
+              } else if (ttff == "segs") {
+                size_t mTrk = M.mainTrack();
+                size_t needed = M.biggestFragment() * (*it)["ttff_segs"].asDouble();
+                size_t buffered = M.getLastms(mTrk) - M.getFirstms(mTrk);
+                if (buffered >= needed) {
+                  ttff_ms = 0;
+                } else {
+                  ttff_ms = needed - buffered;
+                }
+              } else if (ttff == "bytes_or_ms") {
+                ttff_ms = (*it)["ttff_ms"].asInt();
+                size_t bytes = 0;
+                for (const size_t T : defaultTracks) { bytes += M.getBps(T); }
+                size_t needed = (*it)["ttff_bytes"].asInt();
+                if (bytes) {
+                  if (1000 * needed / bytes < ttff_ms) { ttff_ms = 1000 * needed / bytes; }
+                }
+              } else if (ttff == "live_ms_vod_bytes") {
+                if (M.getLive()) {
+                  ttff_ms = (*it)["ttff_ms"].asInt();
+                } else {
+                  if ((*it)["ttff_bytes"].isInt()) {
+                    size_t bytes = 0;
+                    for (const size_t T : defaultTracks) { bytes += M.getBps(T); }
+                    size_t needed = (*it)["ttff_bytes"].asInt();
+                    if (bytes) { ttff_ms = 1000 * needed / bytes; }
+                  } else {
+                    if ((*it)["ttff_bytes"] == "header") {
+                      size_t perPkt = (*it)["bw"][2u].asInt();
+                      size_t bytes = 0;
+                      for (const size_t T : defaultTracks) { bytes += M.parts(T).getPresent() * perPkt; }
+                      // Assume 5mbps transfer speed for no apparent reason
+                      ttff_ms = bytes / 5000;
+                    }
+                  }
+                }
+              }
+              tmp["score"]["ttff"] = ttff_ms;
+            }
+            if ((*it).isMember("latency") && !M.getVod()) {
+              size_t latency = 0;
+              if ((*it)["latency"].isInt()) {
+                latency = (*it)["latency"].asInt();
+              } else {
+                const std::string & L = (*it)["latency"].asStringRef();
+                if (L.size() > 4 && L.substr(0, 4) == "opt_") {
+                  latency = (*it)["cnf"][L.substr(4)].asInt();
+                } else if (L.size() > 5 && L.substr(0, 5) == "frag*") {
+                  latency = M.biggestFragment() * JSON::Value(L.substr(5)).asDouble();
+                }
+              }
+              tmp["score"]["latency"] = latency;
+            }
+            if ((*it).isMember("abr")) {
+              tmp["score"]["abr"] = 10;
+            } else {
+              tmp["score"]["abr"] = 0;
+            }
+            if ((*it).isMember("bw")) {
+              // Bandwidth calculations are FUN!
+              // We -think- we can cover all types of overhead (approximately) with a "simple" array of 5 values:
+              //   int: bytes overhead per "send unit" (e.g. TS packets)
+              //   int: bytes codec data that will fit in each "send unit"
+              //   int: bytes overhead per frame ("part" in our terminology)
+              //   bool: "send units" must be padded to max size
+              //   int: bytes overhead per segment ("fragment" in our terminology)
+              size_t overheadPerSU = ((*it)["bw"].size() > 0) ? (*it)["bw"][0u].asInt() : 0;
+              size_t bytesPerSU = ((*it)["bw"].size() > 1) ? (*it)["bw"][1u].asInt() : 0;
+              size_t overheadPerPart = ((*it)["bw"].size() > 2) ? (*it)["bw"][2u].asInt() : 0;
+              bool mustPadSU = ((*it)["bw"].size() > 3) ? (*it)["bw"][3u].asBool() : 0;
+              size_t overheadPerFrag = ((*it)["bw"].size() > 4) ? (*it)["bw"][4u].asInt() : 0;
+
+              size_t content = 0;
+              size_t overhead = 0;
+
+              for (const size_t T : defaultTracks) {
+                DTSC::Keys keys = M.getKeys(T);
+                DTSC::Parts parts(M.parts(T));
+                size_t partCount = parts.getValidCount();
+                overhead += overheadPerPart * partCount;
+                size_t firstPart = keys.getFirstPart(keys.getFirstValid());
+                for (size_t part = 0; part < partCount; ++part) {
+                  uint64_t partSize = parts.getSize(firstPart + part);
+                  content += partSize;
+                  if (bytesPerSU) {
+                    // If there is overhead per SU, add it for each full SU we need.
+                    overhead += overheadPerSU * (size_t)(partSize / bytesPerSU);
+                    // Is there a partial?
+                    if (partSize % bytesPerSU) {
+                      // Add one more
+                      overhead += overheadPerSU;
+                      // If we must send full SUs, we add the unused bytes of the last SU as overhead.
+                      if (mustPadSU) { overhead += bytesPerSU - (partSize % bytesPerSU); }
+                    }
+                  }
+                }
+                // If there is per-fragment overhead, add it (no need to add to content - we already did that above)
+                if (overheadPerFrag) {
+                  DTSC::Fragments frags(M.fragments(T));
+                  overhead += overheadPerFrag * frags.getValidCount();
                 }
               }
 
-              jsonForEach(pubAddrs, jit){
-                HTTP::URL altURL = outURL;
-                if (jit->asString().size()){altURL = jit->asString();}
-                if (!altURL.host.size()){altURL.host = outURL.host;}
-                if (!altURL.protocol.size()){altURL.protocol = outURL.protocol;}
-                addSources(streamName, sources, altURL, subcapa_json, json_resp["meta"], useragent, metaEverywhere);
-              }
+              // If there is overhead and content, calculate the percentage
+              if (overhead && content) { tmp["score"]["bw"] = (double)(overhead * 100) / (double)(content); }
             }
+            // Remaining score-related values are simple, just copy them if they are set.
+            for (const char *V : {"control", "stability", "cpu_server", "permissibility"}) {
+              if ((*it).isMember(V)) { tmp["score"][V] = (*it)[V].asInt(); }
+            }
+            unsorted_sources.push_back(tmp);
           }
         }
       }
+    };
+
+    prots.forEachMember([&](const DTSC::Scan & P) {
+      // Fetch capabilities for this connector
+      DTSC::Scan capa = connectors.getMember(P.getMember("connector").asString());
+
+      // We only handle connectors that have an (optional) port setting and do not set provides_dependency
+      // This means the connector can accept new connections, and doesn't just provide a port for a later stage (e.g. WebRTC's UDP connections)
+      if (!capa.getMember("optional").getMember("port") || capa.getMember("provides_dependency")) { return; }
+
+      // Build a URL based on the request hostname and either the configured or default port (if unset).
+      HTTP::URL outURL(reqHost);
+      outURL.port = P.getMember("port").asString();
+      if (!outURL.port.size()) {
+        outURL.port = capa.getMember("optional").getMember("port").getMember("default").asString();
+      }
+      outURL.protocol = capa.getMember("protocol").asString();
+      if (outURL.protocol.find(':') != std::string::npos) { outURL.protocol.erase(outURL.protocol.find(':')); }
+
+      // Public addresses are used from mistPath if set, or collected from config otherwise.
+      std::deque<std::string> pubAddrs;
+      if (mistPath.size()) {
+        pubAddrs.push_back(mistPath);
+      } else {
+        if (P.hasMember("pubaddr") && P.getMember("pubaddr").getType() == DTSC_STR) {
+          if (P.getMember("pubaddr").asString().size()) { pubAddrs.push_back(P.getMember("pubaddr").asString()); }
+        } else if (P.hasMember("pubaddr") && P.getMember("pubaddr").getType() == DTSC_ARR) {
+          P.getMember("pubaddr").forEachMember([&](const DTSC::Scan & A) { pubAddrs.push_back(A.asString()); });
+        }
+        if (!pubAddrs.size()) { pubAddrs.push_back(""); }
+      }
+
+      // Prepare the capabilities + config as a single JSON object
+      JSON::Value capa_json = capa.asJSON();
+      capa_json["cnf"] = P.asJSON();
+
+      // If we have a method on this protocol, add it.
+      if (capa.getMember("url_rel") || capa.getMember("methods")) {
+        for (const std::string & A : pubAddrs) {
+          HTTP::URL altURL = outURL;
+          if (A.size()) { altURL = A; }
+          if (!altURL.host.size()) { altURL.host = outURL.host; }
+          if (!altURL.protocol.size()) { altURL.protocol = outURL.protocol; }
+          addSources(altURL, capa_json);
+        }
+      }
+      // If this connector can be depended upon by other connectors, loop over the rest
+      if (capa.getMember("provides")) {
+        prots.forEachMember([&](const DTSC::Scan & subP) {
+          // Fetch capabilities, skip processing if it has no methods or doesn't depend on this connector
+          DTSC::Scan subCapa = connectors.getMember(subP.getMember("connector").asString());
+          if (!subCapa.getMember("methods") || subCapa.getMember("deps").asString() != capa.getMember("provides").asString()) {
+            return;
+          }
+
+          JSON::Value subcapa_json = subCapa.asJSON();
+          subcapa_json["cnf"] = capa_json["cnf"];
+          subcapa_json["cnf"].extend(subP.asJSON());
+
+          for (const std::string & A : pubAddrs) {
+            HTTP::URL altURL = outURL;
+            if (A.size()) { altURL = A; }
+            if (!altURL.host.size()) { altURL.host = outURL.host; }
+            if (!altURL.protocol.size()) { altURL.protocol = outURL.protocol; }
+            addSources(altURL, subcapa_json);
+          }
+        });
+      }
+    });
+
+    // Calculate final scores - first determine the range for each property
+    std::set<JSON::Value, sourceCompare> sorted_sources;
+    struct minMax {
+        double min;
+        double max;
+        bool invert;
+        void note(double V) {
+          if (V < min) { min = V; }
+          if (V > max) { max = V; }
+        }
+        size_t weigh(double V, size_t W) const {
+          if (min == max) { return W / 2; }
+          if (invert) {
+            return W * (1.0 - ((V - min) / (max - min)));
+          } else {
+            return W * ((V - min) / (max - min));
+          }
+        }
+    };
+
+    // Set some (in)sane defaults for everything
+    std::map<std::string, minMax> extremes;
+    extremes["bw"] = {1, 0, true};
+    extremes["latency"] = {0, 5000, true};
+    extremes["ttff"] = {0, 1000, true};
+    extremes["abr"] = {10, 0, false};
+    extremes["control"] = {10, 0, false};
+    extremes["cpu_server"] = {10, 0, false};
+    extremes["permissibility"] = {10, 0, false};
+    extremes["stability"] = {10, 0, false};
+    // Find the range for each value
+    for (const auto & S : unsorted_sources) {
+      if (!S.isMember("score")) { continue; }
+      const JSON::Value & scores = S["score"];
+      for (const char *V : MIST_WEIGHTS) {
+        if (scores.isMember(V)) { extremes[V].note(scores[V].asDouble()); }
+      }
     }
 
-    // loop over the added sources, add them to json_resp["sources"]
-    for (std::set<JSON::Value, sourceCompare>::iterator it = sources.begin(); it != sources.end(); it++){
-      if (includeZeroMatches || (*it)["simul_tracks"].asInt() > 0){
+    // Retrieve weights from global config
+    JSON::Value weights;
+    for (const char *w : MIST_WEIGHTS) { weights[w] = Util::getGlobalConfig(std::string("weight_") + w); }
+
+    // Calculate the score and add to sorted_sources
+    size_t defaultScore = 0;
+    for (auto & S : unsorted_sources) {
+      if (!S.isMember("score")) {
+        S["s"] = defaultScore++;
+        sorted_sources.insert(S);
+        continue;
+      }
+      const JSON::Value & scores = S["score"];
+      size_t score = 0;
+      for (const char *V : MIST_WEIGHTS) {
+        if (scores.isMember(V)) {
+          size_t tmp = extremes[V].weigh(scores[V].asDouble(), weights[V].asInt());
+          S["scores_result"][V] = tmp;
+          score += tmp;
+        }
+      }
+      S["s"] = score;
+      sorted_sources.insert(S);
+    }
+
+    // loop over the now sorted sources, add them to json_resp["sources"]
+    for (const auto & it : sorted_sources) {
+      if (includeZeroMatches || it["simul_tracks"].asInt() > 0) {
         if (Comms::tknMode & 0x04){
-          JSON::Value tmp;
-          tmp = (*it);
-          tmp["url"] = tmp["url"].asStringRef() + "?tkn=" + tkn;
-          tmp["relurl"] = tmp["relurl"].asStringRef() + "?tkn=" + tkn;
-          json_resp["source"].append(tmp);
+          JSON::Value & tmp = json_resp["source"].append();
+          tmp = it;
+          tmp["url"] += "?tkn=" + tkn;
+          tmp["relurl"] += "?tkn=" + tkn;
         }else{
-          json_resp["source"].append(*it);
+          json_resp["source"].append(it);
         }
       }
     }

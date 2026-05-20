@@ -799,6 +799,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       out["protocols"] = in["protocols"];
       removeDuplicateProtocols();
     }
+    if (in.isMember("weights")) { out["weights"] = in["weights"]; }
     if (in.isMember("trustedproxy")){
       out["trustedproxy"] = in["trustedproxy"];
       Controller::normalizeTrustedProxies(out["trustedproxy"]);

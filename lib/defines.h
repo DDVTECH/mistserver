@@ -331,3 +331,6 @@ static inline void show_stackframe(){}
 #define ER_SIGILL "SIGILL"
 #define ER_SIGFPE "SIGFPE"
 #define ER_SIGBUS "SIGBUS"
+
+#define MIST_WEIGHTS \
+  {"ttff", "latency", "abr", "bw", "control", "stability", "cpu_server", "permissibility", "cpu_viewer_batt", "cpu_viewer_pwrd", "recovery"}

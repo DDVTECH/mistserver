@@ -388,11 +388,20 @@ namespace Mist {
 
     capa["incoming_push_url"] = "srt://$host:$port?streamid=$stream";
     capa["url_rel"] = "?streamid=$";
-   
-    capa["methods"][0u]["handler"] = "srt";
-    capa["methods"][0u]["type"] = "srt";
-    capa["methods"][0u]["hrn"] = "SRT";
-    capa["methods"][0u]["priority"] = 10;
+
+    { // playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "SRT (Secure Reliable Transport)";
+      M["handler"] = "srt";
+      M["type"] = "srt";
+      M["ttff"] = "key";
+      M["latency"] = "opt_latency";
+      M["bw"].fromString("[6, 184, 16, true]");
+      M["control"] = 0;
+      M["stability"] = 6;
+      M["cpu_server"] = 3;
+      M["permissibility"] = 5;
+    }
 
     capa["optional"]["streamname"]["name"] = "Stream";
     capa["optional"]["streamname"]["help"] = "What streamname to serve if no streamid is given by the other end of the connection";

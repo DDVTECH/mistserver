@@ -333,16 +333,34 @@ namespace Mist{
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
 
-    capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/video/h264";
-    capa["methods"][0u]["hrn"] = "Annex B progressive";
-    capa["methods"][0u]["priority"] = 1;
-    capa["methods"][0u]["url_rel"] = "/$.h264";
-    capa["methods"][1u]["handler"] = "ws";
-    capa["methods"][1u]["type"] = "ws/video/h264";
-    capa["methods"][1u]["hrn"] = "Annex B WebSocket";
-    capa["methods"][1u]["priority"] = 2;
-    capa["methods"][1u]["url_rel"] = "/$.h264";
+    { // Progressive playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "Annex B progressive over HTTP";
+      M["handler"] = "http";
+      M["type"] = "html5/video/h264";
+      M["ttff"] = "key";
+      M["latency"] = 3000;
+      M["bw"].fromString("[0, 0, 12]");
+      M["control"] = 0;
+      M["stability"] = 1;
+      M["cpu_server"] = 9;
+      M["permissibility"] = 10;
+      M["url_rel"] = "/$.h264";
+    }
+    { // WebSocket playback method
+      JSON::Value & M = capa["methods"].append();
+      M["hrn"] = "Annex B over WebSocket";
+      M["handler"] = "ws";
+      M["type"] = "ws/video/h264";
+      M["ttff"] = "key";
+      M["latency"] = 3000;
+      M["bw"].fromString("[0, 0, 12]");
+      M["control"] = 0;
+      M["stability"] = 1;
+      M["cpu_server"] = 9;
+      M["permissibility"] = 10;
+      M["url_rel"] = "/$.h264";
+    }
 
     JSON::Value opt;
     opt["arg"] = "string";

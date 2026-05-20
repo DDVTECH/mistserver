@@ -357,7 +357,7 @@ var MistUtil = {
       }
       return Object.prototype.toString.call(array) === '[object Array]';
     },
-    multiSort: function (array,sortby) {
+    multiSort: function (array,sortby,getEntry) {
       /*
        MistUtil.array.multiSort([].concat(video.info.source),[
         {type: ["html5/video/webm","silverlight"]} or ["type",["html5/video/webm","silverlight"]]
@@ -366,6 +366,9 @@ var MistUtil = {
         ,"url"
        ]);
       */
+      if (!getEntry) getEntry = function(i){
+        return i;
+      };
       
       var sortfunc = function(a,b){
         if (isNaN(a) || isNaN(b)) {
@@ -377,8 +380,11 @@ var MistUtil = {
       if (!sortby.length) { return array.sort(sortfunc); }
       
       function getValue(key,a) {
+        a = getEntry(a);
         
-        function parseIt(item,key,sortvalue){
+        function parseIt(item,key,sortvalue,getter){
+          if (typeof getter == "function") item = getter(item);
+
           if (!(key in item)) {
             throw "Invalid sorting rule: "+JSON.stringify([key,sortvalue])+". \""+key+"\" is not a key of "+JSON.stringify(item);
           }
@@ -401,7 +407,7 @@ var MistUtil = {
         if (typeof key == "object") {
           if (key instanceof Array) {
             //it's an array
-            return parseIt(a,key[0],key[1]);
+            return parseIt(a,key[0],key[1],key.length > 2 ? key[2] : null);
           }
           //it's an object
           for (var j in key) { //only listen to a single key
@@ -960,6 +966,7 @@ var MistUtil = {
       return output;
     },
     translateCodec: function(track){
+      if (track.codecstring) return track.codecstring;
     
       function bin2hex(index) {
         return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
@@ -980,6 +987,33 @@ var MistUtil = {
         default:
           return track.codec.toLowerCase();
       }
+    },
+    getSupported: function(trackmeta,source){
+      //filters the tracks from the general metadata to show only audio and video tracks that the protocol (source) supports
+      if (!trackmeta) throw "Missing track metadata";
+      if (!source) throw "Please include the source object";
+
+      var result = {};
+      for (var i in trackmeta) {
+        var track = trackmeta[i];
+
+        if (track.type == "meta") continue; //we're only interested in audio and video tracks
+        if (source && ("sup_trk" in source)) { //if supported, backend reports what tracks can be put into this protocol
+          if (MistUtil.array.indexOf(source.sup_trk,track.idx) == -1) continue;
+        }
+
+        result[i] = track;
+      }
+      return result;
+    },
+    tracktypes: function(tracklist){
+      //takes a trackmeta object and returns an array of the track types it contains
+      var out = {};
+      for (var i in tracklist) {
+        var track = tracklist[i];
+        out[track.type] = true;
+      }
+      return MistUtil.object.keys(out);
     }
   },
   isTouchDevice: function(){
@@ -1399,6 +1433,10 @@ var MistUtil = {
             }
             case "request_codec_data": {
               responseType = "codec_data";
+              break;
+            }
+            case "offer_sdp": {
+              responseType = "on_answer_sdp";
               break;
             }
             default: {
@@ -2679,6 +2717,51 @@ var MistUtil = {
         MistVideo.log("Requesting the video track with the resolution that best matches the player size");
         ABR.request("size",size);
       };
+    },
+    testMediaSource: function(trackmeta) {
+      //for each track in the track meta object, test if MediaSource can play it
+
+      if (!window.MediaSource) { return {}; }
+      if (!MediaSource.isTypeSupported) { return true; } //we can't ask
+
+      var out = {};
+      for (var i in trackmeta) {
+        var track = trackmeta[i];
+        var codec = MistUtil.tracks.translateCodec(track);
+
+        if (MediaSource.isTypeSupported(track.type+"/mp4;codecs=\""+codec+"\"")) {
+          out[i] = track;
+        }
+      }
+
+      return out;
+    },
+    testRTC: function(trackmeta) {
+      //for each track in the track meta object, test if RTCRttpReceiver supports it
+      var check = {
+        audio: {},
+        video: {}
+      };
+      for (var type in check) {
+        var supported = RTCRtpReceiver.getCapabilities(type).codecs;
+        for (var i in supported) {
+          var codec = supported[i].mimeType.toLowerCase();
+          codec = codec.replace(type+"/","");
+          check[type][codec] = true;
+        }
+      }
+
+      var out = {};
+      for (var i in trackmeta) {
+        var track = trackmeta[i];
+        var codec = track.codec;
+        if (codec == "HEVC") codec = "H265";
+
+        if (check[track.type][codec.toLowerCase()]) {
+          out[i] = track;
+        }
+      }
+      return out;
     }
   }
 };

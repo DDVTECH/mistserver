@@ -162,165 +162,270 @@ function MistVideo(streamName,options) {
     else {
       players = MistUtil.object.values(mistplayers);
     }
-    
-    
-    //create a copy to not mess with the sorting of the original sourced array
-    sources = [].concat(sources);
-    
-    var sortoptions = {
-      first: "source",
-      source: [function(a){
-        if ("origIndex" in a) { return a.origIndex; }
         
-        //use original sorting -> retrieve index in original array
-        a.origIndex = MistVideo.info.source.indexOf(a)
-        return a.origIndex;
-      }],
-      player: [{priority:1}]
-    };
-    var map = {
-      inner: "player",
-      outer: "source"
-    };
-    if (options.forcePriority) {
-      if ("source" in options.forcePriority) {
-        if (!(options.forcePriority.source instanceof Array)) { throw "forcePriority.source is not an array."; }
-        sortoptions.source = options.forcePriority.source.concat(sortoptions.source); //prepend
-        MistUtil.array.multiSort(sources,sortoptions.source);
-      }
-      if ("player" in options.forcePriority) {
-        if (!(options.forcePriority.player instanceof Array)) { throw "forcePriority.player is not an array."; }
-        sortoptions.player = options.forcePriority.player.concat(sortoptions.player); //prepend
-        MistUtil.array.multiSort(players,sortoptions.player);
-      }
-      if ("first" in options.forcePriority) {
-        sortoptions.first = options.forcePriority.first; //overwrite
-      }
-      
-      
-      //define inner and outer loops
-      if (sortoptions.first == "player") {
-        map.outer = "player";
-        map.inner = "source";
-      }
-    }
-    
-    var variables = {
-      player: {
-        list: players,
-        current: false
-      },
-      source: {
-        list: sources,
-        current: false
-      }
-    };
-
-    if (options.startCombo) {
-      options.startCombo.started = {
-        player: false,
-        source: false
+    //helper class to store a player / source combo and calculate the score
+    function Combo(sourceIndex,playerIndex){
+      this.sourceIndex = sourceIndex;
+      this.playerIndex = playerIndex;
+      this.score = null;    //will contain the score for this combo
+      this.score_breakdown = {
+        scores: {},
+        weights: {},
+        final: {}
       };
-      for (var i = 0; i < players.length; i++) {
-        if (players[i].shortname == options.startCombo.player) {
-          options.startCombo.player = i;
-          break;
-        }
-      }
-    }
+      this.canplay = null;  //will contain the playable tracks score
 
-    
-    function checkStartCombo(which) {
-      if ((options.startCombo) && (!options.startCombo.started[which])) {
-        //if we have a starting point for the loops, skip testing until we are at the correct point
-        if ((options.startCombo[which] == variables[which].current) || (options.startCombo[which] == variables[which].list[variables[which].current])) {
-          //we're here!
-          options.startCombo.started[which] = true;
-          return 1; //issue continue statement in inner loop
-        }
-        return 2; //always issue continue statement
+      this.getSource = function(){
+        return sources[sourceIndex];
+      };
+      this.getPlayer = function(){
+        return players[playerIndex];
+      };
+
+      //add helper properties
+      if ("defineProperties" in Object) {
+        Object.defineProperty(this,"source",{get:this.getSource});
+        Object.defineProperty(this,"player",{get:this.getPlayer});
       }
-      return 0; //carry on!
+
+      //get server side score
+      this.score = this.getSource().s || 0;
+      if ("score" in this.getSource()) {
+        for (var i in this.getSource().score) {
+          this.score_breakdown.scores[i] = this.getSource().score[i];
+        }
+      }
+      if ("scores_result" in this.getSource()) {
+        for (var i in this.getSource().scores_result) {
+          this.score_breakdown.final[i] = this.getSource().scores_result[i];
+        }
+      }
+
+
+      //add player side scores
+      var scoring_variables = ["recovery","cpu_viewer"];
+      if ("getScore" in this.getPlayer()) {
+        function getFactor(varname) {
+          if (MistVideo.info && MistVideo.info.capa && MistVideo.info.capa.weights) {
+            var factors = MistVideo.info.capa.weights;
+            if (varname == "cpu_viewer") {
+              return (MistValues.battery === true ? factors.cpu_viewer_batt : factors.cpu_viewer_pwrd);
+            }
+            else return factors[varname] || 1;
+          }
+          return 1;
+        }
+        for (var i in scoring_variables) {
+          var varname = scoring_variables[i];
+          var score = this.getPlayer().getScore(varname,this.getSource()) || 0;
+          var factor = getFactor(varname);
+          var weighted = score * factor / 10; //weighted is the new score, on a scale from 0 to weight. As our scores are on a scale of 0 to 10, they should be divided by 10.
+          this.score += weighted;
+
+          //store the calculated score
+          this.score_breakdown.scores[varname] = score;
+          this.score_breakdown.weights[varname] = factor;
+          this.score_breakdown.final[varname] = weighted;
+        }
+      }
+
+      //asks the player if it can play this source in this browser etc - and if so, if it can play at least one audio and or video track
+      this.canPlay = function(){
+        if (this.canplay === null) {
+          var tracktypes = this.getPlayer().isBrowserSupported(this.getSource().type,this.getSource(),MistVideo);
+          this.canplay = MistVideo.scoreCombo(tracktypes);
+        }
+        return this.canplay;
+      }
+
+      //convert combo to returnable object in correct syntax
+      this.report = function(){
+        return {
+          score: this.score,
+          canplay: this.canplay,
+          player: this.getPlayer().shortname,
+          source: this.getSource(),
+          source_index: this.sourceIndex,
+          list: listofcombos,
+          i: listofcombos.indexOf(this)
+        };
+      }
+      this.toString = function(){
+        return this.getPlayer().name+" with "+this.getSource().type+" @ "+this.getSource().url+(this.score ? " ("+(this.canplay ? "CanPlay: "+this.canplay+", " : "")+"Score: "+this.score+")" : "")
+      };
+
+    } //end of Combo class
+
+    var listofcombos = [];
+    for (var i in sources) {
+      var source = sources[i];
+      var mime = source.type;
+      for (var j in players) {
+        var player = players[j];
+        if (player.isMimeSupported(mime)) {
+          listofcombos.push(new Combo(i,j));
+        }
+      }
     }
     
-    var best = {
-      score: 0,
-      source_index: null,
-      player: null
-    };
+    var sortoptions = [];
+    if (options.forcePriority) {
+      //nests this.getSource and this.getPlayer into the sorting rules
+      function addGetter(sortrules,get) {
+        var out = [];
+        for (var i in sortrules) {
+          var v = sortrules[i];
+          if (typeof v == "function") {
+            out.push(function(a){
+              return get(a);
+            });
+          }
+          else if (typeof v == "object") {
+            if (v instanceof Array) {
+              out.push([v[0],v[1],v.length > 2 ? function(){
+                return get(v[2])
+              }: get]);
+            }
+          }
+          else {
+            //v must be key of source or player
+            out.push(function(a){ return v in get(a) ? get(a)[v] : null; });
+          }
+        }
+        return out;
+      }
+      function addSourceSorter(){
+        if ("source" in options.forcePriority) {
+          if (!(options.forcePriority.source instanceof Array)) { throw "forcePriority.source is not an array."; }
+          sortoptions = sortoptions.concat(addGetter(options.forcePriority.source,function(a){ return a.getSource(); }));
+        }
+      }
+      function addPlayerSorter(){
+        if ("player" in options.forcePriority) {
+          if (!(options.forcePriority.player instanceof Array)) { throw "forcePriority.player is not an array."; }
+          sortoptions = sortoptions.concat(addGetter(options.forcePriority.player,function(a){ return a.getPlayer(); }));
+        }
+      }
+
+      if (options.forcePriority.first == "player") {
+        addPlayerSorter();
+        addSourceSorter();
+      }
+      else {
+        addSourceSorter();
+        addPlayerSorter();
+      }
+    }
+    sortoptions.push(function(a){ return a.score * -1 });
+    MistUtil.array.multiSort(listofcombos,sortoptions);
+
+
+    //now, loop over the combo's and ask what can be played
     //calculate the best possible score for this stream, so that we can break the loop early
     var hastracktypes = {};
     for (var i in MistVideo.info.meta.tracks) {
-      if (MistVideo.info.meta.tracks[i].type == "meta") {
-        hastracktypes[MistVideo.info.meta.tracks[i].codec] = 1;
-      }
-      else {
-        hastracktypes[MistVideo.info.meta.tracks[i].type] = 1;
-      }
+      hastracktypes[MistVideo.info.meta.tracks[i].type] = 1;
     }
     var maxscore = MistVideo.scoreCombo(MistUtil.object.keys(hastracktypes));
-
-    outerloop:
-    for (var n in variables[map.outer].list) {
-      variables[map.outer].current = n;
+    var i = 0;
+    if (options.startCombo) {
+      //don't start at the first combo, but where we left off
       
-      //loop over the sources (prioritized by MistServer)
-      
-      if (checkStartCombo(map.outer) >= 2) { continue; }
-      
-      innerloop:
-      for (var m in variables[map.inner].list) {
-        variables[map.inner].current = m;
-        
-        if (checkStartCombo(map.inner) >= 1) { continue; }
-        
-        var source = variables.source.list[variables.source.current];
-        var p_shortname = variables.player.list[variables.player.current].shortname;
-        var player = mistplayers[p_shortname];
-        
-        if (player.isMimeSupported(source.type)) {
-          //this player supports this mime
-          var tracktypes = player.isBrowserSupported(source.type,source,MistVideo);
-          if (tracktypes) {
-            var score = MistVideo.scoreCombo(tracktypes);
-            if (score > best.score) {              
-              if (!quiet) MistVideo.log("Found a "+(best.score ? "better" : "working")+" combo: "+player.name+" with "+source.url+" (Score: "+score+")");
-
-              best = {
-                score: score,
-                player: p_shortname,
-                source: source,
-                source_index: variables.source.current
-              };
-
-              if (best.score == maxscore) {
-                //this is the max possible score, no need to continue searching
-                return best;
-              }
-            }
+      if ("list" in options.startCombo) {
+        //technically, this list may be from a previous instance where the source list had different scores and the selected source may not even be valid anymore.. but I guess we ignore that for now
+        listofcombos = options.startCombo.list;
+        i = options.startCombo.start;
+      }
+      else {
+        //old style
+        options.startCombo.start = null; 
+        while (i < listofcombos.length) {
+          var combo = listofcombos[i];
+          if ((combo.getPlayer().shortname == options.startCombo.player) && (combo.sourceIndex == options.startCombo.source)) {
+            i++;
+            options.startCombo.start = i;
+            break;
           }
+          i++;
+        }
+        if (options.startCombo.start === null) {
+          //the used startcombo is not in the list for some reason
+          i = 0;
+          options.startCombo.start = 0;
         }
       }
     }
-    if (best.score) {
-      return best;
+
+    if (!quiet) console.warn("Sorting of combos:\n"+listofcombos.map(function(a){
+      return a.toString();
+    }).join("\n"),"\nStarting at "+i,listofcombos);
+
+
+    //do the actual loop
+    while (i < listofcombos.length) {
+      var combo = listofcombos[i];
+      switch(combo.canPlay()) {
+        case maxscore: {
+          //everything can play: play this combo
+          //console.warn("Combo can play everything: "+combo);
+          return combo.report();
+          break;
+        }
+        case 0: {
+          //nothing can play: remove this combo from the list
+          listofcombos.splice(i,1);
+          //keep i at current value
+          //console.warn("Combo cannot play, kicking: "+combo);
+          break;
+        }
+        default: {
+          if (combo.canPlay() >= maxscore) return combo.report(); //just in case the canplay score returned is higher than the calculated max for some reason
+
+          //not everything can play: check combos after this one that might be better
+          i++;
+
+          //console.warn("Combo plays but will try to find a better one: "+combo);
+        }
+      }
     }
+    //if we've reached this point, no combo can play both audio and video.
     
-    return false;
+    if (!listofcombos.length) return false;
+
+    //listofcombos is currently sorted by score - return the highest canplay
+    var best = {
+      score: 0,
+      canplay: 0,
+      source_index: null,
+      player: null
+    };
+    var i = 0;
+    if (options.startCombo.start) {
+      i = options.startCombo.start;
+    }
+    while (i < listofcombos.length) {
+      var combo = listofcombos[i];
+      if (combo.canPlay() > best.canplay) {
+        best = combo.report();
+      }
+      i++;
+    }
+    //console.warn("Best combo: "+best);
+    return best.player === null ? false : best;
   }
   this.scoreCombo = function (tracktypes) {
     //player.isBrowserSupported returns either true or an array of track types that are in the source and that it can play in this browser.
     //loop over the returned track types and calculate a score of how good this player+source combo is
-    if (tracktypes === true) { return 1.9; } //something will play, but the player doesn't tell us what. Hopefully video will work?
+    if (tracktypes === true) { return 1.9; } //something will probably play, but the player doesn't tell us what. Hopefully video will work?
 
     var scores = {
       video: 2,
       audio: 1,
-      subtitle: 0.5
+      subtitle: 0 //subtitles can always be added seperately, so they are irrelevant
     };
     var score = 0;
     for (var i in tracktypes) {
-      score += scores[tracktypes[i]];
+      if (tracktypes[i] in scores) score += scores[tracktypes[i]];
     }
     return score;
   };
@@ -335,12 +440,13 @@ function MistVideo(streamName,options) {
     var player = mistplayers[result.player];
     var source = result.source;
     
-    MistVideo.log("Selected: "+player.name+" with "+source.type+" @ "+source.url);
+    MistVideo.log("Selected: "+player.name+" with "+source.type+" @ "+source.url+(result.score ? " (CanPlay: "+result.canplay+", Score: "+result.score+")" : ""));
     MistVideo.playerName = result.player;
     source = MistUtil.object.extend({},source);
     source.index = result.source_index;
     source.url = MistVideo.urlappend(source.url);
     MistVideo.source = source;
+    MistVideo.combo = result;
     
     MistUtil.event.send("comboChosen","Player/source combination selected",MistVideo.options.target);
     
@@ -1958,10 +2064,20 @@ function MistVideo(streamName,options) {
     var time = false;
     if (("player" in this) && ("api" in this.player)) { time = this.player.api.currentTime; }
     
-    if (typeof startCombo == "undefined") startCombo = {
-      source: this.source.index,
-      player: this.playerName
-    };
+    if (typeof startCombo == "undefined") {
+      if (this.combo && this.combo.list && this.combo.list.length && ("i" in this.combo)) {
+        startCombo = {
+          list: this.combo.list,
+          start: Number(this.combo.i) + 1
+        };
+      }
+      else {
+        startCombo = {
+          source: this.source.index,
+          player: this.playerName
+        };
+      }
+    }
     if (!this.checkCombo({startCombo:startCombo},true)) {
       //the nextCombo won't yield a result
       if (this.checkCombo({startCombo: false},true)) {
@@ -1999,3 +2115,15 @@ function MistVideo(streamName,options) {
   
   return this;
 }
+var MistValues = {};
+MistValues.battery = "getBattery" in navigator ? function(){
+  navigator.getBattery().then(function(d){
+    MistValues.battery = !d.charging; //if it's charging, we don't need to care about preserving battery
+    d.addEventListener("chargingchange",function(){
+      MistValues.battery = !d.charging;
+    });
+  }).catch(function(){
+    MistValues.battery = null; //something went wrong, possibly security error - either way we don't know
+  });
+  return null; //we don't know the state yet
+}() : null; //state is unknown

@@ -19,52 +19,18 @@ mistplayers.dashjs = {
       return false;
     }
 
-    if (!("MediaSource" in window)) { return false; }
-    if (!MediaSource.isTypeSupported) { return true; } //we can't ask, but let's assume something will work
-
-    //check if both audio and video have at least one playable track
-    //gather track types and codec strings
-    var playabletracks = {};
-    var hassubtitles = false;
-    for (var i in MistVideo.info.meta.tracks) {
-      if (MistVideo.info.meta.tracks[i].type == "meta") {
-        if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
-        continue;
-      }
-      if (!(MistVideo.info.meta.tracks[i].type in playabletracks)) {
-        playabletracks[MistVideo.info.meta.tracks[i].type] = {};
-      }
-      playabletracks[MistVideo.info.meta.tracks[i].type][MistUtil.tracks.translateCodec(MistVideo.info.meta.tracks[i])] = 1;
-    }
-    
-    var tracktypes = [];
-    for (var type in playabletracks) {
-      var playable = false;
-
-      for (var codec in playabletracks[type]) {
-        if (MediaSource.isTypeSupported("video/mp4;codecs=\""+codec+"\"")) {
-          playable = true;
-          break;
-        }
-      }
-      if (playable) {
-        tracktypes.push(type);
-      }
-    }
-    if (hassubtitles) {
-      //there is a subtitle track, check if there is a webvtt source
-      for (var i in MistVideo.info.source) {
-        if (MistVideo.info.source[i].type == "html5/text/vtt") {
-          tracktypes.push("subtitle");
-          break;
-        }
-      }
-    }
-    
-    return tracktypes.length ? tracktypes : false;
+    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
+    supported = MistUtil.shared.testMediaSource(supported);
+    return MistUtil.tracks.tracktypes(supported);
   },
   player: function(){this.onreadylist = [];},
-  scriptsrc: function(host) { return host+"/dashjs.js"; }
+  scriptsrc: function(host) { return host+"/dashjs.js"; },
+  getScore: function(varname,source){
+    switch (varname) {
+      case "cpu_viewer": return 9;
+      case "recovery": return 0;
+    }
+  }
 };
 var p = mistplayers.dashjs.player;
 p.prototype = new MistPlayer();

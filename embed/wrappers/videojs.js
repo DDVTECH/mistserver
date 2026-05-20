@@ -19,66 +19,23 @@ mistplayers.videojs = {
       return false;
     }
 
-    function checkPlaybackOfTrackTypes(mime) {
-      if (!MediaSource.isTypeSupported) { return true; } //we can't ask, but let's assume something will work
-
-      //check if both audio and video have at least one playable track
-      //gather track types and codec strings
-      var playabletracks = {};
-      var hassubtitles = false;
-      for (var i in MistVideo.info.meta.tracks) {
-        if (MistVideo.info.meta.tracks[i].type == "meta") {
-          if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
-          continue;
-        }
-        if (!(MistVideo.info.meta.tracks[i].type in playabletracks)) {
-          playabletracks[MistVideo.info.meta.tracks[i].type] = {};
-        }
-        playabletracks[MistVideo.info.meta.tracks[i].type][MistUtil.tracks.translateCodec(MistVideo.info.meta.tracks[i])] = 1;
-      }
-
-      var tracktypes = [];
-      for (var type in playabletracks) {
-        var playable = false;
-
-        for (var codec in playabletracks[type]) {
-          if (MediaSource.isTypeSupported(mime+";codecs=\""+codec+"\"")) {
-            playable = true;
-            break;
-          }
-        }
-        if (playable) {
-          tracktypes.push(type);
-        }
-      }
-      if (hassubtitles) {
-        //there is a subtitle track, check if there is a webvtt source
-        for (var i in MistVideo.info.source) {
-          if (MistVideo.info.source[i].type == "html5/text/vtt") {
-            tracktypes.push("subtitle");
-            break;
-          }
-        }
-      }
-
-      return tracktypes.length ? tracktypes : false;
-    }
-
-    //can this browser play this natively?
-    if (document.createElement("video").canPlayType(mimetype.replace("html5/",""))) {
-
-      //we can't ask, but let's assume something will work
-      if (!("MediaSource" in window)) { return true; }
-      if (!MediaSource.isTypeSupported) { return true; }
-
-      return checkPlaybackOfTrackTypes(mimetype.replace("html5/","")); 
-    }
-
-    if (!("MediaSource" in window)) { return false; }
-    return checkPlaybackOfTrackTypes("video/mp4");
+    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
+    supported = MistUtil.shared.testMediaSource(supported);
+    return MistUtil.tracks.tracktypes(supported);
   },
   player: function(){},
-  scriptsrc: function(host) { return host+"/videojs.js"; }
+  scriptsrc: function(host) { return host+"/videojs.js"; },
+  getScore: function(varname,source){
+    switch (varname) {
+      case "cpu_viewer": {
+        switch (source.type) {
+          case "html5/application/vnd.apple.mpegurl": return 5;
+          case "html5/application/vnd.apple.mpegurl;version=7": return 9;
+        }
+      };
+      case "recovery": return 0;
+    }
+  }
 };
 var p = mistplayers.videojs.player;
 p.prototype = new MistPlayer();

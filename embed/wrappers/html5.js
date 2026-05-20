@@ -37,36 +37,13 @@ mistplayers.html5 = {
     
     try {
       shortmime = shortmime.join("/");
-      //works for mp4 but not for webm
-      function translateCodec(track) {
-        if (track.codecstring){return track.codecstring;}
-        function bin2hex(index) {
-          return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
-        }
-        switch (track.codec) {
-          case "AAC":
-            return "mp4a.40.2";
-          case "MP3":
-            return "mp4a.40.34";
-          case "AC3":
-            return "ec-3";
-          case "H264":
-            return "avc1."+bin2hex(1)+bin2hex(2)+bin2hex(3);
-          case "HEVC":
-            return "hev1."+bin2hex(1)+bin2hex(6)+bin2hex(7)+bin2hex(8)+bin2hex(9)+bin2hex(10)+bin2hex(11)+bin2hex(12);
-          default:
-            return track.codec.toLowerCase();
-        }
-      }
 
       var codecs = {};
       var playabletracks = {};
       var hassubtitles = false;
-      for (var i in MistVideo.info.meta.tracks) {
-        if (MistVideo.info.meta.tracks[i].type != "meta") {
-          codecs[translateCodec(MistVideo.info.meta.tracks[i])] = MistVideo.info.meta.tracks[i];
-        }
-        else if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
+      var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
+      for (var i in supported) {
+        codecs[MistUtil.tracks.translateCodec(supported[i])] = supported[i];
       }
       var container = mimetype.split("/")[2];
 
@@ -102,17 +79,6 @@ mistplayers.html5 = {
         }
         return false;
       }
-
-
-      if (hassubtitles) {
-        //there is a subtitle track, check if there is a webvtt source
-        for (var i in MistVideo.info.source) {
-          if (MistVideo.info.source[i].type == "html5/text/vtt") {
-            playabletracks.subtitle = 1;
-            break;
-          }
-        }
-      }
       
       support = MistUtil.object.keys(playabletracks);
     } catch(e){}
@@ -120,6 +86,12 @@ mistplayers.html5 = {
   },
   player: function(){
     this.onreadylist = [];
+  },
+  getScore: function(varname,source){
+    switch (varname) {
+      case "cpu_viewer": return 10;
+      case "recovery": return 5;
+    }
   },
   mistControls: true
 };

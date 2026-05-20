@@ -27,7 +27,13 @@ mistplayers.rawwscanvas = {
   player: function(){
     this.onreadylist = [];
   },
-  scriptsrc: function(host) { return host+"/libde265.js"; }
+  scriptsrc: function(host) { return host+"/libde265.js"; },
+  getScore: function(varname,source){
+    switch (varname) {
+      case "cpu_viewer": return 0;
+      case "recovery": return 9;
+    }
+  }
 };
 var p = mistplayers.rawwscanvas.player;
 p.prototype = new MistPlayer();

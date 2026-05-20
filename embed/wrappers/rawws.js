@@ -39,24 +39,15 @@ mistplayers.rawws = {
     }
     if (MistVideo.info && MistVideo.info.meta && MistVideo.info.meta.tracks) {
       var playabletracks = {};
-      for (var i in MistVideo.info.meta.tracks) {
-        var track = MistVideo.info.meta.tracks[i];
-        switch (track.type) {
-          case "audio":
-          case "video": {
-            if (track.idx in cache) {
-              if (cache[track.idx]) playabletracks[track.type] = true;
-            }
-            else {
-              //we haven't actually tested yet if this track will play - but assume it will
-              playabletracks[track.type] = "maybe";
-            }
-            break;
-          }
-          case "meta": {
-            if (track.codec == "subtitle") playabletracks.subtitle = true;
-            break;
-          }
+      var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
+      for (var i in supported) {
+        var track = supported[i];
+        if (track.idx in cache) {
+          if (cache[track.idx]) playabletracks[track.type] = true;
+        }
+        else {
+          //we haven't actually tested yet if this track will play - but assume it will
+          playabletracks[track.type] = "maybe";
         }
       }
       this.cacheSupported[MistVideo.stream].last = playabletracks;
@@ -192,6 +183,24 @@ mistplayers.rawws = {
         resolve(result);
       }).catch(reject);
     });
+  },
+  getScore: function(varname,source){
+    switch (varname) {
+      case "cpu_viewer": {
+        switch (MistUtil.getBrowser()) {
+          case "chrome":
+          case "edge":
+          case "opera": {
+            return 10;
+          }
+          case "safari": return 9;
+          case "firefox": return 8;
+          default: return 5; //unknown or browser is not supported
+        }
+      }
+      case "recovery": return 10;
+      default: return null;
+    }
   }
 };
 var p = mistplayers.rawws.player;

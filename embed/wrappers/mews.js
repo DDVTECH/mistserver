@@ -24,70 +24,17 @@ mistplayers.mews = {
     if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
       return false;
     }
-
-    //check (and save) codec compatibility
-    function translateCodec(track) {
-      if (track.codecstring){return track.codecstring;}
-      function bin2hex(index) {
-        return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
-      }
-      switch (track.codec) {
-        case "AAC":
-          return "mp4a.40.2";
-        case "MP3":
-          return "mp4a.40.34";
-        case "AC3":
-          return "ec-3";
-        case "H264":
-          return "avc1."+bin2hex(1)+bin2hex(2)+bin2hex(3);
-        case "HEVC":
-          return "hev1."+bin2hex(1)+bin2hex(6)+bin2hex(7)+bin2hex(8)+bin2hex(9)+bin2hex(10)+bin2hex(11)+bin2hex(12);
-        default:
-          return track.codec.toLowerCase();
-      }
-      
-    }
-    var codecs = {};
-    var playabletracks = {};
-    var hassubtitles = false;
-    for (var i in MistVideo.info.meta.tracks) {
-      if (MistVideo.info.meta.tracks[i].type != "meta") {
-        /*if (MistVideo.info.meta.tracks[i].codec == "HEVC") {
-          //the iPad claims to be able to play MP4/WS H265 tracks.. haha no.
-          continue;
-        }*/
-        codecs[translateCodec(MistVideo.info.meta.tracks[i])] = MistVideo.info.meta.tracks[i];
-      }
-      else if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
-    }
-    var container = mimetype.split("/")[2];
-    function test(codecs) {
-      //if (container == "webm") { return true; }
-      return MediaSource.isTypeSupported("video/"+container+";codecs=\""+codecs+"\"");
-    }
-    source.supportedCodecs = [];
-    for (var i in codecs) {
-      //i is the long name (like mp4a.40.2), codecs[i] is the track meta, codecs[i].codec is the short name (like AAC)
-      var s = test(i);
-      if (s) {
-        source.supportedCodecs.push(codecs[i].codec);
-        playabletracks[codecs[i].type] = 1;
-      }
-    }
-
-    if (hassubtitles) {
-      //there is a subtitle track, check if there is a webvtt source
-      for (var i in MistVideo.info.source) {
-        if (MistVideo.info.source[i].type == "html5/text/vtt") {
-          playabletracks.subtitle = 1;
-          break;
-        }
-      }
-    }
-
-    return MistUtil.object.keys(playabletracks);
+    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
+    supported = MistUtil.shared.testMediaSource(supported);
+    return MistUtil.tracks.tracktypes(supported);
   },
-  player: function(){}
+  player: function(){},
+  getScore: function(varname,source){
+    switch (varname) {
+      case "cpu_viewer": return 9;
+      case "recovery": return 0;
+    }
+  }
 };
 var p = mistplayers.mews.player;
 p.prototype = new MistPlayer();

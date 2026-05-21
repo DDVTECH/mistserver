@@ -7180,24 +7180,24 @@ context_menu: function(){
         var $source_info = $("<div>").addClass("source_info");
         var dynamic_capa_rate_limit = false;
         var dynamic_capa_source = false;
-          function addSourceHint(input) {
-            let prefill = "source_prefill" in input ? input.source_prefill : [];
-            if (typeof prefill == "string") {
-              prefill = [prefill];
-            }
-            for (var j in prefill) {
-              if (!(prefill[j] in source_hinting)) {
-                source_hinting[prefill[j]] = [];
-                $source_datalist.append(
-                  $("<option>").val(prefill[j])
-                );
-              }
-              source_hinting[prefill[j]].push(input);
-            }
-            //also add the "<INPUT NAME>://" type syntax to the source_hinting, but not to the prefill
-            let input_override = input.name.toLowerCase()+":";
-            if (!(input_override in source_hinting)) source_hinting[input_override] = [input];
+        function addSourceHint(input) {
+          let prefill = "source_prefill" in input ? input.source_prefill : [];
+          if (typeof prefill == "string") {
+            prefill = [prefill];
           }
+          for (var j in prefill) {
+            if (!(prefill[j] in source_hinting)) {
+              source_hinting[prefill[j]] = [];
+              $source_datalist.append(
+                $("<option>").val(prefill[j])
+              );
+            }
+            source_hinting[prefill[j]].push(input);
+          }
+          //also add the "<INPUT NAME>://" type syntax to the source_hinting, but not to the prefill
+          let input_override = input.name.toLowerCase()+":";
+          if (!(input_override in source_hinting)) source_hinting[input_override] = [input];
+        }
 
         for (var i in mist.data.capabilities.inputs) {
           for (var j in mist.data.capabilities.inputs[i].source_match) {
@@ -7584,6 +7584,59 @@ context_menu: function(){
 
                 function update_input_options(source) {
                   var input_options = $.extend({},input);
+                  if (input.jit_capa) { //just in time capabilities, always refresh when any of the specified jit_opts change
+                    input_options.desc = "Loading dynamic capabilities..";
+
+                    //ensure capabilities are requested for the selected jit_opts
+                    let jit_opts = {};
+                    let cur_opts = {};
+                    for (var i in input.required) {
+                      cur_opts[i] = $inputoptions.find(".isSetting[name=\""+i+"\"]").getval();
+                    }
+                    for (var i in input.optional) {
+                      cur_opts[i] = $inputoptions.find(".isSetting[name=\""+i+"\"]").getval();
+                    }
+                    for (var i of input.jit_opts) {
+                      jit_opts[i] = cur_opts[i] || "";
+                    }
+                    if (input.for_opts != JSON.stringify(jit_opts)) {
+                      mist.send(function(d){
+                        input = d.capabilities;
+                        for (var i in cur_opts) {
+                          var parentObj = i in input.optional ? input.optional : input.required;
+                          parentObj[i].value = cur_opts[i];
+                          if ((i in saveas) && cur_opts[i]) delete saveas[i];
+                        }
+                        if (input.jit_opts) {
+                          for (var i of input.jit_opts) {
+                            var parentObj = i in input.optional ? input.optional : input.required;
+                            parentObj[i].value = jit_opts[i];
+                            parentObj[i]["function"] = function(e,val){
+                              if (val != jit_opts[$(this).attr("name")]) {
+                                if ($inputoptions.find(".isSetting[name=\""+$(this).attr("name")+"\"]").length) update_input_options(source);
+                                else {
+                                  //form is not ready yet, but we do need to rebuild
+                                  if (!dynamic_capa_rate_limit) {
+                                    dynamic_capa_rate_limit = setTimeout(function(){
+                                      dynamic_capa_rate_limit = false;
+                                      update_input_options(source);
+                                    },200);
+                                  }
+                                }
+                              }
+                            };
+                          }
+                        }
+                        input.for_opts = JSON.stringify(jit_opts);
+                        update_input_options(source);
+                      },{capabilities:{
+                        source: source,
+                        ...jit_opts
+                      }});
+                      return;
+                    }
+                  }
+                  
                   if (input.dynamic_capa) {
                     input_options.desc = "Loading dynamic capabilities..";
 
@@ -7599,25 +7652,25 @@ context_menu: function(){
                       dynamic_capa_rate_limit = setTimeout(function(){
                         if (!("dynamic_capa_results" in input)) {
                           input.dynamic_capa_results = {};
+                        }
+                        input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
+                        mist.send(function(d){
+                          dynamic_capa_rate_limit = false;
+                          input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
+                          update_input_options(dynamic_capa_source);
+                        },{capabilities:dynamic_capa_source});
+                      },1e3); //one second rate limit
+
+
+                    }
+                    else {
+                      //we know them, apply
+                      delete input_options.desc;
+                      if (input.dynamic_capa_results[source]) {
+                        input_options = input.dynamic_capa_results[source];
                       }
-                      input.dynamic_capa_results[dynamic_capa_source] = null; //reserve the space so we only make the call once
-                      mist.send(function(d){
-                        dynamic_capa_rate_limit = false;
-                        input.dynamic_capa_results[dynamic_capa_source] = d.capabilities;
-                        update_input_options(dynamic_capa_source);
-                      },{capabilities:dynamic_capa_source});
-                    },1e3); //one second rate limit
-
-
-                  }
-                  else {
-                    //we know them, apply
-                    delete input_options.desc;
-                    if (input.dynamic_capa_results[source]) {
-                      input_options = input.dynamic_capa_results[source];
                     }
                   }
-                }
                 $inputoptions.attr("data-input",input.name).html(
                   $('<h3>').text("source_name" in input ? "Input options for "+(input.source_name).toLowerCase() : input.name+' Input options')
                 );
@@ -8883,6 +8936,7 @@ context_menu: function(){
                     value: (other == "" && ((type == "TSSRT") || (type == "TSRIST") || (type == "RTSP") || (type == "TS")) ? true : false) //for new streams, if the input is TSSRT TSRIST RTSP or TS(= tsudp), put always_on true by default
                   });
                 }
+
                 $inputoptions.append(UI.buildUI(build));
                 $source_info.html("");
                 if ((input.enum_static_prefix) && (source.slice(0,input.enum_static_prefix.length) == input.enum_static_prefix)) {
@@ -16441,7 +16495,10 @@ var mist = {
           obj.help = "<div>"+ele.help+"</div>"+"<p>A track selector is at least one track type (audio, video or subtitle) combined with a track selector parameter. For example: <code>audio=none&video=maxres</code>.<p>Track selector parameters consist of a string value which may be any of the following:</p> <ul><li><code>selector,selector</code>: Selects the union of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,!selector</code>: Selects the difference of the given selectors. Specifically, all tracks part of the first selector that are not part of the second selector. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,|selector</code>: Selects the intersection of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>none</code> or <code>-1</code>: Selects no tracks of this type.</li> <li><code>all</code> or <code>*</code>: Selects all tracks of this type.</li> <li>Any positive integer: Select this specific track ID. Does not apply if the given track ID does not exist or is of the wrong type. <strong>Does</strong> apply if the given track ID is incompatible with the currently active protocol or container format.</li> <li>ISO 639-1/639-3 language code: Select all tracks marked as the given language. Case insensitive.</li> <li>Codec string (e.g. <code>h264</code>): Select all tracks of the given codec. Case insensitive.</li> <li><code>highbps</code>, <code>maxbps</code> or <code>bestbps</code>: Select the track of this type with the highest bit rate.</li> <li><code>lowbps</code>, <code>minbps</code> or <code>worstbps</code>: Select the track of this type with the lowest bit rate.</li> <li><code>Xbps</code> or <code>Xkbps</code> or <code>Xmbps</code>: Select the single of this type which has a bit rate closest to the given number X. This number is in bits, not bytes.</li> <li><code>&gt;Xbps</code> or <code>&gt;Xkbps</code> or <code>&gt;Xmbps</code>: Select all tracks of this type which have a bit rate greater than the given number X. This number is in bits, not bytes.</li> <li><code>&lt;Xbps</code> or <code>&lt;Xkbps</code> or <code>&lt;Xmbps</code>: Select all tracks of this type which have a bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>max&lt;Xbps</code> or <code>max&lt;Xkbps</code> or <code>max&lt;Xmbps</code>: Select the one track of this type which has the highest bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>highres</code>, <code>maxres</code> or <code>bestres</code>: Select the track of this type with the highest pixel surface area. Only applied when the track type is video.</li> <li><code>lowres</code>, <code>minres</code> or <code>worstres</code>: Select the track of this type with the lowest pixel surface area. Only applied when the track type is video.</li> <li><code>XxY</code>: Select all tracks of this type with the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>~XxY</code>: Select the single track of this type closest to the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>&gt;XxY</code>: Select all tracks of this type with a pixel surface area greater than X by Y pixels. Only applied when the track type is video.</li> <li><code>&lt;XxY</code>: Select all tracks of this type with a pixel surface area less than X by Y pixels. Only applied when the track type is video.</li> <li><code>720p</code>, <code>1080p</code>, <code>1440p</code>, <code>2k</code>, <code>4k</code>, <code>5k</code>, or <code>8k</code>: Select all tracks of this type with the given pixel surface area. Only applied when the track type is video.</li> <li><code>surround</code>, <code>mono</code>, <code>stereo</code>, <code>Xch</code>: Select all tracks of this type with the given channel count. The 'Xch' variant can use any positive integer for 'X'. Only applied when the track type is audio.</li></ul>";
         }
       }
-      
+      if ("function" in ele) {
+        obj["function"] = ele["function"];
+      }      
+
       return obj;
     }
     

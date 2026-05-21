@@ -85,13 +85,6 @@ namespace Mist {
     // Multi-planar buffer support
     numPlanes = 0;
 
-    // State tracking
-    hasVideo = true;
-    hasAudio = false;
-    isCapturing = false;
-    frameCount = 0;
-    startTimestamp = 0;
-
     // Initialize track indices
     videoTrackIdx = INVALID_TRACK_ID;
     audioTrackIdx = INVALID_TRACK_ID;
@@ -221,6 +214,8 @@ namespace Mist {
     // Check if any device parameters were provided
     bool hasVideoDevice = false;
     bool hasAudioDevice = false;
+    hasAudio = false;
+    hasVideo = false;
 
     // Check command-line device options (override URL params)
     if (config->hasOption("video-device") && !config->getString("video-device").empty()) {

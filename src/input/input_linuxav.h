@@ -94,12 +94,12 @@ namespace Mist {
 
       // State tracking
       bool isCapturing; ///< Capture state flag
-      bool hasVideo; ///< Video capture enabled
-      bool hasAudio; ///< Audio capture enabled
-      uint64_t startTimestamp; ///< Capture start timestamp
-      size_t videoTrackIdx; ///< Video track index
-      size_t audioTrackIdx; ///< Audio track index
-      uint64_t frameCount; ///< Total frames captured
+      bool hasVideo{false}; ///< Video capture enabled
+      bool hasAudio{false}; ///< Audio capture enabled
+      uint64_t startTimestamp{0}; ///< Capture start timestamp
+      size_t videoTrackIdx{INVALID_TRACK_ID}; ///< Video track index
+      size_t audioTrackIdx{INVALID_TRACK_ID}; ///< Audio track index
+      uint64_t frameCount{0}; ///< Total frames captured
   };
 } // namespace Mist
 

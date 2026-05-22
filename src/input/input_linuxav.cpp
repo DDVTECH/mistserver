@@ -59,7 +59,9 @@ namespace Mist {
     capa["source_match"] = "linuxav";
     capa["always_match"] = capa["source_match"];
     capa["priority"] = 9;
-    capa["dynamic_capa"] = true;
+    capa["jit_capa"] = true;
+    capa["jit_opts"].append("video-device");
+    capa["jit_opts"].append("audio-device");
     capa["codecs"][0u][0u].append("PCM");
     capa["codecs"][0u][1u].append("JPEG");
     capa["codecs"][0u][1u].append("YUYV");
@@ -84,10 +86,6 @@ namespace Mist {
 
     // Multi-planar buffer support
     numPlanes = 0;
-
-    // Initialize track indices
-    videoTrackIdx = INVALID_TRACK_ID;
-    audioTrackIdx = INVALID_TRACK_ID;
 
     // Video format option (from V4L2)
     JSON::Value option;
@@ -186,7 +184,7 @@ namespace Mist {
     capa["optional"]["video-device"]["type"] = "str";
 
     // Enumeration support (from V4L2)
-    capa["enum_static_prefix"] = "linuxav:";
+    //capa["enum_static_prefix"] = "linuxav:";
     option.null();
     option["long"] = "enumerate";
     option["short"] = "e";
@@ -256,7 +254,6 @@ namespace Mist {
         INFO_MSG("Auto-detected audio device: %s", selectedAudioDevice.c_str());
       } else {
         WARN_MSG("No audio devices found or PulseAudio server unavailable, audio capture disabled");
-        hasAudio = false;
       }
 #endif
     }
@@ -776,28 +773,45 @@ namespace Mist {
   }
 
   JSON::Value LinuxAV::getSourceCapa(const std::string & device) {
-    JSON::Value result = capa;
+    JSON::Value opts;
+    if (device.size() && device[0] == '{') {
+      opts.fromString(device);
+    } else {
+      opts["source"] = device;
+      if (device.find("video=") != std::string::npos) {
+        size_t videoPos = device.find("video=");
+        size_t videoEnd = device.find(",", videoPos);
+        if (videoEnd == std::string::npos) videoEnd = device.length();
+        opts["video-device"] = device.substr(videoPos + 6, videoEnd - videoPos - 6);
+      }
 
-    // Parse device to determine what capabilities to query
-    std::string videoDevice = "";
-    std::string audioDevice = "";
-
-    if (device.find("video=") != std::string::npos) {
-      size_t videoPos = device.find("video=");
-      size_t videoEnd = device.find(",", videoPos);
-      if (videoEnd == std::string::npos) videoEnd = device.length();
-      videoDevice = device.substr(videoPos + 6, videoEnd - videoPos - 6);
+      if (device.find("audio=") != std::string::npos) {
+        size_t audioPos = device.find("audio=");
+        size_t audioEnd = device.find(",", audioPos);
+        if (audioEnd == std::string::npos) audioEnd = device.length();
+        opts["audio-device"] = device.substr(audioPos + 6, audioEnd - audioPos - 6);
+      }
     }
 
-    if (device.find("audio=") != std::string::npos) {
-      size_t audioPos = device.find("audio=");
-      size_t audioEnd = device.find(",", audioPos);
-      if (audioEnd == std::string::npos) audioEnd = device.length();
-      audioDevice = device.substr(audioPos + 6, audioEnd - audioPos - 6);
+    JSON::Value result = capa;
+    {
+      JSON::Value & vidOpt = result["optional"]["video-device"];
+      vidOpt["type"] = "select";
+      JSON::Value & s = vidOpt["select"];
+      s.append("");
+      for (const auto & i : getVideoDevices()) { s.append(i); }
+    }
+    {
+      JSON::Value & audOpt = result["optional"]["audio-device"];
+      audOpt["type"] = "select";
+      JSON::Value & s = audOpt["select"];
+      s.append("");
+      for (const auto & i : getAudioDevices()) { s.append(i); }
     }
 
     // Get video capabilities if video device specified (following V4L2 pattern)
-    if (!videoDevice.empty()) {
+    if (opts.isMember("video-device") && opts["video-device"].asStringRef().size()) {
+      std::string videoDevice = opts["video-device"].asStringRef();
       if (videoDevice.substr(0, 5) != "/dev/") { videoDevice = "/dev/" + videoDevice; }
       result["optional"]["video-device"]["default"] = videoDevice;
 
@@ -909,7 +923,8 @@ namespace Mist {
 
 #ifdef WITH_PULSE
     // Get audio capabilities if audio device specified
-    if (!audioDevice.empty()) {
+    if (opts.isMember("audio-device") && opts["audio-device"].asStringRef().size()) {
+      std::string audioDevice = opts["audio-device"].asStringRef();
       result["optional"]["audio-device"]["default"] = audioDevice;
     }
 #endif

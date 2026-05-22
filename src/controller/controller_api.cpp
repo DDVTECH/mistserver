@@ -1225,7 +1225,35 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
           }
         }
       }
-    }else{
+    } else if (Request["capabilities"].isObject() && Request["capabilities"].isMember("source") &&
+               Request["capabilities"]["source"].isString()) {
+      Response["capabilities"].null();
+      const std::string & tmpFn = Request["capabilities"]["source"].asStringRef();
+      jsonForEachConst(capabilities["inputs"], it){
+        if (it->isMember("jit_opts")){
+          std::string source = (*it)["source_match"].asStringRef();
+          std::string front, back;
+          size_t asterisk = source.find('*');
+          if (asterisk != std::string::npos){
+            front = source.substr(0, asterisk);
+            back = source.substr(asterisk + 1);
+          }
+          if ((asterisk == std::string::npos && tmpFn == source) ||
+              (tmpFn.size() >= front.size() + back.size() && tmpFn.substr(0, front.size()) == front &&
+               tmpFn.substr(tmpFn.size() - back.size()) == back)) {
+            std::string arg_one = Util::getMyPath() + "MistIn" + it.key();
+            char const *conn_args[] ={0, "--getcapa", 0, 0};
+            conn_args[0] = arg_one.c_str();
+            std::string opts = Request["capabilities"].toString();
+            conn_args[2] = opts.c_str();
+            configMutex.unlock();
+            Response["capabilities"].fromString(Util::Procs::getOutputOf((char **)conn_args));
+            configMutex.lock();
+            break;
+          }
+        }
+      }
+    } else {
       Controller::checkCapable(capabilities);
       Response["capabilities"] = capabilities;
     }

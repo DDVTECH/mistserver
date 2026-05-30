@@ -309,7 +309,7 @@ void HTTP::Parser::StartResponse(std::string code, std::string message, const HT
 /// a zero-content-length HTTP/1.0 response. This call simply calls StartResponse("200", "OK",
 /// request, conn) \param request The HTTP request to respond to. \param conn The connection to send
 /// over.
-void HTTP::Parser::StartResponse(HTTP::Parser &request, Socket::Connection &conn, bool bufferAllChunks){
+void HTTP::Parser::StartResponse(const HTTP::Parser & request, Socket::Connection & conn, bool bufferAllChunks) {
   StartResponse("200", "OK", request, conn, bufferAllChunks);
 }
 

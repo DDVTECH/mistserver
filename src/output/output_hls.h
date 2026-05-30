@@ -9,7 +9,7 @@ namespace Mist{
     static void init(Util::Config *cfg, JSON::Value & capa);
     void sendTS(const char *tsData, size_t len = 188);
     void sendNext();
-    void onHTTP();
+    virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     bool isReadyForPlay();
     virtual void onFail(const std::string &msg, bool critical = false);
     virtual std::string getStatsName(){return Output::getStatsName();}

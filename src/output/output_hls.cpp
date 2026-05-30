@@ -263,44 +263,35 @@ namespace Mist{
     capa["optional"]["chunkpath"]["default"] = "";
   }
 
-  void OutHLS::onHTTP(){
+  void OutHLS::respondHTTP(const HTTP::Parser & req, bool headersOnly) {
+    HTTPOutput::respondHTTP(req, headersOnly);
     initialize();
 
-    if (tkn.size()){
-      if (Comms::tknMode & 0x08){
-        std::stringstream cookieHeader;
-        cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
-        H.SetHeader("Set-Cookie", cookieHeader.str()); 
-      }
-    }
-    std::string method = H.method;
-
-    if (H.url == "/crossdomain.xml"){
-      H.Clean();
+    if (req.url == "/crossdomain.xml") {
       H.SetHeader("Content-Type", "text/xml");
-      H.SetHeader("Server", APPIDENT);
-      H.setCORSHeaders();
-      if (method == "OPTIONS"){
-        H.SendResponse("204", "No content", myConn);
+      if (req.method == "OPTIONS") {
+        H.StartResponse("204", "No content", req, myConn);
         responded = true;
         return;
       }
-      if (method == "HEAD"){
-        H.SendResponse("200", "OK", myConn);
+      H.SetBody(R"-(<?xml version="1.0"?>
+      <!DOCTYPE cross-domain-policy SYSTEM "http://www.adobe.com/xml/dtds/cross-domain-policy.dtd">
+      <cross-domain-policy>
+        <allow-access-from domain="*" />
+        <site-control permitted-cross-domain-policies="all"/>
+      </cross-domain-policy>)-");
+      H.StartResponse("200", "OK", req, myConn);
+      if (headersOnly) {
+        H.Chunkify(0, 0, myConn);
         responded = true;
         return;
       }
-      H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM "
-                "\"http://www.adobe.com/xml/dtds/"
-                "cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" "
-                "/><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-      H.SendResponse("200", "OK", myConn);
       responded = true;
       return;
-    }// crossdomain.xml
+    } // crossdomain.xml
 
-    if (method == "OPTIONS"){
-      bool isTS = (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u");
+    if (req.method == "OPTIONS") {
+      bool isTS = (HTTP::URL(req.url).getExt().substr(0, 3) != "m3u");
       H.Clean();
       H.setCORSHeaders();
       if (isTS){
@@ -329,15 +320,14 @@ namespace Mist{
       return;
     }
 
-    if (H.url.find("hls") == std::string::npos){
+    if (req.url.find("hls") == std::string::npos) {
       onFail("HLS handler active, but this is not a HLS URL. Eh... What...?");
       return;
     }
 
-    std::string userAgent = H.GetHeader("User-Agent");
     bool VLCworkaround = false;
-    if (userAgent.substr(0, 3) == "VLC"){
-      std::string vlcver = userAgent.substr(4);
+    if (UA.substr(0, 3) == "VLC") {
+      std::string vlcver = UA.substr(4);
       if (vlcver[0] == '0' || vlcver[0] == '1' || (vlcver[0] == '2' && vlcver[2] < '2')){
         INFO_MSG("Enabling VLC version < 2.2.0 bug workaround.");
         VLCworkaround = true;
@@ -347,8 +337,8 @@ namespace Mist{
     initialize();
     if (!keepGoing()){return;}
 
-    if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
-      std::string tmpStr = H.getUrl();
+    if (HTTP::URL(req.url).getExt().substr(0, 3) != "m3u") {
+      std::string tmpStr = req.getUrl();
       if (tmpStr.find('/', 5) == std::string::npos){
         tmpStr = "";
       }else{
@@ -356,13 +346,11 @@ namespace Mist{
       }
       uint64_t from;
       if (sscanf(tmpStr.c_str(), "/%zu_%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &audTrack, &from, &until) != 4){
-        if (sscanf(tmpStr.c_str(), "/%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &from, &until) != 3){
+        if (sscanf(tmpStr.c_str(), "/%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &from, &until) != 3) {
           MEDIUM_MSG("Could not parse URL: %s", H.getUrl().c_str());
-          H.Clean();
-          H.setCORSHeaders();
           H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
           myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
-        return;
+          return;
         }
         userSelect.clear();
         userSelect[vidTrack].reload(streamName, vidTrack);
@@ -379,17 +367,13 @@ namespace Mist{
       targetParams["subtitle"] = "none";
 
       std::set<size_t> vTrks = M.getValidTracks(true);
-      if (!vTrks.count(vidTrack)){
-        H.Clean();
-        H.setCORSHeaders();
+      if (!vTrks.count(vidTrack)) {
         H.SetBody("Track not valid.\n");
         myConn.SendNow(H.BuildResponse("404", "Track not valid"));
         WARN_MSG("Requested invalid track ID %zu", vidTrack);
         return;
       }
-      if (M.getLive() && from < M.getFirstms(vidTrack)){
-        H.Clean();
-        H.setCORSHeaders();
+      if (M.getLive() && from < M.getFirstms(vidTrack)) {
         H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be "
                   "served.\n");
         myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
@@ -398,7 +382,6 @@ namespace Mist{
       }
 
       H.SetHeader("Content-Type", "video/mp2t");
-      H.setCORSHeaders();
       if (!(Comms::tknMode & 0x04) || config->getOption("chunkpath")){
         H.SetHeader("Cache-Control",
                     "public, max-age=" +
@@ -409,13 +392,13 @@ namespace Mist{
       }else{
         H.SetHeader("Cache-Control", "no-store");
       }
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly) {
         H.SendResponse("200", "OK", myConn);
         responded = true;
         return;
       }
 
-      H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
+      H.StartResponse(req, myConn, VLCworkaround || config->getBool("nonchunked"));
       responded = true;
       // we assume whole fragments - but timestamps may be altered at will
       uint32_t fragIndice = M.getFragmentIndexForTime(vidTrack, from);
@@ -427,17 +410,16 @@ namespace Mist{
       wantRequest = false;
       seek(from);
       ts_from = from;
-    }else{
+    } else {
       initialize();
       initialSeek(true);
-      std::string request = H.url.substr(H.url.find("/", 5) + 1);
-      H.setCORSHeaders();
+      std::string request = req.url.substr(req.url.find("/", 5) + 1);
       H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       if (!M.getValidTracks().size()){
         H.SendResponse("404", "Not online or found", myConn);
         return;
       }
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly) {
         H.SendResponse("200", "OK", myConn);
         return;
       }

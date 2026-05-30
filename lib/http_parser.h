@@ -48,7 +48,7 @@ namespace HTTP{
     void SendResponse(std::string code, std::string message, Socket::Connection &conn);
     void StartResponse(std::string code, std::string message, const Parser &request,
                        Socket::Connection &conn, bool bufferAllChunks = false);
-    void StartResponse(Parser &request, Socket::Connection &conn, bool bufferAllChunks = false);
+    void StartResponse(const Parser & request, Socket::Connection & conn, bool bufferAllChunks = false);
     void Chunkify(const std::string &bodypart, Socket::Connection &conn);
     void Chunkify(const char *data, unsigned int size, Socket::Connection &conn);
     void Proxy(Socket::Connection &from, Socket::Connection &to);

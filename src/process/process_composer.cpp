@@ -297,9 +297,11 @@ namespace Mist {
         }
 
         if (thisIdx == audIdx) {
-          uint64_t bmsTime = thisTime + M.getBootMsOffset() - (attemptSync ? targetDelay : 0);
+          uint64_t bmsTime = thisTime + M.getBootMsOffset();
           std::lock_guard<std::recursive_mutex> guard(*ptrLock);
           maxAudTime = M.packetTimeToUnixMs(M.getLastms(thisIdx));
+          // Skip audio for the past, we already did this section and/or already filled it with nulls
+          if (audTime > bmsTime){return;}
           if (!audBuffer.size()) {
             audTime = bmsTime;
           } else if (audTime + (audBuffer.size() / sampBytes) * 1000 / audRate < bmsTime) {
@@ -1238,10 +1240,17 @@ namespace Mist {
 
       /// Inserts null bytes to get towards the timestamp listed (non-inclusive)
       void audForwardTo(uint64_t targetTime) {
+        if (targetTime - audLastMs > 5000) {
+          INFO_MSG("Not inserting empty audio data - gap of " PRETTY_PRINT_MSTIME " is > 5s",
+                   PRETTY_ARG_MSTIME(targetTime - audLastMs));
+
+          audLastMs = targetTime;
+          return;
+        }
         static Util::ResizeablePointer audNull;
         size_t blocks = (targetTime - audLastMs) / audMs;
         if (!blocks) { return; }
-        HIGH_MSG("Inserting %zums empty audio data because source is too far behind", (size_t)(targetTime - audLastMs));
+        INFO_MSG("Inserting %zums empty audio data because source is too far behind", (size_t)(targetTime - audLastMs));
         if (audNull.size() < audBytes * blocks) { audNull.appendNull((audBytes * blocks) - audNull.size()); }
         thisTime = audLastMs;
         thisIdx = audIdx;

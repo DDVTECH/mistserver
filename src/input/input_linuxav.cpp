@@ -451,6 +451,8 @@ namespace Mist {
     INFO_MSG("A/V capture ready, starting main loop");
     isCapturing = true;
     startTimestamp = Util::bootMS();
+    meta.setBootMsOffset(startTimestamp);
+    meta.setUTCOffset(Util::getGlobalConfig("systemBoot").asInt() + startTimestamp, UTCSRC_PROTOCOL);
 
     // Main processing loop
     while (config->is_active && isCapturing) {

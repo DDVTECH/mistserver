@@ -165,7 +165,7 @@ namespace Mist {
     capa["optional"]["audio-device"]["option"] = "--audio-device";
     capa["optional"]["audio-device"]["short"] = "A";
     capa["optional"]["audio-device"]["default"] = "";
-    capa["optional"]["audio-device"]["type"] = "str";
+    capa["optional"]["audio-device"]["type"] = "string";
 #endif
 
     option.null();
@@ -181,7 +181,7 @@ namespace Mist {
     capa["optional"]["video-device"]["option"] = "--video-device";
     capa["optional"]["video-device"]["short"] = "V";
     capa["optional"]["video-device"]["default"] = "";
-    capa["optional"]["video-device"]["type"] = "str";
+    capa["optional"]["video-device"]["type"] = "string";
 
     // Enumeration support (from V4L2)
     //capa["enum_static_prefix"] = "linuxav:";
@@ -799,14 +799,14 @@ namespace Mist {
     {
       JSON::Value & vidOpt = result["optional"]["video-device"];
       vidOpt["type"] = "select";
-      JSON::Value & s = vidOpt["select"];
+      JSON::Value & s = vidOpt["datalist"];
       s.append("");
       for (const auto & i : getVideoDevices()) { s.append(i); }
     }
     {
       JSON::Value & audOpt = result["optional"]["audio-device"];
       audOpt["type"] = "select";
-      JSON::Value & s = audOpt["select"];
+      JSON::Value & s = audOpt["datalist"];
       s.append("");
       for (const auto & i : getAudioDevices()) { s.append(i); }
     }

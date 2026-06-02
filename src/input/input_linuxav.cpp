@@ -798,14 +798,12 @@ namespace Mist {
     JSON::Value result = capa;
     {
       JSON::Value & vidOpt = result["optional"]["video-device"];
-      vidOpt["type"] = "select";
       JSON::Value & s = vidOpt["datalist"];
       s.append("");
       for (const auto & i : getVideoDevices()) { s.append(i); }
     }
     {
       JSON::Value & audOpt = result["optional"]["audio-device"];
-      audOpt["type"] = "select";
       JSON::Value & s = audOpt["datalist"];
       s.append("");
       for (const auto & i : getAudioDevices()) { s.append(i); }

@@ -587,7 +587,15 @@ namespace TS{
         realPayloadSize = paySize - offset - pesOffset;
       }else{
         const char *pesPayload = pesHeader + pesOffset;
-        parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04);
+        // A PES is aligned (= starts a new access unit) if the data_alignment_indicator bit is
+        // set OR if it carries a PTS (PTS_flags != 0). Continuation PES packets never carry a PTS,
+        // so PTS_flags==0 is the only reliable indicator of a mid-access-unit continuation.
+        // Some encoders do not set data_alignment_indicator even for the first
+        // PES of an access unit, so relying solely on that bit causes all their frames to be
+        // treated as continuations (align=0) and dropped.
+        uint8_t pts_flags = (pesHeader[7] >> 6) & 0x3;
+        bool alignment = (pesHeader[6] & 0x04) || (pts_flags != 0);
+        parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, alignment);
         lastms[tid] = timeStamp;
       }
 
@@ -776,78 +784,61 @@ namespace TS{
       bool isKeyFrame = false;
       uint32_t nalSize = 0;
 
-      nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
-      if (!nextPtr){
-        nextPtr = pesEnd;
-        nalSize = realPayloadSize;
-        if (!alignment && timeStamp && buildPacket.count(tid) && timeStamp != buildPacket[tid].getTime()){
-          FAIL_MSG("No startcode in packet @ %" PRIu64 " ms, and time is not equal to %" PRIu64
-                   " ms so can't merge",
-                   timeStamp, buildPacket[tid].getTime());
-          return;
-        }
-        DTSC::Packet &bp = buildPacket[tid];
-        if (alignment){
-          // If the timestamp differs from current PES timestamp, send the previous packet out and
-          // fill a new one.
-          if (bp.getTime() != timeStamp){
-            // Add the finished DTSC packet to our output buffer
-            out.push_back(bp);
-
-            size_t size;
-            char *tmp;
-            bp.getString("data", tmp, size);
-
-            INFO_MSG("buildpacket: size: %zu, timestamp: %" PRIu64, size, bp.getTime())
-
-            // Create a new empty packet with the key frame bit set to true
-            bp.null();
-            bp.genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
-            bp.setKeyFrame(false);
-          }
-
-          // Check if this is a keyframe
-          parseNal(tid, pesPayload, nextPtr, isKeyFrame);
-          // If yes, set the keyframe flag
-          if (isKeyFrame){bp.setKeyFrame(true);}
-
-          // No matter what, now append the current NAL unit to the current packet
-          bp.appendNal(pesPayload, nalSize);
-        }else{
-          bp.upgradeNal(pesPayload, nalSize);
-          return;
-        }
-      }
-
-      while (nextPtr < pesEnd){
-        if (!nextPtr){nextPtr = pesEnd;}
+      while (pesPayload < pesEnd) {
+        nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
+        if (!nextPtr) { nextPtr = pesEnd; } // No more start codes: last segment
         // Calculate size of NAL unit, removing null bytes from the end
         nalSize = nalu::nalEndPosition(pesPayload, nextPtr - pesPayload) - pesPayload;
 
         if (nalSize){
-          // If we don't have a packet yet, init an empty packet with the key frame bit set to true
-          if (!buildPacket.count(tid)){
-            buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
-            buildPacket[tid].setKeyFrame(false);
-          }
-          DTSC::Packet &bp = buildPacket[tid];
+          if (!alignment){
+            // Continuation PES first-iteration fragment (Cases 1 and 2): extend the ongoing NAL.
+            if (!buildPacket.count(tid)){
+              FAIL_MSG("Continuation PES (align=0) for track %zu ts=%" PRIu64 " but no build packet exists", tid, timeStamp);
+              return;
+            }
+            DTSC::Packet &bp = buildPacket[tid];
+            if (timeStamp && timeStamp != bp.getTime()){
+              FAIL_MSG("No startcode in packet @ %" PRIu64 " ms, and time is not equal to %" PRIu64
+                       " ms so can't merge",
+                       timeStamp, bp.getTime());
+              return;
+            }
+            bp.upgradeNal(pesPayload, nalSize);
+          }else{
+            // Aligned PES or subsequent continuation iterations: append as a new NAL unit.
+            if (!buildPacket.count(tid)){
+              buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
+              buildPacket[tid].setKeyFrame(false);
+            }
+            DTSC::Packet &bp = buildPacket[tid];
 
-          // Check if this is a keyframe
-          parseNal(tid, pesPayload, pesPayload + nalSize, isKeyFrame);
-          // If yes, set the keyframe flag
-          if (isKeyFrame){bp.setKeyFrame(true);}
+            // Check if this is a keyframe
+            parseNal(tid, pesPayload, pesPayload + nalSize, isKeyFrame);
+            // If yes, set the keyframe flag
+            if (isKeyFrame){bp.setKeyFrame(true);}
 
-          // If the timestamp differs from current PES timestamp, send the previous packet out and
-          // fill a new one.
-          if (bp.getTime() != timeStamp){
-            // Add the finished DTSC packet to our output buffer
-            out.push_back(bp);
-            bp.null();
-            bp.genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
-            bp.setKeyFrame(false);
+            // If the timestamp differs from current PES timestamp, send the previous packet out and
+            // fill a new one.
+            if (bp.getTime() != timeStamp){
+              // Add the finished DTSC packet to our output buffer
+              out.push_back(bp);
+              // Create a new empty packet with the key frame bit set to true
+              bp.null();
+              bp.genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
+              bp.setKeyFrame(false);
+            }
+            // No matter what, now append the current NAL unit to the current packet
+            bp.appendNal(pesPayload, nalSize);
           }
-          // No matter what, now append the current NAL unit to the current packet
-          bp.appendNal(pesPayload, nalSize);
+        }
+
+        // After the first iteration of a continuation PES: inherit the in-progress packet's
+        // timestamp so subsequent iterations do not flush it prematurely
+        // (continuation PES has no PTS -> timeStamp would be 0), then switch to aligned mode.
+        if (!alignment){
+          if (buildPacket.count(tid)){ timeStamp = buildPacket[tid].getTime(); }
+          alignment = true;
         }
 
         if (((nextPtr - pesPayload) + 3) >= realPayloadSize){return;}// end of the line
@@ -855,7 +846,6 @@ namespace TS{
         realPayloadSize -= ((nextPtr - pesPayload) + 3); // decrease the total size
         pesPayload = nextPtr + 3;
 
-        nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
       }
     }
     if (thisCodec == MPEG2){

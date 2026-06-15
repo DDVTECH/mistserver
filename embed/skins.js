@@ -3456,7 +3456,8 @@ MistSkins.dev = {
       var MistVideo = this;
       var container = document.createElement("div");
 
-      var title = document.createTextNode("Stats");
+      var title = document.createElement("span");
+      title.appendChild(document.createTextNode("Player statistics"));
       container.appendChild(title);
 
       var cont = document.createElement("div");

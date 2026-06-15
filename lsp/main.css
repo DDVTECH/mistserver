@@ -2365,7 +2365,7 @@ main[data-tab="Status"] div.accesslogs > * > *:before {
 .dashboard section.controls .draggable-icon { display: none; }
 .dashboard section.controls .mistvideo-log,
 .dashboard section.controls .mistvideo-devcontrols .mistvideo-text,
-.dashboard section.controls .mistvideo-decodingIssues:before {
+.dashboard section.controls .mistvideo-decodingIssues > :first-child {
   color: var(--accentColor); 
   text-shadow: 0.1em 0.1em 0.1em var(--shadowColor);
 }
@@ -2412,9 +2412,6 @@ main[data-tab="Status"] div.accesslogs > * > *:before {
 .dashboard section.controls .mistvideo-decodingIssues {
   margin: 0.5em 0;
   order: 99;
-}
-.dashboard section.controls .mistvideo-decodingIssues:before {
-  content: "Player statistics";
 }
 .dashboard section.controls .mistvideo-decodingIssues .mistvideo-description {
   font-size: inherit;

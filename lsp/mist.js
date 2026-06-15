@@ -9481,9 +9481,10 @@ context_menu: function(){
             //throw "Player.js was not applied properly.";
           }
           else {
-            $preview.replaceWith(UI.modules.stream.preview(other,window.mv));
+            $player = UI.modules.stream.preview(other,window.mv);
+            $preview.replaceWith($player);
             $dashboard.append(
-              UI.modules.stream.playercontrols(window.mv,$preview)
+              UI.modules.stream.playercontrols(window.mv,$player)
             );
           }
           $status.replaceWith(UI.modules.stream.status(other,{tags:false,thumbnail:false,status:false,stats:false}));

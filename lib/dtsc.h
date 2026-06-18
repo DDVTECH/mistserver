@@ -489,7 +489,7 @@ namespace DTSC{
     uint64_t getMaxKeepAway() const;
 
     void breakClaim(size_t trackIdx);
-    bool claimTrack(size_t trackIdx);
+    bool claimTrack(size_t trackIdx, bool critical = true);
     bool isClaimed(size_t trackIdx) const;
     uint64_t isClaimedBy(size_t trackIdx) const;
     void abandonTrack(size_t trackIdx);

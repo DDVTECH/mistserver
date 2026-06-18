@@ -207,11 +207,15 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
     }
   }
   conn.SendNow("\r\n", 2);
-  if (reqbodyLen){
-    if (reqbody){conn.SendNow((char *)reqbody, reqbodyLen);}
-  }else{
-    conn.SendNow(body);
+
+  sendingChunks = (headers.count("Transfer-Encoding") && headers["Transfer-Encoding"] == "chunked");
+
+  if (reqbodyLen) {
+    if (reqbody) { Chunkify((char *)reqbody, reqbodyLen, conn); }
+  } else {
+    if (body.size()) { Chunkify(body, conn); }
   }
+  if (sendingChunks && (reqbodyLen || body.size())) { Chunkify(0, 0, conn); }
 }
 
 /// Returns a string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
@@ -694,6 +698,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
             if (shouldAppend){body.append(HTTPbuffer, 0, toappend);}
             HTTPbuffer.erase(0, toappend);
             doingChunk -= toappend;
+            if (!toappend) { return false; }
           }else{
             f = HTTPbuffer.find('\n');
             if (f == std::string::npos){return false;}
@@ -716,7 +721,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
               HTTPbuffer.erase(0, f + 1);
             }
           }
-          return false;
+          continue;
         }else{
           if (protocol.substr(0, 4) == "RTSP" || method.substr(0, 4) == "RTSP"){return true;}
           unsigned int toappend = HTTPbuffer.size();

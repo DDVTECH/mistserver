@@ -1,7 +1,10 @@
 #include "output_hls.h"
-#include <mist/langcodes.h> /*LTS*/
+
+#include <mist/langcodes.h>
 #include <mist/stream.h>
+#include <mist/triggers.h>
 #include <mist/url.h>
+
 #include <unistd.h>
 
 namespace Mist{
@@ -186,6 +189,42 @@ namespace Mist{
     }
   }
 
+  void OutHLS::preHTTP() {
+    if (H.method != "PUT" && H.method != "POST") {
+      HTTPOutput::preHTTP();
+      return;
+    }
+
+    if (checkStreamKey()) {
+      if (!streamName.size()) {
+        onFail("Stream key rejected for push");
+        return;
+      }
+    } else {
+      if (Triggers::shouldTrigger("PUSH_REWRITE")) {
+        std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+        std::string newStream = streamName;
+        Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+        if (!newStream.size()) {
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(),
+                   reqUrl.c_str());
+          onFail("Pushing not allowed");
+        } else {
+          streamName = newStream;
+        }
+      }
+
+      if (!allowPush(H.GetVar("password"))) {
+        onFail("Pushing not allowed");
+        return;
+      }
+    }
+
+    if (H.headerOnly) { bodyData.assign(H.BuildRequest()); }
+
+    H.headerOnly = false;
+  }
+
   OutHLS::~OutHLS(){}
 
   void OutHLS::init(Util::Config *cfg, JSON::Value & capa) {
@@ -264,6 +303,31 @@ namespace Mist{
   }
 
   void OutHLS::respondHTTP(const HTTP::Parser & req, bool headersOnly) {
+    if (pushing) {
+      if (rawIdx == INVALID_TRACK_ID) {
+        DTSC::TrackMetadata trkDta;
+        trkDta.type = "meta";
+        trkDta.codec = "rawhls";
+        rawIdx = meta.addOrResumeTrack(trkDta);
+        meta.setID(rawIdx, 1);
+        userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTSOURCEDNT);
+      }
+
+      uint64_t packetTime = Util::bootMS();
+      bufferLivePacket(packetTime, 0, rawIdx, bodyData, bodyData.size(), 0, true);
+
+      bodyData.truncate(0);
+
+      H.Clean();
+      H.SetHeader("Content-Type", "text/xml");
+      H.SetHeader("Server", APPIDENT);
+      H.setCORSHeaders();
+
+      H.SendResponse("204", "No content", myConn);
+      responded = true;
+      return;
+    }
+
     HTTPOutput::respondHTTP(req, headersOnly);
     initialize();
 

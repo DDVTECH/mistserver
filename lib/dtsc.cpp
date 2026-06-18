@@ -2012,53 +2012,58 @@ namespace DTSC{
     reloadReplacedPagesIfNeeded();
     std::set<size_t> V = getValidTracks();
     trackValidMask = oldMask;
-    for (const size_t & T : V) {
-      INFO_MSG("Checking track %zu...", T);
-      if (isClaimed(T)) {
-        INFO_MSG("T%zu: Still claimed", T);
-        continue;
-      }
-      if (getType(T) != trkDta.type) {
-        INFO_MSG("T%zu: Type mismatch", T);
-        continue;
-      }
-      if (getCodec(T) != trkDta.codec) {
-        INFO_MSG("T%zu: Codec mismatch", T);
-        continue;
-      }
-      if (getInit(T) != trkDta.init) {
-        INFO_MSG("T%zu: Init mismatch", T);
-        continue;
-      }
-      if (trkDta.type == "audio") {
-        if (getRate(T) != trkDta.rate) { continue; }
-        if (getSize(T) != trkDta.size) { continue; }
-        if (getChannels(T) != trkDta.channels) { continue; }
-      }
-      if (trkDta.type == "video") {
-        if (getWidth(T) != trkDta.width) {
-          INFO_MSG("T%zu: Width mismatch", T);
+
+    bool hasCandidate = false;
+
+    uint64_t loop_start = Util::bootSecs();
+    do {
+      for (const size_t & T : V) {
+        if (getType(T) != trkDta.type) {
+          INFO_MSG("T%zu: Type mismatch", T);
           continue;
         }
-        if (getHeight(T) != trkDta.height) {
-          INFO_MSG("T%zu: Height mismatch", T);
+        if (getCodec(T) != trkDta.codec) {
+          INFO_MSG("T%zu: Codec mismatch", T);
           continue;
         }
-        // We don't care about fpks since it can vary sometimes, as long as the init data is the same we're fine with it
+        if (getInit(T) != trkDta.init) {
+          INFO_MSG("T%zu: Init mismatch", T);
+          continue;
+        }
+        if (trkDta.type == "audio") {
+          if (getRate(T) != trkDta.rate) { continue; }
+          if (getSize(T) != trkDta.size) { continue; }
+          if (getChannels(T) != trkDta.channels) { continue; }
+        }
+        if (trkDta.type == "video") {
+          if (getWidth(T) != trkDta.width) {
+            INFO_MSG("T%zu: Width mismatch", T);
+            continue;
+          }
+          if (getHeight(T) != trkDta.height) {
+            INFO_MSG("T%zu: Height mismatch", T);
+            continue;
+          }
+          // We don't care about fpks since it can vary sometimes, as long as the init data is the same we're fine with it
+        }
+
+        hasCandidate = true;
+        if (claimTrack(T, false)) {
+          INFO_MSG("Resuming track %zu: %s %s", T, trkDta.codec.c_str(), trkDta.type.c_str());
+          if (trkDta.type == "video" && trkDta.fpks) {
+            setFpks(T, trkDta.fpks); // Set the fpks, in case it differs
+          }
+          // If we had a track ID, set it (it's never checked)
+          if (trkDta.id) { setID(T, trkDta.id); }
+          markUpdated(T);
+          return T;
+        }
       }
-      if (!claimTrack(T)) {
-        WARN_MSG("Failed to claim track %zu (%s %s) for resuming! Creating instead...", T, trkDta.codec.c_str(),
-                 trkDta.type.c_str());
-        continue;
-      }
-      INFO_MSG("Resuming track %zu: %s %s", T, trkDta.codec.c_str(), trkDta.type.c_str());
-      if (trkDta.type == "video" && trkDta.fpks) {
-        setFpks(T, trkDta.fpks); // Set the fpks, in case it differs
-      }
-      // If we had a track ID, set it (it's never checked)
-      if (trkDta.id) { setID(T, trkDta.id); }
-      markUpdated(T);
-      return T;
+      if (hasCandidate) { Util::sleep(100); }
+    } while (Util::bootSecs() < loop_start + 5 && hasCandidate);
+
+    if (hasCandidate) {
+      WARN_MSG("Failed to claim track (%s %s) for resuming! Creating instead...", trkDta.codec.c_str(), trkDta.type.c_str());
     }
 
     {
@@ -2231,7 +2236,7 @@ namespace DTSC{
     return trackList.getInt(trackPidField, trackIdx);
   }
 
-  bool Meta::claimTrack(size_t trackIdx) {
+  bool Meta::claimTrack(size_t trackIdx, bool critical) {
     IPC::semaphore trackLock;
     if (!isMemBuf) {
       char pageName[NAME_BUFFER_SIZE];
@@ -2249,7 +2254,9 @@ namespace DTSC{
       }
     }
     if (trackList.getInt(trackPidField, trackIdx) != 0){
-      FAIL_MSG("Cannot claim track: already claimed by PID %" PRIu64, trackList.getInt(trackPidField, trackIdx));
+      if (critical) {
+        FAIL_MSG("Cannot claim track: already claimed by PID %" PRIu64, trackList.getInt(trackPidField, trackIdx));
+      }
       return false;
     }
     trackList.setInt(trackPidField, getpid(), trackIdx);
@@ -4131,8 +4138,6 @@ namespace DTSC{
       if (!pages.getInt(t.pageAvailField, i)) { continue; }
       if (pages.getInt(t.pageFirstTimeField, i) > time) {
         nextPage = pages.getInt(t.pageFirstKeyField, i);
-        INFO_MSG("next page %" PRId64 ": %" PRIu64 " <-> %" PRIu64, pages.getInt(t.pageFirstKeyField, i),
-                 pages.getInt(t.pageFirstTimeField, i), time);
         break;
       }
       res = i;

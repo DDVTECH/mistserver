@@ -655,6 +655,13 @@ unsigned int Socket::Buffer::size(){
   return data.size();
 }
 
+/// Returns the amount of total bytes available in the buffer.
+size_t Socket::Buffer::bytes() const {
+  size_t i = 0;
+  for (const auto & it : data) { i += it.size(); }
+  return i;
+}
+
 /// Returns either the amount of total bytes available in the buffer or max, whichever is smaller.
 unsigned int Socket::Buffer::bytes(unsigned int max) const {
   unsigned int i = 0;

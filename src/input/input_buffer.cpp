@@ -507,7 +507,7 @@ namespace Mist{
   void InputBuffer::userOnActive(size_t id){
     ///\todo Add tracing of earliest watched keys, to prevent data going out of memory for
     /// still-watching viewers
-    if (!(users.getStatus(id) & COMM_STATUS_DISCONNECT) && (users.getStatus(id) & COMM_STATUS_SOURCE)){
+    if (users.getStatus(id) & COMM_STATUS_SOURCE) {
       bool isProcess = generatePids.count(users.getPid(id));
       if (isProcess) {
         processUsers[id] = users.getTrack(id);
@@ -532,36 +532,28 @@ namespace Mist{
       return;
     }
     if (sourceUsers.count(id)) {
-      if (!resumeMode){
+      if (!resumeMode && M.getCodec(sourceUsers[id]) != "rawhls") {
         INFO_MSG("Disconnected track %zu", sourceUsers[id]);
         meta.reloadReplacedPagesIfNeeded();
         removeTrack(sourceUsers[id]);
-      }else{
+      } else {
         if (meta.isClaimed(sourceUsers[id])) {
           INFO_MSG("Track %zu lost its source, but is still claimed! Reclaiming for resume...", sourceUsers[id]);
           meta.breakClaim(sourceUsers[id]);
         } else {
-          INFO_MSG("Track %zu lost its source and is now unclaimed, keeping it around for resume", sourceUsers[id]);
+          if (M.getType(sourceUsers[id]) == "meta") {
+            HIGH_MSG("Track %zu lost its source and is now unclaimed, keeping it around for resume", sourceUsers[id]);
+          } else {
+            INFO_MSG("Track %zu lost its source and is now unclaimed, keeping it around for resume", sourceUsers[id]);
+          }
         }
+        activityCounter = Util::bootSecs();
       }
       sourceUsers.erase(id);
     }
   }
-  void InputBuffer::userLeadOut(){
-    if (config->is_active && streamStatus){
-      streamStatus.mapped[0] = (hasPush && allProcsRunning) ? STRMSTAT_READY : STRMSTAT_WAIT;
-    }
-    if (hasPush){everHadPush = true;}
-    if (!hasPush && everHadPush && !resumeMode && config->is_active){
-      Util::logExitReason(ER_CLEAN_EOF, "source disconnected for non-resumable stream");
-      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
-      config->is_active = false;
-      canCancelUnload = false;
-      userSelect.clear();
-    }
-    /*LTS-START*/
+  void InputBuffer::userLeadOut() {
     static std::set<size_t> prevValidTracks;
-
     std::set<size_t> validTracks = M.getValidTracks();
     if (validTracks != prevValidTracks){
       MEDIUM_MSG("Valid tracks count changed from %zu to %zu", prevValidTracks.size(), validTracks.size());
@@ -573,7 +565,25 @@ namespace Mist{
         Triggers::doTrigger("LIVE_TRACK_LIST", payload, config->getString("streamname"));
       }
     }
-    /*LTS-END*/
+
+    // rawhls tracks always count as having an active push
+    if (config->is_active) {
+      for (const size_t & T : validTracks) {
+        if (M.getCodec(T) == "rawhls") { hasPush = true; }
+      }
+    }
+
+    if (config->is_active && streamStatus) {
+      streamStatus.mapped[0] = (hasPush && allProcsRunning) ? STRMSTAT_READY : STRMSTAT_WAIT;
+    }
+    if (hasPush) { everHadPush = true; }
+    if (!hasPush && everHadPush && !resumeMode && config->is_active) {
+      Util::logExitReason(ER_CLEAN_EOF, "source disconnected for non-resumable stream");
+      if (streamStatus) { streamStatus.mapped[0] = STRMSTAT_SHUTDOWN; }
+      config->is_active = false;
+      canCancelUnload = false;
+      userSelect.clear();
+    }
   }
 
   bool InputBuffer::preRun(){

@@ -318,7 +318,7 @@ namespace Util{
       }, 0);
       uint64_t maxWait = Util::bootMS() + 5000;
       attemptFinish();
-      while (!gotResponse && Util::bootMS() < maxWait) { ev.await(1000); }
+      while (!gotResponse && Util::bootMS() < maxWait && conn) { ev.await(1000); }
       if (!gotResponse) { WARN_MSG("No reply from remote server to PUT request"); }
       conn.close();
     }

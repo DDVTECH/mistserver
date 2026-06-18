@@ -113,6 +113,7 @@ namespace Socket{
     std::string splitter; ///< String to automatically split on if encountered. \n by default
     Buffer();
     unsigned int size();
+    size_t bytes() const;
     unsigned int bytes(unsigned int max) const;
     unsigned int bytesToSplit() const;
     void append(const std::string &newdata);

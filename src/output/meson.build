@@ -15,6 +15,7 @@ outputs = [
     {'name' : 'JSON',              'format' : 'json',               'extra': ['http']},
     {'name' : 'TS',                'format' : 'ts',                 'extra': ['ts']},
     {'name' : 'HTTPTS',            'format' : 'httpts',             'extra': ['http', 'ts']},
+    {'name' : 'Forward',           'format' : 'forward'},
     {'name' : 'HLS',               'format' : 'hls',                'extra': ['http', 'ts']},
     {'name' : 'CMAF',              'format' : 'cmaf',               'extra': ['http']},
     {'name' : 'EBML',              'format' : 'ebml',               'extra': ['http']},

@@ -10,6 +10,7 @@ namespace Mist{
     void sendTS(const char *tsData, size_t len = 188);
     void sendNext();
     virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
+    void preHTTP();
     bool isReadyForPlay();
     virtual void onFail(const std::string &msg, bool critical = false);
     virtual std::string getStatsName(){return Output::getStatsName();}
@@ -22,6 +23,7 @@ namespace Mist{
 
     size_t vidTrack;
     size_t audTrack;
+    size_t rawIdx{INVALID_TRACK_ID};
     uint64_t until;
   };
 }// namespace Mist

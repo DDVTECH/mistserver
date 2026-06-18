@@ -294,6 +294,7 @@ namespace Mist{
   }
 
   void HTTPOutput::requestHandler(bool readable){
+    bool isFollowUp = false;
     // Handle onIdle function caller, if needed
     if (idleInterval && (thisBootMs > idleLast + idleInterval)){
       if (wsCmds || wsCmdForce){handleWebsocketIdle();}
@@ -322,6 +323,7 @@ namespace Mist{
     //Attempt to read a HTTP request, regardless of data being available
     auto cb = [&](const char *ptr, size_t len) { dataCallback(ptr, len); };
     while (H.Read(myConn, cb)) {
+      if (H.hasHeader("User-Agent")) { UA = H.GetHeader("User-Agent"); }
       // If this is not a PUT or POST, we want the whole request.
       if (H.method != "PUT" && H.method != "POST") {
         // So, abort if we can't read the whole request here in that case.
@@ -374,40 +376,40 @@ namespace Mist{
         }
       }
 
+      if (!isFollowUp) {
 
-      tkn.clear();
-      // Read the session token
-      if (Comms::tknMode & 0x01){
-        // Get session token from the request url
-        if (H.GetVar("tkn") != ""){
-          tkn = H.GetVar("tkn");
-        } else if (H.GetVar("sid") != ""){
-          tkn = H.GetVar("sid");
-        } else if (H.GetVar("sessId") != ""){
-          tkn = H.GetVar("sessId");
+        tkn.clear();
+        // Read the session token
+        if (Comms::tknMode & 0x01) {
+          // Get session token from the request url
+          if (H.GetVar("tkn") != "") {
+            tkn = H.GetVar("tkn");
+          } else if (H.GetVar("sid") != "") {
+            tkn = H.GetVar("sid");
+          } else if (H.GetVar("sessId") != "") {
+            tkn = H.GetVar("sessId");
+          }
+          if (H.GetVar("jwt").size()) { tkn = H.GetVar("jwt"); }
         }
-        if (H.GetVar("jwt").size()) { tkn = H.GetVar("jwt"); }
-      }
-      if ((Comms::tknMode & 0x02) && !tkn.size()){
-        // Get session token from the request cookie
-        std::map<std::string, std::string> storage;
-        const std::string koekjes = H.GetHeader("Cookie");
-        HTTP::parseVars(koekjes, storage, "; ");
-        if (storage.count("tkn")){
-          tkn = storage.at("tkn");
+        if ((Comms::tknMode & 0x02) && !tkn.size()) {
+          // Get session token from the request cookie
+          std::map<std::string, std::string> storage;
+          const std::string koekjes = H.GetHeader("Cookie");
+          HTTP::parseVars(koekjes, storage, "; ");
+          if (storage.count("tkn")) { tkn = storage.at("tkn"); }
+          if (storage.count("jwt")) { tkn = storage.at("jwt"); }
         }
-        if (storage.count("jwt")) { tkn = storage.at("jwt"); }
-      }
 
-      if (H.hasHeader("Authorization")) {
-        std::string auth = H.GetHeader("Authorization");
-        if (auth.size() > 7 && auth.substr(0, 7) == "Bearer ") { tkn = auth.substr(8); }
-      }
-      // Generate a session token if it is being sent as a cookie or url parameter and we couldn't read one
-      if (!tkn.size() && Comms::tknMode > 3){
-        const std::string newTkn = UA + JSON::Value(getpid()).asString();
-        tkn = JSON::Value(checksum::crc32(0, newTkn.data(), newTkn.size())).asString();
-        HIGH_MSG("Generated tkn '%s'", tkn.c_str());
+        if (H.hasHeader("Authorization")) {
+          std::string auth = H.GetHeader("Authorization");
+          if (auth.size() > 7 && auth.substr(0, 7) == "Bearer ") { tkn = auth.substr(8); }
+        }
+        // Generate a session token if it is being sent as a cookie or url parameter and we couldn't read one
+        if (!tkn.size() && Comms::tknMode > 3) {
+          const std::string newTkn = UA + JSON::Value(getpid()).asString();
+          tkn = JSON::Value(checksum::crc32(0, newTkn.data(), newTkn.size())).asString();
+          MEDIUM_MSG("Generated tkn '%s'", tkn.c_str());
+        }
       }
 
       //Check if we need to change binary and/or reconnect
@@ -434,7 +436,6 @@ namespace Mist{
         reqUrl = qUrl.getUrl();
       }
       /*LTS-END*/
-      if (H.hasHeader("User-Agent")){UA = H.GetHeader("User-Agent");}
 
 #define HTTP_CONVERT(var) if (H.GetVar(var) != ""){targetParams[var] = H.GetVar(var);}
 
@@ -453,7 +454,6 @@ namespace Mist{
       HTTP_CONVERT("maxtrackms");
       HTTP_CONVERT("mintrackkeys");
       HTTP_CONVERT("maxwaittrackms");
-
       // allow setting of max lead time through buffer variable.
       // max lead time is set in MS, but the variable is in integer seconds for simplicity.
       if (H.GetVar("buffer") != ""){
@@ -507,8 +507,15 @@ namespace Mist{
       responded = false;
       bool wasHeaderOnly = H.headerOnly;
       preHTTP();
-      if (wasHeaderOnly && !H.headerOnly) { continue; }
-      if (!myConn){return;}
+
+      if (wasHeaderOnly && !H.headerOnly) {
+        isFollowUp = true;
+        continue;
+      }
+      isFollowUp = false;
+
+      if (!myConn && responded) { return; }
+
       onHTTP();
       stats(true);
       idleLast = Util::bootMS();
@@ -1085,11 +1092,8 @@ namespace Mist{
     args.push_back(streamName);
     if (H.url.size()) {
       args.push_back("--prequest");
+      myConn.Received().remove(bodyData, myConn.Received().bytes());
       H.body.assign(bodyData, bodyData.size());
-      while (myConn.Received().size()) {
-        H.body.append(myConn.Received().get());
-        myConn.Received().get().clear();
-      }
       args.push_back(Encodings::Base64::encode(H.BuildRequest()));
     }
     // set the debug level if non-default

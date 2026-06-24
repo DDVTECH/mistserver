@@ -227,6 +227,14 @@ namespace HTTP{
         supportRangeRequest = (downer.getHeader("Accept-Ranges").size() > 0);
         std::string header1 = downer.getHeader("Content-Length");
         if (header1.size()){totalSize = atoi(header1.c_str());}
+        if (!totalSize) {
+          // If the content length was set to zero in the head response, don't trust it.
+          // We reset the connection to break any potential error state, and consider the content length unknown.
+          totalSize = std::string::npos;
+          downer.getSocket().close();
+        }
+        // If the response contained "Connection: close", close the connection and don't attempt to reuse the socket
+        if (downer.getHeader("Connection") == "close") { downer.getSocket().close(); }
         myURI = downer.lastURL();
       }
 

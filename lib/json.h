@@ -109,6 +109,7 @@ namespace JSON{
     void append(const Value &rhs);
     Value & append();
     void prepend(const Value &rhs);
+    Value & prepend();
     void shrink(uint32_t size);
     void truncate(uint32_t size);
     void removeMember(const std::string &name);

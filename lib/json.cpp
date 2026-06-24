@@ -1507,6 +1507,18 @@ void JSON::Value::prepend(const JSON::Value &rhs){
   arrVal.push_front(new JSON::Value(rhs));
 }
 
+/// Prepends a null value to the beginning of this JSON::Value array.
+/// Turns this value into an array if it is not already one.
+/// Returns a reference to the prepended element.
+JSON::Value & JSON::Value::prepend() {
+  if (myType != ARRAY) {
+    null();
+    myType = ARRAY;
+  }
+  arrVal.push_front(new JSON::Value());
+  return **arrVal.begin();
+}
+
 /// For array and object JSON::Value objects, reduces them
 /// so they contain at most size elements, throwing away
 /// the first elements and keeping the last ones.

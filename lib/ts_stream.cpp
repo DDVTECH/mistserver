@@ -1263,6 +1263,8 @@ namespace TS{
       }break;
       }
 
+      trkDta.lang = TS::ProgramDescriptors(metaInit[it->first].data(), metaInit[it->first].size()).getLanguage();
+
       // Add track to meta here, if newTrack is set. Otherwise only re-initialize values
       if (idx == INVALID_TRACK_ID){
         if (!addNewTrack){return;}
@@ -1270,17 +1272,6 @@ namespace TS{
         idx = meta.addOrResumeDelayedTrack(trkDta);
       }
 
-      size_t pmtCount = associationTable.getProgramCount();
-      for (size_t i = 0; i < pmtCount; i++){
-        uint32_t pid = associationTable.getProgramPID(i);
-        ProgramMappingEntry entry = mappingTable[pid].getEntry(0);
-        while (entry){
-          if (entry.getElementaryPid() == tid){
-            meta.setLang(idx, ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).getLanguage());
-          }
-          entry.advance();
-        }
-      }
       MEDIUM_MSG("Initialized PID %zu (%s %s) as track %zu", it->first, trkDta.codec.c_str(), trkDta.type.c_str(), idx);
       if (!delayTracks) { meta.validateTrack(idx, DTSC::trackValidDefault); }
       if (tid != INVALID_TRACK_ID){return;}

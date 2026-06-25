@@ -356,9 +356,9 @@ function MistVideo(streamName,options) {
       }
     }
 
-    if (!quiet) console.warn("Sorting of combos:\n"+listofcombos.map(function(a){
+    /*if (!quiet) console.warn("Sorting of combos:\n"+listofcombos.map(function(a){
       return a.toString();
-    }).join("\n"),"\nStarting at "+i,listofcombos);
+    }).join("\n"),"\nStarting at "+i,listofcombos);*/
 
 
     //do the actual loop

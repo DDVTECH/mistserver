@@ -419,6 +419,19 @@ MistSkins["default"] = {
             var wasMuted = MistVideo.player.api.muted;
             //console.warn("Muted state:",wasMuted);
 
+            //save the current value of mistMuted so we can keep it
+            var storedMutedValue = false;
+            if (("localStorage" in window) && (localStorage != null) && ("mistMuted" in localStorage)) {
+              storedMutedValue = localStorage["mistMuted"];
+              //console.warn("Stored Muted value:",storedMutedValue);
+            }
+
+            //save the current value of mistMuted so we can keep it
+            var storedMutedValue = false;
+            if (("localStorage" in window) && (localStorage != null) && ("mistMuted" in localStorage)) {
+              storedMutedValue = localStorage["mistMuted"];
+            }
+
             if (MistUtil.getBrowser() == "safari") {
               MistVideo.log("Muting before autoplay because this is safari");
               //..and if you try to autoplay a non-muted video, safari will "lock" the video where the video element itself must be interacted with before it will play, even if player interaction had occured previously
@@ -427,6 +440,11 @@ MistSkins["default"] = {
 
             function autoplayFailed() {
               MistVideo.log("Autoplay failed even with muted video. Unmuting and showing play button.");
+
+              //put back the default for muted, as we changed it programmatically
+              if (("localStorage" in window) && (localStorage != null) && ("mistMuted" in localStorage) && (storedMutedValue !== false)) {
+                localStorage["mistMuted"] = storedMutedValue;
+              }
 
               //wait 5 seconds and then pause the download
               MistVideo.timers.start(function(){
@@ -465,8 +483,13 @@ MistSkins["default"] = {
             function autoplayMuted() {
               //show large muted button
               MistVideo.log("Autoplay worked! Video will be unmuted on mouseover if the page has been interacted with.");
-              
+
               if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "muted"; }
+
+              //put back the default for muted, as we changed it programmatically
+              if (("localStorage" in window) && (localStorage != null) && ("mistMuted" in localStorage) && (storedMutedValue !== false)) {
+                localStorage["mistMuted"] = storedMutedValue;
+              }
               
               //show large "muted" icon
               var largeMutedButton = MistVideo.skin.icons.build("muted",100);
@@ -1207,11 +1230,35 @@ MistSkins["default"] = {
         else {
           MistUtil.class.add(button,"off");
         }
+
+        try {
+          localStorage['mistMuted'] = MistVideo.player.api.muted ? "1" : "0";
+          //console.warn("mistMuted is now",localStorage['mistMuted'],"(set by speaker)");
+        } catch (e) {}
+
       },button);
       
       //control video states
       MistUtil.event.addListener(button,"click",function(e){
         MistVideo.player.api.muted = !MistVideo.player.api.muted;
+      });
+
+      //apply initial video state
+      var initevent = MistUtil.event.addListener(video,"loadstart",function(){
+        if (!MistVideo.options.muted) {
+          if (('localStorage' in window) && (localStorage != null) && ('mistMuted' in localStorage)) {
+            MistVideo.player.api.muted = (localStorage['mistMuted'] == "1" ? true : false);
+          }
+        }
+        if ((MistVideo.player.api.volume) && (!MistVideo.player.api.muted)) {
+          MistUtil.class.remove(button,"off");
+          button.setPressed(true);
+        }
+        else {
+          MistUtil.class.add(button,"off");
+          button.setPressed(false);
+        }
+        MistUtil.event.removeListener(initevent);
       });
       
       return button;

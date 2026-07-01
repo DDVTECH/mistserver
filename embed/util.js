@@ -2604,7 +2604,7 @@ var MistUtil = {
       this.request = function(type,value){
         current[type] = value;
 
-        var request = [];
+        var request = ["!jpeg"];
         if (current.bitrate !== null) {
           var req = current.bitrate / MistVideo.api.playbackRate; //correct for playback speed
           try {
@@ -2623,7 +2623,7 @@ var MistUtil = {
           else request.push("<"+Math.round(req)+"bps,minbps");
         }
         if (current.size !== null) {
-          request.push("!jpeg,~"+[current.size.width,current.size.height].join("x"));
+          request.push("~"+[current.size.width,current.size.height].join("x"));
         }
         else {
           request.push("maxres");

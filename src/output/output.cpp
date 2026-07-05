@@ -1361,22 +1361,30 @@ namespace Mist{
         size_t mainTrack = getMainSelectedTrack();
         if (mainTrack != INVALID_TRACK_ID){
           int64_t startRec = atoll(targetParams["start"].c_str());
-          if (startRec > M.getNowms(mainTrack)){
+          int64_t streamAvail = M.getNowms(mainTrack);
+          if (startRec > streamAvail){
             if (!M.getLive()){
               onFail("Playback start past end of non-live source", true);
               return;
             }
-            int64_t streamAvail = M.getNowms(mainTrack);
-            int64_t lastUpdated = Util::getMS();
-            INFO_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
-            while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
-              Util::sleep(500);
-              thisBootMs = Util::bootMS();
-              if (M.getNowms(mainTrack) > streamAvail){
-                HIGH_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
-                stats();
-                streamAvail = M.getNowms(mainTrack);
-                lastUpdated = Util::getMS();
+            if (dryRun){
+              WARN_MSG("Playback begin at %" PRId64 " ms is not available yet, using current "
+                       "available edge at %" PRId64 " ms for playlist generation instead",
+                       startRec, streamAvail);
+              startRec = streamAvail;
+              targetParams["start"] = JSON::Value(startRec).asString();
+            }else{
+              int64_t lastUpdated = Util::getMS();
+              INFO_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
+              while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
+                Util::sleep(500);
+                thisBootMs = Util::bootMS();
+                if (M.getNowms(mainTrack) > streamAvail){
+                  HIGH_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
+                  stats();
+                  streamAvail = M.getNowms(mainTrack);
+                  lastUpdated = Util::getMS();
+                }
               }
             }
           }

@@ -1368,10 +1368,10 @@ namespace Mist{
               return;
             }
             if (dryRun){
-              WARN_MSG("Playback begin at %" PRId64 " ms is not available yet, using current "
-                       "available edge at %" PRId64 " ms for playlist generation instead",
-                       startRec, streamAvail);
-              startRec = streamAvail;
+              WARN_MSG("Playback begin at %" PRId64 " ms is not available yet, using safe "
+                       "playlist start at %" PRIu64 " ms instead (available edge %" PRId64 " ms)",
+                       startRec, seekPos, streamAvail);
+              startRec = seekPos;
               targetParams["start"] = JSON::Value(startRec).asString();
             }else{
               int64_t lastUpdated = Util::getMS();

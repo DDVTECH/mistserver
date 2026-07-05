@@ -725,7 +725,7 @@ namespace Mist {
             trkDta.codec = "rawts";
             rawIdx = meta.addOrResumeTrack(trkDta);
             meta.setID(rawIdx, 1);
-            userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTSOURCEDNT);
+            userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
           }
           uint64_t packetTime = Util::bootMS();
           bufferLivePacket(packetTime, 0, rawIdx, packetBuffer, packetBuffer.size(), 0, true);

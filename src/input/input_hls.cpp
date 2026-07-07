@@ -561,6 +561,7 @@ namespace Mist{
     streamIsVOD = false; //< default to sliding window playlist
     globalWaitTime = 0;
     currentPlaylist = 0;
+    lastLiveHeaderCheckpoint = 0;
     streamOffset = 0;
     isInitialRun = false;
     segDowner.onProgress(callbackFunc);
@@ -646,6 +647,21 @@ namespace Mist{
     capa["optional"]["liveStartBufferTime"]["type"] = "uint";
     capa["optional"]["liveStartBufferTime"]["default"] = 0;
     capa["optional"]["liveStartBufferTime"]["source_can_override"] = true;
+    option.null();
+
+    option["arg"] = "integer";
+    option["long"] = "live-header-checkpoint";
+    option["help"] = "Interval in seconds for writing live HLS .dtsh metadata checkpoints. Set to 0 to disable periodic checkpointing";
+    option["value"].append(60);
+    config->addOption("liveHeaderCheckpoint", option);
+    capa["optional"]["liveHeaderCheckpoint"]["name"] = "Live HLS header checkpoint interval";
+    capa["optional"]["liveHeaderCheckpoint"]["help"] =
+        "Interval in seconds for writing live HLS .dtsh metadata checkpoints. This improves catch-up recovery after restarts";
+    capa["optional"]["liveHeaderCheckpoint"]["option"] = "--live-header-checkpoint";
+    capa["optional"]["liveHeaderCheckpoint"]["type"] = "uint";
+    capa["optional"]["liveHeaderCheckpoint"]["unit"] = "s";
+    capa["optional"]["liveHeaderCheckpoint"]["default"] = 60;
+    capa["optional"]["liveHeaderCheckpoint"]["source_can_override"] = true;
     option.null();
 
   }
@@ -934,6 +950,21 @@ namespace Mist{
     meta.inputLocalVars["pidMappingR"] = thisMappingsR;
   }
 
+  void InputHLS::checkpointLiveHeader(bool force){
+    if (!streamIsLive){return;}
+
+    uint64_t checkpointInterval = config->getInteger("liveHeaderCheckpoint");
+    if (!force && !checkpointInterval){return;}
+
+    uint64_t now = Util::bootSecs();
+    if (!force && lastLiveHeaderCheckpoint && now < lastLiveHeaderCheckpoint + checkpointInterval){return;}
+
+    INFO_MSG("Writing live HLS header checkpoint to disk");
+    injectLocalVars();
+    M.toFile(HTTP::localURIResolver().link(config->getString("input") + ".dtsh").getUrl());
+    lastLiveHeaderCheckpoint = now;
+  }
+
   /// \brief Parses new segments added to playlist files as live data
   /// \param segmentIndex: the index of the segment in the current playlist
   /// \return True if the segment has been buffered successfully
@@ -1105,12 +1136,17 @@ namespace Mist{
       }else if (isInitialRun){
         isInitialRun = false;
       }
+      bool parsedNewSegment = false;
       for(uint64_t entryIt = 1 + lastParsedSegment - firstSegment; entryIt < listEntries[currentPlaylist].size(); entryIt++){
         INFO_MSG("Playlist #%" PRIu64 ": Parsing segment #%" PRIu64 " as live data", currentPlaylist, firstSegment + entryIt);
-        if (parseSegmentAsLive(entryIt)){parsedSegments[currentPlaylist] = firstSegment + entryIt;}
+        if (parseSegmentAsLive(entryIt)){
+          parsedSegments[currentPlaylist] = firstSegment + entryIt;
+          parsedNewSegment = true;
+        }
         // Rotate between playlists if there are lots of entries to parse
         if (Util::bootMS() > maxTime){break;}
       }
+      if (parsedNewSegment){checkpointLiveHeader(false);}
     }
   }
 
@@ -1635,9 +1671,7 @@ namespace Mist{
 
   void InputHLS::finish(){
     if (streamIsLive){ //< Already generated from readHeader
-      INFO_MSG("Writing updated header to disk");
-      injectLocalVars();
-      M.toFile(HTTP::localURIResolver().link(config->getString("input") + ".dtsh").getUrl());
+      checkpointLiveHeader(true);
     }
     Input::finish();
   }

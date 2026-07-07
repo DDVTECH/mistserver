@@ -631,6 +631,21 @@ namespace Mist{
     capa["optional"]["bufferTime"]["option"] = "--buffer";
     capa["optional"]["bufferTime"]["type"] = "uint";
     capa["optional"]["bufferTime"]["default"] = 50000;
+    capa["optional"]["bufferTime"]["source_can_override"] = true;
+    option.null();
+
+    option["arg"] = "integer";
+    option["long"] = "live-start-buffer";
+    option["help"] = "Initial live HLS indexing window in ms. If set, long live/event playlists start parsing near the live edge instead of from the first retained segment";
+    option["value"].append(0);
+    config->addOption("liveStartBufferTime", option);
+    capa["optional"]["liveStartBufferTime"]["name"] = "Live start buffer time (ms)";
+    capa["optional"]["liveStartBufferTime"]["help"] =
+        "Initial live HLS indexing window in ms. Set this on long catch-up playlists to recover near-live playback quickly after input restarts";
+    capa["optional"]["liveStartBufferTime"]["option"] = "--live-start-buffer";
+    capa["optional"]["liveStartBufferTime"]["type"] = "uint";
+    capa["optional"]["liveStartBufferTime"]["default"] = 0;
+    capa["optional"]["liveStartBufferTime"]["source_can_override"] = true;
     option.null();
 
   }
@@ -793,9 +808,18 @@ namespace Mist{
       std::string lastMapName;
       uint32_t entId = 0;
       bool foundAtLeastOnePacket = false;
+      size_t liveStartIndex = 0;
+      if (streamIsLive && config->hasOption("liveStartBufferTime")){
+        liveStartIndex = hlsLiveStartIndex(pListIt->second, config->getInteger("liveStartBufferTime"));
+        if (liveStartIndex){
+          INFO_MSG("Playlist %" PRIu32 " starts live indexing at entry %zu/%zu due to liveStartBufferTime=%" PRIu64 "ms",
+                   pListIt->first, liveStartIndex + 1, pListIt->second.size(), config->getInteger("liveStartBufferTime"));
+        }
+      }
       VERYHIGH_MSG("Playlist %" PRIu32 " starts at media index %" PRIu64, pListIt->first, playlistMapping[pListIt->first]->firstIndex);
+      currentSegment += liveStartIndex;
 
-      for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
+      for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin() + liveStartIndex;
            entryIt != pListIt->second.end() && config->is_active; entryIt++){
         ++currentSegment;
 
@@ -847,7 +871,8 @@ namespace Mist{
         }
 
         // If live, don't actually parse anything. If non-live, we read all the segments
-        parsedSegments[pListIt->first] = playlistMapping[pListIt->first]->firstIndex + (streamIsLive ? 0 : currentSegment);
+        parsedSegments[pListIt->first] = streamIsLive ? (entryIt->bytePos ? entryIt->bytePos - 1 : playlistMapping[pListIt->first]->firstIndex) :
+                                                        playlistMapping[pListIt->first]->firstIndex + currentSegment;
 
         // For still-appending streams, only parse the first segment for each playlist
         if (streamIsLive && foundAtLeastOnePacket){break;}
@@ -1040,6 +1065,18 @@ namespace Mist{
       uint64_t firstSegment = listEntries[currentPlaylist].front().bytePos;
       uint64_t lastParsedSegment = parsedSegments[currentPlaylist];
       uint64_t lastSegment = listEntries[currentPlaylist].back().bytePos;
+
+      if (streamIsLive && config->hasOption("liveStartBufferTime")){
+        size_t liveStartIndex = hlsLiveStartIndex(listEntries[currentPlaylist], config->getInteger("liveStartBufferTime"));
+        if (liveStartIndex && listEntries[currentPlaylist][liveStartIndex].bytePos &&
+            lastParsedSegment < listEntries[currentPlaylist][liveStartIndex].bytePos - 1){
+          uint64_t newParsedSegment = listEntries[currentPlaylist][liveStartIndex].bytePos - 1;
+          WARN_MSG("Playlist #%" PRIu64 ": Skipping from segment #%" PRIu64 " to segment #%" PRIu64 " to stay within liveStartBufferTime=%" PRIu64 "ms",
+                   currentPlaylist, lastParsedSegment, newParsedSegment, config->getInteger("liveStartBufferTime"));
+          parsedSegments[currentPlaylist] = newParsedSegment;
+          lastParsedSegment = parsedSegments[currentPlaylist];
+        }
+      }
 
       // Skip ahead if we've missed segments which are no longer in the playlist
       if (lastParsedSegment < firstSegment - 1){

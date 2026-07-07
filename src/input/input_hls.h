@@ -65,6 +65,18 @@ namespace Mist{
     return a.filename == b.filename && a.startAtByte == b.startAtByte;
   }
 
+  inline size_t hlsLiveStartIndex(const std::deque<playListEntries> &entries, uint64_t bufferMs){
+    if (!bufferMs || entries.size() < 2){return 0;}
+    const uint64_t tailTimestamp = entries.back().timestamp;
+    if (!tailTimestamp || tailTimestamp <= bufferMs){return 0;}
+    const uint64_t minTimestamp = tailTimestamp - bufferMs;
+    for (size_t i = 0; i + 1 < entries.size(); ++i){
+      if (!entries[i].timestamp){return 0;}
+      if (entries[i].timestamp >= minTimestamp){return i;}
+    }
+    return entries.size() - 1;
+  }
+
   /// Keeps the segment entry list by playlist ID
   extern std::map<uint32_t, std::deque<playListEntries> > listEntries;
 

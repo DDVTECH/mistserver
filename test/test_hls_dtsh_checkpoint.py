@@ -44,6 +44,18 @@ def main() -> None:
           "finish() should force a final checkpoint through the shared helper")
   require("injectLocalVars();" in implementation and ".toFile(" in implementation,
           "checkpoint path should persist injected local HLS playlist state to .dtsh")
+  require("writeLiveHeaderCheckpoint" in header,
+          "InputHLS should declare a dedicated atomic checkpoint writer")
+  require("writeLiveHeaderCheckpoint" in implementation,
+          "InputHLS should route checkpoints through the atomic writer")
+  require('checkpointPath + ".tmp."' in implementation,
+          "checkpoint writer should write to a unique temporary path next to the .dtsh")
+  require("fsync(" in implementation,
+          "checkpoint writer should fsync the temporary .dtsh before publishing it")
+  require("rename(" in implementation,
+          "checkpoint writer should atomically rename the temporary .dtsh into place")
+  require("remove(" in implementation,
+          "checkpoint writer should clean up failed temporary .dtsh writes")
 
   require("/dev/shm/*Mst*" not in service,
           "systemd unit template must not delete Mist shared-memory metadata on stop")

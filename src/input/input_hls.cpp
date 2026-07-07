@@ -1,7 +1,12 @@
 #include "input_hls.h"
 #include <mist/defines.h>
+#include <cerrno>
+#include <cstdio>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <thread>
 #include <mutex>
+#include <unistd.h>
 
 #define SEM_TS_CLAIM "/MstTSIN%s"
 
@@ -961,8 +966,66 @@ namespace Mist{
 
     INFO_MSG("Writing live HLS header checkpoint to disk");
     injectLocalVars();
-    M.toFile(HTTP::localURIResolver().link(config->getString("input") + ".dtsh").getUrl());
+    std::string checkpointPath = HTTP::localURIResolver().link(config->getString("input") + ".dtsh").getUrl();
+    writeLiveHeaderCheckpoint(checkpointPath);
     lastLiveHeaderCheckpoint = now;
+  }
+
+  bool InputHLS::writeLiveHeaderCheckpoint(const std::string &checkpointPath){
+    std::string tempPath = checkpointPath + ".tmp." + JSON::Value(getpid()).asString() + "." + JSON::Value(Util::bootMS()).asString();
+
+    M.toFile(tempPath);
+
+    struct stat tempStats;
+    if (stat(tempPath.c_str(), &tempStats) != 0 || !tempStats.st_size){
+      WARN_MSG("Failed to write live HLS header checkpoint temp file: %s", tempPath.c_str());
+      std::remove(tempPath.c_str());
+      return false;
+    }
+
+    int tempFd = open(tempPath.c_str(), O_RDONLY);
+    if (tempFd < 0){
+      WARN_MSG("Could not open live HLS header checkpoint temp file for fsync: %s", tempPath.c_str());
+      std::remove(tempPath.c_str());
+      return false;
+    }
+
+    if (fsync(tempFd) != 0){
+      WARN_MSG("Could not fsync live HLS header checkpoint temp file: %s", tempPath.c_str());
+      close(tempFd);
+      std::remove(tempPath.c_str());
+      return false;
+    }
+
+    if (close(tempFd) != 0){
+      WARN_MSG("Could not close live HLS header checkpoint temp file after fsync: %s", tempPath.c_str());
+      std::remove(tempPath.c_str());
+      return false;
+    }
+
+    if (rename(tempPath.c_str(), checkpointPath.c_str()) != 0){
+      WARN_MSG("Could not atomically publish live HLS header checkpoint %s: %s", checkpointPath.c_str(), strerror(errno));
+      std::remove(tempPath.c_str());
+      return false;
+    }
+
+    size_t slashPos = checkpointPath.find_last_of('/');
+    if (slashPos != std::string::npos){
+      std::string dirPath = slashPos ? checkpointPath.substr(0, slashPos) : "/";
+#ifdef O_DIRECTORY
+      int dirFd = open(dirPath.c_str(), O_RDONLY | O_DIRECTORY);
+#else
+      int dirFd = open(dirPath.c_str(), O_RDONLY);
+#endif
+      if (dirFd >= 0){
+        if (fsync(dirFd) != 0){WARN_MSG("Could not fsync live HLS header checkpoint directory: %s", dirPath.c_str());}
+        close(dirFd);
+      }else{
+        WARN_MSG("Could not open live HLS header checkpoint directory for fsync: %s", dirPath.c_str());
+      }
+    }
+
+    return true;
   }
 
   /// \brief Parses new segments added to playlist files as live data

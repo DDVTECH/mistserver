@@ -185,6 +185,7 @@ namespace Mist{
     virtual void finish();
     void injectLocalVars();
     void checkpointLiveHeader(bool force = false);
+    bool writeLiveHeaderCheckpoint(const std::string &checkpointPath);
     virtual void checkHeaderTimes(const HTTP::URL & streamFile);
     // Used to immediately mark pages for removal when we're bursting through segments on initial boot
     bool isInitialRun;

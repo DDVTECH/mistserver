@@ -212,7 +212,7 @@ namespace Mist{
     capa["exceptions"]["codec:MP3"] = JSON::fromString(
         "[[\"blacklist\",[\"Mozilla/"
         "\"]],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
-    capa["exceptions"]["codec:HEVC"] = JSON::fromString("[[\"blacklist\"]]");
+    // capa["exceptions"]["codec:HEVC"] = JSON::fromString("[[\"blacklist\"]]");
 
     cfg->addOption(
         "listlimit",

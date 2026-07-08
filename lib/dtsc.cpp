@@ -2081,7 +2081,6 @@ namespace DTSC{
       setType(T, trkDta.type);
       setCodec(T, trkDta.codec);
       setLang(T, trkDta.lang);
-      setInit(T, trkDta.init);
       if (trkDta.id) { setID(T, trkDta.id); }
       if (trkDta.type == "audio") {
         setRate(T, trkDta.rate);
@@ -2093,6 +2092,7 @@ namespace DTSC{
         setHeight(T, trkDta.height);
         setFpks(T, trkDta.fpks);
       }
+      setInit(T, trkDta.init);
       return T;
     }
   }

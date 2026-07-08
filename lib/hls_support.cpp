@@ -43,6 +43,114 @@ namespace HLS{
 #endif
   };
 
+  ClassicSegment::ClassicSegment(){
+    fragmentIndex = 0;
+    durationMs = 0;
+    discontinuity = false;
+    discontinuitySequence = 0;
+  }
+
+  ClassicPlaylistWindow::ClassicPlaylistWindow(){
+    mediaSequence = 0;
+    targetDuration = 1;
+    totalDurationMs = 0;
+    hasDiscontinuitySequence = false;
+    discontinuitySequence = 0;
+  }
+
+  std::string ClassicPlaylistWindow::body() const{
+    std::stringstream out;
+    for (std::deque<ClassicSegment>::const_iterator it = segments.begin(); it != segments.end(); ++it){
+      if (it->discontinuity){out << "#EXT-X-DISCONTINUITY\r\n";}
+      out << it->line;
+    }
+    return out.str();
+  }
+
+  MediaPlaylistState::MediaPlaylistState(){
+    mediaSequence = 0;
+    visibleSegments = 0;
+  }
+
+  uint64_t MediaPlaylistState::nextSegmentCounter() const{
+    return mediaSequence + visibleSegments;
+  }
+
+  static uint32_t targetDurationForSegments(const std::deque<ClassicSegment> &segments){
+    uint64_t maxDuration = 0;
+    for (std::deque<ClassicSegment>::const_iterator it = segments.begin(); it != segments.end(); ++it){
+      if (it->durationMs > maxDuration){maxDuration = it->durationMs;}
+    }
+    if (!maxDuration){return 1;}
+    return (maxDuration + 999) / 1000;
+  }
+
+  static uint64_t totalDurationForSegments(const std::deque<ClassicSegment> &segments){
+    uint64_t total = 0;
+    for (std::deque<ClassicSegment>::const_iterator it = segments.begin(); it != segments.end(); ++it){
+      total += it->durationMs;
+    }
+    return total;
+  }
+
+  ClassicPlaylistWindow buildClassicPlaylistWindow(const std::deque<ClassicSegment> &segments,
+                                                   bool isLive, uint64_t listlimit){
+    ClassicPlaylistWindow ret;
+    ret.segments = segments;
+    ret.totalDurationMs = totalDurationForSegments(ret.segments);
+    uint32_t targetDuration = targetDurationForSegments(ret.segments);
+
+    if (isLive && ret.segments.size() > 1){
+      ret.totalDurationMs -= ret.segments.back().durationMs;
+      ret.segments.pop_back();
+
+      size_t skipped = 0;
+      while (ret.segments.size() &&
+             (ret.totalDurationMs - ret.segments.front().durationMs) > (uint64_t)targetDuration * 4000 &&
+             skipped < 2){
+        ret.totalDurationMs -= ret.segments.front().durationMs;
+        ret.segments.pop_front();
+        ++skipped;
+      }
+
+      if (listlimit){
+        while (ret.segments.size() > listlimit &&
+               (ret.totalDurationMs - ret.segments.front().durationMs) > (uint64_t)targetDuration * 4000){
+          ret.totalDurationMs -= ret.segments.front().durationMs;
+          ret.segments.pop_front();
+        }
+      }
+    }
+
+    if (ret.segments.size()){
+      ret.mediaSequence = ret.segments.front().fragmentIndex;
+      ret.targetDuration = targetDurationForSegments(ret.segments);
+      if (ret.segments.front().discontinuity){
+        ret.discontinuitySequence = ret.segments.front().discontinuitySequence ?
+                                        ret.segments.front().discontinuitySequence - 1 :
+                                        0;
+      }else{
+        ret.discontinuitySequence = ret.segments.front().discontinuitySequence;
+      }
+      ret.hasDiscontinuitySequence = ret.discontinuitySequence > 0;
+    }
+    return ret;
+  }
+
+  MediaPlaylistState inspectMediaPlaylist(const std::string &playlist){
+    MediaPlaylistState ret;
+    std::istringstream in(playlist);
+    std::string line;
+    while (std::getline(in, line)){
+      if (line.compare(0, 22, "#EXT-X-MEDIA-SEQUENCE:") == 0){
+        ret.mediaSequence = strtoull(line.c_str() + 22, 0, 10);
+      }else if (line.compare(0, 7, "#EXTINF") == 0){
+        ++ret.visibleSegments;
+      }
+    }
+    return ret;
+  }
+
   /// lastms calculation incorporating jitter duration
   /// Always ensures the (lastms <= current time - jitter duration)
   uint64_t getLastms(const DTSC::Meta &M, const std::map<size_t, Comms::Users> &userSelect,

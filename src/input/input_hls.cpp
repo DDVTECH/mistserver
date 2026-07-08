@@ -186,6 +186,8 @@ namespace Mist{
 
   Playlist::Playlist(const std::string &uriSource){
     nextUTC = 0;
+    nextDiscontinuity = false;
+    discontinuitySequence = 0;
     oUTC = 0;
     id = 0; // to be set later
     //If this is the copy constructor, just be silent.
@@ -229,6 +231,8 @@ namespace Mist{
   bool Playlist::reload(){
     uint64_t bposCounter = 1;
     nextUTC = 0; // Make sure we don't use old timestamps
+    nextDiscontinuity = false;
+    discontinuitySequence = 0;
     std::string line;
     std::string key;
     std::string val;
@@ -276,8 +280,8 @@ namespace Mist{
         }
         if (line.compare(0, 7, "#EXT-X-") == 0){
           size_t pos = line.find(":");
-          key = line.substr(7, pos - 7);
-          val = line.c_str() + pos + 1;
+          key = line.substr(7, pos == std::string::npos ? std::string::npos : pos - 7);
+          val = (pos == std::string::npos ? "" : line.c_str() + pos + 1);
 
           if (key == "KEY"){
             size_t tmpPos = val.find("METHOD=");
@@ -334,6 +338,17 @@ namespace Mist{
             // Reinit the segment counter
             firstIndex = atoll(val.c_str());
             bposCounter = firstIndex + 1;
+            continue;
+          }
+
+          if (key == "DISCONTINUITY-SEQUENCE"){
+            discontinuitySequence = atoll(val.c_str());
+            continue;
+          }
+
+          if (key == "DISCONTINUITY"){
+            nextDiscontinuity = true;
+            ++discontinuitySequence;
             continue;
           }
 
@@ -426,6 +441,8 @@ namespace Mist{
 
         // check for already added segments
         VERYHIGH_MSG("Current segment #%" PRIu64 ", last segment was #%" PRIu64 "", bposCounter, lastSegment);
+        bool entryDiscontinuity = nextDiscontinuity;
+        uint64_t entryDiscontinuitySequence = discontinuitySequence;
         if (bposCounter > lastSegment){
           INFO_MSG("Playlist #%u: Adding new segment #%" PRIu64 " to playlist entries", id, bposCounter);
           char ivec[16];
@@ -435,10 +452,12 @@ namespace Mist{
             memset(ivec, 0, 16);
             Bit::htobll(ivec + 8, bposCounter);
           }
-          addEntry(root.link(line).getUrl(), line, segDur, bposCounter, keys[keyUri], std::string(ivec, 16), mapUri+mapRange, startByte, lenByte);
+          addEntry(root.link(line).getUrl(), line, segDur, bposCounter, keys[keyUri], std::string(ivec, 16),
+                   mapUri+mapRange, startByte, lenByte, entryDiscontinuity, entryDiscontinuitySequence);
           lastSegment = bposCounter;
           ++count;
         }
+        nextDiscontinuity = false;
         nextUTC = 0;
         segDur = 0.0;
         startByte = std::string::npos;
@@ -455,11 +474,14 @@ namespace Mist{
 
   /// Adds playlist segments to be processed
   void Playlist::addEntry(const std::string &absolute_filename, const std::string &filename, float duration, uint64_t &bpos,
-                          const std::string &key, const std::string &iv, const std::string mapName, uint64_t startByte, uint64_t lenByte){
+                          const std::string &key, const std::string &iv, const std::string mapName, uint64_t startByte,
+                          uint64_t lenByte, bool discontinuity, uint64_t discontinuitySequence){
     playListEntries entry;
     entry.filename = absolute_filename;
     entry.relative_filename = filename;
     entry.mapName = mapName;
+    entry.discontinuity = discontinuity;
+    entry.discontinuitySequence = discontinuitySequence;
     cleanLine(entry.filename);
     entry.bytePos = bpos;
     entry.duration = duration;
@@ -708,6 +730,10 @@ namespace Mist{
             newEntry.mapName = thisEntry[11u].asStringRef();
           }
         }
+        if (thisEntry.size() >= 14){
+          newEntry.discontinuity = thisEntry[12u].asBool();
+          newEntry.discontinuitySequence = thisEntry[13u].asInt();
+        }
         newList.push_back(newEntry);
       }
       listEntries[plNum] = newList;
@@ -860,13 +886,11 @@ namespace Mist{
         thisEntries.append(entryIt->wait);
         thisEntries.append(entryIt->ivec);
         thisEntries.append(entryIt->keyAES);
-        if (entryIt->startAtByte || entryIt->stopAtByte || entryIt->mapName.size()){
-          thisEntries.append(entryIt->startAtByte);
-          thisEntries.append(entryIt->stopAtByte);
-          if (entryIt->mapName.size()){
-            thisEntries.append(entryIt->mapName);
-          }
-        }
+        thisEntries.append(entryIt->startAtByte);
+        thisEntries.append(entryIt->stopAtByte);
+        thisEntries.append(entryIt->mapName);
+        thisEntries.append(entryIt->discontinuity);
+        thisEntries.append(entryIt->discontinuitySequence);
         thisPlaylist.append(thisEntries);
       }
       allEntries[JSON::Value(pListIt->first).asString()] = thisPlaylist;
@@ -909,6 +933,12 @@ namespace Mist{
     }
 
     playListEntries & ntry = curList.at(segmentIndex);
+    if (ntry.discontinuity){
+      plsTimeOffset.erase(currentPlaylist);
+      plsLastTime.erase(currentPlaylist);
+      plsInterval.erase(currentPlaylist);
+      allowRemap = true;
+    }
     if (ntry.mapName.size()){
       segDowner.setInit(playlistMapping[currentPlaylist]->maps[ntry.mapName]);
     }
@@ -1226,7 +1256,7 @@ namespace Mist{
         }
       }
       // store last time for interval/offset calculations
-      plsLastTime[tid] = newTime;
+      plsLastTime[currentPlaylist] = newTime;
     }
     return newTime;
   }

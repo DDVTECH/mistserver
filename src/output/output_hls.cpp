@@ -1,4 +1,5 @@
 #include "output_hls.h"
+#include <mist/hls_support.h>
 #include <mist/langcodes.h> /*LTS*/
 #include <mist/stream.h>
 #include <mist/url.h>
@@ -84,6 +85,22 @@ namespace Mist{
     return result.str();
   }
 
+  static std::map<uint64_t, std::pair<bool, uint64_t> > hlsDiscontinuityMapFromMeta(const DTSC::Meta &M){
+    std::map<uint64_t, std::pair<bool, uint64_t> > ret;
+    if (!M.inputLocalVars.isMember("playlistEntries")){return ret;}
+    jsonForEachConst(M.inputLocalVars["playlistEntries"], plIt){
+      jsonForEachConst(*plIt, entryIt){
+        const JSON::Value &entry = *entryIt;
+        if (entry.size() < 14){continue;}
+        uint64_t bpos = entry[1u].asInt();
+        bool discontinuity = entry[12u].asBool();
+        uint64_t discontinuitySequence = entry[13u].asInt();
+        ret[bpos] = std::make_pair(discontinuity, discontinuitySequence);
+      }
+    }
+    return ret;
+  }
+
   std::string OutHLS::liveIndex(size_t tid, const std::string &tknStr, const std::string &urlPrefix){
     //Timing track is current track, unless non-video, then time by video track
     size_t timingTid = tid;
@@ -91,27 +108,12 @@ namespace Mist{
     if (timingTid == INVALID_TRACK_ID){timingTid = tid;}
 
     std::stringstream result;
-    // parse single track
-    uint32_t targetDuration = (M.biggestFragment(timingTid) / 1000) + 1;
-    result << "#EXTM3U\r\n#EXT-X-VERSION:";
-
-    result << (M.getEncryption(tid) == "" ? "3" : "5");
-
-    result << "\r\n#EXT-X-TARGETDURATION:" << targetDuration << "\r\n";
-
-    if (M.getEncryption(tid) != ""){
-      result << "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"";
-      result << "urlHere";
-      result << "\",KEYFORMAT=\"com.apple.streamingkeydelivery" << std::endl;
-    }
-
-    std::deque<std::string> lines;
-    std::deque<uint16_t> durations;
-    uint32_t totalDuration = 0;
+    std::deque<HLS::ClassicSegment> segments;
     DTSC::Keys keys(M.keys(timingTid));
     DTSC::Fragments fragments(M.fragments(timingTid));
     uint32_t firstFragment = fragments.getFirstValid();
     uint32_t endFragment = fragments.getEndValid();
+    std::map<uint64_t, std::pair<bool, uint64_t> > discontinuities = hlsDiscontinuityMapFromMeta(M);
     for (int i = firstFragment; i < endFragment; i++){
       uint64_t duration = fragments.getDuration(i);
       size_t keyNumber = fragments.getFirstKey(i);
@@ -130,44 +132,38 @@ namespace Mist{
         snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts%s\r\n", floatDur, urlPrefix.c_str(),
             startTime, startTime + duration, tknStr.c_str());
       }
-      totalDuration += duration;
-      durations.push_back(duration);
-      lines.push_back(lineBuf);
-    }
-    size_t skippedLines = 0;
-    if (M.getLive() && lines.size() > 1){
-      // only print the last segment when non-live
-      lines.pop_back();
-      totalDuration -= durations.back();
-      durations.pop_back();
-      // skip the first two segments when live, unless that brings us under 4 target durations
-      while (durations.size() && (totalDuration - durations.front()) > (targetDuration * 4000) && skippedLines < 2){
-        lines.pop_front();
-        totalDuration -= durations.front();
-        durations.pop_front();
-        ++skippedLines;
+
+      HLS::ClassicSegment segment;
+      segment.fragmentIndex = i;
+      segment.durationMs = duration;
+      segment.line = lineBuf;
+      uint64_t sourceBpos = keys.getBpos(keyNumber);
+      if (discontinuities.count(sourceBpos)){
+        segment.discontinuity = discontinuities[sourceBpos].first;
+        segment.discontinuitySequence = discontinuities[sourceBpos].second;
       }
-      /*LTS-START*/
-      // remove lines to reduce size towards listlimit setting - but keep at least 4X target
-      // duration available
-      uint64_t listlimit = config->getInteger("listlimit");
-      if (listlimit){
-        while (lines.size() > listlimit && (totalDuration - durations.front()) > (targetDuration * 4000)){
-          lines.pop_front();
-          totalDuration -= durations.front();
-          durations.pop_front();
-          ++skippedLines;
-        }
-      }
-      /*LTS-END*/
+      segments.push_back(segment);
     }
 
-    result << "#EXT-X-MEDIA-SEQUENCE:" << firstFragment + skippedLines << "\r\n";
+    HLS::ClassicPlaylistWindow window =
+        HLS::buildClassicPlaylistWindow(segments, M.getLive(), config->getInteger("listlimit"));
 
-    for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); it++){
-      result << *it;
+    result << "#EXTM3U\r\n#EXT-X-VERSION:";
+    result << (M.getEncryption(tid) == "" ? "3" : "5");
+    result << "\r\n#EXT-X-TARGETDURATION:" << window.targetDuration << "\r\n";
+
+    if (M.getEncryption(tid) != ""){
+      result << "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"";
+      result << "urlHere";
+      result << "\",KEYFORMAT=\"com.apple.streamingkeydelivery" << std::endl;
     }
-    if (!M.getLive() || !totalDuration){result << "#EXT-X-ENDLIST\r\n";}
+
+    if (window.hasDiscontinuitySequence){
+      result << "#EXT-X-DISCONTINUITY-SEQUENCE:" << window.discontinuitySequence << "\r\n";
+    }
+    result << "#EXT-X-MEDIA-SEQUENCE:" << window.mediaSequence << "\r\n";
+    result << window.body();
+    if (!M.getLive() || !window.totalDurationMs){result << "#EXT-X-ENDLIST\r\n";}
     HIGH_MSG("Sending this index: %s", result.str().c_str());
     return result.str();
   }

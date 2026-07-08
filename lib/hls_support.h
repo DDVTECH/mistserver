@@ -1,6 +1,8 @@
 #include "comms.h"
 #include "dtsc.h"
 #include <cmath>
+#include <deque>
+#include <string>
 
 namespace HLS{
   // TODO: Implement logic to detect ideal partial fragment size
@@ -55,6 +57,36 @@ namespace HLS{
     int64_t bootMsOffset;  ///< time diff between systemBoot & stream's 0 time in ms
   };
 
+  /// A media segment candidate for classic HLS playlist generation.
+  struct ClassicSegment{
+    uint32_t fragmentIndex;
+    uint64_t durationMs;
+    std::string line;
+    bool discontinuity;
+    uint64_t discontinuitySequence;
+    ClassicSegment();
+  };
+
+  /// The final visible classic HLS playlist window after live/list-limit trimming.
+  struct ClassicPlaylistWindow{
+    uint32_t mediaSequence;
+    uint32_t targetDuration;
+    uint64_t totalDurationMs;
+    bool hasDiscontinuitySequence;
+    uint64_t discontinuitySequence;
+    std::deque<ClassicSegment> segments;
+    ClassicPlaylistWindow();
+    std::string body() const;
+  };
+
+  /// Parsed sequence state from an existing media playlist.
+  struct MediaPlaylistState{
+    uint64_t mediaSequence;
+    uint64_t visibleSegments;
+    MediaPlaylistState();
+    uint64_t nextSegmentCounter() const;
+  };
+
   uint32_t blockPlaylistReload(const DTSC::Meta &M, const std::map<size_t, Comms::Users> &userSelect, const TrackData &trackData,
                                const HlsSpecData &hlsSpecData, const DTSC::Fragments &fragments,
                                const DTSC::Keys &keys);
@@ -81,4 +113,8 @@ namespace HLS{
 
   uint64_t getPartTargetTime(const DTSC::Meta &M, const uint32_t idx, const uint32_t mTrack,
                              const uint64_t startTime, const uint64_t msn, const uint32_t part);
+
+  ClassicPlaylistWindow buildClassicPlaylistWindow(const std::deque<ClassicSegment> &segments,
+                                                   bool isLive, uint64_t listlimit);
+  MediaPlaylistState inspectMediaPlaylist(const std::string &playlist);
 }// namespace HLS

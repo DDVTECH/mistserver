@@ -25,6 +25,8 @@ namespace Mist{
     uint64_t timestamp; ///< zUTC-based timestamp for this entry
     int64_t timeOffset; ///< Value timestamps in the media are shifted by to get zUTC-based timestamps
     uint64_t wait;
+    bool discontinuity;
+    uint64_t discontinuitySequence;
     char ivec[16];
     char keyAES[16];
     playListEntries(){
@@ -34,6 +36,8 @@ namespace Mist{
       timestamp = 0;
       timeOffset = 0;
       wait = 0;
+      discontinuity = false;
+      discontinuitySequence = 0;
       startAtByte = 0;
       stopAtByte = 0;
       for (size_t i = 0; i < 16; ++i){
@@ -70,7 +74,8 @@ namespace Mist{
     bool isUrl() const;
     bool reload();
     void addEntry(const std::string & absolute_filename, const std::string &filename, float duration, uint64_t &bpos,
-                  const std::string &key, const std::string &keyIV, const std::string mapName, uint64_t startByte, uint64_t lenByte);
+                  const std::string &key, const std::string &keyIV, const std::string mapName, uint64_t startByte,
+                  uint64_t lenByte, bool discontinuity, uint64_t discontinuitySequence);
 
     std::string uri; // link to the current playlistfile
     HTTP::URL root;
@@ -87,6 +92,8 @@ namespace Mist{
     uint64_t startTime;
     int64_t oUTC;
     uint64_t nextUTC; ///< If non-zero, the UTC timestamp of the next segment on this playlist
+    bool nextDiscontinuity;
+    uint64_t discontinuitySequence;
     char keyAES[16];
     std::map<std::string, std::string> keys;
     std::map<std::string, std::string> maps;

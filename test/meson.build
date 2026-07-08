@@ -9,6 +9,9 @@ websockettest = executable('websockettest', 'websocket.cpp', header_tgts, depend
 # Actual unit tests
 test('Redirecting log messages produces no error', exec_tgts.get('MistUtilLog'), suite:'Logs', args: ['BadBinary'], should_fail: true)
 
+hlsclassicplaylisttest = executable('hlsclassicplaylisttest', 'hls_classic_playlist.cpp', header_tgts, dependencies: libmist_dep)
+test('Classic HLS playlist window', hlsclassicplaylisttest, suite: 'HLS')
+
 downloadertest = executable('downloadertest', 'downloader.cpp', header_tgts, dependencies: libmist_dep)
 test('event-looped non-blocking', downloadertest, args: ['AUTO'], env: {'EVENTLOOP':'1'}, suite: 'Downloader')
 test('blocking', downloadertest, args: ['AUTO'], suite: 'Downloader')
@@ -221,4 +224,3 @@ test('AMF parser', amftest, suite: 'AMF parser', protocol:'tap')
 
 #abst_test = executable('abst_test', 'abst_test.cpp', dependencies: libmist_dep)
 #test('MP4::ABST Test', abst_test)
-

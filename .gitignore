@@ -65,6 +65,8 @@ rules.ninja
 aes_ctr128
 /embed/testing
 *test
+!test/
+!test/hls_classic_playlist.cpp
 CMakeDoxyfile.in
 RelAccXSampler
 subprojects/

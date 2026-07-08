@@ -4,6 +4,7 @@
 #include <mist/defines.h>
 #include <mist/encode.h>
 #include <mist/h264.h>
+#include <mist/hls_support.h>
 #include <mist/http_parser.h>
 #include <mist/jwt.h>
 #include <mist/langcodes.h>
@@ -1714,14 +1715,15 @@ namespace Mist{
             // If appending, remove endlist and count segments
             if (targetParams.count("append")){
               while (std::getline(inFile, line)) {
-                if (strncmp("#EXTINF", line.c_str(), 7) == 0){
-                  segmentCount++;
-                }else if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
+                if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
                   INFO_MSG("Stripping line `#EXT-X-ENDLIST`");
                   continue;
                 }
                 playlistBuffer += line + '\n';
               }
+              HLS::MediaPlaylistState state = HLS::inspectMediaPlaylist(playlistBuffer);
+              segmentsRemoved = state.mediaSequence;
+              segmentCount = state.nextSegmentCounter();
               playlistBuffer += "#EXT-X-DISCONTINUITY\n";
               INFO_MSG("Appending to existing local playlist file '%s'", playlistLocationString.c_str());
               INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
@@ -1760,14 +1762,15 @@ namespace Mist{
               std::istringstream inFile(existingBuffer);
               std::string line;
               while (std::getline(inFile, line)) {
-                if (strncmp("#EXTINF", line.c_str(), 7) == 0){
-                  segmentCount++;
-                }else if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
+                if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
                   INFO_MSG("Stripping line `#EXT-X-ENDLIST`");
                   continue;
                 }
                 playlistBuffer += line + '\n';
               }
+              HLS::MediaPlaylistState state = HLS::inspectMediaPlaylist(playlistBuffer);
+              segmentsRemoved = state.mediaSequence;
+              segmentCount = state.nextSegmentCounter();
               playlistBuffer += "#EXT-X-DISCONTINUITY\n";
               INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
               INFO_MSG("Appending to existing remote playlist file '%s'", playlistLocationString.c_str());

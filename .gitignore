@@ -71,3 +71,5 @@ subprojects/
 !subprojects/packagefiles/
 !subprojects/*.wrap
 .vscode/
+
+.DS_Store

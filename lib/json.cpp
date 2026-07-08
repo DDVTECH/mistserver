@@ -166,7 +166,7 @@ static std::string UTF8(uint32_t c){
     r.append(1, 0x80 | (c & 0x3F));
     return r;
   }
-  if (c <= 0x7FF){
+  if (c <= 0xFFFF) {
     r.append(1, 0xC0 | (c >> 12));
     r.append(1, 0x80 | ((c >> 6) & 0x3F));
     r.append(1, 0x80 | (c & 0x3F));
@@ -299,6 +299,10 @@ static size_t read_string(const char *ptr, size_t len, std::string & out) {
           offset += 2;
           break;
         case 'u': {
+          if (offset + 4 >= len) {
+            offset = len;
+            goto stopParsing;
+          }
           if (ptr[offset + 1] == separator) {
             offset += 2;
             goto stopParsing;
@@ -1120,7 +1124,7 @@ const JSON::Value & JSON::Value::operator[](uint32_t i) const {
 
 /// Converts the type of the JSON::Value to string if needed, then appends the given string to it and returns it by reference.
 std::string & JSON::Value::operator+=(const std::string & str) {
-  if (myType != STRING) {
+  if (myType != STRING && myType != RAWSTRING) {
     strVal = asString();
     myType = STRING;
   }

@@ -1287,6 +1287,66 @@ namespace TS{
           offset += 8;
         }
       }break;
+      case 0x6a: { // DVB AC-3 descriptor
+        output << std::string(indent, ' ') << "DVB AC-3:" << std::endl;
+        uint32_t len = p_data[p + 1];
+        uint32_t offset = p + 2;
+        if (len >= 1) {
+          uint8_t bits = p_data[offset];
+          size_t ex = 1;
+          if (bits & 0x80) { // component_type
+            uint8_t comType = p_data[offset + ex];
+            ex += 1;
+            output << std::string(indent + 2, ' ') << "Component type: ";
+            if (comType & 0x80) {
+              output << "Enhanced AC-3";
+            } else {
+              output << "AC-3";
+            }
+            if (comType & 0x40) {
+              output << ", full service";
+            } else {
+              output << ", associated service";
+            }
+            switch ((comType & 0x38) >> 3) {
+              case 0: output << ", complete main"; break;
+              case 1: output << ", music and effects"; break;
+              case 2: output << ", visually impaired"; break;
+              case 3: output << ", hearing impaired"; break;
+              case 4: output << ", dialogue"; break;
+              case 5: output << ", commentary"; break;
+              case 6: output << ", emergency"; break;
+              case 7:
+                if (comType & 0x40) {
+                  output << ", karaoke";
+                } else {
+                  output << ", voiceover";
+                }
+                break;
+            }
+            switch (comType & 0x07) {
+              case 0: output << ", mono"; break;
+              case 1: output << ", 1+1ch"; break;
+              case 2: output << ", stereo"; break;
+              case 3: output << ", surround-encoded stereo"; break;
+              default: output << ", multi-channel"; break;
+            }
+            output << std::endl;
+          }
+          if (bits & 0x40) { // bsid
+            output << std::string(indent + 2, ' ') << "Coding version: " << (int)p_data[offset + ex] << std::endl;
+            ex += 1;
+          }
+          if (bits & 0x20) { // mainid
+            output << std::string(indent + 2, ' ') << "Main ID: " << (int)p_data[offset + ex] << std::endl;
+            ex += 1;
+          }
+          if (bits & 0x10) { // asvc
+            output << std::string(indent + 2, ' ') << "Association bitmask: " << (int)p_data[offset + ex] << std::endl;
+            ex += 1;
+          }
+        }
+      } break;
       case 0x7C:{// AAC descriptor (EN 300 468)
         if (p_data[p + 1] < 2 || p + 2 + p_data[p + 1] > p_len){continue;}// skip broken data
         output << std::string(indent, ' ') << "AAC profile: ";
@@ -1321,6 +1381,30 @@ namespace TS{
         }
       }break;
       case 0x7F:{// extension descriptor
+        if (p_data[p + 2] == 6) {
+          output << std::string(indent, ' ') << "Extension: Supplementary Audio Descriptor" << std::endl;
+          if (p_data[p + 3] & 0x80) {
+            output << std::string(indent + 2, ' ') << "Complete and independent" << std::endl;
+          } else {
+            output << std::string(indent + 2, ' ') << "Dependent" << std::endl;
+          }
+          uint8_t classification = ((p_data[p + 3] & 0x7c) >> 2);
+          output << std::string(indent + 2, ' ') << "Classification: ";
+          switch (classification) {
+            case 0: output << "main audio"; break;
+            case 1: output << "visually impaired"; break;
+            case 2: output << "clean for hearing impaired"; break;
+            case 3: output << "spoken subtitles for visually impaired"; break;
+            case 4: output << "parametric data stream"; break;
+            case 0x17: output << "unspecified for general audience"; break;
+            default: output << "unknown (type " << (size_t)(classification) << ")"; break;
+          }
+          output << std::endl;
+          if (p_data[p + 3] & 1) {
+            output << std::string(indent + 2, ' ') << "Language: " << std::string(p_data + p + 4, 3) << std::endl;
+          }
+          break;
+        }
         output << std::string(indent, ' ') << "Extension: ";
         if (p_data[p+2] < 0x80){
           output << "Unimplemented";

@@ -293,6 +293,10 @@ namespace TS{
           init.assign(entry.getESInfo(), entry.getESInfoLength());
           if (sType == META){
             TS::ProgramDescriptors desc(init.data(), init.size());
+            if (desc.getTag(0x6A).size()) {
+              pidToCodec[pid] = AC3;
+              break;
+            }
             std::string reg = desc.getRegistration();
             if (reg == "Opus"){
               pidToCodec[pid] = OPUS;

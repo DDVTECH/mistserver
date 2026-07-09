@@ -6,6 +6,25 @@
 #include <unistd.h>
 
 namespace Mist{
+  static void appendHlsQueryArg(std::string &query, const std::string &key, const std::string &value){
+    if (query.size()){
+      query += "&";
+    }else{
+      query = "?";
+    }
+    query += key + "=" + value;
+  }
+
+  bool OutHLS::isCatchupWindowRequest() const{
+    if (H.GetVar("catchup") != "1"){return false;}
+    if (!H.GetVar("startunix").size()){return false;}
+    if (atoll(H.GetVar("startunix").c_str()) >= 0){return false;}
+    if (H.GetVar("duration").size() || H.GetVar("stop").size() || H.GetVar("stopunix").size()){
+      return false;
+    }
+    return M && M.getLive();
+  }
+
   bool OutHLS::isReadyForPlay(){
     if (!isInitialized){return false;}
     meta.reloadReplacedPagesIfNeeded();
@@ -31,13 +50,16 @@ namespace Mist{
     }
     std::string tknStr;
     if (tkn.size() && Comms::tknMode & 0x04){tknStr = "?tkn=" + tkn;}
-    if (targetParams.count("start")){
-      if (tknStr.size()){ tknStr += "&"; }else{ tknStr = "?"; }
-      tknStr += "start="+targetParams["start"];
-    }
-    if (targetParams.count("stop")){
-      if (tknStr.size()){ tknStr += "&"; }else{ tknStr = "?"; }
-      tknStr += "stop="+targetParams["stop"];
+    if (isCatchupWindowRequest()){
+      appendHlsQueryArg(tknStr, "catchup", "1");
+      appendHlsQueryArg(tknStr, "startunix", H.GetVar("startunix"));
+    }else{
+      if (targetParams.count("start")){
+        appendHlsQueryArg(tknStr, "start", targetParams["start"]);
+      }
+      if (targetParams.count("stop")){
+        appendHlsQueryArg(tknStr, "stop", targetParams["stop"]);
+      }
     }
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
       if (M.getType(it->first) == "video"){
@@ -146,7 +168,8 @@ namespace Mist{
     }
 
     HLS::ClassicPlaylistWindow window =
-        HLS::buildClassicPlaylistWindow(segments, M.getLive(), config->getInteger("listlimit"));
+        HLS::buildClassicPlaylistWindow(segments, M.getLive(), config->getInteger("listlimit"),
+                                        isCatchupWindowRequest());
 
     result << "#EXTM3U\r\n#EXT-X-VERSION:";
     result << (M.getEncryption(tid) == "" ? "3" : "5");

@@ -115,6 +115,7 @@ namespace HLS{
                              const uint64_t startTime, const uint64_t msn, const uint32_t part);
 
   ClassicPlaylistWindow buildClassicPlaylistWindow(const std::deque<ClassicSegment> &segments,
-                                                   bool isLive, uint64_t listlimit);
+                                                   bool isLive, uint64_t listlimit,
+                                                   bool keepWindowStart = false);
   MediaPlaylistState inspectMediaPlaylist(const std::string &playlist);
 }// namespace HLS

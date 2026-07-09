@@ -94,7 +94,8 @@ namespace HLS{
   }
 
   ClassicPlaylistWindow buildClassicPlaylistWindow(const std::deque<ClassicSegment> &segments,
-                                                   bool isLive, uint64_t listlimit){
+                                                   bool isLive, uint64_t listlimit,
+                                                   bool keepWindowStart){
     ClassicPlaylistWindow ret;
     ret.segments = segments;
     ret.totalDurationMs = totalDurationForSegments(ret.segments);
@@ -104,20 +105,29 @@ namespace HLS{
       ret.totalDurationMs -= ret.segments.back().durationMs;
       ret.segments.pop_back();
 
-      size_t skipped = 0;
-      while (ret.segments.size() &&
-             (ret.totalDurationMs - ret.segments.front().durationMs) > (uint64_t)targetDuration * 4000 &&
-             skipped < 2){
-        ret.totalDurationMs -= ret.segments.front().durationMs;
-        ret.segments.pop_front();
-        ++skipped;
-      }
-
-      if (listlimit){
-        while (ret.segments.size() > listlimit &&
-               (ret.totalDurationMs - ret.segments.front().durationMs) > (uint64_t)targetDuration * 4000){
+      if (keepWindowStart){
+        if (listlimit){
+          while (ret.segments.size() > listlimit){
+            ret.totalDurationMs -= ret.segments.back().durationMs;
+            ret.segments.pop_back();
+          }
+        }
+      }else{
+        size_t skipped = 0;
+        while (ret.segments.size() &&
+               (ret.totalDurationMs - ret.segments.front().durationMs) > (uint64_t)targetDuration * 4000 &&
+               skipped < 2){
           ret.totalDurationMs -= ret.segments.front().durationMs;
           ret.segments.pop_front();
+          ++skipped;
+        }
+
+        if (listlimit){
+          while (ret.segments.size() > listlimit &&
+                 (ret.totalDurationMs - ret.segments.front().durationMs) > (uint64_t)targetDuration * 4000){
+            ret.totalDurationMs -= ret.segments.front().durationMs;
+            ret.segments.pop_front();
+          }
         }
       }
     }

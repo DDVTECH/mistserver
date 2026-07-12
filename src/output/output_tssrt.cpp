@@ -724,6 +724,17 @@ namespace Mist {
       }
 
       uint64_t pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
+      if (!bootMSOffsetCalculated && M.getBootMsOffset()){
+        // A reconnecting MPEG-TS sender commonly restarts its PTS timeline at zero. Preserve the
+        // existing stream-to-wall-clock mapping and retime this new connection to the current live
+        // point instead of overwriting the shared boot offset from its first packet.
+        timeStampOffset = ((int64_t)Util::bootMS() - (int64_t)thisPacket.getTime()) - M.getBootMsOffset();
+        pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
+        bootMSOffsetCalculated = true;
+        INFO_MSG("Continuing existing SRT ingest timeline at " PRETTY_PRINT_MSTIME
+                 " with packet offset %" PRId64,
+                 PRETTY_ARG_MSTIME(pktTimeWithOffset), timeStampOffset);
+      }
       if (lastTimeStamp || timeStampOffset){
         uint64_t targetTime = Util::bootMS() - M.getBootMsOffset();
         if (targetTime + 5000 < pktTimeWithOffset || targetTime > pktTimeWithOffset + 5000){

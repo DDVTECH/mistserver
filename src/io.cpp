@@ -296,8 +296,20 @@ namespace Mist{
     INSANE_MSG("Current packet %" PRIu64 " on track %" PRIu32 " has an offset on page %s of %" PRIu64, packTime, packTrack, page.name.c_str(), pageOffset);
     // Do nothing when there is not enough free space on the page to add the packet.
     if (pageSize - pageOffset < packDataLen){
-      FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64,
-               packTrack, currPagNum, packTime, packDataLen, pageSize, pageOffset);
+      // Throttle: a wedged page drops every packet, which used to log thousands
+      // of identical lines per second. Log the first drop and every 1000th.
+      static uint64_t droppedOnPage = 0;
+      static uint32_t lastDropTrack = 0xFFFFFFFFu;
+      static uint32_t lastDropPage = 0xFFFFFFFFu;
+      if (lastDropTrack != packTrack || lastDropPage != currPagNum){
+        droppedOnPage = 0;
+        lastDropTrack = packTrack;
+        lastDropPage = currPagNum;
+      }
+      if (!(droppedOnPage++ % 1000)){
+        FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64 " (%" PRIu64 " drops on this page)",
+                 packTrack, currPagNum, packTime, packDataLen, pageSize, pageOffset, droppedOnPage);
+      }
       return false;
     }
 
@@ -515,7 +527,16 @@ namespace Mist{
 
     // Buffer the packet
     DONTEVEN_MSG("Buffering live packet (%zuB) @%" PRIu64 " ms on track %" PRIu32 " with offset %" PRIu64, packDataSize, packTime, packTrack, packOffset);
-    bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, livePage[packTrack], aMeta);
+    if (!bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, livePage[packTrack], aMeta)){
+      // The current live page cannot take this packet (typically full because a
+      // flip never happened, e.g. starved key synthesis). Without recovery every
+      // subsequent packet on this track is dropped forever. Closing the page
+      // makes the next (real or synthesized) keyframe open a fresh page, bounding
+      // the loss to at most one key interval.
+      FAIL_MSG("Track %" PRIu32 ": live page write failed - closing page to force recovery on next keyframe", packTrack);
+      livePage[packTrack].close();
+      return;
+    }
     aMeta.update(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe);
   }
 

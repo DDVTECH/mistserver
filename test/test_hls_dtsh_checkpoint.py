@@ -92,6 +92,18 @@ def main() -> None:
           "bufferFrame should track per-page load failures and clear them on success")
   require("if (!bufferNext(" in input_base,
           "bufferFrame should abort the page load when a packet cannot be written")
+  io_implementation = read("src/io.cpp")
+  live_buffer = io_implementation.split("void InOutBase::bufferLivePacket(uint64_t packTime", 1)
+  require(len(live_buffer) == 2 and "if (!bufferNext(" in live_buffer[1]
+          and "livePage[packTrack].close()" in live_buffer[1],
+          "bufferLivePacket must recover the live page when a write is dropped, "
+          "instead of dropping every subsequent packet forever")
+  require("droppedOnPage" in io_implementation,
+          "repeated live-page write failures should be throttled in the logs")
+  require('dprintf(out, "<0>")' not in util_implementation,
+          "systemd log mapping must not use LOG_EMERG - journald wall-broadcasts it to every terminal")
+  require('!strcmp(kind, "FAIL")){dprintf(out, "<2>");}' in util_implementation,
+          "FAIL messages should map to LOG_CRIT under systemd logging")
   require("SuccessExitStatus=75" in health_service,
           "recovered health events should be successful without losing telemetry")
   require("DynamicUser=yes" in health_service and "Wants=mistserver.service" not in health_service,

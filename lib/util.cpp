@@ -936,11 +936,12 @@ namespace Util{
               if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
             }
             if (sysd_log){
+              // Never emit <0>/<1> (emerg/alert): journald wall-broadcasts those to all terminals
               if (!strcmp(kind, "CONF")){dprintf(out, "<5>");}
-              if (!strcmp(kind, "FAIL")){dprintf(out, "<0>");}
-              if (!strcmp(kind, "ERROR")){dprintf(out, "<1>");}
-              if (!strcmp(kind, "WARN")){dprintf(out, "<2>");}
-              if (!strcmp(kind, "INFO")){dprintf(out, "<5>");}
+              if (!strcmp(kind, "FAIL")){dprintf(out, "<2>");}
+              if (!strcmp(kind, "ERROR")){dprintf(out, "<3>");}
+              if (!strcmp(kind, "WARN")){dprintf(out, "<4>");}
+              if (!strcmp(kind, "INFO")){dprintf(out, "<6>");}
               if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") || !strcmp(kind, "DONTEVEN")){
                 dprintf(out, "<7>");
               }

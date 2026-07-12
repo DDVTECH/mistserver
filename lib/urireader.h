@@ -21,6 +21,8 @@ namespace HTTP{
     /// Calls open on the given relative uri during construction
     /// URI is resolved relative to the current working directory
     URIReader(const std::string &reluri);
+    /// Calls close(), releasing any held file descriptor and memory mapping
+    ~URIReader();
     /// Sets the internal URI to file://- and opens the given file descriptor in stream mode.
     bool open(const int fd);
     /// Sets the internal URI to the given URI and opens it, whatever that may mean for the given URI type.

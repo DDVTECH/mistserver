@@ -36,6 +36,14 @@ pageretrytest = executable(
 )
 test('Under-filled page loads retry with bounded backoff', pageretrytest, suite: 'HLS')
 
+urireaderlifecycletest = executable(
+  'urireaderlifecycletest',
+  'urireader_lifecycle.cpp',
+  header_tgts,
+  dependencies: libmist_dep,
+)
+test('URIReader releases fd and mapping on destruction', urireaderlifecycletest, suite: 'HLS')
+
 atomicfiletest = executable('atomicfiletest', 'atomic_file.cpp', header_tgts, dependencies: libmist_dep)
 test('Atomic rolling playlist publication', atomicfiletest, suite: 'HLS')
 

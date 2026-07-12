@@ -109,6 +109,10 @@ namespace HTTP{
     open(reluri);
   }
 
+  URIReader::~URIReader(){
+    close();
+  }
+
   bool URIReader::open(const std::string &reluri){return open(originalUrl.link(reluri));}
 
   /// Internal callback function, used to buffer data.

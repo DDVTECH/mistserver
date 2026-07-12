@@ -76,6 +76,16 @@ namespace Mist{
     return entries.size() - 1;
   }
 
+  /// Returns the timestamp remap offset a playlist entry should persist after being parsed live.
+  /// An offset the entry already carries (header parse or earlier persist) always wins; otherwise
+  /// the offset derived during this parse is adopted, so checkpointed entries reparse (seek /
+  /// bufferFrame page loads) with timestamps identical to the original live ingest.
+  inline int64_t hlsPersistTimeOffset(int64_t entryOffset, bool derivedValid, int64_t derivedOffset){
+    if (entryOffset){return entryOffset;}
+    if (derivedValid){return derivedOffset;}
+    return 0;
+  }
+
   /// Keeps the segment entry list by playlist ID
   extern std::map<uint32_t, std::deque<playListEntries> > listEntries;
 

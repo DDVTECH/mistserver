@@ -1104,6 +1104,12 @@ namespace Mist{
       }
       tsStream.getEarliestPacket(headerPack);
     }
+    // Persist the remap offset derived while parsing this segment, mirroring the
+    // parseStreamHeader path. Without this, checkpointed live-parsed entries carry
+    // timeOffset=0 and catchup reparses re-derive a per-segment anchor, misaligning
+    // key spans against the stored metadata ("Key N was X bytes but should've been Y").
+    ntry.timeOffset = hlsPersistTimeOffset(ntry.timeOffset, plsTimeOffset.count(currentPlaylist),
+                                           plsTimeOffset.count(currentPlaylist) ? plsTimeOffset[currentPlaylist] : 0);
     return true;
   }
 

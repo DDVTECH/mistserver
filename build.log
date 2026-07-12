@@ -1,0 +1,2114 @@
+ninja: Entering directory `build'
+[1/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_bignum_mod.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[2/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_bignum_mod_raw.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[3/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_aesni.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[4/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_block_cipher.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[5/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_aesce.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[6/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_base64.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[7/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_asn1parse.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[8/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_asn1write.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[9/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_aria.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[10/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_chachapoly.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[11/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_aes.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[12/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_chacha20.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[13/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_constant_time.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[14/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_bignum_core.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[15/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_cipher.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[16/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_cipher_wrap.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[17/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_cmac.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[18/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ccm.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[19/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ctr_drbg.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[20/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ecdsa.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[21/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ecdh.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[22/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ecp_curves_new.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[23/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_dhm.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[24/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_entropy_poll.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[25/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_entropy.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[26/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ecjpake.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[27/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_hkdf.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[28/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_error.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[29/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_des.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[30/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_camellia.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[31/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_hmac_drbg.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[32/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_memory_buffer_alloc.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[33/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_lms.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[34/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_lmots.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[35/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_md5.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[36/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ecp_curves.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[37/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_nist_kw.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[38/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_bignum.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[39/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_md.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[40/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_padlock.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[41/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_gcm.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[42/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pem.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[43/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pk.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[44/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pk_ecc.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[45/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_oid.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[46/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ecp.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[47/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_platform.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[48/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pkcs12.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[49/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pk_wrap.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[50/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pkcs5.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[51/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_platform_util.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[52/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pkwrite.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[53/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_pkparse.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[54/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_poly1305.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[55/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_client.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[56/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_aead.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[57/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_driver_wrappers_no_static.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[58/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_cipher.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[59/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_ecp.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[60/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_ffdh.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[61/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_se.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[62/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_hash.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[63/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_pake.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[64/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_mac.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[65/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_rsa.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[66/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_storage.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[67/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto_slot_management.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[68/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_its_file.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[69/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_util.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[70/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_rsa_alt_helpers.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[71/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_threading.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[72/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_timing.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[73/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_version.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[74/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_version_features.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[75/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_sha512.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[76/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_ripemd160.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[77/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_sha3.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[78/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_sha256.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[79/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509write.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[80/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_sha1.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[81/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509write_crt.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[82/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_pkcs7.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[83/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509_csr.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[84/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509_create.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[85/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509_crl.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[86/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_mps_reader.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[87/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_mps_trace.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[88/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509write_csr.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[89/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_cache.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[90/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_debug.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[91/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_rsa.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[92/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_net_sockets.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[93/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_ciphersuites.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[94/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_client.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[95/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[96/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_debug_helpers_generated.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[97/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_cookie.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[98/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_ticket.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[99/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_tls13_keys.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[100/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/library_psa_crypto.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[101/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/library_x509_crt.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[102/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_cipher_cipher_test_cases.c.o
+[103/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_cipher_cipher.c.o
+[104/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_tls12_client.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[105/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_cipher_null_cipher.c.o
+[106/794] Linking target subprojects/mbedtls-3.6.5/libmbedcrypto.dylib
+[107/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_tls13_generic.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[108/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_hash_auth_test_cases.c.o
+[109/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_tls13_client.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[110/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_cipher_aes_icm_mbedtls.c.o
+[111/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_cipher_aes_gcm_mbedtls.c.o
+[112/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_hash_auth.c.o
+[113/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_tls13_server.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[114/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_hash_null_auth.c.o
+[115/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_kernel_alloc.c.o
+[116/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_hash_hmac_mbedtls.c.o
+[117/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_kernel_key.c.o
+[118/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_tls12_server.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[119/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_kernel_err.c.o
+[120/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_kernel_crypto_kernel.c.o
+[121/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_replay_rdb.c.o
+[122/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_replay_rdbx.c.o
+[123/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/srtp_srtp.c.o
+[124/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_msg.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[125/794] Compiling C object subprojects/libsrtp/libsrtp2.a.p/crypto_math_datatypes.c.o
+[126/794] Generating symbol file subprojects/mbedtls-3.6.5/libmbedcrypto.dylib.p/libmbedcrypto.dylib.symbols
+[127/794] Linking static target subprojects/libsrtp/libsrtp2.a
+[128/794] Linking target subprojects/mbedtls-3.6.5/libmbedx509.dylib
+[129/794] Compiling C object subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/library_ssl_tls.c.o
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+1 warning generated.
+[130/794] Generating symbol file subprojects/mbedtls-3.6.5/libmbedx509.dylib.p/libmbedx509.dylib.symbols
+[131/794] Compiling C++ object lib/libmist.dylib.p/bitfields.cpp.o
+[132/794] Linking target subprojects/mbedtls-3.6.5/libmbedtls.dylib
+[133/794] Compiling C++ object lib/libmist.dylib.p/encode.cpp.o
+[134/794] Generating symbol file subprojects/mbedtls-3.6.5/libmbedtls.dylib.p/libmbedtls.dylib.symbols
+[135/794] Compiling C++ object lib/libmist.dylib.p/adts.cpp.o
+[136/794] Compiling C++ object generated/make_html.p/.._src_make_html.cpp.o
+[137/794] Compiling C++ object lib/libmist.dylib.p/av1.cpp.o
+[138/794] Linking target subprojects/libsrtp/libsrtp2.1.dylib
+[139/794] Compiling C++ object lib/libmist.dylib.p/bitstream.cpp.o
+[140/794] Generating symbol file subprojects/libsrtp/libsrtp2.1.dylib.p/libsrtp2.1.dylib.symbols
+[141/794] Compiling C++ object lib/libmist.dylib.p/auth.cpp.o
+In file included from ../lib/auth.cpp:1:
+In file included from ../lib/auth.h:2:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+../lib/auth.cpp:458:17: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  458 |     char output[hashSize];
+      |                 ^~~~~~~~
+../lib/auth.cpp:458:17: note: function parameter 'hashSize' with unknown value cannot be used in a constant expression
+../lib/auth.cpp:456:93: note: declared here
+  456 |   std::string hmac(const char *msg, size_t msg_len, const char *key, size_t key_len, size_t hashSize,
+      |                                                                                             ^
+../lib/auth.cpp:473:19: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  473 |     char key_data[blockSize]; // holds key as used in HMAC algorithm
+      |                   ^~~~~~~~~
+../lib/auth.cpp:473:19: note: function parameter 'blockSize' with unknown value cannot be used in a constant expression
+../lib/auth.cpp:472:66: note: declared here
+  472 |                void hasher(const char *, size_t, char *), size_t blockSize, char *output) {
+      |                                                                  ^
+../lib/auth.cpp:484:16: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  484 |     char inner[blockSize + msg_len];  // holds data for inner hash
+      |                ^~~~~~~~~~~~~~~~~~~
+../lib/auth.cpp:484:16: note: function parameter 'blockSize' with unknown value cannot be used in a constant expression
+../lib/auth.cpp:472:66: note: declared here
+  472 |                void hasher(const char *, size_t, char *), size_t blockSize, char *output) {
+      |                                                                  ^
+../lib/auth.cpp:485:16: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  485 |     char outer[blockSize + hashSize]; // holds data for outer hash
+      |                ^~~~~~~~~~~~~~~~~~~~
+../lib/auth.cpp:485:16: note: function parameter 'blockSize' with unknown value cannot be used in a constant expression
+../lib/auth.cpp:472:66: note: declared here
+  472 |                void hasher(const char *, size_t, char *), size_t blockSize, char *output) {
+      |                                                                  ^
+5 warnings generated.
+[142/794] Compiling C++ object lib/libmist.dylib.p/cmaf.cpp.o
+[143/794] Compiling C++ object lib/libmist.dylib.p/comms.cpp.o
+In file included from ../lib/comms.cpp:1:
+In file included from ../lib/auth.h:2:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+../lib/comms.cpp:195:91: warning: null passed to a callee that requires a non-null argument [-Wnonnull]
+  195 |   std::string Sessions::getSessId(size_t idx) const{return (master ? sessId.string(idx) : 0);}
+      |                                                                                           ^
+../lib/comms.cpp:233:87: warning: null passed to a callee that requires a non-null argument [-Wnonnull]
+  233 |   std::string Sessions::getTags(size_t idx) const{return (master ? tags.string(idx) : 0);}
+      |                                                                                       ^
+3 warnings generated.
+[144/794] Compiling C++ object lib/libmist.dylib.p/ev.cpp.o
+In file included from ../lib/ev.cpp:1:
+In file included from ../lib/ev.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[145/794] Compiling C++ object lib/libmist.dylib.p/amf.cpp.o
+In file included from ../lib/amf.cpp:4:
+In file included from ../lib/amf.h:7:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[146/794] Compiling C++ object lib/libmist.dylib.p/config.cpp.o
+In file included from ../lib/config.cpp:4:
+In file included from ../lib/config.h:10:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[147/794] Compiling C++ object lib/libmist.dylib.p/h264.cpp.o
+[148/794] Compiling C++ object lib/libmist.dylib.p/langcodes.cpp.o
+[149/794] Compiling C++ object lib/libmist.dylib.p/downloader.cpp.o
+In file included from ../lib/downloader.cpp:1:
+In file included from ../lib/downloader.h:1:
+In file included from ../lib/ev.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+../lib/downloader.cpp:266:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  266 |       sprintf(tmp, "bytes=%zu-", byteStart);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../lib/downloader.cpp:268:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  268 |       sprintf(tmp, "bytes=%zu-%zu", byteStart, byteEnd - 1);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../lib/downloader.cpp:288:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  288 |       sprintf(tmp, "bytes=%zu-", byteStart);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../lib/downloader.cpp:290:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  290 |       sprintf(tmp, "bytes=%zu-%zu", byteStart, byteEnd - 1);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+5 warnings generated.
+[150/794] Compiling C++ object lib/libmist.dylib.p/http_parser.cpp.o
+In file included from ../lib/http_parser.cpp:4:
+In file included from ../lib/auth.h:2:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+../lib/http_parser.cpp:487:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  487 |   sprintf(val, "%lld", v);
+      |   ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+2 warnings generated.
+[151/794] Compiling C++ object lib/libmist.dylib.p/flv_tag.cpp.o
+In file included from ../lib/flv_tag.cpp:4:
+In file included from ../lib/flv_tag.h:5:
+In file included from ../lib/amf.h:7:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[152/794] Compiling C++ object lib/libmist.dylib.p/hls_support.cpp.o
+[153/794] Compiling C++ object lib/libmist.dylib.p/jwt.cpp.o
+In file included from ../lib/jwt.cpp:1:
+In file included from ../lib/jwt.h:2:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[154/794] Compiling C++ object lib/libmist.dylib.p/mpeg.cpp.o
+[155/794] Compiling C++ object lib/libmist.dylib.p/mp4_dash.cpp.o
+[156/794] Compiling C++ object lib/libmist.dylib.p/mp4_ms.cpp.o
+[157/794] Compiling C++ object lib/libmist.dylib.p/mp4.cpp.o
+In file included from ../lib/mp4.cpp:2:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[158/794] Compiling C++ object lib/libmist.dylib.p/json.cpp.o
+In file included from ../lib/json.cpp:3:
+In file included from ../lib/json.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[159/794] Compiling C++ object lib/libmist.dylib.p/h265.cpp.o
+[160/794] Compiling C++ object lib/libmist.dylib.p/mp4_adobe.cpp.o
+[161/794] Compiling C++ object lib/libmist.dylib.p/pixels.cpp.o
+[162/794] Compiling C++ object lib/libmist.dylib.p/mp4_encryption.cpp.o
+../lib/mp4_encryption.cpp:616:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  616 |     sprintf(tmpStr, "%.4s", (char *)&tmpInt);
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+1 warning generated.
+[163/794] Compiling C++ object lib/libmist.dylib.p/nal.cpp.o
+[164/794] Compiling C++ object lib/libmist.dylib.p/mp4_stream.cpp.o
+[165/794] Compiling C++ object lib/libmist.dylib.p/rtmpchunks.cpp.o
+In file included from ../lib/rtmpchunks.cpp:4:
+In file included from ../lib/rtmpchunks.h:5:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[166/794] Compiling C++ object lib/libmist.dylib.p/rtp_fec.cpp.o
+[167/794] Compiling C++ object lib/libmist.dylib.p/shared_memory.cpp.o
+../lib/shared_memory.cpp:87:5: warning: 'sem_getvalue' is deprecated [-Wdeprecated-declarations]
+   87 |     sem_getvalue(mySem, &res);
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/semaphore.h:54:56: note: 'sem_getvalue' has been explicitly marked deprecated here
+   54 | int sem_getvalue(sem_t * __restrict, int * __restrict) __deprecated;
+      |                                                        ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:223:40: note: expanded from macro '__deprecated'
+  223 | #define __deprecated    __attribute__((__deprecated__))
+      |                                        ^
+1 warning generated.
+[168/794] Compiling C++ object lib/libmist.dylib.p/procs.cpp.o
+[169/794] Compiling C++ object lib/libmist.dylib.p/ogg.cpp.o
+[170/794] Compiling C++ object lib/libmist.dylib.p/timing.cpp.o
+[171/794] Compiling C++ object lib/libmist.dylib.p/rtp.cpp.o
+[172/794] Compiling C++ object lib/libmist.dylib.p/theora.cpp.o
+[173/794] Compiling C++ object lib/libmist.dylib.p/segmentreader.cpp.o
+In file included from ../lib/segmentreader.cpp:1:
+In file included from ../lib/segmentreader.h:1:
+In file included from ../lib/http_parser.h:5:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[174/794] Compiling C++ object lib/libmist.dylib.p/dtsc.cpp.o
+[175/794] Compiling C++ object lib/libmist.dylib.p/sdp.cpp.o
+[176/794] Compiling C++ object lib/libmist.dylib.p/opus.cpp.o
+[177/794] Compiling C++ object lib/libmist.dylib.p/triggers.cpp.o
+[178/794] Compiling C++ object lib/libmist.dylib.p/riff.cpp.o
+../lib/riff.cpp:164:20: warning: null passed to a callee that requires a non-null argument [-Wnonnull]
+  164 |     if (!p){return 0;}
+      |                    ^
+1 warning generated.
+[179/794] Compiling C++ object lib/libmist.dylib.p/vorbis.cpp.o
+[180/794] Compiling C++ object lib/libmist.dylib.p/sdp_media.cpp.o
+[181/794] Compiling C++ object lib/libmist.dylib.p/ebml_socketglue.cpp.o
+In file included from ../lib/ebml_socketglue.cpp:1:
+In file included from ../lib/ebml_socketglue.h:2:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[182/794] Compiling C++ object lib/libmist.dylib.p/socket.cpp.o
+[183/794] Compiling C++ object lib/libmist.dylib.p/ebml.cpp.o
+[184/794] Compiling C++ object lib/libmist.dylib.p/mp4_generic.cpp.o
+[185/794] Compiling C++ object lib/libmist.dylib.p/ts_packet.cpp.o
+[186/794] Linking target generated/make_html
+[187/794] Compiling C++ object lib/libmist.dylib.p/urireader.cpp.o
+In file included from ../lib/urireader.cpp:1:
+In file included from ../lib/urireader.h:2:
+In file included from ../lib/downloader.h:1:
+In file included from ../lib/ev.h:3:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[188/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_user_environment.c.o
+[189/794] Compiling C++ object lib/libmist.dylib.p/flac.cpp.o
+[190/794] Compiling C++ object lib/libmist.dylib.p/websocket.cpp.o
+[191/794] Compiling C++ object lib/libmist.dylib.p/url.cpp.o
+[192/794] Compiling C++ object lib/libmist.dylib.p/stun.cpp.o
+In file included from ../lib/stun.cpp:1:
+In file included from ../lib/stun.h:2:
+In file included from ../lib/socket.h:7:
+In file included from ../lib/util.h:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[193/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_user_recv_thread.c.o
+[194/794] Compiling C++ object lib/libmist.dylib.p/certificate.cpp.o
+In file included from ../lib/certificate.cpp:2:
+../lib/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+../lib/certificate.cpp:113:27: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  113 |   for (i = 0; i < 8; ++i){sprintf(serial_hex + (i * 2), "%02x", serial_ptr[i]);}
+      |                           ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../lib/certificate.cpp:234:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  234 |     sprintf((char *)(fingerprint_hex + (i * 3)), ":%02X", (int)fingerprint_raw[i]);
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+3 warnings generated.
+[195/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_user_mbuf.c.o
+[196/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_callout.c.o
+[197/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_bsd_addr.c.o
+[198/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_crc32.c.o
+[199/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_asconf.c.o
+[200/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_cc_functions.c.o
+../subprojects/usrsctp/usrsctplib/netinet/sctp_cc_functions.c:767:23: warning: variable 't_cwnd' set but not used [-Wunused-but-set-variable]
+  767 |         uint32_t t_ssthresh, t_cwnd, incr;
+      |                              ^
+1 warning generated.
+[201/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_user_socket.c.o
+../subprojects/usrsctp/usrsctplib/user_socket.c:2860:6: warning: variable 'send_count' set but not used [-Wunused-but-set-variable]
+ 2860 |         int send_count;
+      |             ^
+../subprojects/usrsctp/usrsctplib/user_socket.c:3005:6: warning: variable 'send_count' set but not used [-Wunused-but-set-variable]
+ 3005 |         int send_count;
+      |             ^
+2 warnings generated.
+[202/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_auth.c.o
+[203/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_peeloff.c.o
+[204/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_sha1.c.o
+[205/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_sysctl.c.o
+../subprojects/usrsctp/usrsctplib/netinet/sctp_sysctl.c:64:18: warning: a function declaration without a prototype is deprecated in all versions of C [-Wstrict-prototypes]
+   64 | sctp_init_sysctls()
+      |                  ^
+      |                   void
+1 warning generated.
+[206/794] Compiling C++ object lib/libmist.dylib.p/util.cpp.o
+[207/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_ss_functions.c.o
+[208/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_userspace.c.o
+[209/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_timer.c.o
+[210/794] Compiling C++ object lib/libmist.dylib.p/encryption.cpp.o
+../lib/encryption.cpp:134:14: warning: variable 'encryptedBlocks' set but not used [-Wunused-but-set-variable]
+  134 |       size_t encryptedBlocks = 0;
+      |              ^
+1 warning generated.
+[211/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet6_sctp6_usrreq.c.o
+[212/794] Generating mist/copyadts.h with a custom command
+[213/794] Generating mist/copyamf.h with a custom command
+[214/794] Generating mist/copyauth.h with a custom command
+[215/794] Generating mist/copyav1.h with a custom command
+[216/794] Generating mist/copyencode.h with a custom command
+[217/794] Generating mist/copybitfields.h with a custom command
+[218/794] Generating mist/copybitstream.h with a custom command
+[219/794] Generating mist/copycertificate.h with a custom command
+[220/794] Generating mist/copychecksum.h with a custom command
+[221/794] Generating mist/copycmaf.h with a custom command
+[222/794] Generating mist/copycomms.h with a custom command
+[223/794] Generating mist/copyconfig.h with a custom command
+[224/794] Generating mist/copydefines.h with a custom command
+[225/794] Generating mist/copydtsc.h with a custom command
+[226/794] Generating mist/copyev.h with a custom command
+[227/794] Generating mist/copyflv_tag.h with a custom command
+[228/794] Generating mist/copyh264.h with a custom command
+[229/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_input.c.o
+[230/794] Generating mist/copyhls_support.h with a custom command
+[231/794] Generating mist/copyh265.h with a custom command
+[232/794] Generating mist/copyhttp_parser.h with a custom command
+[233/794] Generating mist/copydownloader.h with a custom command
+[234/794] Generating mist/copyjson.h with a custom command
+[235/794] Generating mist/copyjwt.h with a custom command
+[236/794] Generating mist/copylangcodes.h with a custom command
+[237/794] Generating mist/copymp4_adobe.h with a custom command
+[238/794] Generating mist/copymp4_dash.h with a custom command
+[239/794] Generating mist/copymp4_encryption.h with a custom command
+[240/794] Generating mist/copymp4_generic.h with a custom command
+[241/794] Generating mist/copymp4.h with a custom command
+[242/794] Generating mist/copymp4_ms.h with a custom command
+[243/794] Generating mist/copymp4_stream.h with a custom command
+[244/794] Generating mist/copynal.h with a custom command
+[245/794] Generating mist/copympeg.h with a custom command
+[246/794] Generating mist/copyogg.h with a custom command
+[247/794] Generating mist/copypixels.h with a custom command
+[248/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_pcb.c.o
+../subprojects/usrsctp/usrsctplib/netinet/sctp_pcb.c:7946:11: warning: a function declaration without a prototype is deprecated in all versions of C [-Wstrict-prototypes]
+ 7946 | sctp_drain()
+      |           ^
+      |            void
+1 warning generated.
+[249/794] Generating mist/copyrtmpchunks.h with a custom command
+[250/794] Generating mist/copyprocs.h with a custom command
+[251/794] Generating mist/copyrtp.h with a custom command
+[252/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_indata.c.o
+../subprojects/usrsctp/usrsctplib/netinet/sctp_indata.c:3323:6: warning: variable 'tot_retrans' set but not used [-Wunused-but-set-variable]
+ 3323 |         int tot_retrans = 0;
+      |             ^
+1 warning generated.
+[253/794] Generating mist/copyrtp_fec.h with a custom command
+[254/794] Compiling C++ object lib/libmist.dylib.p/stream.cpp.o
+[255/794] Generating mist/copysegmentreader.h with a custom command
+[256/794] Generating mist/copysdp.h with a custom command
+[257/794] Generating mist/copyshared_memory.h with a custom command
+[258/794] Generating mist/copysdp_media.h with a custom command
+[259/794] Generating mist/copysocket.h with a custom command
+[260/794] Generating mist/copystream.h with a custom command
+[261/794] Generating mist/copystun.h with a custom command
+[262/794] Generating mist/copytheora.h with a custom command
+[263/794] Generating mist/copyts_packet.h with a custom command
+[264/794] Generating mist/copytiming.h with a custom command
+[265/794] Generating mist/copyts_stream.h with a custom command
+[266/794] Generating mist/copyutil.h with a custom command
+[267/794] Generating mist/copyvorbis.h with a custom command
+[268/794] Generating mist/copyriff.h with a custom command
+[269/794] Generating mist/copytriggers.h with a custom command
+[270/794] Generating mist/copyopus.h with a custom command
+[271/794] Generating mist/copyebml.h with a custom command
+[272/794] Generating mist/copyebml_socketglue.h with a custom command
+[273/794] Generating mist/copywebsocket.h with a custom command
+[274/794] Generating mist/copyurl.h with a custom command
+[275/794] Generating mist/copyurireader.h with a custom command
+[276/794] Generating mist/copyflac.h with a custom command
+[277/794] Generating mist/copyencryption.h with a custom command
+[278/794] Generating generated/gen_html with a custom command
+[279/794] Generating mist/copysocket_srt.h with a custom command
+[280/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctputil.c.o
+[281/794] Compiling C++ object generated/sourcery.p/.._src_sourcery.cpp.o
+[282/794] Compiling C++ object lib/libmist.dylib.p/ts_stream.cpp.o
+[283/794] Compiling C object subprojects/usrsctp/chargen_server_upcall.p/programs_chargen_server_upcall.c.o
+[284/794] Linking target generated/sourcery
+[285/794] Linking target lib/libmist.dylib
+[286/794] Compiling C object subprojects/usrsctp/client.p/programs_programs_helper.c.o
+[287/794] Compiling C object subprojects/usrsctp/client.p/programs_client.c.o
+[288/794] Compiling C object subprojects/usrsctp/chargen_server_upcall.p/programs_programs_helper.c.o
+[289/794] Compiling C object subprojects/usrsctp/st_client.p/programs_programs_helper.c.o
+[290/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_usrreq.c.o
+[291/794] Generating symbol file lib/libmist.dylib.p/libmist.dylib.symbols
+[292/794] Compiling C object subprojects/usrsctp/libusrsctp.2.dylib.p/usrsctplib_netinet_sctp_output.c.o
+../subprojects/usrsctp/usrsctplib/netinet/sctp_output.c:9973:33: warning: variable 'cnt_thru' set but not used [-Wunused-but-set-variable]
+ 9973 |         int no_fragmentflg, bundle_at, cnt_thru;
+      |                                        ^
+../subprojects/usrsctp/usrsctplib/netinet/sctp_output.c:13419:13: warning: variable 'len' set but not used [-Wunused-but-set-variable]
+ 13419 |         int error, len;
+       |                    ^
+2 warnings generated.
+[293/794] Linking target subprojects/usrsctp/libusrsctp.2.dylib
+[294/794] Generating generated/embed_videojs.js.h with a custom command
+[295/794] Generating generated/embed_flash_strobe.js.h with a custom command
+[296/794] Generating generated/embed_dashjs.js.h with a custom command
+[297/794] Generating generated/embed_wheprtc.js.h with a custom command
+[298/794] Generating generated/embed_html5.js.h with a custom command
+[299/794] Generating generated/embed_webrtc.js.h with a custom command
+[300/794] Generating generated/embed_mews.js.h with a custom command
+[301/794] Generating generated/embed_player.js.h with a custom command
+[302/794] Generating generated/embed_hlsjs.js.h with a custom command
+[303/794] Generating generated/embed_player_dash_lic.js.h with a custom command
+[304/794] Generating generated/embed_flv.js.h with a custom command
+[305/794] Generating generated/embed_rawws.js.h with a custom command
+[306/794] Generating generated/embed_skin_dev.css.h with a custom command
+[307/794] Generating generated/embed_skin_default.css.h with a custom command
+[308/794] Generating generated/embed_skin_videojs.css.h with a custom command
+[309/794] Generating generated/embed_player_flv.js.h with a custom command
+[310/794] Generating generated/embed_player_hlsjs.js.h with a custom command
+[311/794] Generating generated/embed_player_video.js.h with a custom command
+[312/794] Generating generated/embed_server.html with a custom command
+[313/794] Generating generated/embed_player_dash.js.h with a custom command
+[314/794] Generating generated/embed_player_libde265.js.h with a custom command
+[315/794] Compiling C object subprojects/usrsctp/st_client.p/programs_st_client.c.o
+[316/794] Compiling C object subprojects/usrsctp/client_upcall.p/programs_client_upcall.c.o
+[317/794] Compiling C object subprojects/usrsctp/client_upcall.p/programs_programs_helper.c.o
+[318/794] Compiling C object subprojects/usrsctp/daytime_server.p/programs_programs_helper.c.o
+[319/794] Generating symbol file subprojects/usrsctp/libusrsctp.2.dylib.p/libusrsctp.2.dylib.symbols
+[320/794] Compiling C object subprojects/usrsctp/daytime_server.p/programs_daytime_server.c.o
+[321/794] Compiling C object subprojects/usrsctp/daytime_server_upcall.p/programs_daytime_server_upcall.c.o
+[322/794] Compiling C object subprojects/usrsctp/daytime_server_upcall.p/programs_programs_helper.c.o
+[323/794] Compiling C++ object lib/libmist_srt.dylib.p/socket_srt.cpp.o
+In file included from ../lib/socket_srt.cpp:3:
+In file included from ../lib/socket_srt.h:6:
+In file included from /opt/homebrew/Cellar/srt/1.5.4/include/srt/srt.h:37:
+/opt/homebrew/Cellar/srt/1.5.4/include/srt/platform_sys.h:71:9: warning: '__APPLE_USE_RFC_3542' macro redefined [-Wmacro-redefined]
+   71 | #define __APPLE_USE_RFC_3542 /* IPV6_PKTINFO */
+      |         ^
+<command line>:3:9: note: previous definition is here
+    3 | #define __APPLE_USE_RFC_3542 1
+      |         ^
+1 warning generated.
+[324/794] Compiling C object subprojects/usrsctp/discard_server.p/programs_programs_helper.c.o
+[325/794] Compiling C object subprojects/usrsctp/discard_server.p/programs_discard_server.c.o
+[326/794] Compiling C object subprojects/usrsctp/discard_server_upcall.p/programs_discard_server_upcall.c.o
+[327/794] Linking target lib/libmist_srt.dylib
+[328/794] Compiling C object subprojects/usrsctp/discard_server_upcall.p/programs_programs_helper.c.o
+[329/794] Compiling C object subprojects/usrsctp/echo_server.p/programs_echo_server.c.o
+[330/794] Compiling C object subprojects/usrsctp/echo_server.p/programs_programs_helper.c.o
+[331/794] Compiling C object subprojects/usrsctp/echo_server_upcall.p/programs_programs_helper.c.o
+[332/794] Compiling C object subprojects/usrsctp/echo_server_upcall.p/programs_echo_server_upcall.c.o
+[333/794] Compiling C object subprojects/usrsctp/ekr_client.p/programs_ekr_client.c.o
+[334/794] Compiling C object subprojects/usrsctp/ekr_client.p/programs_programs_helper.c.o
+[335/794] Compiling C object subprojects/usrsctp/ekr_loop.p/programs_programs_helper.c.o
+[336/794] Compiling C object subprojects/usrsctp/ekr_loop.p/programs_ekr_loop.c.o
+[337/794] Compiling C object subprojects/usrsctp/ekr_peer.p/programs_programs_helper.c.o
+[338/794] Compiling C object subprojects/usrsctp/ekr_loop_upcall.p/programs_programs_helper.c.o
+[339/794] Compiling C object subprojects/usrsctp/ekr_peer.p/programs_ekr_peer.c.o
+[340/794] Compiling C object subprojects/usrsctp/ekr_loop_upcall.p/programs_ekr_loop_upcall.c.o
+[341/794] Compiling C object subprojects/usrsctp/ekr_server.p/programs_ekr_server.c.o
+[342/794] Compiling C object subprojects/usrsctp/ekr_server.p/programs_programs_helper.c.o
+[343/794] Compiling C++ object src/process/libmist_process_common.a.p/.._output_output_ebml.cpp.o
+[344/794] Compiling C object subprojects/usrsctp/http_client.p/programs_programs_helper.c.o
+[345/794] Compiling C object subprojects/usrsctp/http_client.p/programs_http_client.c.o
+[346/794] Compiling C object subprojects/usrsctp/http_client_upcall.p/programs_http_client_upcall.c.o
+[347/794] Compiling C object subprojects/usrsctp/http_client_upcall.p/programs_programs_helper.c.o
+[348/794] Compiling C object subprojects/usrsctp/rtcweb.p/programs_programs_helper.c.o
+[349/794] Compiling C object subprojects/usrsctp/test_libmgmt.p/programs_test_libmgmt.c.o
+[350/794] Compiling C object subprojects/usrsctp/test_libmgmt.p/programs_programs_helper.c.o
+[351/794] Compiling C object subprojects/usrsctp/test_timer.p/programs_test_timer.c.o
+[352/794] Compiling C object subprojects/usrsctp/test_timer.p/programs_programs_helper.c.o
+[353/794] Compiling C object subprojects/usrsctp/tsctp.p/programs_programs_helper.c.o
+[354/794] Compiling C++ object src/process/libmist_process_common.a.p/.._input_input_ebml.cpp.o
+[355/794] Compiling C object subprojects/usrsctp/rtcweb.p/programs_rtcweb.c.o
+[356/794] Compiling C object subprojects/usrsctp/tsctp.p/programs_tsctp.c.o
+[357/794] Generating symbol file lib/libmist_srt.dylib.p/libmist_srt.dylib.symbols
+[358/794] Compiling C++ object MistAnalyserFLV.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[359/794] Compiling C++ object MistAnalyserRTMP.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[360/794] Compiling C++ object MistAnalyserFLV.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_flv.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[361/794] Compiling C++ object MistAnalyserRTMP.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_rtmp.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[362/794] Compiling C++ object MistAnalyserDTSC.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_dtsc.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[363/794] Compiling C++ object MistAnalyserFLV.p/src_analysers_analyser_flv.cpp.o
+In file included from ../src/analysers/analyser_flv.cpp:1:
+In file included from ../src/analysers/analyser_flv.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[364/794] Compiling C++ object src/process/libmist_process_common.a.p/.._io.cpp.o
+[365/794] Compiling C++ object MistAnalyserDTSC.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[366/794] Compiling C++ object MistAnalyserRTMP.p/src_analysers_analyser_rtmp.cpp.o
+In file included from ../src/analysers/analyser_rtmp.cpp:4:
+In file included from ../src/analysers/analyser_rtmp.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[367/794] Compiling C++ object MistAnalyserEBML.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_ebml.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[368/794] Compiling C++ object MistAnalyserOGG.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[369/794] Compiling C++ object MistAnalyserOGG.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_ogg.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[370/794] Compiling C++ object MistAnalyserEBML.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[371/794] Compiling C++ object MistAnalyserOGG.p/src_analysers_analyser_ogg.cpp.o
+In file included from ../src/analysers/analyser_ogg.cpp:1:
+In file included from ../src/analysers/analyser_ogg.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[372/794] Compiling C++ object MistAnalyserDTSC.p/src_analysers_analyser_dtsc.cpp.o
+In file included from ../src/analysers/analyser_dtsc.cpp:1:
+In file included from ../src/analysers/analyser_dtsc.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[373/794] Compiling C++ object src/process/libmist_process_common.a.p/.._input_input.cpp.o
+[374/794] Compiling C++ object MistAnalyserTS.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_ts.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[375/794] Compiling C++ object MistAnalyserEBML.p/src_analysers_analyser_ebml.cpp.o
+In file included from ../src/analysers/analyser_ebml.cpp:1:
+In file included from ../src/analysers/analyser_ebml.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+../src/analysers/analyser_ebml.cpp:39:20: warning: format specifies type 'size_t' (aka 'unsigned long') but the argument has type 'uint64_t' (aka 'unsigned long long') [-Wformat]
+   38 |   HIGH_MSG("Read an element of type %s at position %zu (size: %zu, payload: %zu)", E.getIDString(E.getID()).c_str(),
+      |                                                               ~~~
+      |                                                               %llu
+   39 |            prePos, E.getOuterLen(), E.getPayloadLen());
+      |                    ^~~~~~~~~~~~~~~
+./mist/defines.h:105:56: note: expanded from macro 'HIGH_MSG'
+  105 | #define HIGH_MSG(msg, ...) DEBUG_MSG(DLVL_HIGH, msg, ##__VA_ARGS__)
+      |                                                 ~~~    ^~~~~~~~~~~
+./mist/defines.h:71:73: note: expanded from macro 'DEBUG_MSG'
+   71 |   if (Util::printDebugLevel >= lvl) { LOG_MSG(DBG_LVL_LIST[lvl], msg, ##__VA_ARGS__) }
+      |                                                                  ~~~    ^~~~~~~~~~~
+./mist/defines.h:69:31: note: expanded from macro 'LOG_MSG'
+   68 |   fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|" msg "\n", lvl, MIST_PROG, getpid(), __FILE__, __LINE__, \
+      |                                                     ~~~
+   69 |           Util::streamName, ##__VA_ARGS__);
+      |                               ^~~~~~~~~~~
+../src/analysers/analyser_ebml.cpp:39:37: warning: format specifies type 'size_t' (aka 'unsigned long') but the argument has type 'uint64_t' (aka 'unsigned long long') [-Wformat]
+   38 |   HIGH_MSG("Read an element of type %s at position %zu (size: %zu, payload: %zu)", E.getIDString(E.getID()).c_str(),
+      |                                                                             ~~~
+      |                                                                             %llu
+   39 |            prePos, E.getOuterLen(), E.getPayloadLen());
+      |                                     ^~~~~~~~~~~~~~~~~
+./mist/defines.h:105:56: note: expanded from macro 'HIGH_MSG'
+  105 | #define HIGH_MSG(msg, ...) DEBUG_MSG(DLVL_HIGH, msg, ##__VA_ARGS__)
+      |                                                 ~~~    ^~~~~~~~~~~
+./mist/defines.h:71:73: note: expanded from macro 'DEBUG_MSG'
+   71 |   if (Util::printDebugLevel >= lvl) { LOG_MSG(DBG_LVL_LIST[lvl], msg, ##__VA_ARGS__) }
+      |                                                                  ~~~    ^~~~~~~~~~~
+./mist/defines.h:69:31: note: expanded from macro 'LOG_MSG'
+   68 |   fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|" msg "\n", lvl, MIST_PROG, getpid(), __FILE__, __LINE__, \
+      |                                                     ~~~
+   69 |           Util::streamName, ##__VA_ARGS__);
+      |                               ^~~~~~~~~~~
+3 warnings generated.
+[376/794] Compiling C++ object MistAnalyserTS.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[377/794] Compiling C++ object MistAnalyserMP4.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_mp4.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[378/794] Compiling C++ object MistAnalyserMP4.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[379/794] Compiling C++ object MistAnalyserH264.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[380/794] Compiling C++ object MistAnalyserH264.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_h264.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[381/794] Compiling C++ object MistAnalyserAV1.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_av1.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[382/794] Compiling C++ object src/process/libmist_process_common.a.p/.._output_output_http.cpp.o
+[383/794] Compiling C++ object MistAnalyserH264.p/src_analysers_analyser_h264.cpp.o
+In file included from ../src/analysers/analyser_h264.cpp:4:
+In file included from ../src/analysers/analyser_h264.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[384/794] Compiling C++ object MistAnalyserTS.p/src_analysers_analyser_ts.cpp.o
+In file included from ../src/analysers/analyser_ts.cpp:1:
+In file included from ../src/analysers/analyser_ts.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[385/794] Compiling C++ object MistAnalyserAV1.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[386/794] Compiling C++ object MistAnalyserAV1.p/src_analysers_analyser_av1.cpp.o
+In file included from ../src/analysers/analyser_av1.cpp:4:
+In file included from ../src/analysers/analyser_av1.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[387/794] Compiling C++ object MistAnalyserRIFF.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_riff.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[388/794] Compiling C++ object MistAnalyserRIFF.p/src_analysers_analyser_riff.cpp.o
+In file included from ../src/analysers/analyser_riff.cpp:1:
+In file included from ../src/analysers/analyser_riff.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[389/794] Compiling C++ object MistAnalyserHLS.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_hls.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[390/794] Compiling C++ object MistAnalyserRIFF.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[391/794] Compiling C++ object MistAnalyserHLS.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[392/794] Compiling C++ object MistAnalyserMP4.p/src_analysers_analyser_mp4.cpp.o
+In file included from ../src/analysers/analyser_mp4.cpp:1:
+In file included from ../src/analysers/analyser_mp4.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[393/794] Compiling C++ object MistAnalyserRTSP.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[394/794] Compiling C++ object MistAnalyserRTSP.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_rtsp.h:3:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[395/794] Compiling C++ object MistAnalyserFLAC.p/src_analysers_mist_analyse.cpp.o
+In file included from ../src/analysers/mist_analyse.cpp:1:
+In file included from ../src/analysers/analyser_flac.h:2:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[396/794] Compiling C++ object MistAnalyserHLS.p/src_analysers_analyser_hls.cpp.o
+In file included from ../src/analysers/analyser_hls.cpp:1:
+In file included from ../src/analysers/analyser_hls.h:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[397/794] Compiling C++ object MistUtilMETA.p/src_utils_util_meta.cpp.o
+[398/794] Compiling C++ object MistUtilRAX.p/src_utils_util_rax.cpp.o
+[399/794] Compiling C++ object MistAnalyserFLAC.p/src_analysers_analyser.cpp.o
+In file included from ../src/analysers/analyser.cpp:1:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[400/794] Compiling C++ object MistAnalyserRTSP.p/src_analysers_analyser_rtsp.cpp.o
+In file included from ../src/analysers/analyser_rtsp.cpp:1:
+In file included from ../src/analysers/analyser_rtsp.h:3:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[401/794] Compiling C++ object MistAnalyserFLAC.p/src_analysers_analyser_flac.cpp.o
+In file included from ../src/analysers/analyser_flac.cpp:7:
+In file included from ../src/analysers/analyser_flac.h:2:
+In file included from ../src/analysers/analyser.h:2:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[402/794] Compiling C++ object MistTranslateH264.p/src_analysers_h264_translate.cpp.o
+[403/794] Compiling C++ object MistUtilLog.p/src_utils_util_log.cpp.o
+[404/794] Compiling C++ object MistUtilAMF.p/src_utils_util_amf.cpp.o
+In file included from ../src/utils/util_amf.cpp:7:
+In file included from ./mist/amf.h:7:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[405/794] Compiling C++ object MistUtilCertbot.p/src_utils_util_certbot.cpp.o
+In file included from ../src/utils/util_certbot.cpp:15:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[406/794] Compiling C++ object MistUtilWriter.p/src_utils_util_writer.cpp.o
+In file included from ../src/utils/util_writer.cpp:1:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[407/794] Compiling C++ object MistUtilNuke.p/src_utils_util_nuke.cpp.o
+[408/794] Compiling C++ object MistInDTSC.p/src_input_mist_in.cpp.o
+[409/794] Compiling C++ object MistUtilHealth.p/src_utils_util_health.cpp.o
+In file included from ../src/utils/util_health.cpp:1:
+In file included from ./mist/ev.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[410/794] Compiling C++ object MistInHLS.p/src_input_mist_in.cpp.o
+[411/794] Compiling C++ object src/process/libmist_process_common.a.p/.._output_output.cpp.o
+[412/794] Compiling C++ object MistInHLS.p/src_io.cpp.o
+[413/794] Linking static target src/process/libmist_process_common.a
+[414/794] Compiling C++ object MistInMP3.p/src_input_mist_in.cpp.o
+[415/794] Compiling C++ object MistInDTSC.p/src_input_input_dtsc.cpp.o
+[416/794] Compiling C++ object MistInMP3.p/src_input_input_mp3.cpp.o
+[417/794] Compiling C++ object MistInDTSC.p/src_io.cpp.o
+[418/794] Compiling C++ object MistInFLV.p/src_input_mist_in.cpp.o
+[419/794] Compiling C++ object MistInMP3.p/src_io.cpp.o
+[420/794] Compiling C++ object MistInFLV.p/src_input_input_flv.cpp.o
+[421/794] Compiling C++ object MistInOGG.p/src_input_mist_in.cpp.o
+[422/794] Compiling C++ object MistInFLV.p/src_io.cpp.o
+[423/794] Compiling C++ object MistInBuffer.p/src_input_mist_in.cpp.o
+[424/794] Compiling C++ object MistInHLS.p/src_input_input.cpp.o
+[425/794] Compiling C++ object MistInDTSC.p/src_input_input.cpp.o
+[426/794] Compiling C++ object MistInOGG.p/src_io.cpp.o
+[427/794] Compiling C++ object MistInMP3.p/src_input_input.cpp.o
+[428/794] Compiling C++ object MistInOGG.p/src_input_input_ogg.cpp.o
+[429/794] Compiling C++ object MistInH264.p/src_input_mist_in.cpp.o
+[430/794] Compiling C++ object MistInBuffer.p/src_io.cpp.o
+[431/794] Compiling C++ object MistInH264.p/src_input_input_h264.cpp.o
+[432/794] Compiling C++ object MistInFLV.p/src_input_input.cpp.o
+[433/794] Compiling C++ object MistInHLS.p/src_input_input_hls.cpp.o
+[434/794] Compiling C++ object MistInH264.p/src_io.cpp.o
+[435/794] Compiling C++ object MistInEBML.p/src_input_mist_in.cpp.o
+[436/794] Compiling C++ object MistInBuffer.p/src_input_input_buffer.cpp.o
+[437/794] Compiling C++ object MistInOGG.p/src_input_input.cpp.o
+[438/794] Compiling C++ object MistInISMV.p/src_input_mist_in.cpp.o
+[439/794] Compiling C++ object MistInEBML.p/src_io.cpp.o
+[440/794] Compiling C++ object MistInEBML.p/src_input_input_ebml.cpp.o
+[441/794] Compiling C++ object MistInBuffer.p/src_input_input.cpp.o
+[442/794] Compiling C++ object MistInMP4.p/src_input_mist_in.cpp.o
+[443/794] Compiling C++ object MistInISMV.p/src_io.cpp.o
+[444/794] Compiling C++ object MistInISMV.p/src_input_input_ismv.cpp.o
+[445/794] Compiling C++ object MistInTS.p/src_input_mist_in.cpp.o
+[446/794] Compiling C++ object MistInH264.p/src_input_input.cpp.o
+[447/794] Compiling C++ object MistInMP4.p/src_io.cpp.o
+[448/794] Compiling C++ object MistInFolder.p/src_input_mist_in.cpp.o
+[449/794] Compiling C++ object MistInEBML.p/src_input_input.cpp.o
+[450/794] Compiling C++ object MistInTS.p/src_io.cpp.o
+[451/794] Compiling C++ object MistInMP4.p/src_input_input_mp4.cpp.o
+In file included from ../src/input/input_mp4.cpp:5:
+In file included from ./mist/bitfields.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[452/794] Compiling C++ object MistInFolder.p/src_input_input_folder.cpp.o
+[453/794] Compiling C++ object MistInTS.p/src_input_input_ts.cpp.o
+[454/794] Compiling C++ object MistInPlaylist.p/src_input_mist_in.cpp.o
+[455/794] Compiling C++ object MistInISMV.p/src_input_input.cpp.o
+[456/794] Compiling C++ object MistInFolder.p/src_io.cpp.o
+[457/794] Compiling C++ object MistInBalancer.p/src_input_mist_in.cpp.o
+[458/794] Compiling C++ object MistInMP4.p/src_input_input.cpp.o
+[459/794] Compiling C++ object MistInPlaylist.p/src_io.cpp.o
+[460/794] Compiling C++ object MistInPlaylist.p/src_input_input_playlist.cpp.o
+[461/794] Compiling C++ object MistInRTSP.p/src_input_mist_in.cpp.o
+[462/794] Compiling C++ object MistInTS.p/src_input_input.cpp.o
+[463/794] Compiling C++ object MistInBalancer.p/src_input_input_balancer.cpp.o
+[464/794] Compiling C++ object MistInBalancer.p/src_io.cpp.o
+[465/794] Compiling C++ object MistInSubRip.p/src_input_mist_in.cpp.o
+[466/794] Compiling C++ object MistInFolder.p/src_input_input.cpp.o
+[467/794] Compiling C++ object MistInRTSP.p/src_io.cpp.o
+[468/794] Compiling C++ object MistInSubRip.p/src_input_input_subrip.cpp.o
+[469/794] Compiling C++ object MistInRTSP.p/src_input_input_rtsp.cpp.o
+[470/794] Compiling C++ object MistInSDP.p/src_input_mist_in.cpp.o
+[471/794] Compiling C++ object MistInPlaylist.p/src_input_input.cpp.o
+[472/794] Compiling C++ object MistInSubRip.p/src_io.cpp.o
+[473/794] Compiling C++ object MistInAAC.p/src_input_mist_in.cpp.o
+[474/794] Compiling C++ object MistInSDP.p/src_input_input_sdp.cpp.o
+[475/794] Compiling C++ object MistInBalancer.p/src_input_input.cpp.o
+[476/794] Compiling C++ object MistInFLAC.p/src_input_mist_in.cpp.o
+[477/794] Compiling C++ object MistInRTSP.p/src_input_input.cpp.o
+[478/794] Compiling C++ object MistInAAC.p/src_input_input_aac.cpp.o
+[479/794] Compiling C++ object MistInSDP.p/src_io.cpp.o
+[480/794] Compiling C++ object MistInAAC.p/src_io.cpp.o
+[481/794] Compiling C++ object MistInFLAC.p/src_input_input_flac.cpp.o
+../src/input/input_flac.cpp:146:22: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  146 |         char metaTmp[bytes];
+      |                      ^~~~~
+../src/input/input_flac.cpp:146:22: note: read of non-const variable 'bytes' is not allowed in a constant expression
+../src/input/input_flac.cpp:138:16: note: declared here
+  138 |       uint32_t bytes = Bit::btoh24(metahead + 1);
+      |                ^
+1 warning generated.
+[482/794] Compiling C++ object MistInTSRIST.p/src_input_mist_in.cpp.o
+[483/794] Compiling C++ object MistInSubRip.p/src_input_input.cpp.o
+[484/794] Compiling C++ object MistInFLAC.p/src_io.cpp.o
+[485/794] Compiling C++ object MistInTSSRT.p/src_input_mist_in.cpp.o
+In file included from ../src/input/mist_in.cpp:1:
+In file included from ../src/input/input_tssrt.h:4:
+In file included from ./mist/socket_srt.h:6:
+In file included from /opt/homebrew/Cellar/srt/1.5.4/include/srt/srt.h:37:
+/opt/homebrew/Cellar/srt/1.5.4/include/srt/platform_sys.h:71:9: warning: '__APPLE_USE_RFC_3542' macro redefined [-Wmacro-redefined]
+   71 | #define __APPLE_USE_RFC_3542 /* IPV6_PKTINFO */
+      |         ^
+<command line>:3:9: note: previous definition is here
+    3 | #define __APPLE_USE_RFC_3542 1
+      |         ^
+1 warning generated.
+[486/794] Compiling C++ object MistInTSRIST.p/src_input_input_tsrist.cpp.o
+[487/794] Compiling C++ object MistInTSRIST.p/src_io.cpp.o
+[488/794] Compiling C++ object MistInSDP.p/src_input_input.cpp.o
+[489/794] Compiling C++ object MistInAAC.p/src_input_input.cpp.o
+[490/794] Compiling C++ object MistInTSSRT.p/src_io.cpp.o
+[491/794] Compiling C++ object MistInTSSRT.p/src_input_input_tssrt.cpp.o
+In file included from ../src/input/input_tssrt.cpp:1:
+In file included from ../src/input/input_tssrt.h:4:
+In file included from ./mist/socket_srt.h:6:
+In file included from /opt/homebrew/Cellar/srt/1.5.4/include/srt/srt.h:37:
+/opt/homebrew/Cellar/srt/1.5.4/include/srt/platform_sys.h:71:9: warning: '__APPLE_USE_RFC_3542' macro redefined [-Wmacro-redefined]
+   71 | #define __APPLE_USE_RFC_3542 /* IPV6_PKTINFO */
+      |         ^
+<command line>:3:9: note: previous definition is here
+    3 | #define __APPLE_USE_RFC_3542 1
+      |         ^
+1 warning generated.
+[492/794] Compiling C++ object MistOutRTMP.p/src_output_mist_out.cpp.o
+[493/794] Compiling C++ object MistOutRTMP.p/src_io.cpp.o
+[494/794] Compiling C++ object MistInFLAC.p/src_input_input.cpp.o
+[495/794] Compiling C++ object MistOutDTSC.p/src_output_mist_out.cpp.o
+[496/794] Compiling C++ object MistInTSRIST.p/src_input_input.cpp.o
+[497/794] Compiling C++ object MistOutDTSC.p/src_output_output_dtsc.cpp.o
+[498/794] Compiling C++ object MistOutDTSC.p/src_io.cpp.o
+[499/794] Compiling C++ object MistOutOGG.p/src_output_mist_out.cpp.o
+[500/794] Compiling C++ object MistOutOGG.p/src_io.cpp.o
+[501/794] Compiling C++ object MistInTSSRT.p/src_input_input.cpp.o
+[502/794] Compiling C++ object MistOutOGG.p/src_output_output_ogg.cpp.o
+[503/794] Compiling C++ object MistOutFLV.p/src_output_output_flv.cpp.o
+[504/794] Compiling C++ object MistOutFLV.p/src_output_mist_out.cpp.o
+[505/794] Compiling C++ object MistOutFLV.p/src_io.cpp.o
+[506/794] Compiling C++ object MistOutHTTPMinimalServer.p/src_output_output_http_minimalserver.cpp.o
+[507/794] Compiling C++ object MistOutHTTPMinimalServer.p/src_output_mist_out.cpp.o
+[508/794] Compiling C++ object MistOutRTMP.p/src_output_output_rtmp.cpp.o
+[509/794] Compiling C++ object MistOutHTTPMinimalServer.p/src_io.cpp.o
+[510/794] Compiling C++ object MistOutOGG.p/src_output_output_http.cpp.o
+[511/794] Compiling C++ object MistOutRTMP.p/src_output_output.cpp.o
+[512/794] Compiling C++ object MistOutFLV.p/src_output_output_http.cpp.o
+[513/794] Compiling C++ object MistOutMP4.p/src_output_mist_out.cpp.o
+[514/794] Compiling C++ object MistOutDTSC.p/src_output_output.cpp.o
+[515/794] Compiling C++ object MistOutMP4.p/src_io.cpp.o
+[516/794] Compiling C++ object MistOutOGG.p/src_output_output.cpp.o
+[517/794] Compiling C++ object MistOutHTTPMinimalServer.p/src_output_output_http.cpp.o
+[518/794] Compiling C++ object MistOutAAC.p/src_output_output_aac.cpp.o
+[519/794] Compiling C++ object MistOutAAC.p/src_output_mist_out.cpp.o
+[520/794] Compiling C++ object MistOutMP4.p/src_output_output_mp4.cpp.o
+[521/794] Compiling C++ object MistOutAAC.p/src_io.cpp.o
+[522/794] Compiling C++ object MistOutFLAC.p/src_output_output_flac.cpp.o
+[523/794] Compiling C++ object MistOutFLV.p/src_output_output.cpp.o
+[524/794] Compiling C++ object MistOutFLAC.p/src_output_mist_out.cpp.o
+[525/794] Compiling C++ object MistOutMP4.p/src_output_output_http.cpp.o
+[526/794] Compiling C++ object MistOutFLAC.p/src_io.cpp.o
+[527/794] Compiling C++ object MistOutHTTPMinimalServer.p/src_output_output.cpp.o
+[528/794] Compiling C++ object MistOutMP3.p/src_output_output_mp3.cpp.o
+[529/794] Compiling C++ object MistOutAAC.p/src_output_output_http.cpp.o
+[530/794] Compiling C++ object MistOutMP3.p/src_output_mist_out.cpp.o
+[531/794] Compiling C++ object MistOutMP3.p/src_io.cpp.o
+[532/794] Compiling C++ object MistOutMP4.p/src_output_output.cpp.o
+[533/794] Compiling C++ object MistOutH264.p/src_io.cpp.o
+[534/794] Compiling C++ object MistOutH264.p/src_output_mist_out.cpp.o
+[535/794] Compiling C++ object MistOutH264.p/src_output_output_h264.cpp.o
+[536/794] Compiling C++ object MistOutFLAC.p/src_output_output_http.cpp.o
+[537/794] Compiling C++ object MistOutHDS.p/src_output_mist_out.cpp.o
+[538/794] Compiling C++ object MistOutMP3.p/src_output_output_http.cpp.o
+[539/794] Compiling C++ object MistOutAAC.p/src_output_output.cpp.o
+[540/794] Compiling C++ object MistOutHDS.p/src_output_output_hds.cpp.o
+[541/794] Compiling C++ object MistOutHDS.p/src_io.cpp.o
+[542/794] Compiling C++ object MistOutH264.p/src_output_output_http.cpp.o
+[543/794] Compiling C++ object MistOutFLAC.p/src_output_output.cpp.o
+[544/794] Compiling C++ object MistOutSubRip.p/src_output_output_srt.cpp.o
+../src/output/output_srt.cpp:51:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   51 |         sprintf(tmpBuf, "%.2" PRIu64 ":%.2" PRIu64 ":%.2" PRIu64 ".%.3" PRIu64, (thisTime / 3600000),
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/output/output_srt.cpp:57:14: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   57 |     tmpLen = sprintf(tmpBuf, "%.2" PRIu64 ":%.2" PRIu64 ":%.2" PRIu64 ".%.3" PRIu64, (time / 3600000),
+      |              ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+2 warnings generated.
+[545/794] Compiling C++ object MistOutSubRip.p/src_output_mist_out.cpp.o
+[546/794] Compiling C++ object MistOutSubRip.p/src_io.cpp.o
+[547/794] Compiling C++ object MistOutMP3.p/src_output_output.cpp.o
+[548/794] Compiling C++ object MistOutHDS.p/src_output_output_http.cpp.o
+[549/794] Compiling C++ object MistOutJSON.p/src_output_output_json.cpp.o
+[550/794] Compiling C++ object MistOutJSON.p/src_output_mist_out.cpp.o
+[551/794] Compiling C++ object MistOutJSON.p/src_io.cpp.o
+[552/794] Compiling C++ object MistOutH264.p/src_output_output.cpp.o
+[553/794] Compiling C++ object MistOutSubRip.p/src_output_output_http.cpp.o
+[554/794] Compiling C++ object MistOutTS.p/src_output_mist_out.cpp.o
+[555/794] Compiling C++ object MistOutTS.p/src_io.cpp.o
+[556/794] Compiling C++ object MistOutTS.p/src_output_output_ts.cpp.o
+[557/794] Compiling C++ object MistOutHDS.p/src_output_output.cpp.o
+[558/794] Compiling C++ object MistOutTS.p/src_output_output_ts_base.cpp.o
+[559/794] Compiling C++ object MistOutHTTPTS.p/src_output_output_httpts.cpp.o
+[560/794] Compiling C++ object MistOutJSON.p/src_output_output_http.cpp.o
+[561/794] Compiling C++ object MistOutHTTPTS.p/src_output_mist_out.cpp.o
+[562/794] Compiling C++ object MistOutSubRip.p/src_output_output.cpp.o
+[563/794] Compiling C++ object MistOutHTTPTS.p/src_io.cpp.o
+[564/794] Compiling C++ object MistOutHTTPTS.p/src_output_output_ts_base.cpp.o
+[565/794] Compiling C++ object MistOutHLS.p/src_output_mist_out.cpp.o
+[566/794] Compiling C++ object MistOutHLS.p/src_io.cpp.o
+[567/794] Compiling C++ object MistOutHLS.p/src_output_output_hls.cpp.o
+[568/794] Compiling C++ object MistOutJSON.p/src_output_output.cpp.o
+[569/794] Compiling C++ object MistOutHLS.p/src_output_output_ts_base.cpp.o
+[570/794] Compiling C++ object MistOutHTTPTS.p/src_output_output_http.cpp.o
+[571/794] Compiling C++ object MistOutCMAF.p/src_output_mist_out.cpp.o
+[572/794] Compiling C++ object MistOutCMAF.p/src_io.cpp.o
+[573/794] Compiling C++ object MistOutTS.p/src_output_output.cpp.o
+[574/794] Compiling C++ object MistOutCMAF.p/src_output_output_cmaf.cpp.o
+[575/794] Compiling C++ object MistOutHLS.p/src_output_output_http.cpp.o
+[576/794] Compiling C++ object MistOutEBML.p/src_output_output_ebml.cpp.o
+[577/794] Compiling C++ object MistOutEBML.p/src_output_mist_out.cpp.o
+[578/794] Compiling C++ object MistOutHTTPTS.p/src_output_output.cpp.o
+[579/794] Compiling C++ object MistOutEBML.p/src_io.cpp.o
+[580/794] Compiling C++ object MistOutWAV.p/src_output_output_wav.cpp.o
+[581/794] Compiling C++ object MistOutCMAF.p/src_output_output_http.cpp.o
+[582/794] Compiling C++ object MistOutRTSP.p/src_output_mist_out.cpp.o
+[583/794] Compiling C++ object MistOutRTSP.p/src_io.cpp.o
+[584/794] Compiling C++ object MistOutHLS.p/src_output_output.cpp.o
+[585/794] Compiling C++ object MistOutWAV.p/src_io.cpp.o
+[586/794] Compiling C++ object MistOutRTSP.p/src_output_output_rtsp.cpp.o
+[587/794] Compiling C++ object MistOutWAV.p/src_output_mist_out.cpp.o
+[588/794] Compiling C++ object MistOutEBML.p/src_output_output_http.cpp.o
+[589/794] Compiling C++ object MistOutCMAF.p/src_output_output.cpp.o
+[590/794] Compiling C++ object MistOutSDP.p/src_io.cpp.o
+[591/794] Compiling C++ object MistOutSDP.p/src_output_mist_out.cpp.o
+[592/794] Compiling C++ object MistOutSDP.p/src_output_output_sdp.cpp.o
+[593/794] Compiling C++ object MistOutEBML.p/src_output_output.cpp.o
+[594/794] Compiling C++ object MistOutHTTP.p/src_output_mist_out.cpp.o
+[595/794] Compiling C++ object MistOutHTTP.p/src_io.cpp.o
+[596/794] Compiling C++ object MistOutWAV.p/src_output_output_http.cpp.o
+[597/794] Compiling C++ object MistOutJSONLine.p/src_output_output_jsonline.cpp.o
+[598/794] Compiling C++ object MistOutSDP.p/src_output_output_http.cpp.o
+[599/794] Compiling C++ object MistOutRTSP.p/src_output_output.cpp.o
+[600/794] Compiling C++ object MistOutJSONLine.p/src_output_mist_out.cpp.o
+[601/794] Compiling C++ object MistOutJSONLine.p/src_io.cpp.o
+[602/794] Compiling C++ object MistOutHTTP.p/src_output_output_http_internal.cpp.o
+[603/794] Compiling C++ object MistOutWAV.p/src_output_output.cpp.o
+[604/794] Compiling C++ object MistOutJPG.p/src_output_output_jpg.cpp.o
+[605/794] Compiling C++ object MistOutJPG.p/src_output_mist_out.cpp.o
+[606/794] Compiling C++ object MistOutHTTP.p/src_output_output_http.cpp.o
+[607/794] Compiling C++ object MistOutJPG.p/src_io.cpp.o
+[608/794] Compiling C++ object MistOutSDP.p/src_output_output.cpp.o
+[609/794] Compiling C++ object MistOutHTTPS.p/src_output_mist_out.cpp.o
+[610/794] Compiling C++ object MistOutHTTPS.p/src_io.cpp.o
+[611/794] Compiling C++ object MistOutHTTPS.p/src_output_output_https.cpp.o
+[612/794] Compiling C++ object MistOutHTTP.p/src_output_output.cpp.o
+[613/794] Compiling C++ object MistOutWebRTC.p/src_output_output_webrtc_srtp.cpp.o
+[614/794] Compiling C++ object MistOutWebRTC.p/src_io.cpp.o
+[615/794] Compiling C++ object MistOutWebRTC.p/src_output_mist_out.cpp.o
+[616/794] Compiling C++ object MistOutJPG.p/src_output_output_http.cpp.o
+[617/794] Compiling C++ object MistOutJSONLine.p/src_output_output.cpp.o
+[618/794] Compiling C++ object MistOutTSRIST.p/src_output_output_ts_base.cpp.o
+[619/794] Compiling C++ object MistOutTSRIST.p/src_io.cpp.o
+[620/794] Compiling C++ object MistOutTSRIST.p/src_output_output_tsrist.cpp.o
+[621/794] Compiling C++ object MistOutJPG.p/src_output_output.cpp.o
+[622/794] Compiling C++ object MistOutWebRTC.p/src_output_output_http.cpp.o
+[623/794] Compiling C++ object MistOutTSSRT.p/src_io.cpp.o
+[624/794] Compiling C++ object MistOutTSSRT.p/src_output_mist_out.cpp.o
+In file included from ../src/output/mist_out.cpp:1:
+In file included from ../src/output/output_tssrt.h:3:
+In file included from ./mist/socket_srt.h:6:
+In file included from /opt/homebrew/Cellar/srt/1.5.4/include/srt/srt.h:37:
+/opt/homebrew/Cellar/srt/1.5.4/include/srt/platform_sys.h:71:9: warning: '__APPLE_USE_RFC_3542' macro redefined [-Wmacro-redefined]
+   71 | #define __APPLE_USE_RFC_3542 /* IPV6_PKTINFO */
+      |         ^
+<command line>:3:9: note: previous definition is here
+    3 | #define __APPLE_USE_RFC_3542 1
+      |         ^
+1 warning generated.
+[625/794] Compiling C++ object MistOutTSSRT.p/src_output_output_tssrt.cpp.o
+In file included from ../src/output/output_tssrt.cpp:1:
+In file included from ../src/output/output_tssrt.h:3:
+In file included from ./mist/socket_srt.h:6:
+In file included from /opt/homebrew/Cellar/srt/1.5.4/include/srt/srt.h:37:
+/opt/homebrew/Cellar/srt/1.5.4/include/srt/platform_sys.h:71:9: warning: '__APPLE_USE_RFC_3542' macro redefined [-Wmacro-redefined]
+   71 | #define __APPLE_USE_RFC_3542 /* IPV6_PKTINFO */
+      |         ^
+<command line>:3:9: note: previous definition is here
+    3 | #define __APPLE_USE_RFC_3542 1
+      |         ^
+1 warning generated.
+[626/794] Compiling C++ object MistOutTSSRT.p/src_output_output_ts_base.cpp.o
+[627/794] Compiling C++ object MistOutHTTPS.p/src_output_output.cpp.o
+[628/794] Compiling C++ object MistProcMKVExec.p/src_process_process_exec.cpp.o
+[629/794] Compiling C++ object MistOutWebRTC.p/src_output_output.cpp.o
+[630/794] Compiling C++ object MistProcFFMPEG.p/src_process_process_ffmpeg.cpp.o
+../src/process/process_ffmpeg.cpp:807:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  807 |       sprintf(in, " -i color=c=black:s=%dx%d", res_x, res_y);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:821:11: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  821 |           sprintf(in, " -ignore_loop 0 -i %s", src.c_str());
+      |           ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:823:11: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  823 |           sprintf(in, " -i %s", src.c_str());
+      |           ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:827:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  827 |         sprintf(in, " -i %s", "-");
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:852:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  852 |       sprintf(scale, ";[%d:v]scale=%d:%d[s%d]", it.num() + 1, i_width, i_height, it.num());
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:858:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  858 |         sprintf(in_chain, ";[0:v][s%d]", it.num());
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:860:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  860 |         sprintf(in_chain, ";[out][s%d]", it.num());
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:863:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  863 |         sprintf(ov, "overlay=W-w-%d:%d[out]", i_x, i_y);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:865:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  865 |         sprintf(ov, "overlay=%d:H-h-%d[out]", i_x, i_y);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:867:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  867 |         sprintf(ov, "overlay=W-w-%d:H-h-%d[out]", i_x, i_y);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:869:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  869 |         sprintf(ov, "overlay=(W-w)/2:(H-h)/2[out]");
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:871:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  871 |         sprintf(ov, "overlay=%d:%d[out]", i_x, i_y);
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:880:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  880 |       sprintf(ov, ";[out]scale=%d:%d,setsar=1:1[out] -map [out]", res_x, res_y);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../src/process/process_ffmpeg.cpp:883:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  883 |       sprintf(ov, "scale=%d:%d,setsar=1:1", res_x, res_y);
+      |       ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+14 warnings generated.
+[631/794] Compiling C++ object MistOutWebRTC.p/src_output_output_webrtc.cpp.o
+../src/output/output_webrtc.cpp:465:64: warning: format specifies type 'unsigned long long' but the argument has type 'unsigned long' [-Wformat]
+  465 |         MEDIUM_MSG("Media %" PRIu64 " SSRC=%" PRIu32 " %s/%s", it.first, ssrcs[it.first], M.getType(it.first).c_str(),
+      |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  466 |                    M.getCodec(it.first).c_str());
+      |                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./mist/defines.h:104:60: note: expanded from macro 'MEDIUM_MSG'
+  104 | #define MEDIUM_MSG(msg, ...) DEBUG_MSG(DLVL_MEDIUM, msg, ##__VA_ARGS__)
+      |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~
+./mist/defines.h:71:73: note: expanded from macro 'DEBUG_MSG'
+   71 |   if (Util::printDebugLevel >= lvl) { LOG_MSG(DBG_LVL_LIST[lvl], msg, ##__VA_ARGS__) }
+      |                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~
+./mist/defines.h:69:31: note: expanded from macro 'LOG_MSG'
+   68 |   fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|" msg "\n", lvl, MIST_PROG, getpid(), __FILE__, __LINE__, \
+      |                                                     ~~~
+   69 |           Util::streamName, ##__VA_ARGS__);
+      |                               ^~~~~~~~~~~
+1 warning generated.
+[632/794] Compiling C++ object MistProcLivepeer.p/src_output_output_ts_base.cpp.o
+[633/794] Compiling C++ object MistProcLivepeer.p/src_io.cpp.o
+[634/794] Compiling C++ object MistProcComposer.p/src_process_process_composer.cpp.o
+FAILED: [code=1] MistProcComposer.p/src_process_process_composer.cpp.o 
+c++ -IMistProcComposer.p -I. -I.. -I../subprojects/mbedtls-3.6.5/include -Isubprojects/libsrtp/include -I../subprojects/libsrtp/include -Imist -fdiagnostics-color=always -DNDEBUG -Wall -Winvalid-pch -std=c++11 -O2 -g -funsigned-char -D_LARGEFILE_SOURCE -Wno-sign-compare -Wparentheses -Wno-non-virtual-dtor -Wno-strict-aliasing -D__APPLE_USE_RFC_3542 '-DAPPNAME="MistServer"' -DDEBUG=3 '-DRELEASE="Generic_aarch64"' '-DPACKAGE_VERSION="3.10-14-gda760c16c"' -DSHM_DATASIZE=40 -DSTAT_CUTOFF=600 -DSTATS_DELAY=15 '-DUDP_API_HOST="localhost"' -DUDP_API_PORT=4242 -DSSL=1 -DHASQUIRC=1 -DUPDATER=1 -DHASPKTINFO -DHASEXECINFO -DHASSYSWAIT -DHAVE_UPSTREAM_MBEDTLS_SRTP=1 -DWITH_DATACHANNELS -DWITH_SRT -DSIZET_VARIANT -MD -MQ MistProcComposer.p/src_process_process_composer.cpp.o -MF MistProcComposer.p/src_process_process_composer.cpp.o.d -o MistProcComposer.p/src_process_process_composer.cpp.o -c ../src/process/process_composer.cpp
+In file included from ../src/process/process_composer.cpp:17:
+../src/process/../quirc/decode.c:737:32: warning: suggest braces around initialization of subobject [-Wmissing-braces]
+  737 |   struct quirc_code flipped = {0};
+      |                                ^
+      |                                {}
+../src/process/../quirc/decode.c:737:32: warning: suggest braces around initialization of subobject [-Wmissing-braces]
+  737 |   struct quirc_code flipped = {0};
+      |                                ^
+      |                                {}
+In file included from ../src/process/process_composer.cpp:19:
+../src/process/../quirc/quirc.c:132:43: warning: array designators are a C99 extension [-Wc99-designator]
+  132 | static const char *const error_table[] = {[QUIRC_SUCCESS] = "Success",
+      |                                           ^~~~~~~~~~~~~~~
+../src/process/../quirc/quirc.c:142:23: warning: result of comparison of constant 8 with expression of type 'quirc_decode_error_t' is always true [-Wtautological-constant-out-of-range-compare]
+  142 |   if (err >= 0 && err < sizeof(error_table) / sizeof(error_table[0])) return error_table[err];
+      |                   ~~~ ^ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/process/process_composer.cpp:325:61: error: no member named 'st_mtim' in 'stat'
+  325 |                 if (!stat(S.c_str(), &statRslt) && statRslt.st_mtim.tv_sec > lastRead) {
+      |                                                    ~~~~~~~~ ^
+../src/process/process_composer.cpp:341:39: error: no member named 'st_mtim' in 'stat'
+  341 |                   lastRead = statRslt.st_mtim.tv_sec;
+      |                              ~~~~~~~~ ^
+4 warnings and 2 errors generated.
+[635/794] Compiling C++ object MistOutTSRIST.p/src_output_output.cpp.o
+[636/794] Compiling C++ object MistProcLivepeer.p/src_process_process_livepeer.cpp.o
+[637/794] Compiling C++ object MistController.p/src_controller_controller_external_writers.cpp.o
+In file included from ../src/controller/controller_external_writers.cpp:1:
+In file included from ../src/controller/controller_external_writers.h:1:
+In file included from ./mist/config.h:10:
+In file included from ./mist/json.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[638/794] Compiling C++ object MistProcComposer.p/src_io.cpp.o
+[639/794] Compiling C++ object MistProcLivepeer.p/src_output_output_http.cpp.o
+[640/794] Compiling C++ object MistOutTSSRT.p/src_output_output.cpp.o
+[641/794] Compiling C++ object MistController.p/src_controller_controller.cpp.o
+In file included from ../src/controller/controller.cpp:1:
+In file included from ../src/controller/controller_api.h:1:
+In file included from ./mist/ev.h:3:
+In file included from ./mist/socket.h:7:
+In file included from ./mist/util.h:2:
+./mist/defines.h:25:9: warning: '__STDC_FORMAT_MACROS' macro redefined [-Wmacro-redefined]
+   25 | #define __STDC_FORMAT_MACROS 1
+      |         ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/inttypes.h:251:13: note: previous definition is here
+  251 | #    define __STDC_FORMAT_MACROS
+      |             ^
+1 warning generated.
+[642/794] Compiling C++ object MistProcLivepeer.p/src_input_input.cpp.o
+[643/794] Compiling C++ object MistProcComposer.p/src_input_input.cpp.o
+[644/794] Compiling C++ object MistProcLivepeer.p/src_output_output.cpp.o
+[645/794] Compiling C++ object MistProcComposer.p/src_output_output.cpp.o
+ninja: build stopped: subcommand failed.

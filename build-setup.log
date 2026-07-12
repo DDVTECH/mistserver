@@ -1,0 +1,152 @@
+The Meson build system
+Version: 1.11.1
+Source dir: /private/tmp/claude-501/-Users-mac-Documents-Github-Inavada-inavadamediaserver-MistServer/33b78d07-d4ba-4c26-bcf8-46eb1c149475/scratchpad/mist-fix
+Build dir: /private/tmp/claude-501/-Users-mac-Documents-Github-Inavada-inavadamediaserver-MistServer/33b78d07-d4ba-4c26-bcf8-46eb1c149475/scratchpad/mist-fix/build
+Build type: native build
+Project name: mistserver
+Project version: undefined
+C++ compiler for the host machine: c++ (clang 21.0.0 "Apple clang version 21.0.0 (clang-2100.1.1.101)")
+C++ linker for the host machine: c++ ld64 1267
+Host machine cpu family: aarch64
+Host machine cpu: aarch64
+Program git found: YES (/usr/bin/git)
+Message: Shared memory use is turned OFF
+Message: Building release Generic_aarch64 for version 3.10-14-gda760c16c @ debug level 3
+Header "netinet/in.h" has symbol "IPV6_RECVPKTINFO" : YES 
+Header "netinet/in.h" has symbol "IP_PKTINFO" : YES 
+Has header "execinfo.h" : YES 
+Has header "sys/wait.h" : YES 
+Library mbedtls found: NO
+Library mbedx509 found: NO
+Library mbedcrypto found: NO
+Checking if "MbedTLS SRTP is upstream" with dependencies -lmbedtls, -lmbedx509, -lmbedcrypto compiles: NO 
+Checking if "MbedTLS is DDVTech fork" with dependencies -lmbedtls, -lmbedx509, -lmbedcrypto compiles: NO 
+Downloading mbedtls source from https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.5/mbedtls-3.6.5.tar.bz2
+Cloning into 'libsrtp'...
+HEAD is now at fd08747 update ci to run on 2_x_dev branch
+Cloning into 'usrsctp'...
+
+Executing subproject mbedtls 
+
+mbedtls| Project name: mbedtls
+mbedtls| Project version: undefined
+mbedtls| C compiler for the host machine: cc (clang 21.0.0 "Apple clang version 21.0.0 (clang-2100.1.1.101)")
+mbedtls| C linker for the host machine: cc ld64 1267
+mbedtls| Found pkg-config: YES (/opt/homebrew/bin/pkg-config) 2.5.1
+mbedtls| Build targets in project: 3
+mbedtls| Subproject mbedtls finished.
+
+Found pkg-config: YES (/opt/homebrew/bin/pkg-config) 2.5.1
+Found CMake: /opt/homebrew/bin/cmake (4.2.3)
+Run-time dependency libsrtp2 found: NO  (tried pkg-config, framework and cmake)
+Looking for a fallback subproject for the dependency libsrtp2
+Applying diff file "libsrtp_cygwin_patch"
+
+Executing subproject libsrtp2 
+
+libsrtp2| Project name: libsrtp2
+libsrtp2| Project version: 2.6.0
+libsrtp2| C compiler for the host machine: cc (clang 21.0.0 "Apple clang version 21.0.0 (clang-2100.1.1.101)")
+libsrtp2| C linker for the host machine: cc ld64 1267
+libsrtp2| Has header "arpa/inet.h" : YES
+libsrtp2| Has header "byteswap.h" : NO
+libsrtp2| Has header "inttypes.h" : YES
+libsrtp2| Has header "machine/types.h" : YES
+libsrtp2| Has header "netinet/in.h" : YES
+libsrtp2| Has header "stdint.h" : YES
+libsrtp2| Has header "stdlib.h" : YES
+libsrtp2| Has header "sys/int_types.h" : NO
+libsrtp2| Has header "sys/socket.h" : YES
+libsrtp2| Has header "sys/types.h" : YES
+libsrtp2| Has header "sys/uio.h" : YES
+libsrtp2| Has header "unistd.h" : YES
+libsrtp2| Checking for function "sigaction" : YES
+libsrtp2| Checking for function "inet_aton" : YES
+libsrtp2| Checking for function "inet_pton" : YES
+libsrtp2| Checking for function "usleep" : YES
+libsrtp2| Checking for function "socket" : YES
+libsrtp2| Has header "stdint.h" : YES (cached)
+libsrtp2| Checking for type "size_t" : YES
+libsrtp2| Checking for type "unsigned long" : YES
+libsrtp2| Checking for size of "unsigned long" : 8
+libsrtp2| Checking for type "unsigned long long" : YES
+libsrtp2| Checking for size of "unsigned long long" : 8
+libsrtp2| Checking if "inline keyword check" compiles: YES
+libsrtp2| Dependency mbedtls for host machine from subproject subprojects/mbedtls-3.6.5 found: YES undefined
+libsrtp2| Configuring config.h using configuration
+libsrtp2| Compiler for C supports arguments -Wstrict-prototypes: YES
+libsrtp2| Compiler for C supports arguments -funroll-loops: YES
+libsrtp2| Program doxygen found: NO
+libsrtp2| Build targets in project: 5
+libsrtp2| Subproject libsrtp2 finished.
+
+Dependency libsrtp2 for host machine from subproject subprojects/libsrtp found: YES 2.6.0
+Run-time dependency usrsctp found: NO  (tried pkg-config, framework and cmake)
+Looking for a fallback subproject for the dependency usrsctp
+
+Executing subproject usrsctp 
+
+usrsctp| Project name: usrsctplib
+usrsctp| Project version: 0.9.5.0
+usrsctp| C compiler for the host machine: cc (clang 21.0.0 "Apple clang version 21.0.0 (clang-2100.1.1.101)")
+usrsctp| C linker for the host machine: cc ld64 1267
+usrsctp| Compiler for C supports arguments -pedantic: YES
+usrsctp| Compiler for C supports arguments -Wall: YES
+usrsctp| Compiler for C supports arguments -Wextra: YES
+usrsctp| Compiler for C supports arguments -Wfloat-equal: YES
+usrsctp| Compiler for C supports arguments -Wshadow: YES
+usrsctp| Compiler for C supports arguments -Wpointer-arith: YES
+usrsctp| Compiler for C supports arguments -Winit-self: YES
+usrsctp| Compiler for C supports arguments -Wno-unused-function: YES
+usrsctp| Compiler for C supports arguments -Wno-unused-parameter: YES
+usrsctp| Compiler for C supports arguments -Wno-unreachable-code: YES
+usrsctp| Compiler for C supports arguments -Wstrict-prototypes: YES (cached)
+usrsctp| subprojects/usrsctp/meson.build:42: WARNING: Consider using the built-in warning_level option instead of using "-Wall".
+usrsctp| subprojects/usrsctp/meson.build:42: WARNING: Consider using the built-in warning_level option instead of using "-Wextra".
+usrsctp| Run-time dependency threads found: YES
+usrsctp| Compiler for C supports arguments -Wno-address-of-packed-member: YES
+usrsctp| Compiler for C supports arguments -Wno-deprecated-declarations: YES
+usrsctp| Has header "sys/queue.h" : YES
+usrsctp| Has header "sys/socket.h" : YES
+usrsctp| Has header "linux/if_addr.h" : NO
+usrsctp| Has header "linux/rtnetlink.h" : NO
+usrsctp| Has header "sys/types.h" : YES
+usrsctp| Has header "netinet/in.h" : YES
+usrsctp| Has header "netinet/ip.h" : YES
+usrsctp| Has header "netinet/ip_icmp.h" : YES
+usrsctp| Has header "stdatomic.h" : YES
+usrsctp| Checking whether type "struct sockaddr" has member "sa_len" : YES
+usrsctp| Checking whether type "struct sockaddr_in" has member "sin_len" : YES
+usrsctp| Checking whether type "struct sockaddr_in6" has member "sin6_len" : YES
+usrsctp| Checking whether type "struct sockaddr_conn" has member "sconn_len" : YES
+usrsctp| Build targets in project: 27
+usrsctp| Subproject usrsctp finished.
+
+Dependency usrsctp for host machine from subproject subprojects/usrsctp found: YES 0.9.5.0
+Run-time dependency srt found: YES 1.5.4
+Run-time dependency librist found: YES 0.2.18
+Dependency threads for host machine found: YES unknown (cached)
+Checking if "Check if JSON class needs size_t variants" compiles: YES 
+Has header "linux/videodev2.h" : NO 
+test/meson.build:18: WARNING: Project does not target a minimum version but uses feature deprecated since '1.11.0': should_fail arg in test. Use expected_fail instead of should_fail
+Program python3 found: YES (/opt/homebrew/bin/python3)
+Program doxygen found: NO
+Build targets in project: 214
+WARNING: Deprecated features used:
+ * 1.11.0: {'should_fail arg in test'}
+
+mistserver undefined
+
+  Subprojects
+    libsrtp2 : YES
+    mbedtls  : YES
+    usrsctp  : YES 2 warnings
+
+  User defined options
+    DEBUG    : 3
+    b_ndebug : true
+    buildtype: debugoptimized
+    strip    : false
+
+Found ninja-1.13.2 at /opt/homebrew/bin/ninja
+Generating targets:   0%|          | 0/214 eta ?Generating targets:  85%|████████▍ | 181/214 eta 00:00                                                      Writing build.ninja:   0%|          | 0/823 eta ?                                                 

@@ -20,6 +20,14 @@ test('Redirecting log messages produces no error', exec_tgts.get('MistUtilLog'),
 hlsclassicplaylisttest = executable('hlsclassicplaylisttest', 'hls_classic_playlist.cpp', header_tgts, dependencies: libmist_dep)
 test('Classic HLS playlist window', hlsclassicplaylisttest, suite: 'HLS')
 
+hlstimeoffsetpersisttest = executable(
+  'hlstimeoffsetpersisttest',
+  'hls_time_offset_persist.cpp',
+  header_tgts,
+  dependencies: libmist_dep,
+)
+test('Live-parsed entries persist remap time offset', hlstimeoffsetpersisttest, suite: 'HLS')
+
 atomicfiletest = executable('atomicfiletest', 'atomic_file.cpp', header_tgts, dependencies: libmist_dep)
 test('Atomic rolling playlist publication', atomicfiletest, suite: 'HLS')
 

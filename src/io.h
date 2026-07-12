@@ -24,9 +24,9 @@ namespace Mist{
     void bufferRemove(size_t idx, uint32_t pageNumber, uint32_t pageIdx = INVALID_KEY_NUM);
     void bufferLivePacket(const DTSC::Packet &packet);
 
-    void bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
+    bool bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                     size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page, DTSC::Meta & aMeta);
-    void bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
+    bool bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                     size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page);
     void bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                           size_t packDataSize, uint64_t packBytePos, bool isKeyframe);

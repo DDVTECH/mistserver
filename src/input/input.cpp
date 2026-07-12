@@ -1595,14 +1595,23 @@ namespace Mist{
       pageIdx = i;
     }
     uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
-    pageCounter[idx][pageNumber] = Util::bootSecs();
     if (isBuffered(idx, pageNumber, meta)){
       // Mark the page as still actively requested
+      pageCounter[idx][pageNumber] = Util::bootSecs();
       DONTEVEN_MSG("Track %zu, key %" PRIu32 " is already buffered in page %" PRIu32
                    ". Cancelling bufferFrame",
                    idx, keyNum, pageNumber);
       return true;
     }
+    // Refuse to reload a page that keeps failing to fill: without this, waiting
+    // outputs re-request it every serve loop and each retry re-demuxes segments
+    // from disk indefinitely. Not stamping pageCounter here lets the page expire.
+    if (!pageRetryGuard.shouldAttempt(idx, pageNumber, Util::bootSecs())){
+      HIGH_MSG("Track %zu, page %" PRIu32 " load is on cooldown after repeated incomplete loads",
+               idx, pageNumber);
+      return false;
+    }
+    pageCounter[idx][pageNumber] = Util::bootSecs();
     // Update keynum to point to the corresponding page
     uint64_t bufferTimer = Util::bootMS();
     keyNum = pageNumber;
@@ -1721,8 +1730,14 @@ namespace Mist{
           }
           ++partNo;
           HIGH_MSG("Buffering VoD packet (%zuB) @%" PRIu64 " ms on track %zu with offset %" PRIu64, dataLen, thisTime, idx, thisPacket.getInt("offset"));
-          bufferNext(thisTime, thisPacket.getInt("offset"), idx, data, dataLen,
-                     thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"), page);
+          if (!bufferNext(thisTime, thisPacket.getInt("offset"), idx, data, dataLen,
+                          thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"), page)){
+            // The page cannot take this packet (full or inconsistent with the meta
+            // index): continuing would demux the rest of the source for nothing.
+            FAIL_MSG("Track %zu, page %" PRIu32 ": aborting page load after dropped packet @%" PRIu64 " ms",
+                     idx, pageNumber, thisTime);
+            break;
+          }
           ++packCounter;
           byteCounter += thisPacket.getDataLen();
           lastBuffered = thisTime;
@@ -1756,6 +1771,7 @@ namespace Mist{
                tPages.getInt("parts", pageIdx), byteCounter);
       pageCounter[idx].erase(pageNumber);
       bufferRemove(idx, pageNumber, pageIdx);
+      pageRetryGuard.recordFailure(idx, pageNumber, Util::bootSecs());
       return false;
     }else{
       INFO_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") buffered in %" PRIu64 "ms",
@@ -1763,6 +1779,7 @@ namespace Mist{
       INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
                tPages.getInt("parts", pageIdx), byteCounter);
       pageCounter[idx][pageNumber] = Util::bootSecs();
+      pageRetryGuard.recordSuccess(idx, pageNumber);
       return true;
     }
   }

@@ -244,14 +244,16 @@ namespace Mist{
 
   /// Buffers the next packet on the currently opened page
   ///\param pack The packet to buffer
-  void InOutBase::bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
+  ///\return True if the packet was written to the page, false if it was dropped
+  bool InOutBase::bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                              size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page){
-    bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, page, meta);
+    return bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, page, meta);
   }
 
   /// Buffers the next packet on the currently opened page
   ///\param pack The packet to buffer
-  void InOutBase::bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
+  ///\return True if the packet was written to the page, false if it was dropped
+  bool InOutBase::bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                              size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page, DTSC::Meta & aMeta){
     size_t packDataLen =
         24 + (packOffset ? 17 : 0) + (packBytePos ? 15 : 0) + (isKeyframe ? 19 : 0) + packDataSize + 11;
@@ -260,7 +262,7 @@ namespace Mist{
     // Save the trackid of the track for easier access
     if (packTrack == INVALID_TRACK_ID){
       WARN_MSG("Packet with id %" PRIu32 " has an invalid track", packTrack);
-      return;
+      return false;
     }
 
     // these checks were already done in bufferSinglePacket, but we check again just to be sure
@@ -269,12 +271,12 @@ namespace Mist{
                 "Wrong order on track %" PRIu32 " ignored: %" PRIu64 " < %" PRIu64, packTrack,
                 packTime, aMeta.getLastms(packTrack));
       multiWrong = true;
-      return;
+      return false;
     }
     // Do nothing if no page is opened for this track
     if (!page){
       INFO_MSG("Trying to buffer a packet on track %" PRIu32 ", but no page is initialized", packTrack);
-      return;
+      return false;
     }
     multiWrong = false;
 
@@ -296,7 +298,7 @@ namespace Mist{
     if (pageSize - pageOffset < packDataLen){
       FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64,
                packTrack, currPagNum, packTime, packDataLen, pageSize, pageOffset);
-      return;
+      return false;
     }
 
     // First generate only the payload on the correct destination
@@ -338,6 +340,7 @@ namespace Mist{
 
     DONTEVEN_MSG("Setting page %" PRIu32 " available to %" PRIu64, pageIdx, pageOffset + packDataLen);
     tPages.setInt("avail", pageOffset + packDataLen, pageIdx);
+    return true;
   }
 
   /// Wraps up the buffering of a shared memory data page

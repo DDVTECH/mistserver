@@ -28,6 +28,14 @@ hlstimeoffsetpersisttest = executable(
 )
 test('Live-parsed entries persist remap time offset', hlstimeoffsetpersisttest, suite: 'HLS')
 
+pageretrytest = executable(
+  'pageretrytest',
+  'page_retry.cpp',
+  header_tgts,
+  dependencies: libmist_dep,
+)
+test('Under-filled page loads retry with bounded backoff', pageretrytest, suite: 'HLS')
+
 atomicfiletest = executable('atomicfiletest', 'atomic_file.cpp', header_tgts, dependencies: libmist_dep)
 test('Atomic rolling playlist publication', atomicfiletest, suite: 'HLS')
 

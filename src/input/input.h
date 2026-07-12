@@ -16,6 +16,7 @@
 #endif
 
 #include "../io.h"
+#include "page_retry.h"
 
 namespace Mist {
 
@@ -121,6 +122,9 @@ namespace Mist {
     IPC::sharedPage streamStatus;
 
     std::map<size_t, std::map<uint32_t, uint64_t> > pageCounter;
+
+    /// Bounds bufferFrame retries of pages that repeatedly fail to fill completely
+    PageRetryGuard pageRetryGuard;
 
     static Input *singleton;
 

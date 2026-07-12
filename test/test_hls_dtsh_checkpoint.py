@@ -80,6 +80,18 @@ def main() -> None:
           "initial, per-segment, and final rolling playlist snapshots should publish atomically")
   require("WIFSIGNALED" in input_base and "WTERMSIG" in input_base,
           "input supervision should record the terminating signal instead of a generic -1")
+
+  require("hlsPersistTimeOffset" in header,
+          "live HLS should expose the remap-offset persistence helper")
+  live_parse = implementation.split("bool InputHLS::parseSegmentAsLive", 1)
+  require(len(live_parse) == 2 and "hlsPersistTimeOffset" in live_parse[1].split("void InputHLS::", 1)[0],
+          "parseSegmentAsLive should persist the derived remap offset onto the entry")
+  require("pageRetryGuard.shouldAttempt" in input_base,
+          "bufferFrame should refuse reloading pages that repeatedly fail to fill")
+  require("pageRetryGuard.recordFailure" in input_base and "pageRetryGuard.recordSuccess" in input_base,
+          "bufferFrame should track per-page load failures and clear them on success")
+  require("if (!bufferNext(" in input_base,
+          "bufferFrame should abort the page load when a packet cannot be written")
   require("SuccessExitStatus=75" in health_service,
           "recovered health events should be successful without losing telemetry")
   require("DynamicUser=yes" in health_service and "Wants=mistserver.service" not in health_service,

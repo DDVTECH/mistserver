@@ -31,6 +31,14 @@ int main(){
   requireEqual(Mist::hlsLiveStartIndex(entries, 3000), 2, "tail buffer starts at first entry inside window");
   requireEqual(Mist::hlsLiveStartIndex(entries, 1), 4, "tiny buffer keeps the tail segment");
 
+  std::deque<Mist::playListEntries> zeroStart;
+  zeroStart.push_back(entry(200, 0));
+  zeroStart.push_back(entry(201, 3000));
+  zeroStart.push_back(entry(202, 6000));
+  zeroStart.push_back(entry(203, 9000));
+  requireEqual(Mist::hlsLiveStartIndex(zeroStart, 3000), 2,
+               "a valid zero-based timeline still selects the live tail");
+
   std::deque<Mist::playListEntries> noTimestamps;
   noTimestamps.push_back(entry(1, 0));
   noTimestamps.push_back(entry(2, 0));

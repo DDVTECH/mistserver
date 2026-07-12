@@ -642,6 +642,7 @@ namespace Mist{
 
     option["arg"] = "integer";
     option["long"] = "live-start-buffer";
+    option["short"] = "L";
     option["help"] = "Initial live HLS indexing window in ms. If set, long live/event playlists start parsing near the live edge instead of from the first retained segment";
     option["value"].append(0);
     config->addOption("liveStartBufferTime", option);
@@ -649,6 +650,7 @@ namespace Mist{
     capa["optional"]["liveStartBufferTime"]["help"] =
         "Initial live HLS indexing window in ms. Set this on long catch-up playlists to recover near-live playback quickly after input restarts";
     capa["optional"]["liveStartBufferTime"]["option"] = "--live-start-buffer";
+    capa["optional"]["liveStartBufferTime"]["short"] = "L";
     capa["optional"]["liveStartBufferTime"]["type"] = "uint";
     capa["optional"]["liveStartBufferTime"]["default"] = 0;
     capa["optional"]["liveStartBufferTime"]["source_can_override"] = true;
@@ -656,6 +658,7 @@ namespace Mist{
 
     option["arg"] = "integer";
     option["long"] = "live-header-checkpoint";
+    option["short"] = "C";
     option["help"] = "Interval in seconds for writing live HLS .dtsh metadata checkpoints. Set to 0 to disable periodic checkpointing";
     option["value"].append(60);
     config->addOption("liveHeaderCheckpoint", option);
@@ -663,6 +666,7 @@ namespace Mist{
     capa["optional"]["liveHeaderCheckpoint"]["help"] =
         "Interval in seconds for writing live HLS .dtsh metadata checkpoints. This improves catch-up recovery after restarts";
     capa["optional"]["liveHeaderCheckpoint"]["option"] = "--live-header-checkpoint";
+    capa["optional"]["liveHeaderCheckpoint"]["short"] = "C";
     capa["optional"]["liveHeaderCheckpoint"]["type"] = "uint";
     capa["optional"]["liveHeaderCheckpoint"]["unit"] = "s";
     capa["optional"]["liveHeaderCheckpoint"]["default"] = 60;

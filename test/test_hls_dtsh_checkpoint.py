@@ -103,6 +103,15 @@ def main() -> None:
 
   require("/dev/shm/*Mst*" not in service,
           "systemd unit template must not delete Mist shared-memory metadata on stop")
+  require("ExecStartPre=-/usr/local/sbin/mist-clean-stale-shm" in service,
+          "systemd unit should clean shared memory left behind by an unclean stop before starting")
+  clean_script = read("scripts/mist-clean-stale-shm")
+  require("pgrep" in clean_script and "MistController" in clean_script,
+          "stale shm cleanup must refuse to run while a controller is alive")
+  require("pkill" in clean_script,
+          "stale shm cleanup should remove orphaned Mist workers that survived the unit stop")
+  require("rm -f /dev/shm/Mst" in clean_script and "sem.Mst" in clean_script,
+          "stale shm cleanup should remove leftover Mist pages and semaphores")
   timeout_match = re.search(r"^TimeoutStopSec=(\d+)$", service, re.MULTILINE)
   require(timeout_match is not None, "systemd unit should set TimeoutStopSec explicitly")
   require(int(timeout_match.group(1)) >= 60,

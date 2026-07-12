@@ -1,0 +1,28 @@
+#!/bin/sh
+# Remove Mist shared-memory state left behind by an unclean shutdown.
+#
+# A clean MistServer stop unlinks its own shared-memory pages, so anything
+# still present in /dev/shm at service start time - with no controller
+# running - is stale state from a killed instance. If the next MistInHLS run
+# adopts such stale stream metadata (readExistingHeader prefers live shm over
+# the .dtsh checkpoint), its index disagrees with the data on disk and every
+# catchup page load fails or serves corrupt pages. The 60s .dtsh checkpoint
+# makes a cold start cheap, so dropping stale shm loses at most a minute of
+# index instead of poisoning the whole run.
+#
+# Intended to run from ExecStartPre; refuses to touch anything while a
+# controller is alive.
+
+if pgrep -x MistController >/dev/null 2>&1; then
+  echo "MistController is running; leaving shared memory alone" >&2
+  exit 0
+fi
+
+# Workers that survived the unit stop (SIGKILL escalation) hold stale pages
+# open and respawn their inputs; remove them before cleaning.
+if pkill -9 '^Mist' 2>/dev/null; then
+  sleep 1
+fi
+
+rm -f /dev/shm/Mst* /dev/shm/sem.Mst*
+exit 0

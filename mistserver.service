@@ -9,6 +9,7 @@ RestartSec=2
 TasksMax=infinity
 TimeoutStopSec=60
 Environment=MIST_LOG_SYSTEMD=1
+ExecStartPre=-/usr/local/sbin/mist-clean-stale-shm
 ExecStart=/usr/bin/MistController -c /etc/mistserver.conf
 ExecReload=/bin/kill -s USR1 $MAINPID
 

@@ -282,13 +282,21 @@ namespace Mist{
 
     Util::RelAccX &tPages = aMeta.pages(packTrack);
     uint32_t pageIdx = 0;
+    bool pageIdxFound = false;
     uint32_t currPagNum = atoi(page.name.data() + page.name.rfind('_') + 1);
     Util::RelAccXFieldData firstkey = tPages.getFieldData("firstkey");
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       if (tPages.getInt(firstkey, i) == currPagNum){
         pageIdx = i;
+        pageIdxFound = true;
         break;
       }
+    }
+    if (!pageIdxFound){
+      // Never account against record 0 when the page's record is gone: that
+      // corrupts an unrelated record's bookkeeping and can wedge the track.
+      INFO_MSG("Track %" PRIu32 ": live page record not found for page %" PRIu32 " - dropping packet", packTrack, currPagNum);
+      return false;
     }
     // Save the current write position
     uint64_t pageOffset = tPages.getInt("avail", pageIdx);
@@ -411,10 +419,15 @@ namespace Mist{
         // Assume this is the first packet on the track
         isKeyframe = true;
       }else{
-        if (packTime - tPages.getInt("lastkeytime", tPages.getEndPos() - 1) >= AUDIO_KEY_INTERVAL){
+        // Decide from process-local state only: the shared ring tail record can
+        // belong to (and be refreshed by) another writer, which would keep this
+        // condition false forever and starve page flips.
+        std::map<uint32_t, uint64_t>::iterator lastKeyIt = lastAudioKeyTime.find(packTrack);
+        if (lastKeyIt == lastAudioKeyTime.end() || packTime - lastKeyIt->second >= AUDIO_KEY_INTERVAL){
           isKeyframe = true;
         }
       }
+      if (isKeyframe){lastAudioKeyTime[packTrack] = packTime;}
     }
 
     // For live streams, ignore packets that make no sense
@@ -435,13 +448,22 @@ namespace Mist{
       updateTrackFromKeyframe(packTrack, packData, packDataSize, aMeta);
       uint64_t endPage = tPages.getEndPos();
       size_t curPage = 0;
+      bool curPageFound = false;
       size_t currPagNum = atoi(livePage[packTrack].name.data() + livePage[packTrack].name.rfind('_') + 1);
       Util::RelAccXFieldData firstkey = tPages.getFieldData("firstkey");
       for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
         if (tPages.getInt(firstkey, i) == currPagNum){
           curPage = i;
+          curPageFound = true;
           break;
         }
+      }
+      if (livePage[packTrack] && !curPageFound){
+        // The record backing our open page vanished (pruned or rewritten under
+        // us). Never fall back to record 0 - that misdirects all bookkeeping
+        // onto an unrelated record. Recover by reopening on this keyframe.
+        WARN_MSG("Track %" PRIu32 ": live page record not found for page %zu - reopening", packTrack, currPagNum);
+        livePage[packTrack].close();
       }
 
       // If there is no page, create it

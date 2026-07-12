@@ -104,6 +104,17 @@ def main() -> None:
           "systemd log mapping must not use LOG_EMERG - journald wall-broadcasts it to every terminal")
   require('!strcmp(kind, "FAIL")){dprintf(out, "<2>");}' in util_implementation,
           "FAIL messages should map to LOG_CRIT under systemd logging")
+  require("lastAudioKeyTime" in io_implementation and "lastAudioKeyTime" in read("src/io.h"),
+          "audio key synthesis must use process-local state - shared ring-tail reads can be "
+          "refreshed by a concurrent writer, starving page flips forever")
+  require('getInt("lastkeytime", tPages.getEndPos()' not in io_implementation,
+          "audio key synthesis must not read the shared pages ring tail record")
+  require("live page record not found" in io_implementation,
+          "firstkey search misses must be detected instead of silently using record 0")
+  clean_shm = read("scripts/mist-clean-stale-shm")
+  require("pgrep" in clean_shm.split("pkill", 1)[1] if "pkill" in clean_shm else False,
+          "shm cleanup must confirm orphaned Mist processes are gone before removing "
+          "their shared memory, or a survivor re-attaches as a second writer")
   require("SuccessExitStatus=75" in health_service,
           "recovered health events should be successful without losing telemetry")
   require("DynamicUser=yes" in health_service and "Wants=mistserver.service" not in health_service,

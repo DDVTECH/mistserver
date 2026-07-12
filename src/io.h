@@ -61,6 +61,11 @@ namespace Mist{
   private:
     std::map<uint32_t, IPC::sharedPage> livePage;
     std::map<uint32_t, size_t> curPageNum;
+    /// Process-local time of the last synthesized non-video keyframe per track.
+    /// The synthesis decision must never depend on shared ring state: a concurrent
+    /// writer on the same shm ring can refresh the tail record's lastkeytime
+    /// forever, starving page flips until the live page fills and drops all data.
+    std::map<uint32_t, uint64_t> lastAudioKeyTime;
     size_t mainSelTrackCache;
 
   };

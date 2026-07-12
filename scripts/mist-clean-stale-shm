@@ -19,9 +19,21 @@ if pgrep -x MistController >/dev/null 2>&1; then
 fi
 
 # Workers that survived the unit stop (SIGKILL escalation) hold stale pages
-# open and respawn their inputs; remove them before cleaning.
+# open and respawn their inputs; remove them before cleaning. Deleting shared
+# memory while a survivor is still alive is dangerous: it also removes the
+# single-instance lock, letting the survivor re-attach to the NEW instance's
+# pages as a second writer (which starves audio page flips and corrupts data).
+# So: kill, then wait until they are confirmed gone before touching /dev/shm.
 if pkill -9 '^Mist' 2>/dev/null; then
-  sleep 1
+  tries=0
+  while pgrep '^Mist' >/dev/null 2>&1 && [ "$tries" -lt 10 ]; do
+    sleep 1
+    tries=$((tries + 1))
+  done
+  if pgrep '^Mist' >/dev/null 2>&1; then
+    echo "Mist processes still alive after kill; NOT cleaning shared memory" >&2
+    exit 0
+  fi
 fi
 
 rm -f /dev/shm/Mst* /dev/shm/sem.Mst*

@@ -707,7 +707,7 @@ namespace Mist{
       INFO_MSG("Could not read existing header, regenerating");
       return false;
     }
-    if (!M.inputLocalVars.isMember("version") || M.inputLocalVars["version"].asInt() < 4){
+    if (!M.inputLocalVars.isMember("version") || M.inputLocalVars["version"].asInt() < 5){
       INFO_MSG("Header needs update, regenerating");
       return false;
     }
@@ -917,7 +917,7 @@ namespace Mist{
   /// Sets inputLocalVars based on data ingested
   void InputHLS::injectLocalVars(){
     meta.inputLocalVars.null();
-    meta.inputLocalVars["version"] = 4;
+    meta.inputLocalVars["version"] = 5;
 
     // Write playlist entry info
     JSON::Value allEntries;

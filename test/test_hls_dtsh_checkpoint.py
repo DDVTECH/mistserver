@@ -42,6 +42,10 @@ def main() -> None:
   health_installer = read("scripts/install-mist-catchup-health")
 
   require("checkpointLiveHeader" in header, "InputHLS should declare a live header checkpoint helper")
+  require('meta.inputLocalVars["version"] = 5' in implementation,
+          "live HLS checkpoints should use metadata schema version 5")
+  require('M.inputLocalVars["version"].asInt() < 5' in implementation,
+          "live HLS checkpoint loading should reject older metadata schemas")
   require("checkpointLiveHeader" in implementation, "InputHLS should implement live header checkpointing")
   require('config->addOption("liveHeaderCheckpoint"' in implementation,
           "InputHLS should expose a configurable checkpoint interval")

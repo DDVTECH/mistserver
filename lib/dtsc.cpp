@@ -3495,7 +3495,7 @@ namespace DTSC{
         conn.SendNow("\000\004keys\002", 7);
         conn.SendNow(c32(keyCount * DTSH_KEY_SIZE), 4);
         for (size_t i = 0; i < keyCount; i++){
-          conn.SendNow(c64(keys.getInt("bpos", i + fragBegin)), 8);
+          conn.SendNow(c64(keys.getInt("bpos", i + keyBegin)), 8);
           conn.SendNow(c24(keys.getInt("duration", i + keyBegin)), 3);
           conn.SendNow(c32(keys.getInt("number", i + keyBegin)), 4);
           conn.SendNow(c16(keys.getInt("parts", i + keyBegin)), 2);

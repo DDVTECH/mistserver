@@ -23,6 +23,14 @@ test('Classic HLS playlist window', hlsclassicplaylisttest, suite: 'HLS')
 atomicfiletest = executable('atomicfiletest', 'atomic_file.cpp', header_tgts, dependencies: libmist_dep)
 test('Atomic rolling playlist publication', atomicfiletest, suite: 'HLS')
 
+dtscprunedroundtriptest = executable(
+  'dtscprunedroundtriptest',
+  'dtsc_pruned_roundtrip.cpp',
+  header_tgts,
+  dependencies: libmist_dep,
+)
+test('Pruned DTSH key metadata round-trip', dtscprunedroundtriptest, suite: 'HLS')
+
 python = import('python').find_installation('python3')
 test('Live HLS checkpoint source checks', python, args: [files('test_hls_dtsh_checkpoint.py')], suite: 'HLS')
 test('Catch-up health monitor retries', python, args: [files('test_mist_catchup_health.py')], suite: 'HLS')

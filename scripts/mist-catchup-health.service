@@ -1,0 +1,21 @@
+[Unit]
+Description=MistServer shifted catch-up health check
+After=mistserver.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=MIST_HLS_BASE=https://ms-mist.inavada.com
+ExecStart=/usr/local/sbin/mist-catchup-health
+TimeoutStartSec=50s
+SuccessExitStatus=75
+Restart=no
+SyslogIdentifier=mist-catchup-health
+DynamicUser=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/media/catchup

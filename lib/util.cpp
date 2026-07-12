@@ -14,6 +14,7 @@
 #include "url.h"
 
 #include <errno.h> // errno, ENOENT, EEXIST
+#include <fcntl.h>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -24,6 +25,8 @@
 #endif
 #include <stdlib.h>
 #include <sys/resource.h>
+#include <sys/file.h>
+#include <unistd.h>
 #include <fstream>
 #ifdef WITH_THREADNAMES
 #include <pthread.h>
@@ -393,6 +396,142 @@ namespace Util{
               "handle '%s' protocols",
               uri.c_str(), target.protocol.c_str());
     return false;
+  }
+
+  /// Writes a complete local file and atomically publishes it over the destination.
+  /// Readers that already opened the destination keep reading the previous inode;
+  /// readers that open it after rename see the complete new contents.
+  bool atomicWriteFile(const std::string &uri, const std::string &data){
+    HTTP::URL target = HTTP::localURIResolver().link(uri);
+    if (!target.isLocalPath()){
+      ERROR_MSG("Atomic file publication is only supported for local paths: %s", uri.c_str());
+      return false;
+    }
+
+    const std::string path = target.getFilePath();
+    if (!Util::createPathFor(path)){
+      ERROR_MSG("Cannot create file %s: could not create parent folder", path.c_str());
+      return false;
+    }
+
+    int lockFlags = O_RDWR | O_CREAT;
+#ifdef O_CLOEXEC
+    lockFlags |= O_CLOEXEC;
+#endif
+    const std::string lockPath = path + ".lock";
+    int lockFd = open(lockPath.c_str(), lockFlags, 0666);
+    if (lockFd < 0){
+      ERROR_MSG("Failed to open atomic writer lock %s: %s", lockPath.c_str(), strerror(errno));
+      return false;
+    }
+    if (flock(lockFd, LOCK_EX | LOCK_NB) != 0){
+      ERROR_MSG("Atomic writer lock is already held for %s: %s", path.c_str(), strerror(errno));
+      close(lockFd);
+      return false;
+    }
+
+    mode_t fileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    struct stat oldStats;
+    const bool oldExists = stat(path.c_str(), &oldStats) == 0;
+    if (oldExists){fileMode = oldStats.st_mode & 07777;}
+
+    int tempFd = -1;
+    std::string tempPath;
+    const std::string tempPrefix = path + ".tmp." + std::to_string((uint64_t)getpid()) + "." + std::to_string(Util::bootMS());
+    int createFlags = O_WRONLY | O_CREAT | O_EXCL;
+#ifdef O_CLOEXEC
+    createFlags |= O_CLOEXEC;
+#endif
+    for (uint32_t attempt = 0; attempt < 100; ++attempt){
+      tempPath = tempPrefix + "." + std::to_string(attempt);
+      tempFd = open(tempPath.c_str(), createFlags, 0666);
+      if (tempFd >= 0){break;}
+      if (errno != EEXIST){
+        ERROR_MSG("Failed to open atomic temp file %s: %s", tempPath.c_str(), strerror(errno));
+        close(lockFd);
+        return false;
+      }
+    }
+    if (tempFd < 0){
+      ERROR_MSG("Failed to create a unique atomic temp file for %s", path.c_str());
+      close(lockFd);
+      return false;
+    }
+
+    if (oldExists){
+      if (fchown(tempFd, oldStats.st_uid, oldStats.st_gid) != 0){
+        if (errno == EPERM){
+          WARN_MSG("Could not preserve ownership for atomic temp file %s: %s", tempPath.c_str(), strerror(errno));
+        }else{
+          ERROR_MSG("Failed to preserve ownership for atomic temp file %s: %s", tempPath.c_str(), strerror(errno));
+          close(tempFd);
+          unlink(tempPath.c_str());
+          close(lockFd);
+          return false;
+        }
+      }
+      if (fchmod(tempFd, fileMode) != 0){
+        ERROR_MSG("Failed to preserve mode for atomic temp file %s: %s", tempPath.c_str(), strerror(errno));
+        close(tempFd);
+        unlink(tempPath.c_str());
+        close(lockFd);
+        return false;
+      }
+    }
+
+    bool writeOk = true;
+    size_t written = 0;
+    while (written < data.size()){
+      ssize_t result = write(tempFd, data.data() + written, data.size() - written);
+      if (result < 0 && errno == EINTR){continue;}
+      if (result <= 0){
+        if (result == 0){
+          ERROR_MSG("Short write while publishing atomic temp file %s", tempPath.c_str());
+        }else{
+          ERROR_MSG("Failed to write atomic temp file %s: %s", tempPath.c_str(), strerror(errno));
+        }
+        writeOk = false;
+        break;
+      }
+      written += result;
+    }
+
+    if (writeOk && fsync(tempFd) != 0){
+      ERROR_MSG("Failed to fsync atomic temp file %s: %s", tempPath.c_str(), strerror(errno));
+      writeOk = false;
+    }
+    if (close(tempFd) != 0){
+      ERROR_MSG("Failed to close atomic temp file %s: %s", tempPath.c_str(), strerror(errno));
+      writeOk = false;
+    }
+    if (!writeOk){
+      unlink(tempPath.c_str());
+      close(lockFd);
+      return false;
+    }
+
+    if (rename(tempPath.c_str(), path.c_str()) != 0){
+      ERROR_MSG("Failed to atomically publish %s: %s", path.c_str(), strerror(errno));
+      unlink(tempPath.c_str());
+      close(lockFd);
+      return false;
+    }
+
+    size_t slashPos = path.find_last_of('/');
+    std::string dirPath = slashPos == std::string::npos ? "." : (slashPos ? path.substr(0, slashPos) : "/");
+#ifdef O_DIRECTORY
+    int dirFd = open(dirPath.c_str(), O_RDONLY | O_DIRECTORY);
+#else
+    int dirFd = open(dirPath.c_str(), O_RDONLY);
+#endif
+    if (dirFd >= 0){
+      if (fsync(dirFd) != 0){WARN_MSG("Could not fsync atomic file directory %s: %s", dirPath.c_str(), strerror(errno));}
+      close(dirFd);
+    }else{
+      WARN_MSG("Could not open atomic file directory %s for fsync: %s", dirPath.c_str(), strerror(errno));
+    }
+    close(lockFd);
+    return true;
   }
   //Returns the time to wait in milliseconds for exponential back-off waiting.
   //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made

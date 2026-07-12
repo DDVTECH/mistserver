@@ -20,6 +20,13 @@ test('Redirecting log messages produces no error', exec_tgts.get('MistUtilLog'),
 hlsclassicplaylisttest = executable('hlsclassicplaylisttest', 'hls_classic_playlist.cpp', header_tgts, dependencies: libmist_dep)
 test('Classic HLS playlist window', hlsclassicplaylisttest, suite: 'HLS')
 
+atomicfiletest = executable('atomicfiletest', 'atomic_file.cpp', header_tgts, dependencies: libmist_dep)
+test('Atomic rolling playlist publication', atomicfiletest, suite: 'HLS')
+
+python = import('python').find_installation('python3')
+test('Live HLS checkpoint source checks', python, args: [files('test_hls_dtsh_checkpoint.py')], suite: 'HLS')
+test('Catch-up health monitor retries', python, args: [files('test_mist_catchup_health.py')], suite: 'HLS')
+
 downloadertest = executable('downloadertest', 'downloader.cpp', header_tgts, dependencies: libmist_dep)
 test('event-looped non-blocking', downloadertest, args: ['AUTO'], env: {'EVENTLOOP':'1'}, suite: 'Downloader')
 test('blocking', downloadertest, args: ['AUTO'], suite: 'Downloader')

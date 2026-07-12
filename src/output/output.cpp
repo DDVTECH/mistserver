@@ -1654,6 +1654,7 @@ namespace Mist{
     std::string targetDuration;
     bool reInitPlaylist = false;
     bool autoAdjustSplit = false;
+    bool atomicLocalPlaylistWrites = false;
     Socket::Connection plsConn;
     uint64_t systemBoot;
     bool addEndlist = true;
@@ -1713,6 +1714,7 @@ namespace Mist{
         std::string plsRel = targetParams["m3u8"];
         Util::streamVariables(plsRel, streamName);
         playlistLocation = HTTP::localURIResolver().link(config->getString("target")).link(plsRel);
+        atomicLocalPlaylistWrites = playlistLocation.isLocalPath() && (maxEntries || targetAge);
         if (playlistLocation.isLocalPath()){
           playlistLocationString = playlistLocation.getFilePath();
           INFO_MSG("Segmenting to local playlist '%s'", playlistLocationString.c_str());
@@ -1825,13 +1827,21 @@ namespace Mist{
         }
         // Do not open the playlist just yet if this is a non-live source
         if (M.getLive()){
-          Util::externalWriter(playlistLocationString, plsConn);
+          if (atomicLocalPlaylistWrites){
+            if (!Util::atomicWriteFile(playlistLocationString, playlistBuffer)){
+              FAIL_MSG("Failed to atomically initialize playlist file `%s`", playlistLocationString.c_str());
+              Util::logExitReason(ER_WRITE_FAILURE, "failed to atomically initialize playlist file `%s`", playlistLocationString.c_str());
+              return 1;
+            }
+          }else{
+            Util::externalWriter(playlistLocationString, plsConn);
+          }
           // Write initial contents to the playlist file
-          if (!plsConn){
+          if (!plsConn && !atomicLocalPlaylistWrites){
             FAIL_MSG("Failed to open a connection to playlist file `%s` for segmenting", playlistLocationString.c_str());
             Util::logExitReason("Failed to open a connection to playlist file `%s`  for segmenting", playlistLocationString.c_str());
             return 1;
-          }else if (playlistBuffer.size()){
+          }else if (!atomicLocalPlaylistWrites && playlistBuffer.size()){
             // Do not write to the playlist intermediately if we are outputting a VOD playlist
             plsConn.SendNow(playlistBuffer);
             // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
@@ -2051,7 +2061,7 @@ namespace Mist{
             if (targetParams.count("m3u8")){
               // We require an active connection to the playlist
               // except for VOD, where we connect and write at the end of segmenting
-              if (!plsConn && M.getLive()){
+              if (!plsConn && M.getLive() && !atomicLocalPlaylistWrites){
                 FAIL_MSG("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
                 Util::logExitReason("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
                 break;
@@ -2109,6 +2119,12 @@ namespace Mist{
                   plsConn.SendNow(playlistBuffer);
                   playlistBuffer = "";
                 // Else re-open the file to force an overwrite
+                } else if (atomicLocalPlaylistWrites) {
+                  if (!Util::atomicWriteFile(playlistLocationString, playlistBuffer)){
+                    FAIL_MSG("Failed to atomically publish playlist file `%s`", playlistLocationString.c_str());
+                    Util::logExitReason(ER_WRITE_FAILURE, "failed to atomically publish playlist file `%s`", playlistLocationString.c_str());
+                    break;
+                  }
                 } else if (Util::externalWriter(playlistLocationString, plsConn)) {
                   plsConn.SendNow(playlistBuffer);
                 }
@@ -2166,8 +2182,8 @@ namespace Mist{
     // Write last segment
     if (targetParams.count("m3u8") && (firstPacketTime != 0xFFFFFFFFFFFFFFFFull) && (lastPacketTime - firstPacketTime > 0)){
       // If this is a non-live source, we can finally open up the connection to the playlist file
-      if (!M.getLive()) { Util::externalWriter(playlistLocationString, plsConn); }
-      if (plsConn){
+      if (!M.getLive() && !atomicLocalPlaylistWrites) { Util::externalWriter(playlistLocationString, plsConn); }
+      if (plsConn || atomicLocalPlaylistWrites){
 
         if (lastPacketTime - currentStartTime > 0){
           std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
@@ -2192,6 +2208,11 @@ namespace Mist{
         if (!maxEntries && !targetAge) {
           plsConn.SendNow(playlistBuffer);
         // Else re-open the file to force an overwrite
+        } else if (atomicLocalPlaylistWrites) {
+          if (!Util::atomicWriteFile(playlistLocationString, playlistBuffer)){
+            FAIL_MSG("Failed to atomically publish final playlist file `%s`", playlistLocationString.c_str());
+            Util::logExitReason(ER_WRITE_FAILURE, "failed to atomically publish final playlist file `%s`", playlistLocationString.c_str());
+          }
         } else if (Util::externalWriter(playlistLocationString, plsConn)) {
           plsConn.SendNow(playlistBuffer);
         }

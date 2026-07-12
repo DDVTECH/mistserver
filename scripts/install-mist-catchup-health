@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+install -m 0755 "$script_dir/mist-catchup-health" /usr/local/sbin/mist-catchup-health
+install -m 0644 "$script_dir/mist-catchup-health.service" /etc/systemd/system/mist-catchup-health.service
+install -m 0644 "$script_dir/mist-catchup-health.timer" /etc/systemd/system/mist-catchup-health.timer
+
+systemctl daemon-reload
+systemctl enable --now mist-catchup-health.timer

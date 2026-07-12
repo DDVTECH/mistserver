@@ -1,0 +1,12 @@
+[Unit]
+Description=Run MistServer shifted catch-up health check every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1min
+RandomizedDelaySec=5s
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

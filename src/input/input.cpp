@@ -606,8 +606,13 @@ namespace Mist{
       HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       // if the exit was clean, don't restart it
       int exitCode = WIFEXITED(status)?WEXITSTATUS(status):-1;
+      int termSignal = WIFSIGNALED(status)?WTERMSIG(status):0;
       if (wasClean || exitCode == 0 || exitCode == 1){
         HIGH_MSG("Input for stream %s shut down cleanly", streamName.c_str());
+        break;
+      }
+      if (termSignal && !config->is_active){
+        INFO_MSG("Input child %u for stream %s terminated by signal %i during requested shutdown", pid, streamName.c_str(), termSignal);
         break;
       }
       if (playerLock){
@@ -651,12 +656,29 @@ namespace Mist{
         }
         doInputAbortTrigger(pid, Util::mRExitReason, Util::exitReason);
         memcpy(Util::exitReason, exitReason, 256);
+      }else if (termSignal){
+        char exitReason[256];
+        memcpy(exitReason, Util::exitReason, 256);
+        const char *reasonCode = ER_UNKNOWN;
+        switch (termSignal){
+        case SIGILL: reasonCode = ER_SIGILL; break;
+        case SIGTRAP: reasonCode = ER_SIGTRAP; break;
+        case SIGABRT: reasonCode = ER_SIGABRT; break;
+        case SIGFPE: reasonCode = ER_SIGFPE; break;
+        case SIGBUS: reasonCode = ER_SIGBUS; break;
+        case SIGSEGV: reasonCode = ER_SEGFAULT; break;
+        case SIGKILL: reasonCode = ER_SIGKILL; break;
+        }
+        WARN_MSG("Child process %u terminated by signal %i (%s), cleaning up...", pid, termSignal, strsignal(termSignal));
+        Util::logExitReason(reasonCode, "Child process %u terminated by signal %i (%s)", pid, termSignal, strsignal(termSignal));
+        doInputAbortTrigger(pid, Util::mRExitReason, Util::exitReason);
+        memcpy(Util::exitReason, exitReason, 256);
       }
       
       #if DEBUG >= DLVL_DEVEL
       WARN_MSG(
-          "Input for stream %s uncleanly shut down (exited %d)! Aborting restart; this is a development build.",
-          streamName.c_str(), exitCode);
+          "Input for stream %s uncleanly shut down (%s %d)! Aborting restart; this is a development build.",
+          streamName.c_str(), termSignal ? "signal" : "exit", termSignal ? termSignal : exitCode);
       break;
       #else
       if (config->is_active){

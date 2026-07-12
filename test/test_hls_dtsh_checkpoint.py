@@ -32,7 +32,14 @@ def require(condition: bool, message: str) -> None:
 def main() -> None:
   header = read("src/input/input_hls.h")
   implementation = read("src/input/input_hls.cpp")
+  input_base = read("src/input/input.cpp")
+  output_implementation = read("src/output/output.cpp")
+  util_header = read("lib/util.h")
+  util_implementation = read("lib/util.cpp")
   service = read("mistserver.service")
+  health_service = read("scripts/mist-catchup-health.service")
+  health_timer = read("scripts/mist-catchup-health.timer")
+  health_installer = read("scripts/install-mist-catchup-health")
 
   require("checkpointLiveHeader" in header, "InputHLS should declare a live header checkpoint helper")
   require("checkpointLiveHeader" in implementation, "InputHLS should implement live header checkpointing")
@@ -56,6 +63,27 @@ def main() -> None:
           "checkpoint writer should atomically rename the temporary .dtsh into place")
   require("remove(" in implementation,
           "checkpoint writer should clean up failed temporary .dtsh writes")
+
+  require("atomicWriteFile" in util_header,
+          "libmist should expose complete-buffer atomic file publication")
+  require("atomicWriteFile" in util_implementation,
+          "libmist should implement complete-buffer atomic file publication")
+  require("O_EXCL" in util_implementation and "fsync(" in util_implementation and "rename(" in util_implementation,
+          "atomic file publication should use a unique temp, fsync, and rename")
+  require("atomicLocalPlaylistWrites" in output_implementation,
+          "rolling local playlist output should select the atomic publication path")
+  require(output_implementation.count("atomicWriteFile(playlistLocationString, playlistBuffer)") >= 3,
+          "initial, per-segment, and final rolling playlist snapshots should publish atomically")
+  require("WIFSIGNALED" in input_base and "WTERMSIG" in input_base,
+          "input supervision should record the terminating signal instead of a generic -1")
+  require("SuccessExitStatus=75" in health_service,
+          "recovered health events should be successful without losing telemetry")
+  require("DynamicUser=yes" in health_service and "Wants=mistserver.service" not in health_service,
+          "health monitor should be unprivileged and must not start an intentionally stopped server")
+  require("Persistent=false" in health_timer and "OnUnitActiveSec=1min" in health_timer,
+          "health timer should run every minute without replaying missed checks")
+  require("/usr/local/sbin/mist-catchup-health" in health_installer and "systemctl daemon-reload" in health_installer,
+          "monitor deployment should install its runtime and reload systemd")
 
   require("/dev/shm/*Mst*" not in service,
           "systemd unit template must not delete Mist shared-memory metadata on stop")

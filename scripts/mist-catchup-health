@@ -1,0 +1,479 @@
+#!/usr/bin/env python3
+"""Validate retained HLS timestamps and exact shifted catch-up playback."""
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+import re
+import sys
+import threading
+import time
+from typing import Callable, TypeVar
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlsplit, urlunsplit
+from urllib.request import ProxyHandler, Request, build_opener
+
+
+CHANNELS = tuple(sys.argv[1:]) or ("fox", "cbs", "syfy")
+BASE_URL = os.environ.get("MIST_HLS_BASE", "http://127.0.0.1:8080").rstrip("/")
+TIMEOUT = float(os.environ.get("MIST_HEALTH_TIMEOUT", "5"))
+MAX_TAIL_AGE = float(os.environ.get("MIST_MAX_TAIL_AGE", "90"))
+MAX_EDGE_DRIFT = float(os.environ.get("MIST_MAX_EDGE_DRIFT", "30"))
+MAX_SEGMENT_DURATION_MS = int(os.environ.get("MIST_MAX_SEGMENT_DURATION_MS", "30000"))
+MAX_CATCHUP_START_DRIFT = float(os.environ.get("MIST_MAX_CATCHUP_START_DRIFT", "12"))
+SNAPSHOT_GAP = float(os.environ.get("MIST_SNAPSHOT_GAP", "0.075"))
+LOCAL_RETRY_DELAYS = (0.10, 0.20, 0.40)
+PLAYBACK_RETRY_DELAYS = (0.50,)
+SEGMENT_RANGE = re.compile(r"^(\d+)_(\d+)\.ts$")
+PRINT_LOCK = threading.Lock()
+THREAD_STATE = threading.local()
+T = TypeVar("T")
+
+
+class HealthError(RuntimeError):
+    def __init__(self, stage: str, message: str, url: str | None = None):
+        super().__init__(message)
+        self.stage = stage
+        self.url = url
+
+
+class SnapshotUnstable(HealthError):
+    pass
+
+
+class ConfirmedFailure(RuntimeError):
+    def __init__(self, scope: str, stage: str, message: str):
+        super().__init__(message)
+        self.scope = scope
+        self.stage = stage
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def safe_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parts = urlsplit(url)
+    allowed_query = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key in {"startunix", "catchup"}
+    ]
+    hostname = parts.hostname or ""
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    netloc = hostname + (f":{parts.port}" if parts.port else "")
+    return urlunsplit((parts.scheme, netloc, parts.path, urlencode(allowed_query), ""))
+
+
+def emit_event(event: str, channel: str, scope: str, **fields: object) -> None:
+    payload: dict[str, object] = {
+        "ts": utc_now(),
+        "event": event,
+        "channel": channel,
+        "scope": scope,
+    }
+    payload.update({key: value for key, value in fields.items() if value is not None})
+    with PRINT_LOCK:
+        print(json.dumps(payload, sort_keys=True), flush=True)
+
+
+def opener():
+    current = getattr(THREAD_STATE, "opener", None)
+    if current is None:
+        current = build_opener(ProxyHandler({}))
+        THREAD_STATE.opener = current
+    return current
+
+
+def fetch(
+    stage: str,
+    url: str,
+    *,
+    limit: int = 2 * 1024 * 1024,
+    byte_range: str | None = None,
+    allow_truncated: bool = False,
+) -> bytes:
+    headers = {"Cache-Control": "no-cache", "User-Agent": "mist-catchup-health/2"}
+    if byte_range:
+        headers["Range"] = byte_range
+    request = Request(url, headers=headers)
+    try:
+        with opener().open(request, timeout=TIMEOUT) as response:
+            if response.status not in (200, 206):
+                raise RuntimeError(f"HTTP {response.status}")
+            payload = response.read(limit if allow_truncated else limit + 1)
+    except Exception as exc:
+        raise HealthError(stage, f"{stage} request failed: {exc}", safe_url(url)) from exc
+    if not allow_truncated and len(payload) > limit:
+        raise HealthError(stage, f"{stage} response exceeded {limit} bytes", safe_url(url))
+    return payload
+
+
+def stat_signature(value: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+
+
+def read_snapshot_candidate(path: Path) -> tuple[bytes, tuple[int, int, int, int, int], str]:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError as exc:
+        raise SnapshotUnstable("recording_snapshot", f"cannot open {path}: {exc}") from exc
+    try:
+        before = os.fstat(descriptor)
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+        pathname = os.stat(path)
+    except OSError as exc:
+        raise SnapshotUnstable("recording_snapshot", f"cannot read stable snapshot {path}: {exc}") from exc
+    finally:
+        os.close(descriptor)
+
+    payload = b"".join(chunks)
+    before_signature = stat_signature(before)
+    after_signature = stat_signature(after)
+    pathname_signature = stat_signature(pathname)
+    if before_signature != after_signature or after_signature != pathname_signature:
+        raise SnapshotUnstable("recording_snapshot", f"{path} changed while being read")
+    if len(payload) != after.st_size:
+        raise SnapshotUnstable(
+            "recording_snapshot", f"{path} returned {len(payload)} of {after.st_size} bytes"
+        )
+    if not payload.startswith(b"#EXTM3U\n"):
+        raise SnapshotUnstable("recording_snapshot", f"{path} has no complete HLS header")
+    if not payload.endswith(b"\n"):
+        raise SnapshotUnstable("recording_snapshot", f"{path} ends with a partial line")
+    digest = hashlib.blake2b(payload, digest_size=16).hexdigest()
+    return payload, after_signature, digest
+
+
+def read_stable_snapshot(path: Path) -> str:
+    first_payload, first_signature, first_digest = read_snapshot_candidate(path)
+    time.sleep(SNAPSHOT_GAP)
+    second_payload, second_signature, second_digest = read_snapshot_candidate(path)
+    if first_signature != second_signature or first_digest != second_digest:
+        raise SnapshotUnstable("recording_snapshot", f"{path} changed between snapshot samples")
+    if first_payload != second_payload:
+        raise SnapshotUnstable("recording_snapshot", f"{path} snapshot digest collision")
+    return second_payload.decode("utf-8", errors="replace")
+
+
+def first_variant(lines: list[str]) -> str:
+    expect_uri = False
+    for line in lines:
+        if expect_uri and line and not line.startswith("#"):
+            return line
+        expect_uri = line.startswith("#EXT-X-STREAM-INF")
+    raise HealthError("master", "master playlist has no variant")
+
+
+def media_segments(lines: list[str]) -> list[str]:
+    return [line for line in lines if line and not line.startswith("#") and ".ts" in line]
+
+
+def parse_pdt(value: str) -> float:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError as exc:
+        raise HealthError("recording_parse", f"invalid PROGRAM-DATE-TIME {value!r}") from exc
+
+
+def validate_segment_ranges(channel: str, segments: list[str]) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    for segment in segments:
+        name = urlparse(segment).path.rsplit("/", 1)[-1]
+        match = SEGMENT_RANGE.fullmatch(name)
+        if not match:
+            raise HealthError("variant", f"{channel}: malformed Mist segment range: {name}")
+        start_ms, end_ms = (int(value) for value in match.groups())
+        if end_ms <= start_ms:
+            raise HealthError("variant", f"{channel}: invalid Mist segment range {start_ms}_{end_ms}")
+        duration_ms = end_ms - start_ms
+        if duration_ms > MAX_SEGMENT_DURATION_MS:
+            raise HealthError(
+                "variant",
+                f"{channel}: Mist segment range {start_ms}_{end_ms} spans "
+                f"{duration_ms}ms (limit {MAX_SEGMENT_DURATION_MS}ms)",
+            )
+        if ranges and start_ms < ranges[-1][1]:
+            raise HealthError(
+                "variant",
+                f"{channel}: segment {start_ms}_{end_ms} overlaps "
+                f"{ranges[-1][0]}_{ranges[-1][1]}",
+            )
+        ranges.append((start_ms, end_ms))
+    return ranges
+
+
+def fetch_unix_offset(channel: str) -> float:
+    metadata_url = f"{BASE_URL}/json_{channel}_catchup.js?inclzero=1&metaeverywhere=1"
+    try:
+        metadata = json.loads(fetch("metadata", metadata_url).decode("utf-8", errors="replace"))
+    except json.JSONDecodeError as exc:
+        raise HealthError("metadata", f"{channel}: invalid Mist metadata JSON", safe_url(metadata_url)) from exc
+    if not isinstance(metadata, dict):
+        raise HealthError("metadata", f"{channel}: Mist metadata is not an object")
+    if metadata.get("error"):
+        raise HealthError("metadata", f"{channel}: Mist metadata error: {metadata['error']}")
+    unix_offset = metadata.get("unixoffset")
+    if (
+        isinstance(unix_offset, bool)
+        or not isinstance(unix_offset, (int, float))
+        or not math.isfinite(unix_offset)
+    ):
+        raise HealthError("metadata", f"{channel}: Mist metadata has no valid unixoffset")
+    return float(unix_offset)
+
+
+def validate_recording_once(channel: str, path: Path | None = None) -> tuple[int, float, float]:
+    recording_path = path or Path(f"/media/catchup/{channel}/{channel}.m3u8")
+    stale_temps = []
+    now = time.time()
+    for pattern in (f"{recording_path.name}.tmp.*", f"{recording_path.name}.dtsh.tmp.*"):
+        stale_temps.extend(
+            candidate
+            for candidate in recording_path.parent.glob(pattern)
+            if now - candidate.stat().st_mtime > 300
+        )
+    if stale_temps:
+        raise HealthError(
+            "recording_temp",
+            f"{recording_path}: stale temporary publications: "
+            + ", ".join(candidate.name for candidate in sorted(stale_temps)),
+        )
+    previous: float | None = None
+    count = 0
+    for raw_line in read_stable_snapshot(recording_path).splitlines():
+        line = raw_line.strip()
+        if not line.startswith("#EXT-X-PROGRAM-DATE-TIME:"):
+            continue
+        current = parse_pdt(line.split(":", 1)[1])
+        if previous is not None and current + 0.001 < previous:
+            raise HealthError(
+                "recording_parse",
+                f"{recording_path}: backward PROGRAM-DATE-TIME ({current:.3f} after {previous:.3f})",
+            )
+        previous = current
+        count += 1
+    if previous is None:
+        raise HealthError("recording_parse", f"{recording_path}: no PROGRAM-DATE-TIME tags")
+    age = time.time() - previous
+    if age < -15:
+        raise HealthError("recording_freshness", f"{recording_path}: tail is {-age:.1f}s in the future")
+    if age > MAX_TAIL_AGE:
+        raise HealthError("recording_freshness", f"{recording_path}: tail is stale by {age:.1f}s")
+    return count, age, previous
+
+
+def validate_playback_once(
+    channel: str, recording_tail: float | None
+) -> tuple[int, float, float | None, float, str]:
+    request_time = time.time()
+    master_url = f"{BASE_URL}/hls/{channel}_catchup/index.m3u8?startunix=-20&catchup=1"
+    master_lines = fetch("master", master_url).decode("utf-8", errors="replace").splitlines()
+    if not master_lines or master_lines[0].strip() != "#EXTM3U":
+        raise HealthError("master", f"{channel}: response is not an HLS master", safe_url(master_url))
+    if any(line.startswith("#EXT-X-ERROR") for line in master_lines):
+        raise HealthError("master", f"{channel}: master contains EXT-X-ERROR", safe_url(master_url))
+
+    variant_url = urljoin(master_url, first_variant([line.strip() for line in master_lines]))
+    variant_query = dict(parse_qsl(urlsplit(variant_url).query, keep_blank_values=True))
+    if variant_query.get("startunix") != "-20" or variant_query.get("catchup") != "1":
+        raise HealthError(
+            "variant_query",
+            f"{channel}: master variant did not preserve startunix=-20&catchup=1",
+            safe_url(variant_url),
+        )
+    variant_lines = [
+        line.strip()
+        for line in fetch("variant", variant_url).decode("utf-8", errors="replace").splitlines()
+    ]
+    if any(line.startswith("#EXT-X-ERROR") for line in variant_lines):
+        raise HealthError("variant", f"{channel}: variant contains EXT-X-ERROR", safe_url(variant_url))
+    segments = media_segments(variant_lines)
+    if len(segments) < 3:
+        raise HealthError("variant", f"{channel}: variant contains only {len(segments)} segments")
+    segment_ranges = validate_segment_ranges(channel, segments)
+
+    variant_pdts = [
+        parse_pdt(line.split(":", 1)[1])
+        for line in variant_lines
+        if line.startswith("#EXT-X-PROGRAM-DATE-TIME:")
+    ]
+    if variant_pdts:
+        if any(current + 0.001 < previous for previous, current in zip(variant_pdts, variant_pdts[1:])):
+            raise HealthError("variant", f"{channel}: shifted PROGRAM-DATE-TIME moves backward")
+        tail_start = variant_pdts[-1]
+        tail_end = tail_start
+        first_start = variant_pdts[0]
+        timing_source = "PDT"
+    else:
+        unix_offset = fetch_unix_offset(channel)
+        tail_start = (unix_offset + segment_ranges[-1][0]) / 1000.0
+        tail_end = (unix_offset + segment_ranges[-1][1]) / 1000.0
+        first_start = (unix_offset + segment_ranges[0][0]) / 1000.0
+        timing_source = "segment range + unixoffset"
+
+    catchup_start_drift = abs(first_start - (request_time - 20.0))
+    if catchup_start_drift > MAX_CATCHUP_START_DRIFT:
+        raise HealthError(
+            "catchup_start",
+            f"{channel}: first segment is {catchup_start_drift:.1f}s from requested -20s start",
+        )
+
+    tail_age = time.time() - tail_end
+    if tail_age < -15:
+        raise HealthError("variant_freshness", f"{channel}: shifted tail is {-tail_age:.1f}s in the future")
+    if tail_age > MAX_TAIL_AGE:
+        raise HealthError("variant_freshness", f"{channel}: shifted tail is stale by {tail_age:.1f}s")
+    edge_drift = None if recording_tail is None else abs(recording_tail - tail_start)
+    if edge_drift is not None and edge_drift > MAX_EDGE_DRIFT:
+        raise HealthError("variant_freshness", f"{channel}: shifted edge drift is {edge_drift:.1f}s")
+
+    segment_url = urljoin(variant_url, segments[-1])
+    first_packet = fetch(
+        "segment", segment_url, limit=188, byte_range="bytes=0-187", allow_truncated=True
+    )
+    if len(first_packet) < 188 or first_packet[0] != 0x47:
+        raise HealthError("segment", f"{channel}: latest segment is not readable MPEG-TS", safe_url(segment_url))
+    return len(segments), tail_age, edge_drift, catchup_start_drift, timing_source
+
+
+def confirmed_check(
+    channel: str,
+    scope: str,
+    delays: tuple[float, ...],
+    operation: Callable[[], T],
+) -> tuple[T, bool]:
+    first_error: str | None = None
+    last_error: Exception | None = None
+    attempts = len(delays) + 1
+    for attempt in range(1, attempts + 1):
+        started = time.monotonic()
+        try:
+            result = operation()
+        except Exception as exc:
+            last_error = exc
+            error = str(exc)
+            if first_error is None:
+                first_error = error
+            emit_event(
+                "attempt_failed",
+                channel,
+                scope,
+                stage=getattr(exc, "stage", scope),
+                attempt=attempt,
+                elapsed_ms=round((time.monotonic() - started) * 1000),
+                error=error,
+                url=safe_url(getattr(exc, "url", None)),
+            )
+            if attempt < attempts:
+                time.sleep(delays[attempt - 1])
+                continue
+            stage = getattr(exc, "stage", scope)
+            emit_event(
+                "confirmed_failure",
+                channel,
+                scope,
+                stage=stage,
+                attempt=attempt,
+                error=error,
+                first_error=first_error,
+            )
+            raise ConfirmedFailure(scope, stage, error) from exc
+        if first_error is not None:
+            emit_event(
+                "recovered",
+                channel,
+                scope,
+                attempt=attempt,
+                elapsed_ms=round((time.monotonic() - started) * 1000),
+                first_error=first_error,
+            )
+            return result, True
+        return result, False
+    raise AssertionError(last_error)
+
+
+def check_channel(channel: str) -> int:
+    recovered = False
+    failures: list[str] = []
+    recording_result: tuple[int, float, float] | None = None
+    try:
+        recording_result, did_recover = confirmed_check(
+            channel, "local", LOCAL_RETRY_DELAYS, lambda: validate_recording_once(channel)
+        )
+        recovered |= did_recover
+    except ConfirmedFailure as exc:
+        failures.append(f"local/{exc.stage}: {exc}")
+
+    recording_tail = recording_result[2] if recording_result else None
+    playback_result: tuple[int, float, float | None, float, str] | None = None
+    try:
+        playback_result, did_recover = confirmed_check(
+            channel,
+            "served",
+            PLAYBACK_RETRY_DELAYS,
+            lambda: validate_playback_once(channel, recording_tail),
+        )
+        recovered |= did_recover
+    except ConfirmedFailure as exc:
+        failures.append(f"served/{exc.stage}: {exc}")
+
+    if failures:
+        with PRINT_LOCK:
+            print(f"FAIL {channel}: {'; '.join(failures)}", file=sys.stderr, flush=True)
+        return 1
+
+    assert playback_result is not None
+    segment_count, shifted_age, edge_drift, catchup_start_drift, timing_source = playback_result
+    if recording_result:
+        pdt_count, tail_age, _ = recording_result
+        recording_summary = f"{pdt_count} PDT tags, tail age {tail_age:.1f}s"
+    else:
+        recording_summary = "recording validation unavailable"
+    drift_summary = "unknown" if edge_drift is None else f"{edge_drift:.1f}s"
+    with PRINT_LOCK:
+        print(
+            f"OK {channel}: {recording_summary}, shifted playlist {segment_count} segments, "
+            f"tail age {shifted_age:.1f}s, edge drift {drift_summary}, "
+            f"start drift {catchup_start_drift:.1f}s ({timing_source})",
+            flush=True,
+        )
+    return 75 if recovered else 0
+
+
+def main() -> int:
+    results: list[int] = []
+    with ThreadPoolExecutor(max_workers=max(1, len(CHANNELS))) as executor:
+        futures = {executor.submit(check_channel, channel): channel for channel in CHANNELS}
+        for future in as_completed(futures):
+            channel = futures[future]
+            try:
+                results.append(future.result())
+            except Exception as exc:
+                emit_event("confirmed_failure", channel, "internal", stage="internal", error=str(exc))
+                with PRINT_LOCK:
+                    print(f"FAIL {channel}: internal monitor error: {exc}", file=sys.stderr, flush=True)
+                results.append(1)
+    if any(result == 1 for result in results):
+        return 1
+    if any(result == 75 for result in results):
+        return 75
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

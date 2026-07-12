@@ -331,3 +331,4 @@ static inline void show_stackframe(){}
 #define ER_SIGILL "SIGILL"
 #define ER_SIGFPE "SIGFPE"
 #define ER_SIGBUS "SIGBUS"
+#define ER_SIGKILL "SIGKILL"

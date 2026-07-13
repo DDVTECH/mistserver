@@ -1627,6 +1627,31 @@ namespace Mist{
     plsInitCount = 0;
     plsTotalCount = 0;
 
+    // Live sources without any EXT-X-PROGRAM-DATE-TIME would anchor the
+    // timeline to the source's raw transport timestamps, back-dating the whole
+    // stream by however long the source encoder has been running. Seed a
+    // synthetic wall-clock anchor instead: the newest entry ends "now".
+    if (streamIsLive && !zUTC){
+      std::lock_guard<std::mutex> guard(entryMutex);
+      uint64_t nowMs = Util::unixMS();
+      uint64_t earliestSeeded = 0;
+      for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
+           pListIt != listEntries.end(); pListIt++){
+        if (hlsSeedEntryUTC(pListIt->second, nowMs)){
+          uint64_t first = pListIt->second.front().mUTC;
+          if (!earliestSeeded || first < earliestSeeded){earliestSeeded = first;}
+        }
+      }
+      if (earliestSeeded){
+        zUTC = earliestSeeded;
+        INFO_MSG("Source has no PROGRAM-DATE-TIME tags; anchoring live edge at the wall clock (program start %s)",
+                 Util::getUTCStringMillis(zUTC).c_str());
+        streamOffset = zUTC - (Util::unixMS() - Util::bootMS());
+        meta.setUTCOffset(zUTC, UTCSRC_PROTOCOL);
+        if (M.getLive()){meta.setBootMsOffset(streamOffset);}
+      }
+    }
+
     return ret;
   }
 

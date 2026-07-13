@@ -86,6 +86,26 @@ namespace Mist{
     return 0;
   }
 
+  /// Backfills synthetic wall-clock timestamps onto a live playlist window that
+  /// carries no EXT-X-PROGRAM-DATE-TIME tags, anchoring the newest entry so it
+  /// ends at nowUnixMs. Later appended entries inherit monotonically from the
+  /// seeded tail. Without an anchor, ingest adopts the source's raw transport
+  /// timestamps, back-dating the whole timeline by however long the source
+  /// encoder has been running. Returns true if the window was seeded; never
+  /// touches a window that already carries any UTC information.
+  inline bool hlsSeedEntryUTC(std::deque<playListEntries> &entries, uint64_t nowUnixMs){
+    if (entries.empty()){return false;}
+    for (std::deque<playListEntries>::const_iterator it = entries.begin(); it != entries.end(); ++it){
+      if (it->mUTC){return false;}
+    }
+    uint64_t at = nowUnixMs;
+    for (std::deque<playListEntries>::reverse_iterator rit = entries.rbegin(); rit != entries.rend(); ++rit){
+      at -= (uint64_t)(rit->duration * 1000);
+      rit->mUTC = at;
+    }
+    return true;
+  }
+
   /// Keeps the segment entry list by playlist ID
   extern std::map<uint32_t, std::deque<playListEntries> > listEntries;
 

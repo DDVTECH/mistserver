@@ -44,6 +44,22 @@ urireaderlifecycletest = executable(
 )
 test('URIReader releases fd and mapping on destruction', urireaderlifecycletest, suite: 'HLS')
 
+utctimedifftest = executable(
+  'utctimedifftest',
+  'utc_time_diff.cpp',
+  header_tgts,
+  dependencies: libmist_dep,
+)
+test('Future timestamps never underflow segment age', utctimedifftest, suite: 'HLS')
+
+hlsseedutctest = executable(
+  'hlsseedutctest',
+  'hls_seed_utc.cpp',
+  header_tgts,
+  dependencies: libmist_dep,
+)
+test('PDT-less live playlists anchor at the wall clock', hlsseedutctest, suite: 'HLS')
+
 atomicfiletest = executable('atomicfiletest', 'atomic_file.cpp', header_tgts, dependencies: libmist_dep)
 test('Atomic rolling playlist publication', atomicfiletest, suite: 'HLS')
 

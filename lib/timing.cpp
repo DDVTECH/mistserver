@@ -166,6 +166,10 @@ uint64_t Util::getUTCTimeDiff(std::string UTCString, uint64_t epochMillis){
   memset(&ptmUTC, 0, sizeof(struct tm));
   strptime(UTCString.c_str(), "%Y-%m-%dT%H:%M:%S%z", &ptmUTC);
   time_t UTCTime = mktime(&ptmUTC);
+  // Callers treat the result as an age: a timestamp in the future has age zero.
+  // Never underflow - one mis-anchored "now" would make every entry look
+  // billions of seconds old and prune away an entire recording.
+  if (UTCTime >= (time_t)epochTime){return 0;}
   return epochTime - UTCTime;
 }
 

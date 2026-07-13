@@ -101,5 +101,17 @@ class CatchupHealthTests(unittest.TestCase):
         )
 
 
+    def test_catchup_shift_is_configurable_and_clears_ingest_latency(self) -> None:
+        """HLS-pull ingest adds ~20-26s of latency; probing startunix=-20 lands
+        at the ingest edge and sees a near-empty playlist. The probe shift must
+        be configurable and default beyond that latency."""
+        self.assertIn("CATCHUP_SHIFT", MODULE)
+        self.assertEqual(MODULE["CATCHUP_SHIFT"], 40)
+        source = (ROOT / "scripts" / "mist-catchup-health").read_text(encoding="utf-8")
+        self.assertNotIn("startunix=-20", source)
+        self.assertIn("MIST_CATCHUP_SHIFT", source)
+
+
+
 if __name__ == "__main__":
     unittest.main()

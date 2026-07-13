@@ -26,6 +26,8 @@ MAX_TAIL_AGE = float(os.environ.get("MIST_MAX_TAIL_AGE", "90"))
 MAX_EDGE_DRIFT = float(os.environ.get("MIST_MAX_EDGE_DRIFT", "30"))
 MAX_SEGMENT_DURATION_MS = int(os.environ.get("MIST_MAX_SEGMENT_DURATION_MS", "30000"))
 MAX_CATCHUP_START_DRIFT = float(os.environ.get("MIST_MAX_CATCHUP_START_DRIFT", "12"))
+# Shift for the exact-playback probe: must exceed ingest latency (HLS-pull adds ~20-26s)
+CATCHUP_SHIFT = int(float(os.environ.get("MIST_CATCHUP_SHIFT", "40")))
 SNAPSHOT_GAP = float(os.environ.get("MIST_SNAPSHOT_GAP", "0.075"))
 LOCAL_RETRY_DELAYS = (0.10, 0.20, 0.40)
 PLAYBACK_RETRY_DELAYS = (0.50,)
@@ -281,7 +283,7 @@ def validate_playback_once(
     channel: str, recording_tail: float | None
 ) -> tuple[int, float, float | None, float, str]:
     request_time = time.time()
-    master_url = f"{BASE_URL}/hls/{channel}_catchup/index.m3u8?startunix=-20&catchup=1"
+    master_url = f"{BASE_URL}/hls/{channel}_catchup/index.m3u8?startunix=-{CATCHUP_SHIFT}&catchup=1"
     master_lines = fetch("master", master_url).decode("utf-8", errors="replace").splitlines()
     if not master_lines or master_lines[0].strip() != "#EXTM3U":
         raise HealthError("master", f"{channel}: response is not an HLS master", safe_url(master_url))
@@ -290,10 +292,10 @@ def validate_playback_once(
 
     variant_url = urljoin(master_url, first_variant([line.strip() for line in master_lines]))
     variant_query = dict(parse_qsl(urlsplit(variant_url).query, keep_blank_values=True))
-    if variant_query.get("startunix") != "-20" or variant_query.get("catchup") != "1":
+    if variant_query.get("startunix") != f"-{CATCHUP_SHIFT}" or variant_query.get("catchup") != "1":
         raise HealthError(
             "variant_query",
-            f"{channel}: master variant did not preserve startunix=-20&catchup=1",
+            f"{channel}: master variant did not preserve startunix=-{CATCHUP_SHIFT}&catchup=1",
             safe_url(variant_url),
         )
     variant_lines = [
@@ -326,11 +328,11 @@ def validate_playback_once(
         first_start = (unix_offset + segment_ranges[0][0]) / 1000.0
         timing_source = "segment range + unixoffset"
 
-    catchup_start_drift = abs(first_start - (request_time - 20.0))
+    catchup_start_drift = abs(first_start - (request_time - float(CATCHUP_SHIFT)))
     if catchup_start_drift > MAX_CATCHUP_START_DRIFT:
         raise HealthError(
             "catchup_start",
-            f"{channel}: first segment is {catchup_start_drift:.1f}s from requested -20s start",
+            f"{channel}: first segment is {catchup_start_drift:.1f}s from requested -{CATCHUP_SHIFT}s start",
         )
 
     tail_age = time.time() - tail_end

@@ -224,7 +224,7 @@ namespace Mist{
       bool operator()(const JSON::Value & a, const JSON::Value & b) const {
         if (a["s"].asInt() > b["s"].asInt()) return true;
         if (a["s"].asInt() < b["s"].asInt()) return false;
-        return a["hrn"].asStringRef() > b["hrn"].asStringRef();
+        return a.toString() > b["hrn"].toString();
       }
   };
 

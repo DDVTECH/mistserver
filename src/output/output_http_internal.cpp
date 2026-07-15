@@ -747,6 +747,11 @@ namespace Mist{
         }
       }
       S["s"] = score;
+#if DEBUG < DLVL_DEVEL
+      // Remove the score details if compiled as a non-debug build
+      S.removeMember("score");
+      S.removeMember("scores_result");
+#endif
       sorted_sources.insert(S);
     }
 

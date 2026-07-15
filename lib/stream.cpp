@@ -1919,9 +1919,5 @@ void Util::sortTracks(std::set<size_t> & validTracks, const DTSC::Meta & M, Util
     //Insert at end of list if not inserted yet
     if (!inserted){srtTrks.push_back(*it);}
   }
-  INFO_MSG("Tracks sorted:");
-  for (const auto & T : srtTrks) {
-    INFO_MSG("Track %s = %" PRIu64, M.getTrackIdentifier(T, true).c_str(), M.getQuality(T));
-  }
 }
 

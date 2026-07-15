@@ -12294,7 +12294,7 @@ context_menu: function(){
                                       peakoravg(track,"bps"),
                                       peakoravg(track,"maxbps"),
                                       UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
-                                      (track.fpks == 0 ? "variable" : UI.format.addUnit(UI.format.number(track.fpks/1000),'fps')),
+                                      (track.fpks == 0 ? "variable" : UI.format.addUnit(UI.format.number(Math.round(track.fpks/10)/100,{round:false}),'fps')),
                                       ('language' in track ? track.language : 'unknown'),
                                       track.nth,
                                       track.trackid,

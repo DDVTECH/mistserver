@@ -7897,10 +7897,19 @@ context_menu: function(){
                 if (input.name == "Composer") {
                   //show specialized composer/multiview input options
                   let newElement = {};
+                  const scenepreview = UI.modules.scenepreview(saveas.resolution,saveas.sources);
+
+                  //create datalist for streamname hinting
+                  let allthestreams = Object.keys(mist.data.streams).concat(d.active_streams);
+                  allthestreams = [...new Set(allthestreams)];
+                  allthestreams.sort();
+
                   build.splice(1,0,{
                     type: "DOMfield",
                     help: "The designer is a graphical interface to configure your composition layout.",
                     DOMfield: $("<div>").addClass("bigbuttons").append(
+                      scenepreview
+                    ).append(
                       $("<button>").attr("data-icon","Edit").text("Open designer").click(function(){
                         let settings = {
                           sources: $("[data-input=\"Composer\"] .field[name=\"sources\"]").getval().map(a => Object.assign({},a)), //clone the objects in the array
@@ -8603,6 +8612,20 @@ context_menu: function(){
                               }
                               break;
                             }
+                            case "lasagna": {
+                              //maximize all cells and overlay them
+                              let resolution = (settings.resolution ? settings.resolution : "1920x1080").split("x");
+                              let width = resolution[0];
+                              let height = resolution[1];
+                              for (let i = 0; i < settings.sources.length; i++) {
+                                let s = settings.sources[i];
+                                s.x = 0;
+                                s.y = 0;
+                                s.w = width;
+                                s.h = height;
+                              }
+                              break;
+                            }
                             case "none": {
                               //Freestyle! if x/y/w/h are set, keep them, otherwise, place according to grid
                               //aka place as if grid first, then overwrite
@@ -8678,12 +8701,20 @@ context_menu: function(){
                           }
                         }
 
+                        const $streams_datalist = $("<datalist>").attr("id","streams_datalist");
+                        for (const stream of allthestreams) {
+                          $streams_datalist.append(
+                            $("<option>").val(stream)
+                          );
+                        }
+
+
                         let popup = UI.popup(UI.buildUI([
                           $("<h1>").text("Composition designer"),
                           {
                             type: "help",
                             help: "The designer can be used to visually design a composer layout. Start by entering sources below."
-                          },{
+                          },$streams_datalist,{
                             label: "Sources and labels",
                             type: "inputlist",
                             help: "Enter the name of the stream or the path to a .png file that should be displayed, and, optionally, a label for it. The last source will be printed on top. You can use the dot menu or right click to change the order.",
@@ -8701,6 +8732,7 @@ context_menu: function(){
                                         filetypes: ["/*.png"]
                                       }]);
                                       this.input = $cont.find(".field");
+                                      this.input.attr("list","streams_datalist");
                                       this.button = $cont.find("button");
                                       this.button.text("🗁");
                                       return $("<span>").css("display","flex").append(this.input).append(this.button);
@@ -8862,7 +8894,6 @@ context_menu: function(){
                                 let amounts = val.split("x");
                                 if (amounts.length >= 1) this.inputs.width.val(amounts[0]);
                                 if (amounts.length >= 2) this.inputs.height.val(amounts[1]);
-
                               }
                             },
                             getval: function(){
@@ -8875,7 +8906,7 @@ context_menu: function(){
                             label: "Grid layout",
                             type: "radioselect",
                             classes: ["grid_layout"],
-                            help: "Choose your desired layout.<br>The 'standard grid' will create equal cells, using the same aspect ratio as the composer resolution.<br>The 'focussed' layout will allocate at least 2x2 cells for the first source.<br>When using the 'freestyle' layout, all cells can have a custom position and size.",
+                            help: "Choose your desired layout.<br>The 'standard grid' will create equal cells, using the same aspect ratio as the composer resolution.<br>The 'focussed' layout will allocate at least 2x2 cells for the first source.<br>Choose the 'layered' layout to overlay all layers. Usefull when your top layer has transparency, or you want to see the stream below when the top stream goes offline.<br>When using the 'freestyle' layout, all cells can have a custom position and size.",
                             radioselect: [
                               ["equal",$("<div>").html(
 `
@@ -8913,6 +8944,20 @@ context_menu: function(){
 `
                               ).append(
                                 $("<span>").text("Focussed")
+                              ).children()],
+                              ["lasagna",$("<div>").html(
+`
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g style="fill:white;stroke:black;stroke-width:2"> 
+  <rect id="l" x="5.5" y="5.5" width="60" height="60" />
+  <use transform="translate(5,5)" xlink:href="#l"/>
+  <use transform="translate(10,10)" xlink:href="#l"/>
+</g>
+</svg>
+`
+                              ).append(
+                                $("<span>").text("Layered")
                               ).children()],
                               ["none",$("<div>").html(
 `
@@ -9000,6 +9045,7 @@ context_menu: function(){
                       type: "browse",
                       filetypes: ["/*.png"],
                       help: "The name of the stream or path to the image that should be displayed",
+                      datalist: allthestreams,
                       validate: ["required"],
                       pointer: {
                         main: newElement,
@@ -9106,6 +9152,16 @@ context_menu: function(){
                     }
                   }
                   addLocalGlobalOpts();
+  
+
+                  let rfield = build.filter((a)=>a?.pointer?.index == "resolution")?.[0];
+                  if (rfield) rfield.function = function(){
+                    if (!$("[data-input=\"Composer\"]").length) return;
+                    scenepreview.update(
+                      $("[data-input=\"Composer\"] .field[name=\"resolution\"]").getval(),
+                      $("[data-input=\"Composer\"] .field[name=\"sources\"]").getval()
+                    );
+                  };
 
                   build.splice(2,0,{
                     label: "Source cells",
@@ -9118,6 +9174,13 @@ context_menu: function(){
                     pointer: {
                       main: saveas,
                       index: "sources"
+                    },
+                    "function": function(){
+                      if (!$("[data-input=\"Composer\"]").length) return;
+                      scenepreview.update(
+                        $("[data-input=\"Composer\"] .field[name=\"resolution\"]").getval(),
+                        $("[data-input=\"Composer\"] .field[name=\"sources\"]").getval()
+                      );
                     }
                   });
                   build.splice(2,0,$("<h4>").text("Required parameters"));
@@ -9415,7 +9478,7 @@ context_menu: function(){
         $main.find('[name="source"]').attr("list","source_datalist");
 
 
-        },{capabilities: true, streamkeys: true});
+        },{capabilities: true, streamkeys: true, active_streams: true});
         break;
       }
       case 'Status': {
@@ -16383,6 +16446,82 @@ context_menu: function(){
         $c.find(".field").first().focus();
       },{ streamkeys: true, active_streams: true, capabilities: true });
       return $c;
+    },
+    scenepreview: function(resolution,cells){
+      const section = document.createElement("section");
+      section.classList.add("scene_preview");
+
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns,"svg");
+      section.appendChild(svg);
+      svg.setAttributeNS(null,"height","100%");
+      svg.setAttributeNS(null,"width","100%");
+
+      section.update = function(resolution,cells){
+        if (!resolution) resolution = "1920x1080";
+        if (!cells) cells = [];
+
+        const [width,height] = resolution.split("x");
+        svg.setAttributeNS(null,"viewBox",[0,0,width,height].join(" "));
+        svg.style.fontSize = height/8+"px";
+
+        //first fix amount of rects
+        if (cells.length > svg.children.length) {
+          //append
+          while (cells.length > svg.children.length) {
+            const g = document.createElementNS(ns,"g");
+            const rect = document.createElementNS(ns,"rect");
+            const text = document.createElementNS(ns,"text");
+            g.appendChild(rect);
+            g.appendChild(text);
+            svg.appendChild(g);
+          }
+
+          if (!("x" in cells[0])) {
+
+          }
+        }
+        else if (cells.length < svg.children.length) {
+          //remove last
+          while (cells.length < svg.children.length) {
+            svg.removeChild(svg.children[svg.children.length-1]);
+          }
+        }
+
+        //now, ensure their attributes are correct
+        for (let i = 0; i < cells.length; i++) {
+          const cell = cells[i];
+          const [rect,text] = svg.children[i].children;
+
+          let x,y,w,h; //local only to avoid overwriting cell settings
+          if (!("x" in cell)) {
+            //equal grid mode
+            const columns = Math.ceil(Math.sqrt(cells.length));
+            const rows = Math.ceil(cells.length / columns);
+            const column = i % columns;
+            const row = Math.floor(i / columns);
+            w = width / columns;
+            h = height / rows;
+            x = column * w;
+            y = row * h;
+          }
+          else {
+            ({x,y,w,h} = cell);
+          }
+          
+          rect.setAttributeNS(null,"x",x);
+          rect.setAttributeNS(null,"y",y);
+          rect.setAttributeNS(null,"width",w);
+          rect.setAttributeNS(null,"height",h);
+
+          text.textContent = cell.text || cell.stream;
+          text.setAttributeNS(null,"x",x + w/2);
+          text.setAttributeNS(null,"y",y + h/2);
+        }
+      };
+      section.update(resolution,cells)
+
+      return section;
     }
   },
   sockets: {

@@ -1461,6 +1461,49 @@ body:not(.helpme) .input_container .ih_balloon {
   margin-bottom: 0.5em;
   justify-content: center;
 }
+section.scene_preview {
+  min-width: 0;
+  height: 5em;
+
+  svg {
+    box-shadow: 0.1em 0.1em 0.2em var(--shadowColor);
+
+    rect {
+      fill: var(--secondaryBackgroundColor);
+      stroke: var(--accentColorDim);
+      stroke-width: 1%;
+
+      &:hover {
+        fill: var(--backgroundColor);
+        stroke: var(--accentColor);
+      }
+    }
+    text {
+      x: 50%;
+      y: 50%;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      fill: none;
+    }
+    g:hover text {
+      fill: var(--textColor);
+    }
+  }
+}
+.bigbuttons:has(.scene_preview) {
+  justify-content: space-between;
+  button {
+    margin-top: 0.5em; margin-bottom: 0.5em;
+  }
+}
+.multiview_designer.input_container {
+  .field_container {
+    width: 30em;
+  }
+  .details_container .field_container {
+    width: 25em;
+  }
+}
 .multiview_designer .cellnav {
   display: flex;
 
@@ -1694,6 +1737,12 @@ Magic that makes font-size grow to fit a container width. Needs special html..:
 .multiview_preview .source:hover {
   border-color: var(--textColor);
 }
+.multiview_preview[data-layout="lasagna"] {
+  .source {
+    filter: opacity(0.5);
+  }
+}
+
 .multiview_preview[data-layout="none"] {
   .source:focus,
   .source[data-focussed] {

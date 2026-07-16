@@ -12060,6 +12060,10 @@ context_menu: function(){
                         if (skipmeta && (values[i].type == "meta")) { continue; }
                         out[i] = values[i];
                       }
+                      if (skipmeta && (Object.keys(out).length == 0)) {
+                        out = values;
+                      }
+
                       //find minimum and maximum values of first and lastms
                       var bounds = {
                         firstms: {
@@ -12086,6 +12090,19 @@ context_menu: function(){
                       return out;
                     },
                     update: function(values){
+                      if (!Object.keys(values).length) {
+                        this.box.find(".box").css("display","none");
+                        this.box.left.css("display","none");
+                        this.box.right.css("display","none");
+                        this.box.label.text("No tracks");
+                        return;
+                      }
+                      else {
+                        this.box.find(".box").css("display","");
+                        this.box.left.css("display","");
+                        this.box.right.css("display","");
+                      }
+
                       //the track rows have already been updated, now it's time for the box
                       //the box should be drawn from the maximum firstms to the minimum lastms
                       var from = main.timing.bounds.firstms.max;

@@ -1057,7 +1057,7 @@ namespace DTSC{
     }else{
       sBufShm(_streamName, DEFAULT_TRACK_COUNT, master, autoBackOff);
     }
-    streamInit();
+    if (isMaster || stream.isReady()) { streamInit(); }
     if (isMaster){
       stream.setReady();
       trackList.setReady();
@@ -1294,7 +1294,7 @@ namespace DTSC{
     }else{
       streamPage.init(pageName, bufferSize, false, autoBackOff);
       if (!streamPage.mapped){
-        INFO_MSG("Page %s not found", pageName);
+        if (master || autoBackOff) { INFO_MSG("Page %s not found", pageName); }
         return;
       }
       stream = Util::RelAccX(streamPage.mapped, true);

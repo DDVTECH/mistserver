@@ -4,6 +4,7 @@
 
 #include <mist/defines.h>
 #include <mist/h264.h>
+#include <mist/http_parser.h>
 #include <mist/json.h>
 #include <mist/mp4_generic.h>
 #include <mist/nal.h>
@@ -219,6 +220,7 @@ namespace Mist {
         Output::init(cfg, capa);
         capa["name"] = "TSDemux";
         capa["codecs"][0u][0u].append("rawts");
+        capa["codecs"][0u][0u].append("rawhls");
         cfg->addOption("streamname", R"-({"short":"s", "long":"stream", "arg":"string"})-");
         cfg->addBasicConnectorOptions(capa);
       }
@@ -278,10 +280,6 @@ namespace Mist {
           }
         }
 
-        size_t dataLen = 0;
-        char *dataPointer = 0;
-        thisPacket.getString("data", dataPointer, dataLen);
-
         if (thisTime > statSourceMs) { statSourceMs = thisTime; }
         needsLookAhead = 0;
         maxSkipAhead = 0;
@@ -291,7 +289,27 @@ namespace Mist {
           sendFirst = true;
         }
 
-        {
+        if (M.getCodec(thisIdx) == "rawts") {
+          size_t dataLen = thisDataLen;
+          char *dataPointer = thisData;
+          std::lock_guard<std::mutex> guard(streamMutex);
+          while (dataLen >= 188) {
+            tsStream.parse(dataPointer, 0);
+            dataPointer += 188;
+            dataLen -= 188;
+          }
+          hasPacket = tsStream.hasPacket();
+        } else if (M.getCodec(thisIdx) == "rawhls") {
+          std::string tmpData(thisData, thisDataLen);
+          HTTP::Parser H;
+          H.headerOnly = true;
+          if (!H.Read(tmpData)) { return; }
+          if (HTTP::URL(H.url).getExt() != "ts") {
+            MEDIUM_MSG("Skipping non-TS HLS file: %s", H.url.c_str());
+            return;
+          }
+          size_t dataLen = tmpData.size();
+          char *dataPointer = (char *)tmpData.c_str();
           std::lock_guard<std::mutex> guard(streamMutex);
           while (dataLen >= 188) {
             tsStream.parse(dataPointer, 0);
@@ -327,6 +345,7 @@ int main(int argc, char *argv[]) {
   }
 
   capa["codecs"][0u][0u].append("rawts");
+  capa["codecs"][0u][0u].append("rawhls");
 
   capa["ainfo"]["sinkTime"]["name"] = "Sink timestamp";
   capa["ainfo"]["sourceTime"]["name"] = "Source timestamp";

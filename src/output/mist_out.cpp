@@ -80,7 +80,8 @@ int main(int argc, char *argv[]){
     ((char **)childArgs)[argc + 1] = (char *)sockHost.c_str();
     ((char **)childArgs)[argc + 2] = 0;
 
-    Util::Procs::StartPiped(childArgs, &sock, &sock, &fdErr);
+    pid_t child = Util::Procs::StartPiped(childArgs, &sock, &sock, &fdErr);
+    Util::Procs::forget(child);
   });
 
   if (conf.is_restarting && Socket::checkTrueSocket(0)) {

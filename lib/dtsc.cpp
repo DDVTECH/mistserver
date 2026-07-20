@@ -3287,11 +3287,6 @@ namespace DTSC{
     return k;
   }
 
-  frameRateCalculator::frameRateCalculator() {
-    dataPoints = 0;
-    fpks = 0;
-  }
-
   /// Calculates fpks based on frame timings. Returns true whenever the (estimated) frame rate changes.
   bool frameRateCalculator::addTime(uint64_t t) {
     // We want 0.01 FPS precision around 30 and 60 FPS

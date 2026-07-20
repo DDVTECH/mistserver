@@ -206,12 +206,11 @@ namespace DTSC{
 
   class frameRateCalculator {
     public:
-      frameRateCalculator();
       bool addTime(uint64_t t);
-      size_t dataPoints;
+      size_t dataPoints{0};
       Util::ResizeablePointer data;
-      uint64_t fpks;
-      bool precise;
+      uint64_t fpks{0};
+      bool precise{false};
   };
 
   class TrackMetadata {

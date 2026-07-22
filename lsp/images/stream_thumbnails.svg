@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g id="a" transform="matrix(1.6188 0 0 1.6188 -28.098 -31.633)" style="fill:#fff">
+    <g transform="translate(.8149 .0065174)" style="fill:#fff;stroke-linecap:round;stroke-linejoin:round;stroke-width:.2;stroke:#000">
+      <path transform="translate(-.8149 -.0065174)" d="m21.201 23.394h14.824v3.1234h-14.824zm-.0094 3.1234h14.824v11.691h-14.824z" style="fill:#fff"/>
+      <rect transform="translate(12.827,15.809)" x="7.5594" y="7.5782" width="14.815" height="3.1234" style="fill-opacity:.8;fill:#000;opacity:.5;stroke-linecap:round;stroke-linejoin:round;stroke-width:.2;stroke:#000"/>
+      <path d="m26.271 29.562a.49616.49608 0 00-.22761.41741l.0029 4.7694a.49616.49608 0 00.7459.42746l4.131-2.3847a.49616.49608 0 00-.0019-.85697l-4.134-2.3847a.49616.49608 0 00-.51644.01209z" style="fill-opacity:.1;fill:#000"/>
+    </g>
+  </g>
+  <use transform="translate(27.573)" xlink:href="#a"/>
+  <use transform="translate(-2.573e-8 27.544)" xlink:href="#a"/>
+</svg>

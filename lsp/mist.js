@@ -50,6 +50,31 @@ $(function(){
       }
     }
   });
+  document.body.addEventListener("click",function(e){
+    //console.log(e.target,e.target.closest("label"));
+    if ((e.target.tagName == "BUTTON") && (e.target.closest("label") && (e.pageX + e.pageY > 0))) {
+      //refuse click if click originated outside of button (on label) >_>
+      //only for clicks, not for keyboard Enter key
+      let mypos = e.target.getBoundingClientRect();
+      let clickpos = { 
+        x: e.pageX, 
+        y: e.pageY 
+      };
+      if (!(
+        ((clickpos.x >= mypos.x) && (clickpos.x <= mypos.x + mypos.width))
+        && ((clickpos.y >= mypos.y) && (clickpos.y <= mypos.y + mypos.height))
+      )) {
+        /*console.warn({
+                            x: (clickpos.x >= mypos.x) && (clickpos.x <= mypos.x + mypos.width),
+                            y: (clickpos.y >= mypos.y) && (clickpos.y <= mypos.y + mypos.height)
+                          },clickpos,mypos);*/
+        e.preventDefault();
+        e.stopPropagation();
+        //console.warn("preventDefault",e.target,e.target.closest("label"));
+        return;
+      }
+    }
+  },true);
 
   UI.elements.main.click(function(e){
     //if context menu, hide
@@ -136,6 +161,13 @@ $(function(){
 
 var lastpage = [];
 $(window).on('hashchange', function(e) {
+  if (document.body.querySelector("dialog.popup") && e.originalEvent && e.originalEvent.oldURL){
+    //if there's a popup, prevent hashchange 
+    //put back url and pretend nothing happened
+    history.replaceState(null,document.title,e.originalEvent.oldURL);
+    return;
+  }
+
   var loc = decodeURIComponent(location.hash).substring(1).split('@');
   if (!loc[1]) { loc[1] = ''; }
   var tab = loc[1].split('&');
@@ -967,6 +999,11 @@ context_menu: function(){
 
     //close modal when clicking on the modal backdrop
     popup.element[0].addEventListener("mouseup",function(e){ //use mouseup: click does not trigger for right or middle mouse clicks. mousedown fires before blur triggers an onchange event (to detect form changes)
+      if ((e.button == 3) || (e.button == 4)) {
+        //Browser Back or Browser Next button 
+        //do nothing, don't close popup
+        return;
+      }
       if (e.target == this) {
         //no children were clicked, but it might be on the padding
         let rect = this.getBoundingClientRect();
@@ -991,7 +1028,7 @@ context_menu: function(){
 
     popup.element[0].addEventListener("close",function(){
       setTimeout(function(){
-        popup.element.remove();
+        popup.element[0].parentNode.removeChild(popup.element[0]); // by not using jquery's .remove(), event listeners on children remain intact
         popup.element = null;
       },1e3);
     });
@@ -1720,8 +1757,8 @@ context_menu: function(){
       }
     */
     
-    var $c = $('<div>').addClass('input_container');
-    for (var i in elements) {
+    let $c = $('<div>').addClass('input_container');
+    for (let i in elements) {
       let e = elements[i];
       if ((e === null) || (e === false)) { continue; }
       if (e instanceof jQuery) {
@@ -1729,25 +1766,25 @@ context_menu: function(){
         continue;
       }
       if (e.type == 'help') {
-        var $s = $('<span>').addClass('text_container').append(
+        let $s = $('<span>').addClass('text_container').append(
           $('<span>').addClass('description').append(e.help)
         );
         $c.append($s);
         if ('classes' in e) {
-          for (var j in e.classes) {
+          for (let j in e.classes) {
             $s.addClass(e.classes[j]);
           }
         }
         if ("dependent" in e) {
-          for (var i in e.dependent) {
-            if (typeof e.dependent[i] == "string") e.dependent[i] = [e.dependent[i]];
-            $s.attr("data-dependent-"+i,"'"+e.dependent[i].join("' '")+"'");
+          for (let j in e.dependent) {
+            if (typeof e.dependent[j] == "string") e.dependent[j] = [e.dependent[j]];
+            $s.attr("data-dependent-"+j,"'"+e.dependent[j].join("' '")+"'");
           }
         }
         if ("dependent_not" in e) {
-          for (var i in e.dependent_not) {
-            if (typeof e.dependent_not[i] == "string") e.dependent_not[i] = [e.dependent_not[i]]
-            $s.attr("data-dependent-not-"+i,"'"+e.dependent_not[i].join(" ")+"'");
+          for (let j in e.dependent_not) {
+            if (typeof e.dependent_not[j] == "string") e.dependent_not[j] = [e.dependent_not[j]]
+            $s.attr("data-dependent-not-"+j,"'"+e.dependent_not[j].join(" ")+"'");
           }
         }
         continue;
@@ -1762,22 +1799,22 @@ context_menu: function(){
       }
 
       if (e.type == 'buttons') {
-        var $bc = $('<span>').addClass('button_container').on('keydown',function(e){
+        let $bc = $('<span>').addClass('button_container').on('keydown',function(e){
           e.stopPropagation();
         });
         if ('css' in e) {
           $bc.css(e.css);
         }
         $c.append($bc);
-        for (var j in e.buttons) {
-          var button = e.buttons[j];
+        for (let j in e.buttons) {
+          let button = e.buttons[j];
           if (!button) continue;
-          var $b = $('<button>').text(button.label).data('opts',button);
+          let $b = $('<button>').html(button.label).data('opts',button);
           if ('css' in button) {
             $b.css(button.css);
           }
           if ('classes' in button) {
-            for (var k in button.classes) {
+            for (let k in button.classes) {
               $b.addClass(button.classes[k]);
             }
           }
@@ -1876,11 +1913,14 @@ context_menu: function(){
           if ("icon" in button) {
             $b.attr("data-icon",button.icon);
           }
+          if ("title" in button) {
+            $b.attr("title",button.title);
+          }
         }
         continue;
       }
       
-      var $e = $('<label>').addClass('UIelement');
+      let $e = $('<label>').addClass('UIelement');
       $c.append($e);
       
       if ('css' in e) {
@@ -1892,15 +1932,15 @@ context_menu: function(){
         $('<span>').addClass('label').html(('label' in e ? e.label+':' : ''))
       );
       if ('classes' in e) {
-        for (var k in e.classes) {
+        for (let k in e.classes) {
           $e.addClass(e.classes[k]);
         }
       }
       
       //field
-      var $fc = $('<span>').addClass('field_container');
+      let $fc = $('<span>').addClass('field_container');
       $e.append($fc);
-      var $field;
+      let $field;
       switch (e.type) {
         case 'password':
           $field = $('<input>').attr('type','password');
@@ -1923,6 +1963,18 @@ context_menu: function(){
             e.validate = ['int'];
           }
           break;
+        case 'double': {
+          $field = $('<input>').attr('type','number');
+          if ('min' in e) {
+            $field.attr('min',e.min);
+          }
+          if ('max' in e) {
+            $field.attr('max',e.max);
+          }
+          if (!('step' in e)) { e.step = "any"; }
+          $field.attr('step',e.step);
+          break;
+        }
         case 'span':
           $field = $('<span>');
           break;
@@ -1982,18 +2034,18 @@ context_menu: function(){
           break;
         case 'radioselect':
           $field = $('<div>').addClass('radioselect');
-          for (var i in e.radioselect) {
-            var $radio = $('<input>').attr('type','radio').val(e.radioselect[i][0]).attr('name',e.label);
+          for (let j in e.radioselect) {
+            var $radio = $('<input>').attr('type','radio').val(e.radioselect[j][0]).attr('name',e.label);
             if (e.readonly) {
               $radio.prop('disabled',true);
             }
             var $label = $('<label>').append(
               $radio
             ).append(
-              $('<span>').html(e.radioselect[i][1])
+              $('<span>').html(e.radioselect[j][1])
             );
             $field.append($label);
-            if (e.radioselect[i].length > 2) {
+            if (e.radioselect[j].length > 2) {
               var $select = $('<select>').change(function(){
                 $(this).parent().find('input[type=radio]:enabled').prop('checked','true');
               });
@@ -2001,31 +2053,48 @@ context_menu: function(){
               if (e.readonly) {
                 $select.prop('disabled',true);
               }
-              for (var j in e.radioselect[i][2]) {
+              for (var k in e.radioselect[j][2]) {
                 var $option = $('<option>')
                 $select.append($option);
-                if (e.radioselect[i][2][j] instanceof Array) {
-                  $option.val(e.radioselect[i][2][j][0]).html(e.radioselect[i][2][j][1]);
+                if (e.radioselect[j][2][k] instanceof Array) {
+                  $option.val(e.radioselect[j][2][k][0]).html(e.radioselect[j][2][k][1]);
                 }
                 else {
-                  $option.html(e.radioselect[i][2][j])
+                  $option.html(e.radioselect[j][2][k])
                 }
               }
             }
           }
           break;
+        case "radio": {
+          $field = $('<div>').addClass('radio');
+          for (let j in e.radio) {
+            var $radio = $('<input>').attr('type','radio').val(e.radio[j][0]).attr('name',e.label);
+            if (e.readonly) {
+              $radio.prop('disabled',true);
+            }
+            var $label = $('<label>').append(
+              $radio
+            ).append(
+              $('<span>').html(e.radio[j][1])
+            );
+            $field.append($label);
+          }
+
+          break;
+        }
         case 'checklist':
           $field = $('<div>').addClass('checkcontainer');
           $controls = $('<div>').addClass('controls');
           $checklist = $('<div>').addClass('checklist');
           $field.append($checklist);
-          for (var i in e.checklist) {
-            if (typeof e.checklist[i] == 'string') {
-              e.checklist[i] = [e.checklist[i], e.checklist[i]];
+          for (let j in e.checklist) {
+            if (typeof e.checklist[j] == 'string') {
+              e.checklist[j] = [e.checklist[j], e.checklist[j]];
             }
             $checklist.append(
-              $('<label>').text(e.checklist[i][1]).prepend(
-                $('<input>').attr('type','checkbox').attr('name',e.checklist[i][0])
+              $('<label>').text(e.checklist[j][1]).prepend(
+                $('<input>').attr('type','checkbox').attr('name',e.checklist[j][0])
               )
             );
           }
@@ -2045,20 +2114,20 @@ context_menu: function(){
           $field.append($select);
           $select.data("input",false);
           
-          for (var i in e.selectinput) {
+          for (let j in e.selectinput) {
             var $option = $("<option>");
             $select.append($option);
-            if (typeof e.selectinput[i] == "string") {
-              $option.text(e.selectinput[i]);
+            if (typeof e.selectinput[j] == "string") {
+              $option.text(e.selectinput[j]);
             }
             else {
-              $option.text(e.selectinput[i][1]);
-              if (typeof e.selectinput[i][0] == "string") {
-                $option.val(e.selectinput[i][0])
+              $option.text(e.selectinput[j][1]);
+              if (typeof e.selectinput[j][0] == "string") {
+                $option.val(e.selectinput[j][0])
               }
               else {
                 $option.val("CUSTOM");
-                $select.data("input",UI.buildUI([e.selectinput[i][0]]).children());
+                $select.data("input",UI.buildUI([e.selectinput[j][0]]).children());
                 $field.append($select.data("input"));
               }
             }
@@ -2217,7 +2286,7 @@ context_menu: function(){
           $field = createField(e);
           break;
         case "sublist": {
-          //saves an array with objects contain more settings
+          //saves an array with objects that contain more settings
           $field = $("<div>").addClass("sublist");
           let $curvals = $("<div>").addClass("curvals");
           $curvals.append($("<span>").text("None."));
@@ -2248,43 +2317,50 @@ context_menu: function(){
               mode = "Edit";
             }
             let popup;
-            let newUI = UI.buildUI(
-              [$("<h4>").text(mode+" "+local_e.itemLabel)].concat(
-                sublist
-              ).concat([
-                {
-                  type: "buttons",
-                  buttons: [{
-                    label: "Cancel",
-                    type: "cancel",
-                    "function": function(){
-                      popup.close();
+            let newUI = [$("<h1>").text(mode+" "+local_e.itemLabel)].concat(
+              sublist
+            ).concat([
+              {
+                type: "buttons",
+                buttons: [{
+                  label: "Cancel",
+                  type: "cancel",
+                  "function": function(){
+                    popup.close();
+                  }
+                },{
+                  label: "Save "+local_e.itemLabel,
+                  type: "save",
+                  "function": function(){
+                    let savelist = $local_field.getval();
+                    if (savelist === null) savelist = [];
+                    savelist = savelist.slice(0);
+                    let save = Object.assign({},local_e.saveas);
+                    for (let i in save) {
+                      if ((save[i] === null) && (keep_null.indexOf(i) == -1)) {
+                        delete save[i];
+                      }
                     }
-                  },{
-                    label: "Save "+local_e.itemLabel,
-                    type: "save",
-                    "function": function(){
-                      let savelist = $local_field.getval();
-                      let save = Object.assign({},local_e.saveas);
-                      for (let i in save) {
-                        if ((save[i] === null) && (keep_null.indexOf(i) == -1)) {
-                          delete save[i];
-                        }
-                      }
-                      if (typeof savepos == "undefined") {
-                        savelist.push(save);
-                      }
-                      else {
-                        savelist[savepos] = save;
-                      }
-                      $local_field.setval(savelist);
-                      popup.close();
+                    if (typeof savepos == "undefined") {
+                      savelist.push(save);
                     }
-                  }]
-                }
-              ])
-            );
-            popup = UI.popup(newUI);
+                    else {
+                      savelist[savepos] = save;
+                    }
+                    $local_field.setval(savelist);
+                    $local_field.trigger("change");
+                    popup.close();
+                  }
+                }]
+              }
+            ]);
+
+            let $templatecont = typeof sublist[0].find == "function" ? sublist[0].find(".template") : [];
+            if ($templatecont.length) {
+              $templatecont[0].reset();
+            }
+            
+            popup = UI.popup(UI.buildUI(newUI));
           });
           let $sublistfield = $field;
           $newitembutton.click(function(){
@@ -2302,6 +2378,10 @@ context_menu: function(){
                 index: "x-LSP-name"
               }
             });
+            if (sublist?.[1].find(".template").length) {
+              //put the template form first
+              sublist.unshift(sublist.splice(1,1)[0]);
+            }
           }
           $field.data("savelist",[]);
           $field.append($curvals).append($newitembutton);
@@ -2333,7 +2413,7 @@ context_menu: function(){
         }
         case "bitmask": {
           $field = $("<div>").addClass("bitmask");
-          for (var i in e.bitmask) {
+          for (let i in e.bitmask) {
             $field.append(
               $("<label>").append(
                 $("<input>").attr("type","checkbox").attr("name","bitmask_"+("pointer" in e ? e.pointer.index : "")).attr("value",e.bitmask[i][0]).addClass("field")
@@ -2416,15 +2496,15 @@ context_menu: function(){
           $c.append($cont); //add this to input_container
           $e.remove(); //remove the created label UIelement from input_container
           if ("dependent" in e) {
-            for (var i in e.dependent) {
-              if (typeof e.dependent[i] == "string") e.dependent[i] = [e.dependent[i]]
-              $cont.attr("data-dependent-"+i,"'"+e.dependent[i].join("' '")+"'");
+            for (let j in e.dependent) {
+              if (typeof e.dependent[j] == "string") e.dependent[j] = [e.dependent[j]];
+              $cont.attr("data-dependent-"+j,"'"+e.dependent[j].join("' '")+"'");
             }
           }
           if ("dependent_not" in e) {
-            for (var i in e.dependent_not) {
-              if (typeof e.dependent_not[i] == "string") e.dependent_not[i] = [e.dependent_not[i]]
-              $cont.attr("data-dependent-not-"+i,"'"+e.dependent_not[i].join(" ")+"'");
+            for (let j in e.dependent_not) {
+              if (typeof e.dependent_not[j] == "string") e.dependent_not[j] = [e.dependent_not[j]];
+              $cont.attr("data-dependent-not-"+j,"'"+e.dependent_not[j].join(" ")+"'");
             }
           }
           continue; //continue for (var i in elements)
@@ -2437,7 +2517,7 @@ context_menu: function(){
         }
         case "str": 
         default: {
-          $field = $('<input>').attr('type','text');
+          $field = $('<input>').attr('type','text').attr("autocomplete","on");
           if ("maxlength" in e) {
             $field.attr("maxlength",e.maxlength);
           }
@@ -2452,6 +2532,31 @@ context_menu: function(){
         let focusable = "button, a, input, select, textarea, [tabindex]:not([tabindex=\"-1\"])";
         if (!$(this).is(focusable)) {
           $(this).find(focusable).first().focus();
+        }
+      });
+      $field.on("change",function(...args){
+        let evt = args[0];
+        let extraParameters = args.slice(1);
+        if (extraParameters.indexOf("initial") > -1) return; 
+        //Note: does not return if extraParameters is "template" - in this case value_changed should always be removed
+        if (e.pointer) {
+
+          if (!(function equals(a,b){
+            if (a == b) return true;
+            if ((!!a === false) && (!!b === false) && (a != 0) && (b != 0)) return true; //undefined, "", null, but not 0
+            switch (typeof a) {
+              case "object": {
+                return JSON.stringify(a) == JSON.stringify(b);
+              }
+            }
+            return false;
+          }($(this).getval(),e.pointer.main[e.pointer.index]))) {
+            //console.warn($(this).getval(),"!=",e.pointer.main[e.pointer.index]);
+            $e.addClass("value_changed");
+          }
+          else {
+            $e.removeClass("value_changed");
+          }
         }
       });
 
@@ -2494,8 +2599,8 @@ context_menu: function(){
             //set "raw" value of field to update displayed value
             if (Number(curval) != 0) $field.setval(curval);
           });
-          for (var i in e.unit) {
-            $unit.append($("<option>").val(e.unit[i][0]).text(e.unit[i][1]));
+          for (let j in e.unit) {
+            $unit.append($("<option>").val(e.unit[j][0]).text(e.unit[j][1]));
           }
           $fc.append(
             $('<span>').addClass('unit').html($unit)
@@ -2602,15 +2707,15 @@ context_menu: function(){
         $field.attr('rows',e.rows);
       }
       if ("dependent" in e) {
-        for (var i in e.dependent) {
-          if (typeof e.dependent[i] == "string") e.dependent[i] = [e.dependent[i]]
-          $e.attr("data-dependent-"+i,"'"+e.dependent[i].join("' '")+"'");
+        for (let j in e.dependent) {
+          if (typeof e.dependent[j] == "string") e.dependent[j] = [e.dependent[j]];
+          $e.attr("data-dependent-"+j,"'"+e.dependent[j].join("' '")+"'");
         }
       }
       if ("dependent_not" in e) {
-        for (var i in e.dependent_not) {
-          if (typeof e.dependent_not[i] == "string") e.dependent_not[i] = [e.dependent_not[i]]
-          $e.attr("data-dependent-not-"+i,"'"+e.dependent_not[i].join(" ")+"'");
+        for (let j in e.dependent_not) {
+          if (typeof e.dependent_not[j] == "string") e.dependent_not[j] = [e.dependent_not[j]];
+          $e.attr("data-dependent-not-"+j,"'"+e.dependent_not[j].join(" ")+"'");
         }
       }
       
@@ -2845,9 +2950,9 @@ context_menu: function(){
               subUI.prototype = $('<select>').append(
                 $('<option>').val('').text('[Select a country]')
               );
-              for (var i in UI.countrylist) {
+              for (let j in UI.countrylist) {
                 subUI.prototype.append(
-                  $('<option>').val(i).html(UI.countrylist[i])
+                  $('<option>').val(j).html(UI.countrylist[j])
                 );
               }
               break;
@@ -2904,9 +3009,9 @@ context_menu: function(){
         $field.attr('list',r);
         var $datalist = $('<datalist>').attr('id',r);
         $fc.append($datalist);
-        for (var i in e.datalist) {
+        for (let j in e.datalist) {
           $datalist.append(
-            $('<option>').val(e.datalist[i])
+            $('<option>').val(e.datalist[j])
           );
         }
       }
@@ -6725,24 +6830,176 @@ context_menu: function(){
         if ('streams_pagesize' in stored) {
            pagesize = stored.streams_pagesize;
         }
-
-
-
+        if (!("streams_page_config" in stored)) {
+          stored.streams_page_config = {};
+        };
         var $streams;
+
+        let left_click_action = new function LeftClickAction(){
+          this.mode = stored.streams_page_config.left_click || "preview";
+
+          switch (this.mode) {
+            case "edit": {
+              this.describe = "edit it";
+              this.act = function(streamname){
+                UI.navto("Edit",streamname);
+              };
+              break;
+            }
+            case "status": {
+              this.describe = "open the stream status page";
+              this.act = function(streamname){
+                UI.navto("Status",streamname);
+              };
+              break;
+            }
+            case "preview": {
+              this.describe = "open the stream preview page";
+              this.act = function(streamname){
+                UI.navto("Preview",streamname);
+              };
+              break;
+            }
+            case "actions": {
+              this.describe = "open the actions menu";
+              this.act = function(streamname,e){
+                context_menu.fill(streamname,e);
+                e.stopPropagation();
+              };
+              break;
+            }
+          }
+
+          return this;
+        }();
 
         var $form = UI.buildUI([
           {
             type: 'help',
-            help: "This is an overview of the streams you\'ve currently configured.<br>You can left click a stream to "+(other == "thumbnails" ? "edit" : "preview")+" it"+(other == "thumbnails" ? ", or its thumbnail to preview it" : "")+". You can right click a stream for an action menu."
+            help: "This is an overview of the streams you\'ve currently configured.<br>You can left click a stream to "+left_click_action.describe+(other == "thumbnails" ? ", or its thumbnail to preview it" : "")+". You can right click a stream for an action menu."
           },
           $('<div>').css({
             width: '45.25em',
             display: 'flex',
             'justify-content':'flex-end'
           }).append(
-            $("<button>").text('Switch to '+(other == 'thumbnails' ? 'list' : 'thumbnail')+' view').click(function(){
-              mist.stored.set('viewmode',(other == 'thumbnails' ? 'list' : 'thumbnails'));
-              UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
+            $("<button>").attr("data-icon","gear").text("Page settings").click(function(){
+              let popup = UI.popup(UI.buildUI([
+                $("<h1>").text("Modify streams page settings"),{
+                  type: "help",
+                  help: "These settings affect how the 'Streams' overview page looks and behaves."
+                },{
+                  type: "radio",
+                  label: "Streams page mode",
+                  radio: [
+                    ["list",$("<div>").html(
+`
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xml:space="preserve" xmlns="http://www.w3.org/2000/svg">
+  <g style="fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2;stroke:#000">
+    <rect x="11.33" y="11.173" width="41.34" height="41.653" style="fill:#fff;"/>
+    <path d="m21.304 44.072h21.393m-21.393-6.036h21.393m-21.393-6.036h21.393m-21.393-6.036h21.393m-21.393-6.036h21.393" />
+  </g>
+</svg>
+`
+                    ).append(
+                      $("<span>").text("List view")
+                    ).children()],
+                    ["thumbnails",$("<div>").html(
+`
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g id="a" transform="matrix(1.6188 0 0 1.6188 -28.098 -31.633)" style="fill:#fff">
+    <g transform="translate(.8149 .0065174)" style="fill:#fff;stroke-linecap:round;stroke-linejoin:round;stroke-width:.2;stroke:#000">
+      <path transform="translate(-.8149 -.0065174)" d="m21.201 23.394h14.824v3.1234h-14.824zm-.0094 3.1234h14.824v11.691h-14.824z" style="fill:#fff"/>
+      <rect transform="translate(12.827,15.809)" x="7.5594" y="7.5782" width="14.815" height="3.1234" style="fill-opacity:.8;fill:#000;opacity:.5;stroke-linecap:round;stroke-linejoin:round;stroke-width:.2;stroke:#000"/>
+      <path d="m26.271 29.562a.49616.49608 0 00-.22761.41741l.0029 4.7694a.49616.49608 0 00.7459.42746l4.131-2.3847a.49616.49608 0 00-.0019-.85697l-4.134-2.3847a.49616.49608 0 00-.51644.01209z" style="fill-opacity:.1;fill:#000"/>
+    </g>
+  </g>
+  <use transform="translate(27.573)" xlink:href="#a"/>
+  <use transform="translate(-2.573e-8 27.544)" xlink:href="#a"/>
+</svg>
+`
+                    ).append(
+                      $("<span>").text("Thumbnail view")
+                    ).children()]
+                  ],
+                  help: "Switch the page mode between list mode (with a sortable table) and thumbnail mode (with tiles).",
+                  pointer: { main: stored, index: "viewmode" },
+                  value: "list"
+                },{
+                  type: "select",
+                  label: "Left click action",
+                  select: [
+                    ["edit","Edit stream"],
+                    ["status","Open stream status"],
+                    ["preview","Open stream preview (default)"],
+                    ["actions","Open the actions menu"]
+                  ],
+                  help: "Choose what happens when a stream name is clicked.",
+                  pointer: { main: stored.streams_page_config, index: "left_click" },
+                  value: "preview"
+                },{
+                  type: "checkbox",
+                  label: "Display 'Actions' button",
+                  help: "You can uncheck this to hide the 'Actions' button. You can access the actions menu by right clicking or long tapping a stream.",
+                  pointer: { main: stored.streams_page_config, index: "display_actions" },
+                  value: true
+                },{
+                  type: "inputlist",
+                  label: "Stream settings save button(s) should",
+                  input: {
+                    type: "select",
+                    select: [
+                      ["","Do not show another save button"],
+                      ["Streams","go to the streams overview page"],
+                      ["Status","go to the stream status page"],
+                      ["Preview","go to the stream preview page"],
+                      ["Embed","go to the stream embed page"],
+                      ["Edit","reload the stream settings page"],
+                    ]
+                  },
+                  help: "You can configure where to go when a stream's settings are saved. You can add multiple actions: multiple buttons will be displayed. The first save button will be the default button, which is triggered when the Enter/Return key is pressed while focussed on the settings form.<br>By default, the first button returns you to the streams overview page, and a second button sends you to the preview tab.",
+                  pointer: { main: stored.streams_page_config, index: "save_actions" },
+                  value: ["Streams","Preview"],
+                  validate: [function(val){
+                    
+                    if (val.length == 0) return {
+                      msg: "You'll need at least 1 save button.",
+                      classes: ["red"]
+                    };
+
+                    let seen = {};
+                    for (let e of val) {
+                      if (e in seen) return {
+                        msg: "Do you really want to have multiple buttons with the same action?",
+                        classes: ["orange"],
+                        "break": false
+                      };
+                      seen[e] = e;
+                    }
+
+                  }]
+                },{
+                  type: "buttons",
+                  buttons: [{
+                    label: "Cancel",
+                    type: "cancel",
+                    "function": function(){
+                      popup.close();
+                    }
+                  },{
+                    label: "Apply",
+                    type: "save",
+                    "function": function(){
+                      mist.send(function(){
+                        popup.close();
+                        UI.navto("Streams");
+                      },{ui_settings: mist.stored.get()});
+                    }
+                  }]
+                }
+              ]));
             })
           ).append(
             $("<button>").attr("data-icon","key").text("Manage stream keys").click(function(){
@@ -6790,7 +7047,8 @@ context_menu: function(){
                 stream.className = "stream";
                 stream.setAttribute("data-id",id);
 
-                var elements = ["thumbnail","actions"];
+                var elements = ["thumbnail"];
+                if (stored.streams_page_config.display_actions !== false) elements.push("actions");
                 stream.elements = {};
                 stream.elements.header = document.createElement("a");
                 stream.elements.header.className = "header";
@@ -6815,33 +7073,38 @@ context_menu: function(){
                   stream.setAttribute("data-iswildcardstream","no");
                   stream.elements.header.innerText = id;
                 }
-                stream.elements.header.addEventListener("click",function(){
-                  UI.navto("Edit",id);
+                stream.elements.header.addEventListener("click",function(e){
+                  left_click_action.act(id,e);
                 });
-                stream.elements.thumbnail.addEventListener("click",function(){
+                stream.elements.thumbnail.addEventListener("click",function(e){
                   if (current_streams[id].isfolderstream) {
                     if (!current_streams[id].filesfound) {
                       UI.findFolderSubstreams(current_streams[id],function(result){
                         $.extend(current_streams,result);
-                        $streams.update(current_streams);
                         current_streams[id].filesfound = true;
+                        $streams.update(current_streams);
                         stream.setAttribute("data-showingsubstreams","yes");
                         stream.setAttribute("title","This is a folder stream: it points to a folder with media files inside.")
                       });
                     }
-                    else {
+                    else if(left_click_action.mode == "preview") {
                       UI.navto("Edit",id);
+                    }
+                    else {
+                      left_click_action.act(id,e)
                     }
                   }
                   else {
                     UI.navto("Preview",id);
                   }
                 });
-                stream.elements.actions.appendChild($("<button>").text("Actions").click(function(e){
-                  var pos = $(this).offset();
-                  context_menu.fill(id,{pageX:pos.left,pageY:pos.top});
-                  e.stopPropagation();
-                })[0]);
+                if ("actions" in stream.elements) {
+                  stream.elements.actions.appendChild($("<button>").text("Actions").click(function(e){
+                    var pos = $(this).offset();
+                    context_menu.fill(id,{pageX:pos.left,pageY:pos.top});
+                    e.stopPropagation();
+                  })[0]);
+                }
 
                 stream.elements.activestream = UI.modules.stream.status(id,{
                   thumbnail:false,
@@ -6938,6 +7201,18 @@ context_menu: function(){
                   outputs: data.stats && (data.stats.length >= 5) ? data.stats[4] : 0
                 };
 
+                this.elements.thumbnail.setAttribute("data-action",function(){
+                  if (data.isfolderstream) {
+                    if (!data.filesfound) {
+                      return "browse";
+                    }
+                    else {
+                      return left_click_action.mode == "preview" ? "edit" : left_click_action.mode;
+                    }
+                  }
+                  return "preview";
+                }());
+
               }
             },
             update: function(){
@@ -6992,13 +7267,15 @@ context_menu: function(){
               if (id != this.raw) {
                 this.raw = id;
                 var td = this;
-                var a = $("<a>").addClass("clickable").text(d.name).click(function(){
+                var a = $("<a>").addClass("clickable").text(d.name).click(function(e){
+                  left_click_action.act(id,e);
+                  /*
                   if (($(td).attr("data-iswildcard") == "no") && ($(td).attr("data-isfolderstream") == "yes")) {
                     UI.navto("Edit",id);
                   }
                   else {
                     UI.navto("Preview",id);
-                  }
+                  }*/
                 });
                 if (id.indexOf("+") >= 0) {
                   var split = id.split("+");
@@ -7101,6 +7378,9 @@ context_menu: function(){
               $(this).html(out);
             }
           };
+          if (stored.streams_page_config.display_actions === false) {
+            delete $table.layout.actions;
+          }
 
           var $tr = $("<tr>").attr("data-sortby","name");
           $table.append($("<thead>").addClass("sticky").append($tr));
@@ -7443,6 +7723,9 @@ context_menu: function(){
           }
         }
 
+        var stored = mist.stored.get();
+        let save_buttons = stored?.streams_page_config?.save_actions || ["Streams","Preview"];
+
         //find existing stream keys
         saveas.streamkeys = UI.findStreamKeys(other.split("+")[0]); //(even if source is not push://)
         if (saveas.source && saveas.source.slice(0,7) == "push://") {
@@ -7751,7 +8034,7 @@ context_menu: function(){
           mist.send(function(){
             delete mist.data.streams[saveas.name].online;
             delete mist.data.streams[saveas.name].error;
-            UI.navto(tab,(tab == 'Preview' ? (other.indexOf("+") < 0 ? saveas.name : other) : ''));
+            UI.navto(tab,(tab != "Streams" ? (other.indexOf("+") < 0 ? saveas.name : other) : ''));
           },send);
 
 
@@ -7768,7 +8051,8 @@ context_menu: function(){
           }
           if (select.length) {
             //if there are processes available
-            var sublist = [{
+            var sublist = [
+              UI.modules.templates("process",newproc),{
               label: 'New process',
               type: 'select',
               select: select,
@@ -7804,9 +8088,45 @@ context_menu: function(){
               }
             ]));
           }
+
+          let mybuttons = [{
+            type: 'cancel',
+            label: 'Cancel',
+            'function': function(){
+              UI.navto('Streams');
+            },
+            css: {display:"none"} //do not show button, but be there for escape button :)
+          }];
+          for (let e of save_buttons) {
+            switch (e) {
+              case "Streams": 
+              case "Preview":
+              case "Status":
+              case "Embed":
+              case "Edit": {
+                mybuttons.push({
+                  type: "save",
+                  label: $("<div>").text("Save").append(
+                    $("<span>").addClass("description").text({
+                      Streams: " and show overview",
+                      Preview: " and preview",
+                      Status: " and show status",
+                      Embed: " and embed",
+                      Edit: ""
+                    }[e] || "")
+                  ),
+                  icon: e,
+                  "function": function(){
+                    save(e);
+                  }
+                });
+              }
+            }
+          }
+
           var $form = UI.buildUI([
             UI.modules.templates("stream",saveas,false,{
-              ignoreFields: ["name"] /* when importing from the form, do not include these fields */
+              ignoreFields: ["name", "online"] /* when importing from the form, do not include these fields */
             }),
             {
               label: 'Stream name',
@@ -7936,7 +8256,7 @@ context_menu: function(){
                     DOMfield: $("<div>").addClass("bigbuttons").append(
                       scenepreview
                     ).append(
-                      $("<button>").attr("data-icon","Edit").text("Open designer").click(function(){
+                      $("<button>").attr("data-icon","Edit").text("Open designer").click(function(e){
                         let settings = {
                           sources: $("[data-input=\"Composer\"] .field[name=\"sources\"]").getval().map(a => Object.assign({},a)), //clone the objects in the array
                           resolution: $("[data-input=\"Composer\"] .field[name=\"resolution\"]").getval(),
@@ -8737,6 +9057,14 @@ context_menu: function(){
 
                         let popup = UI.popup(UI.buildUI([
                           $("<h1>").text("Composition designer"),
+                          UI.modules.templates("composer",settings,null,{
+                            onApply: function(){
+                              //isSetting was removed from the sources and labels field to prevent overwriting x/y/w/h config - but after applying a template, we do need to update this field
+                              popup.element.find(".field[name=\"sources\"]").setval(settings.sources);
+                            },
+                            arrayMode: "clear"
+                            //, ignoreFields: ["layout"]
+                          }),
                           {
                             type: "help",
                             help: "The designer can be used to visually design a composer layout. Start by entering sources below."
@@ -8747,7 +9075,6 @@ context_menu: function(){
                             input: function(){
                               return {
                                 type: "custom",
-
                                 inputs: {
                                   source: UI.buildUI([{
                                     type: "custom",
@@ -8930,10 +9257,10 @@ context_menu: function(){
                             "function": function(){ settings.resolution = $(this).getval(); }
                           },{
                             label: "Grid layout",
-                            type: "radioselect",
+                            type: "radio",
                             classes: ["grid_layout"],
-                            help: "Choose your desired layout.<br>The 'standard grid' will create equal cells, using the same aspect ratio as the composer resolution.<br>The 'focussed' layout will allocate at least 2x2 cells for the first source.<br>Choose the 'layered' layout to overlay all layers. Usefull when your top layer has transparency, or you want to see the stream below when the top stream goes offline.<br>When using the 'freestyle' layout, all cells can have a custom position and size.",
-                            radioselect: [
+                            help: "Choose your desired layout.<br>The 'standard grid' will create equal cells, using the same aspect ratio as the composer resolution.<br>The 'focussed' layout will allocate at least 2x2 cells for the first source.<br>Choose the 'layered' layout to overlay all layers. Useful when your top layer has transparency, or you want to see the stream below when the top stream goes offline.<br>When using the 'freestyle' layout, all cells can have a custom position and size.",
+                            radio: [
                               ["equal",$("<div>").html(
 `
 <?xml version="1.0" encoding="UTF-8"?>
@@ -9002,14 +9329,6 @@ context_menu: function(){
                               ).children()]
                             ],
                             pointer: { main: settings, index: "layout" },
-                            //using radioselect is kinda hacky because it is fancy and returns [val1,val2]
-                            //I've done this because a normal radio selector is not implemented
-                            //*shrug*
-                            //this rewrites the array to a string and vice versa
-                            getval: function(val){ return val[0]; },
-                            setval: function(val){ 
-                              if (typeof val == "string") this._field.setval([val]);
-                            },
                             "function": function(e,newval){
                               if ((settings.layout == "none") && (newval != settings.layout) && (!confirm("Are you sure you want to select the '"+$(this).find("[value=\""+newval+"\"] + span > span").text()+"' layout? Your custom freestyle positions will be deleted."))) {
                                 $(this).setval("none");
@@ -9065,6 +9384,7 @@ context_menu: function(){
                       })
                     )
                   });
+
                   let sublist_fieldopts = [
                     {
                       label: "Source",
@@ -9450,28 +9770,7 @@ context_menu: function(){
             }
           },{
             type: 'buttons',
-            buttons: [
-              {
-                type: 'cancel',
-                label: 'Cancel',
-                'function': function(){
-                  UI.navto('Streams');
-                }
-              },{
-                type: 'save',
-                label: 'Save',
-                'function': function(){
-                  save('Streams');
-                }
-              },{
-                type: 'save',
-                label: 'Save and Preview',
-                'function': function(){
-                  save('Preview');
-                },
-                classes: ['saveandpreview']
-              }
-            ]
+            buttons: mybuttons
           }
         ]);
         let $streamkeys = $form.find(".itemgroup [name=\"streamkeys\"]").closest(".itemgroup");
@@ -10522,7 +10821,6 @@ context_menu: function(){
             main: saveas,
             index: 'url'
           },
-          validate: ['required'],
           type: 'str'
         },{
           label: 'Blocking',
@@ -12362,7 +12660,7 @@ context_menu: function(){
                             },
                             video: {
                               vheader: 'Video',
-                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Size','Framerate','Language','Player track index','Track id',"Process id","Created from","Masked",'Has B-Frames',"Keyframe interval","Frame duration","Frames per GOP","Issues"]
+                              labels: ['Codec','Duration','Jitter','Avg bitrate','Peak bitrate','Size','Declared framerate','Effective framerate','Language','Player track index','Track id',"Process id","Created from","Masked",'Has B-Frames',"Keyframe interval","Frame duration","Frames per GOP","Issues"]
                             },
                             subtitle: {
                               vheader: 'Subtitles',
@@ -12496,6 +12794,7 @@ context_menu: function(){
                                       peakoravg(track,"maxbps"),
                                       UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
                                       (track.fpks == 0 ? "variable" : UI.format.addUnit(UI.format.number(Math.round(track.fpks/10)/100,{round:false}),'fps')),
+                                      ("efpks" in track && track.efpks != 0 ? UI.format.addUnit(UI.format.number(Math.round(track.efpks/10)/100,{round:false}),'fps') : "unknown"),
                                       ('language' in track ? track.language : 'unknown'),
                                       track.nth,
                                       track.trackid,
@@ -15446,7 +15745,6 @@ context_menu: function(){
       );
     },
     templates: function(kind,saveas,$form,template_options){
-      return false; //disable templates UI
       var t = mist.stored.get("templates");
       var templates;
       if (kind in t) { templates = t[kind]; }
@@ -15456,8 +15754,162 @@ context_menu: function(){
       }
       if (!template_options) template_options = {};
       template_options = $.extend({
-        ignoreFields: [] /* when importing from the form, do not include these fields */
+        ignoreFields: [],    // when importing from the form, do not include these fields
+        arrayMode: "append", // or "replace": when encoutering an array option, either append values or replace old values with the new ones */
+        onApply: false       // function to be executed after a template was loaded
       },template_options);
+
+      //helper function to save arrays in 2 alternative ways
+      function convertArray(source,mode) {
+        //console.warn("convertArray start",JSON.stringify(source));
+        
+        if (source.isCustomArray) return source;
+
+        Object.defineProperty(source,"mode",{
+          value: null,
+          configurable: true,
+          writable: true
+        });
+        Object.defineProperty(source,"isCustomArray",{
+          value: true
+        });
+
+
+        Object.defineProperty(source,"toJSON",{
+          value: function(){
+            return ["__ARRAYMODE__"+this.mode+"__"].concat(source);
+          }
+        });
+
+        Object.defineProperty(source,"setMode",{
+          value: function(m) {
+            switch (m) {
+              case "append":
+              case "clear": {
+                this.mode = m;
+                break;
+              }
+              default: throw("Invalid Array mode");
+            }
+          }
+        });
+
+        if (source.length && (typeof source[0] == "string") && (source[0].length >= 20) && (source[0].indexOf("__ARRAYMODE__") == 0)) {
+          let m = source[0].slice(13,-2);
+          switch (m) {
+            case "append":
+            case "clear": {
+              source.setMode(m);
+              source.shift();
+              break;
+            }
+          }
+        }
+
+        if (!source.mode) source.setMode(mode || template_options.arrayMode || "append");
+        //console.warn("convertArray end",JSON.stringify(source));
+        return source;
+      }
+      //apply custom arrays
+      function applyConvertArray(obj) {
+
+        for (let i in obj) {
+          let entry = obj[i];
+          if (Array.isArray(entry)) {
+            convertArray(entry);
+          }
+          else if (typeof entry == "object") {
+            applyConvertArray(entry);
+          }
+        }
+
+        return obj;
+      }
+      applyConvertArray(templates);
+      function objectExtend(deep,object1,object2) {
+        for (var i in object2) {
+          if (deep && (typeof object2[i] == "object") && (object2[i] !== null) && (object1 !== null)) {
+            if (!(i in object1)) {
+              if (Array.isArray(object2[i])) {
+                object1[i] = [];
+                if (object2[i].isCustomArray) {
+                  convertArray(object1[i],object2[i].mode);
+                }
+              }
+              else if (object2[i] === null) {
+                object1[i] = null;
+              }
+              else {
+                object1[i] = {};
+              }
+            }
+
+            if (Array.isArray(object2[i]) && object2[i].isCustomArray && (object2[i].mode == "clear")) {
+              object1[i] = object2[i];
+            }
+            else {
+              objectExtend(true,object1[i],object2[i]);
+            }
+          }
+          else {
+            object1[i] = object2[i];
+          }
+        }
+
+        return object1;
+      }
+      function prettyPrintCustomJSON(obj){
+        return JSON.stringify(obj,null,2).replaceAll(/\n(\s*)\"__ARRAYMODE__(append|clear)__\"\,?\n/g,"\n$1<mode:$2>\n");
+      }
+      function saveFormStateIntoSaveas(skipValidate){
+        //returns true if succesfull, false if cancelled
+
+        var $save = $form.find("> .button_container .save");
+        //hide any fields that should be ignored
+        var $ignoredFields = [];
+        for (const field of template_options.ignoreFields) {
+          if (typeof field == "string") {
+            const $field = $form.find("[name=\""+field+"\"]");
+            if ($field.length) { $ignoredFields.push($field); }
+            delete saveas[field];
+          }
+        }
+        if ($ignoredFields.length) {
+          $ignoredFields.forEach(function($f){
+            $f[0].style.display = "none";
+          });
+        }
+
+        var success;
+        var fn = $save.data('save');
+
+        if (!skipValidate) {
+          if (fn) { success = fn.call($save); }
+
+          if (!success) {  //validation failed
+            if (!confirm("The form currently contains fields that do not pass validation. Would you like to continue with these values regardless?")) {
+              //restore hidden fields
+              $ignoredFields.forEach(function($f){
+                $f[0].style.display = "";
+              });
+              return false;
+            }
+            //apply saveas anyway
+            fn.call($save,true); //save, skip validation
+          }
+        }
+        else {
+          fn.call($save,true); //save, skip validation
+        }
+
+        //restore hidden fields
+        $ignoredFields.forEach(function($f){
+          $f[0].style.display = "";
+        });
+
+        return true;
+      }
+
 
       var $cont =  $("<div>").addClass("template").attr("data-templateinuse","false").append(
         $("<h3>").text("Configuration templates").append(
@@ -15469,8 +15921,6 @@ context_menu: function(){
                   $("<li>").append("speed up your workflow by saving often-used settings, which can be modified before saving")
                 ).append(
                   $("<li>").append("migrate settings between MistServer instances")
-                ).append(
-                  $("<li>").css("text-decoration","line-through").append("apply configuration changes to several "+kind+"s at once - if they use the same template")
                 )
               )
             ]);
@@ -15480,14 +15930,11 @@ context_menu: function(){
         )
       );
 
-
-      //auto-expand load section when new TODO
-      //collapse load section when editing TODO
       
       var old_save = $.extend({},saveas);
       var current_template = {};
 
-      function load(template) {
+      function load(template) { //loads template data to saveas
         function customExtend(baseObj,addObj) {
           function objIsEqual(a,b) {
             if (typeof a != typeof b) { return false; }
@@ -15525,23 +15972,42 @@ context_menu: function(){
             var val = addObj[i];
             if ((val !== null) && (typeof val == "object") && (i in baseObj)) {
               if (Array.isArray(val) && Array.isArray(baseObj[i])) {
-                var baseArr = baseObj[i];
-                var addArr = val;
-                checkEachAddArr:
-                for (var j in addArr) {
-                  //if array value exists in baseArr, continue
-                  //otherwise: add value to baseArr
-                  if ((addArr[j] !== null) && (typeof addArr[j] == "object")) {
-                    findInBaseArr:
-                    for (var k in baseArr) {
-                      if (objIsEqual(baseArr[k],addArr[j])) { continue checkEachAddArr; }
+                let baseArr = baseObj[i];
+                let addArr = val;
+                let arrayMode = addArr.isCustomArray ? addArr.mode : template_options.arrayMode;
+                //console.warn("customExtend",i,arrayMode,baseArr,addArr);
+
+                if (arrayMode == "append") {
+                  checkEachAddArr:
+                  for (var j in addArr) {
+                    //if array value exists in baseArr, continue
+                    //otherwise: add value to baseArr
+                    if ((addArr[j] !== null) && (typeof addArr[j] == "object")) {
+                      findInBaseArr:
+                      for (var k in baseArr) {
+                        if (objIsEqual(baseArr[k],addArr[j])) { continue checkEachAddArr; }
+                      }
+                    }
+                    else {
+                      if (baseArr.indexOf(addArr[j]) >= 0) { continue; }
+                    }
+                    baseArr.push(addArr[j]);
+                  }
+                }
+                else if (arrayMode == "clear") {
+                  for (var j in addArr) {
+                    if (j >= baseArr.length) {
+                      baseArr.push(addArr[j]);
+                    }
+                    else {
+                      baseArr[j] = addArr[j];
                     }
                   }
-                  else {
-                    if (baseArr.indexOf(addArr[j]) >= 0) { continue; }
+                  while (baseArr.length > addArr.length) {
+                    baseArr.pop();
                   }
-                  baseArr.push(addArr[j]);
                 }
+
                 continue;
               }
               else if ((baseObj[i] !== null) && (typeof baseObj[i] == "object") && !Array.isArray(baseObj[i])) {
@@ -15550,34 +16016,64 @@ context_menu: function(){
                 continue;
               }
             }
-            baseObj[i] = val;
+            if (Array.isArray(val) && val.isCustomArray) {
+              //i is not in baseObj
+              //the custom array functions should be removed
+              baseObj[i] = Array.from(val);
+            }
+            else {
+              //console.warn("setting",i,"to",val);
+              baseObj[i] = val;
+            }
           }
           return baseObj;
         }
+        
+        //put current state of form into saveas
+        saveFormStateIntoSaveas(true); //skip validation, just save it
+
+        restorestack.push({
+          before: $.extend(true,{},saveas),
+          applied: template
+        });
+
+        //extend saveas with template
         customExtend(saveas,template.settings);
+
+        //console.warn("loaded:",template.settings,"result:",JSON.stringify(saveas),saveas);
         current_template = template;
+        //fill the form and update the template UI
         apply();
       }
-      function apply() {
+      let restorestack = [];
+      function apply() { //applies state of saveas/current_template to the UI
         $current._set(current_template.name ? current_template.name : false);
         $current._setModified(false);
-        $restore.show();
-        $save.attr("data-icon","disk").text("Edit");
+
+        if (restorestack.length) { 
+          let last = restorestack[restorestack.length-1];
+          if (last.applied?.name) $restore.text("Undo ").append($("<span>").addClass("description").text(last.applied.name));
+          else $restore.text("Restore");
+          $restore.show();
+        }
+        
+        $edit.show();
         $form.data("filling",true);
         $form.find(".isSetting").each(function(){
           var pointer = $(this).data("pointer");
           if (pointer && (pointer.index in pointer.main)) {
-            $(this).setval(pointer.main[pointer.index]);
+            $(this).setval(pointer.main[pointer.index],["template"]);
           }
         });
+        if (template_options.onApply) template_options.onApply();
         $form.data("filling",false);
       }
       var $load = $("<div>").addClass("my-templates");
       var menu = new UI.context_menu();
       $cont.append(menu.ele);
       function loadButton(key) {
-        var template = templates[key];
-        var $button = $("<button>").text(template.name).attr("title",JSON.stringify(template.settings,null,2));
+        let template = templates[key];
+        var $button = $("<button>").text(template.name).attr("title",prettyPrintCustomJSON(template.settings));
 
         $button.click(function(){
           load(templates[key]);
@@ -15586,17 +16082,17 @@ context_menu: function(){
           e.preventDefault();
           menu.show([[
             $("<div>").addClass("header").append(
-              $("<div>").text(template.name)
+              $("<div>").text(templates[key].name)
             ).append(
               template.updated ? $("<div>").text("Modified: "+UI.format.dateTime(template.updated,"short")) : false
             )
           ],[
             ["Modify",function(){
-              showSaveDialog(template);
+              showSaveDialog(templates[key]);
             },"Edit"],
             ["Copy",function(e){
               var me = this;
-              var text = JSON.stringify(template);
+              var text = JSON.stringify(templates[key]);
               UI.copy(text).then(function(){
                 me._setText("Copied!")
                 setTimeout(function(){ menu.hide(); },300);
@@ -15621,7 +16117,7 @@ context_menu: function(){
               return false;
             },"copy"],
             ["Delete",function(e){
-              if (confirm("Are you sure you would like to delete the template '"+template.name+"'?")) {
+              if (confirm("Are you sure you would like to delete the template '"+templates[key].name+"'?")) {
                 delete t[kind][key];
                 mist.stored.set("templates",t);
                 $button.remove();
@@ -15645,16 +16141,24 @@ context_menu: function(){
           $load
         )
       );
-      function showSaveDialog(save_template,opts) {
+      function showSaveDialog(orig_template,opts) {
         opts = $.extend({
           overwrite: false,
           action: "Save"
         },opts);
 
+        if (opts.action == "Create") {
+          orig_template = {};
+        }
+
+        let save_template = objectExtend(true,{},orig_template);
+
         if (!("settings" in save_template)) {
           save_template.settings = {};
         }
         var settings = save_template.settings;
+        applyConvertArray(settings);
+        //console.warn("settings:",settings);
         save_template["x-LSP-template-kind"] = kind;
 
         var oldname = save_template.name;
@@ -15692,50 +16196,18 @@ context_menu: function(){
             buttons: [{
               label: "Import from form",
               icon: "down",
+              title: "Takes the settings object as it is currently filled in on the form, and overlays it on the template object as shown below.",
               "function": function(){
                 $err.hide();
 
-                var $save = $form.find("> .button_container .save");
-                //hide any fields that should be ignored
-                var $ignoredFields = [];
-                for (const field of template_options.ignoreFields) {
-                  if (typeof field == "string") {
-                    const $field = $form.find("[name=\""+field+"\"]");
-                    if ($field.length) { $ignoredFields.push($field); }
-                    delete saveas[field];
-                  }
-                }
-                if ($ignoredFields.length) {
-                  $ignoredFields.forEach(function($f){
-                    $f[0].style.display = "none";
-                  });
-                }
-                var success;
-                var fn = $save.data('save');
-                if (fn) { success = fn.call($save); }
+                if (!saveFormStateIntoSaveas()) return; //do not skip validation, returns false if validation failed
 
-                if (!success) {  //validation failed
-                  if (!confirm("The form currently contains fields that do not pass validation. Would you like to continue with these values regardless?")) {
-                    //restore hidden fields
-                    $ignoredFields.forEach(function($f){
-                      $f[0].style.display = "";
-                    });
-                    return;
-                  }
-                  //apply saveas anyway
-                  fn.call($save,true); //save, skip validation
-                }
-
-                //restore hidden fields
-                $ignoredFields.forEach(function($f){
-                  $f[0].style.display = "";
-                });
-
-                updateSaveDialog($.extend(true,{},saveas),{showSaveEmpty: true});
+                updateSaveDialog(applyConvertArray($.extend(true,{},saveas)),{showSaveEmpty: true});
               }
             },{
               label: "Import from clipboard",
               icon: "paste",
+              title: "Takes a template object from the clipboard, and overlays it on the template object shown below.",
               "function": function(){
                 $err.hide();
 
@@ -15773,6 +16245,7 @@ context_menu: function(){
             },{
               label: "Export to clipboard",
               icon: "copy",
+              title: "Copy the current template to the clipboard. Paste it where you need it - for example to import a template on another server, or direcly on a "+kind+" form to apply it immediately.",
               "function": function(){
                 $err.hide();
 
@@ -15789,91 +16262,43 @@ context_menu: function(){
               }
             }]
           },{
-            label: "Save empty fields",
-            type: "checkbox",
-            value: false,
-            classes: ["template-saveempty"],
-            help: "When checked, any empty fields will also be saved into the template. When you apply the template any of these fields will be blanked.",
-            "function": function(){
-              if (this.checked) {
-                var removed = $(this).data("removed");
-                console.warn("removed",removed);
-                if (removed) {
-                  function putBack(settings,removed) {
-                    for (var i in removed) {
-                      var val = removed[i];
-                      if ((val !== null) && (typeof val == "object") && (!Array.isArray(val))) {
-                        if (!(i in settings)) { settings[i] = {}; }
-                        putBack(settings[i],val);
-                        continue;
-                      }
-
-                      settings[i] = val;
-                    }
-                  }
-                  putBack(settings,removed);
-                  $(this).data("removed",{});
-                }
-                console.warn("settings",settings);
-              }
-              else {
-                var removed = {};
-                //Process the settings object settings, remove any entries which are null, false or [], recursively. Removed entries are placed into the 'removed' object.
-                function removeNulls(settings,removed) {
-                  for (var i in settings) {
-                    var setting = settings[i];
-                    if ((setting === null) || (setting === false)) {
-                      removed[i] = settings[i];
-                      delete settings[i];
-                      continue;
-                    }
-                    if (typeof setting == "object") {
-                      if (Array.isArray(setting)) {
-                        if (setting.length == 0) {
-                          removed[i] = settings[i];
-                          delete settings[i];
-                          continue;
-                        }
-                      }
-                      else {
-                        removed[i] = {};
-                        removeNulls(settings[i],removed[i]);
-                      }
-                    }
-                  }
-                }
-                removeNulls(settings,removed);
-                $(this).data("removed",removed);
-              }
-              updateJSON();
-            }
+            type: "help",
+            help: "<p>Below you can see the JSON representation of the template that will be saved. You can make changes in this field if you like.<br>"+
+                  "If you remove an entry, it will not be included in the template and when the template is loaded, it will not overwrite the corresponding field.</p>"+
+                  "<p>Right click for additional actions.</p>"
           },{
             label: "Settings object",
             type: "textarea",
             classes: ["template-json"],
             css: {marginTop: "2em", marginBottom: "2em"},
-            help: "This is the JSON representation of the template that will be saved. You can make changes in this field if you like.<br>If you remove an entry, it will not be included in the template and when the template is loaded, it will not overwrite the corresponding field.",
+            help: "<p>An array (a setting between [square brackets]) can have one of two special modes: append or clear.</p>"+
+                  "<p>They are defined by adding <code>&lt;mode:append></code> or <code>&ltmode:clear></code> directly after the array's opening bracket.</p>"+
+                  "<ul><li><b>Append mode</b> will add array entries to existing entries, though the logic will try to prevent doubling entries already in the array. It will not remove entries already there.</li><li><b>Clear mode</b> will remove any existing entries before adding the entries of the template (if any), overwriting or clearing previous settings.</li></ul>",
             "function": function(){
-
               var vf = $(this).data('validate');
               error = vf(this,true); 
               if (!error) {
                 var val = $(this).getval();
                 if (val == "") return;
+                val = val.replaceAll(/\[\s*<mode:(append|clear)>\s*,?(?=\])/g,"[\"__ARRAYMODE__$1__\""); //no further elements before ], do not add comma
+                val = val.replaceAll(/\[\s*<mode:(append|clear)>\s*,?(?=[^\]\s])/g, '["__ARRAYMODE__$1__",'); // more elements follow - add comma
+
                 var tojson = JSON.parse(val);
                 for (var i in settings) {
                   if (!(i in tojson)) {
                     delete settings[i];
                   }
                 }
-                $.extend(settings,tojson);
+                objectExtend(true,settings,applyConvertArray(tojson));
               }
-
             },
             validate: ["required",function(val,me){
               var tojson;
               var error;
               try {
+                val = val.replaceAll(/\[\s*<mode:(append|clear)>\s*,?(?=\])/g,"[\"__ARRAYMODE__$1__\""); //no further elements before ], do not add comma
+                val = val.replaceAll(/\[\s*<mode:(append|clear)>\s*,?(?=[^\]\s])/g, '["__ARRAYMODE__$1__",'); // more elements follow - add comma
+
                 tojson = JSON.parse(val);
               }
               catch (e) {
@@ -15888,14 +16313,10 @@ context_menu: function(){
 
               return false;
             }],
-            unit: $("<button>").text("Clear").attr("data-icon","cross").click(function(){
-              $json.setval("{}").trigger("change");
+            unit: $("<button>").text("Actions").click(function(e){
+              showMenu(e);
             })
-          },false && save_template.name ? {
-            label: "Update any "+kind+" currently using template '"+save_template.name+"'",
-            type: "checkbox",
-            pointer: { main: opts, index: "overwrite" }
-          } : null,{
+          },{
             type: "buttons",
             buttons: [{
               type: "cancel",
@@ -15912,7 +16333,7 @@ context_menu: function(){
                   delete t[kind][oldname];
                 }
                 t[kind][save_template.name] = save_template;
-                mist.stored.set("templates",t);
+                mist.stored.set("templates",JSON.parse(JSON.stringify(t)));
 
                 $load.html("");
                 for (var i in templates) {
@@ -15959,15 +16380,15 @@ context_menu: function(){
         var $json = $ic.find("textarea.template-json");
         function updateJSON() {
           if (!$json) { return; }
-          var json = JSON.stringify(settings,null,2);
-          $json.setval(json);
+
+          let json = JSON.stringify(settings,null,2).replaceAll(/\n(\s*)\"__ARRAYMODE__(append|clear)__\"\,?\n/g,"\n$1<mode:$2>\n");
+          $json.setval(prettyPrintCustomJSON(settings));
+
           var n = 3;
           if (json && json.split("\n").length) {
             n = Math.max(n,json.split("\n").length);
           }
           $json.attr("rows",n+1);
-          
-          //save_template.settings = settings;
         }
         updateJSON();
 
@@ -15977,19 +16398,25 @@ context_menu: function(){
             name: false
           },options);
 
+          //console.warn("updateSaveDialog","settingsobj:",settingsobj,"settings:",settings)
+
           if (!settingsobj && current_template.name)  {
-            settingsobj = current_template.settings;
+            settingsobj = $.extend(true,{},current_template.settings);
             if (!options.name) { options.name = current_template.name; }
           }
           if (settingsobj) {
+            //convert arrays that need converting
+            applyConvertArray(settingsobj);
+
             //set settings to settingsobj, but keep references intact
             for (var i in settings) {
               if (!(i in settingsobj)) {
                 delete settings[i];
               }
-              //TODO technically this should also be deep, not just shallow
+              //NB: technically this should also be deep, not just shallow
             }
-            $.extend(true,settings,settingsobj);
+            objectExtend(true,settings,settingsobj); //extend, but keep custom arrays intact
+            //$.extend(true,settings,settingsobj);
           }
           if (options.name !== false) {
             save_template.name = options.name;
@@ -15997,20 +16424,108 @@ context_menu: function(){
           }
 
           var $saveempty = $ic.find("label.template-saveempty");
-          if (options.showSaveEmpty) {
+          /*if (options.showSaveEmpty) {
             $saveempty.show();
-            $saveempty.find(".field").trigger("change"); //also fires updateJSON();
+            //$saveempty.find(".field").trigger("change"); //also fires updateJSON();
           }
           else {
             $saveempty.hide();
             updateJSON();
-          }
-
+          }*/
+          updateJSON();
         }
 
-        updateSaveDialog();
+        let context_menu = new UI.context_menu();
+        $ic.append(context_menu.ele);
+        function showMenu(e) {
+          e.preventDefault();
+          let menu = [
+            ["Apply overwrite mode",function(){
+                var removed = $json.data("removed");
+                //console.warn("removed",removed);
+                if (!removed) {
+                  //just set array modes to clear
+                  function applyClear(obj) {
+                    for (var i in obj) {
+                      let val = obj[i];
+                      if (Array.isArray(val)) {
+                        val.setMode("clear");
+                        continue;
+                      }
+                      if (val === null) continue;
+                      if (typeof val == "object") applyClear(val);
+                    }
+                  }
+                  applyClear(settings);
+                  updateJSON();
+                }
+                if (removed) {
+                  function putBack(settings,removed) {
+                    for (var i in removed) {
+                      var val = removed[i];
+                      if ((val !== null) && (typeof val == "object") && (!Array.isArray(val))) {
+                        if (!(i in settings)) { settings[i] = {}; }
+                        putBack(settings[i],val);
+                        continue;
+                      }
+                      if (Array.isArray(val)) {
+                        val.setMode("clear");
+                      }
+
+                      settings[i] = val;
+                      delete removed[i];
+                    }
+                  }
+                  putBack(settings,removed);
+                  $(this).data("removed",removed);
+                  updateJSON();
+                }
+            },"cross","Save empty settings in the template settings object. When the template is applied, settings on the form that have an empty value in the template will be cleared."],
+            ["Apply additive mode",function(){
+                var removed = $json.data("removed") || {};
+                //Process the settings object settings, remove any entries which are null, false or [], recursively. Removed entries are placed into the 'removed' object.
+                function removeNulls(settings,removed) {
+                  for (var i in settings) {
+                    var setting = settings[i];
+                    if ((setting === null) || (setting === false) || (setting === "")) {
+                      removed[i] = settings[i];
+                      delete settings[i];
+                      continue;
+                    }
+                    if (typeof setting == "object") {
+                      if (Array.isArray(setting)) {
+                        setting.setMode("append");
+                        removed[i] = settings[i];
+                        if (setting.length == 0) {
+                          delete settings[i];
+                          continue;
+                        }
+                      }
+                      else {
+                        removed[i] = {};
+                        removeNulls(settings[i],removed[i]);
+                      }
+                    }
+                  }
+                }
+                removeNulls(settings,removed);
+                $json.data("removed",removed);
+                updateJSON();
+            },"plus","Do not save empty settings in the template settings object. When the template is applied, settings on the form that are not in the template will be kept as is."],
+            ["Clear settings object",function(){
+              $json.setval("{}").trigger("change");
+            },"trash","Reset the template settings object"]
+          ];
+          if (template_options.arrayMode == "append") menu[0] = menu.splice(1,1,menu[0])[0];
+          context_menu.show([menu],e);
+
+        }
+        $json.closest(".UIelement").on("contextmenu",showMenu);
+
+        updateSaveDialog(save_template.settings);
 
         let popup = new UI.popup($ic);
+        popup.element.addClass("templates")
       }
 
       var $current = $("<span>").addClass("current").text("None.");
@@ -16025,38 +16540,62 @@ context_menu: function(){
         else this.removeClass("modified");
       }
       var $restore = $("<button>").attr("data-icon","return").text("Restore").click(function(){
-        for (var i in current_template.settings) {
+        if (!restorestack.length) return;
+        
+        let state = restorestack.pop();
+        for (var i in state.applied.settings) {
           if (i in saveas) {
-            if (i in old_save) {
-              saveas[i] = old_save[i];
+            if (i in state.before) { //if object, should we keep references? or should it be fixed in options.on_apply functions?
+              saveas[i] = state.before[i];
             }
             else {
-              delete saveas[i];
+              saveas[i] = null; //do not delete: field should be reset in apply()
             }
           }
         }
-        current_template = {};
+
+        if (!restorestack.length) {
+          current_template = {};
+          $restore.hide();
+          $edit.hide();
+        }
+        else {
+          let last = restorestack[restorestack.length-1];
+          current_template = last.applied;
+        }
         apply();
-        $save.attr("data-icon","plus").text("Create");
       }).hide();
-      var $save = $("<button>").attr("data-icon","plus").text("Create").click(function(){
-        showSaveDialog(current_template,{action:$(this).text()});
+
+      var $create = $("<button>").attr("data-icon","plus").text("Create").click(function(){
+        showSaveDialog({},{action:"Create"});
+      });
+      var $edit = $("<button>").attr("data-icon","disk").text("Edit").click(function(){
+        showSaveDialog(current_template,{action:"Edit"});
       });
 
       $cont.append(
-        $("<label>").attr("data-showiftemplate","true").append(
+        $("<div>").attr("data-showiftemplate","true").append(
           $("<span>").text("Current template:")
         ).append(
           $current
         )
       ).append(
-        $("<div>").addClass("button_container").append(
-        ).append($save)/*.append(
-          $("<button>").text("Add new").click(function(){
-            showSaveDialog({});
-          })
-        )*/.append($restore)
+        $("<div>").addClass("button_container")
+          .append($create)
+          .append($edit.hide())
+          .append($restore)
       );
+
+      $cont[0].reset = function(){
+        $form = undefined;
+        restorestack = [];
+        current_template = {};
+        $current._set(false);
+        $current._setModified(false);
+        $restore.hide();
+        $edit.hide();
+        init();
+      };
 
       function init() {
         if (!$form) {
@@ -16138,7 +16677,37 @@ context_menu: function(){
             if (!modified) { $current._setModified(false); }
 
           }
-        });
+        }).on("paste",function(e){
+          var text = false;
+          var json = false;
+          $err.hide();
+          try {
+            text = e.originalEvent.clipboardData.getData('text');
+            try {
+              json = JSON.parse(text);
+            }
+            catch(e) {
+              throw "The data is not valid JSON";
+            }
+            if (!json) throw "The data is not valid JSON";
+            if (!("x-LSP-template-kind" in json)) throw "The data is not a template";
+            if (json["x-LSP-template-kind"] != kind) throw "The data is not a "+kind+" template";
+
+            load(json);
+
+            console.log("Applied a pasted template: ",json.name,json.settings);
+
+            e.preventDefault();
+            e.stopPropagation();
+
+          }
+          catch(e) {
+            if (json && (typeof json == "object") && json["x-LSP-template-kind"]) {
+              //it was a template but it still failed
+              console.log("Failed to apply a pasted template:",e,"\nPasted text:",text);
+            }
+          }
+        });;
 
       }
       init();
@@ -17351,10 +17920,21 @@ var mist = {
             if ("max" in ele) { obj.max = ele.max; }
             if ("min" in ele) { obj.min = Math.max(obj.min,ele.min); }
             break;
+          case 'double': 
+            obj.type = "double";
+            if ("max" in ele) { obj.max = ele.max; }
+            if ("min" in ele) { obj.min = ele.min; }
+            if ("step" in ele) { obj.step = ele.step; }
+            break;
           case 'radioselect':
             obj.type = 'radioselect';
             obj.radioselect = ele.radioselect;
             break;
+          case 'radio': {
+            obj.type = "radio";
+            obj.radio = ele.radio;
+            break;
+          }
           case 'select':
             obj.type = 'select';
             obj.select = ele.select.slice(0);
@@ -17364,8 +17944,6 @@ var mist = {
             break;
           case 'sublist': {
             obj.type = 'sublist';
-            //var subele = Object.assign({},ele);
-            //delete subele.type;
             obj.saveas = {};
             obj.itemLabel = ele.itemLabel;
             obj.sublist = mist.convertBuildOptions(ele,obj.saveas);
@@ -17823,8 +18401,10 @@ $.fn.getval = function(){
     var type = opts.type;
     switch (type) { //exceptions only
       case 'int':
+      case 'double': {
         if (val != "") { val = Number(val); }
         break;
+      }
       case 'span':
         val = $(this).html();
         break;
@@ -17848,6 +18428,10 @@ $.fn.getval = function(){
           val = '';
         }
         break;
+      case "radio":{
+        val = $(this).find('label > input[type=radio]:checked').val() || null
+        break;
+      }
       case 'checklist':
         val = [];
         $(this).find('.checklist input[type=checkbox]:checked').each(function(){
@@ -17952,12 +18536,18 @@ $.fn.setval = function(val,extraParameters){
         subUI.blackwhite.trigger('change');
         break;
       case 'radioselect':
-        if (typeof val == 'undefined') { return $(this); }
+        if ((typeof val == "undefined") || (val === null)) break;
+        if (!Array.isArray(val)) break;
         var $l = $(this).find('label > input[type=radio][value="'+val[0]+'"]').prop('checked',true).parent();
         if (val.length > 1) {
           $l.children('select').val(val[1]);
         }
         break;
+      case "radio": {
+        if (val) $(this).find('input[type=radio][value="'+val+'"]').prop("checked",true);
+        else $(this).find('input[type=radio]').prop("checked",false);
+        break;
+      }
       case 'checklist':
         var $inputs = $(this).find('.checklist input[type=checkbox]').prop('checked',false);
         for (i in val) {
@@ -17970,8 +18560,7 @@ $.fn.setval = function(val,extraParameters){
           datetime.setMinutes(datetime.getMinutes() - datetime.getTimezoneOffset()); //correct for the browser being a pain and converting to UTC
           datetime = datetime.toISOString();
           $(this).val(datetime.split("Z")[0]);
-        }
-        
+        }  
         break;
       case "selectinput":
         //check if val is one of the select options
@@ -18108,15 +18697,17 @@ $.fn.setval = function(val,extraParameters){
 
   $(this).trigger('change',extraParameters);
 
-  if (extraParameters && extraParameters.indexOf("initial") < -1) {
+  if (extraParameters && (extraParameters.indexOf("initial") <= -1)) {
     var newval = $(this).getval();
     if (oldval != newval) {
       if (JSON.stringify(oldval) != JSON.stringify(newval)) {
         var $label = $(this).closest("label.UIelement");
         if ($label) {
+          $label.removeClass("fade_slowly");
           $label.addClass("animate_changed");
           setTimeout(function(){
             $label.removeClass("animate_changed");
+            $label.addClass("fade_slowly");
           },100);
         }
       }

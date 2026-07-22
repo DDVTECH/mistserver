@@ -1264,6 +1264,50 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock, bool w
   open(host, port, nonblock, with_ssl);
 }
 
+#if HAVE_UPSTREAM_MBEDTLS_SRTP
+#if MBEDTLS_VERSION_MAJOR > 2
+static void dumpSecrets(void *user, mbedtls_ssl_key_export_type type, const unsigned char *ms, size_t,
+                        const unsigned char client_random[32], const unsigned char server_random[32],
+                        mbedtls_tls_prf_types tls_prf_type) {
+#else
+static int dumpSecrets(void *user, const unsigned char *ms, const unsigned char *, size_t, size_t, size_t,
+                       const unsigned char client_random[32], const unsigned char server_random[32],
+                       mbedtls_tls_prf_types tls_prf_type) {
+#endif
+
+  FILE *f = fopen(getenv("SSLKEYLOGFILE"), "a");
+#if MBEDTLS_VERSION_MAJOR == 2
+  if (!f) return 0;
+#else
+  if (!f) return;
+#endif
+  const char *label = "CLIENT_RANDOM";
+#if MBEDTLS_VERSION_MAJOR > 2
+  switch (type) {
+    case MBEDTLS_SSL_KEY_EXPORT_TLS12_MASTER_SECRET: label = "CLIENT_RANDOM"; break;
+    case MBEDTLS_SSL_KEY_EXPORT_TLS1_3_CLIENT_HANDSHAKE_TRAFFIC_SECRET:
+      label = "CLIENT_HANDSHAKE_TRAFFIC_SECRET";
+      break;
+    case MBEDTLS_SSL_KEY_EXPORT_TLS1_3_SERVER_HANDSHAKE_TRAFFIC_SECRET:
+      label = "SERVER_HANDSHAKE_TRAFFIC_SECRET";
+      break;
+    case MBEDTLS_SSL_KEY_EXPORT_TLS1_3_CLIENT_APPLICATION_TRAFFIC_SECRET: label = "CLIENT_TRAFFIC_SECRET_0"; break;
+    case MBEDTLS_SSL_KEY_EXPORT_TLS1_3_SERVER_APPLICATION_TRAFFIC_SECRET: label = "SERVER_TRAFFIC_SECRET_0"; break;
+    default: fclose(f); return;
+  }
+#endif
+  fprintf(f, "%s ", label);
+  for (int i = 0; i < 32; i++) { fprintf(f, "%02x", client_random[i]); }
+  fprintf(f, " ");
+  for (int i = 0; i < 48; i++) { fprintf(f, "%02x", ms[i]); }
+  fprintf(f, "\r\n");
+  fclose(f);
+#if MBEDTLS_VERSION_MAJOR == 2
+  return 0;
+#endif
+}
+#endif
+
 /// Open TCP connection.
 /// Closes any existing connections and resets all internal values beforehand.
 void Socket::Connection::open(std::string host, int port, bool nonblock, bool with_ssl, const std::string & hostname) {
@@ -1388,6 +1432,18 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
     mbedtls_ssl_conf_rng(conf, mbedtls_ctr_drbg_random, ctr_drbg);
     mbedtls_ssl_conf_dbg(conf, my_debug, stderr);
+
+#if HAVE_UPSTREAM_MBEDTLS_SRTP && MBEDTLS_VERSION_MAJOR == 2
+    if (getenv("SSLKEYLOGFILE")){
+      mbedtls_ssl_conf_export_keys_ext_cb(&ssl_conf, dumpSecrets, this);
+    }
+#endif
+#if MBEDTLS_VERSION_MAJOR > 2
+    if (getenv("SSLKEYLOGFILE")){
+      mbedtls_ssl_set_export_keys_cb(ssl, dumpSecrets, this);
+    }
+#endif
+
     if ((ret = mbedtls_ssl_setup(ssl, conf)) != 0){
       char estr[200];
       mbedtls_strerror(ret, estr, 200);
@@ -2271,6 +2327,14 @@ static int dtlsExtractKeyData( void *user, const unsigned char *ms, const unsign
   memcpy(udpSock->randbytes, client_random, 32);
   memcpy(udpSock->randbytes + 32, server_random, 32);
   udpSock->tls_prf_type = tls_prf_type;
+
+  if (getenv("SSLKEYLOGFILE")){
+#if MBEDTLS_VERSION_MAJOR > 2
+    dumpSecrets(user, type, ms, 0, client_random, server_random, tls_prf_type);
+#else
+    dumpSecrets(user, ms, 0, 0, 0, 0, client_random, server_random, tls_prf_type);
+#endif
+  }
 #if MBEDTLS_VERSION_MAJOR == 2
   return 0;
 #endif

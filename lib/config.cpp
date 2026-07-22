@@ -2,25 +2,28 @@
 /// Contains generic functions for managing configuration.
 
 #include "config.h"
+
 #include "defines.h"
+#include "ev.h"
+#include "procs.h"
 #include "stream.h"
 #include "timing.h"
-#include <thread>
-#include <mutex>
-#include <signal.h>
-#include <string.h>
-#include "procs.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
+
 #include <dirent.h> //for getMyExec
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <iostream>
+#include <mutex>
 #include <pwd.h>
+#include <signal.h>
 #include <stdarg.h> // for va_list
 #include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <thread>
+#include <unistd.h>
 
 #ifdef __CYGWIN__
 #include <windows.h>
@@ -576,12 +579,14 @@ bool Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)) {
 bool Util::Config::serveCallbackSocket(std::function<void(Socket::Connection &, Socket::Server &)> callback) {
   Socket::Server server_socket;
   if (!setupServerSocket(server_socket)) { return false; }
+  Event::Loop evLp;
+  evLp.setup();
+  evLp.addSocket(0, server_socket.getSocket());
   while (is_active && server_socket.connected()) {
-    Socket::Connection S = server_socket.accept();
-    if (S.connected()) { // check if the new connection is valid
-      callback(S, server_socket);
-    } else {
-      Util::sleep(10); // sleep 10ms
+    int ret = evLp.await(10000);
+    if (ret == 0) {
+      Socket::Connection S = server_socket.accept();
+      if (S.connected()) { callback(S, server_socket); }
     }
   }
   Util::Procs::socketList.erase(server_socket.getSocket());

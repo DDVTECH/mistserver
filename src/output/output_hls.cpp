@@ -486,6 +486,8 @@ namespace Mist{
       HTTPOutput::onFail(msg, critical);
       return;
     }
+    // Prevent retrying too quickly
+    if (msg == "Stream open failed") { Util::sleep(1000); }
     H.Clean(); // make sure no parts of old requests are left in any buffers
     H.SetHeader("Server", APPIDENT);
     H.setCORSHeaders();

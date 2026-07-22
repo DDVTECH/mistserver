@@ -148,7 +148,9 @@ namespace Event{
         return std::string::npos;
       }
       if (childready) {
+        int oldErrNo = errno;
         Util::Procs::reap();
+        errno = oldErrNo;
         childready = false;
       }
     } while (r < 0 && (errno == EINTR || errno == EAGAIN));

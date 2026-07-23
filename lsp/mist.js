@@ -3009,7 +3009,7 @@ context_menu: function(){
                   //check for duplicate stream names
                   if (('streams' in mist.data) && (val in mist.data.streams)) {
                     //check that we're not simply editing the stream
-                    let other = decodeURIComponent(location.hash)?.substring(1)?.split('@')?.[1]?.split('&')?.[1];
+                    let other = decodeURIComponent(location.hash)?.substring(1)?.split('@')?.[1]?.split('&')?.[1]?.split("+")?.[0];
                     if (other != val) {
                       return {
                         msg: 'This streamname already exists.<br>If you want to edit an existing stream, please click edit on the the streams tab.',
@@ -9945,49 +9945,59 @@ context_menu: function(){
                 if (!("friendly" in mist.data.capabilities.connectors[match])) { mist.data.capabilities.connectors[match].friendly = mist.data.capabilities.connectors[match].name; }
                 $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
                 push_parameters = $.extend({},mist.data.capabilities.connectors[match].push_parameters);
-                full_list_of_push_parameters = {};
-                function processPushParam(param,key) {
-                  //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
-                  if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { 
-                    delete push_parameters[key];
-                    return;
-                  }
-                  if (param.file_only && (val[0] != "/")) {
-                    delete push_parameters[key];
-                    return;
-                  }
-                  if (param.type == "group") {
-                    for (var i in param.options) {
-                      processPushParam(param.options[i],i);
+                
+                if (Object.keys(push_parameters).length) {
+                  full_list_of_push_parameters = {};
+                  function processPushParam(param,key) {
+                    //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
+                    if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { 
+                      delete push_parameters[key];
+                      return;
+                    }
+                    if (param.file_only && (val[0] != "/")) {
+                      delete push_parameters[key];
+                      return;
+                    }
+                    if (param.type == "group") {
+                      for (var i in param.options) {
+                        processPushParam(param.options[i],i);
+                      }
+                    }
+                    else {
+                      full_list_of_push_parameters[key] = param;
                     }
                   }
-                  else {
-                    full_list_of_push_parameters[key] = param;
+                  for (var i in mist.data.capabilities.connectors[match].push_parameters) {
+                    processPushParam(mist.data.capabilities.connectors[match].push_parameters[i],i);
                   }
-                }
-                for (var i in mist.data.capabilities.connectors[match].push_parameters) {
-                  processPushParam(mist.data.capabilities.connectors[match].push_parameters[i],i);
-                }
 
-                var capa = {
-                  desc: mist.data.capabilities.connectors[match].desc.replace("over HTTP",""),
-                  optional: push_parameters,
-                  sort: "sort"
-                };
-                var capaform = mist.convertBuildOptions(capa,saveas.params);
-                if (capaform[1].is("h4")) capaform.splice(1,1);
+                  var capa = {
+                    desc: mist.data.capabilities.connectors[match].desc.replace("over HTTP",""),
+                    optional: push_parameters,
+                    sort: "sort"
+                  };
+                  var capaform = mist.convertBuildOptions(capa,saveas.params);
+                  if (capaform[1].is("h4")) capaform.splice(1,1);
 
-                //find left over url params that are not covered by this connector's capabilities
-                var custom_params = [];
-                for (var i in params) {
-                  var p = params[i].split("=");
-                  var name = p[0];
-                  if (!(name in full_list_of_push_parameters)) {
-                    custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
+                  //find left over url params that are not covered by this connector's capabilities
+                  var custom_params = [];
+                  for (var i in params) {
+                    var p = params[i].split("=");
+                    var name = p[0];
+                    if (!(name in full_list_of_push_parameters)) {
+                      custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
+                    }
                   }
-                }
 
-                capaform.push($("<br>"));
+                  capaform.push($("<br>"));
+                }
+                else {
+                  var capaform = [];
+                  capaform.push({
+                    type: "help",
+                    help: "This push format does not have any options."
+                  });
+                }
                 capaform.push({
                   type: "inputlist",
                   label: "Custom url parameters",

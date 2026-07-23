@@ -116,7 +116,7 @@ to{opacity:1}
 .mistvideo[data-show-submenu] .mistvideo-submenu{right:5px}
 .mistvideo[data-hide-submenu] .mistvideo-submenu{right:-1000px!important}
 .mistvideo[data-show-submenu] .mistvideo-controls{bottom:0}
-.mistvideo:has(.mistvideo-hoverWindow:hover .mistvideo-submenu),.mistvideo[data-show-submenu]{overflow:visible}
+.mistvideo:has(.mistvideo-hoverWindow:hover.mistvideo-submenu),.mistvideo[data-show-submenu]{overflow:visible}
 .mistvideo-currentTime{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mistvideo-currentTime .mistvideo-realtime,.mistvideo-progress .mistvideo-realtime{opacity:.6}
 .mistvideo-videobackground{position:absolute;width:100%;height:100%;z-index:-1}

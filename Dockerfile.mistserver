@@ -16,9 +16,11 @@ ADD https://github.com/cisco/libsrtp.git#v2.6.0 /deps/libsrtp
 RUN cd /deps/build/libsrtp/ && meson setup /deps/libsrtp -Dstrip=true  && meson install
 
 # srt
-ADD https://github.com/Haivision/srt.git#v1.5.4 /deps/libsrt
+ADD https://github.com/Haivision/srt.git#v1.5.6 /deps/libsrt
 ADD subprojects/packagefiles/libsrt/meson.build /deps/libsrt/
 ADD subprojects/packagefiles/libsrt/srt/meson.build /deps/libsrt/srt/
+ADD subprojects/packagefiles/libsrt_shutdown.diff /deps/libsrt/
+RUN cd /deps/libsrt/ && patch -p1 < libsrt_shutdown.diff
 RUN cd /deps/build/libsrt/ && meson setup /deps/libsrt -Dstrip=true  && meson install
 
 # librist

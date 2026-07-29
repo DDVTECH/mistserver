@@ -129,7 +129,9 @@ namespace Bit{
     return *reinterpret_cast<double *>(&tmp);
   }
 
-  inline void htobd(char *p, double val){htobll(p, *reinterpret_cast<uint32_t *>(&val));}
+  inline void htobd(char *p, double val) {
+    htobll(p, *reinterpret_cast<uint64_t *>(&val));
+  }
 
   /// Retrieves a short in little endian from the pointer p.
   inline uint16_t btohs_le(const char *p){return ((uint16_t)p[1] << 8) | p[0];}

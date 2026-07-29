@@ -1148,7 +1148,7 @@ std::string JSON::Value::toPacked() const{
     return r;
   }
   if (isDouble()) {
-    std::string r = "\004012345678";
+    std::string r = "\00412345678";
     Bit::htobd((char *)r.data() + 1, dblVal);
     return r;
   }

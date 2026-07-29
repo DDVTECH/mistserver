@@ -1252,11 +1252,9 @@ MistSkins["default"] = {
         }
         if ((MistVideo.player.api.volume) && (!MistVideo.player.api.muted)) {
           MistUtil.class.remove(button,"off");
-          button.setPressed(true);
         }
         else {
           MistUtil.class.add(button,"off");
-          button.setPressed(false);
         }
         MistUtil.event.removeListener(initevent);
       });
@@ -3153,6 +3151,8 @@ console.warn(i,cast.framework.CastContext.getInstance().getSessionState());
         if (e.target.matches("input,textarea,select,[contenteditable]:not([contenteditable=\"false\"])")) {
           return;
         }
+
+        if (e.ctrlKey || e.altKey) return;
         
         //console.warn("keydown",JSON.stringify(e.key));
         switch (e.key) {
@@ -3972,6 +3972,7 @@ MistSkins.dev = {
       MistUtil.event.addListener(select,"change",function(){
         MistVideo.options.forcePlayer = (this.value == "" ? false : this.value);
         if (MistVideo.options.forcePlayer != MistVideo.playerName) { //only reload if there is a change
+          if (MistVideo.options.startCombo) MistVideo.options.startCombo = false; //reset starting point for next combo
           MistVideo.reload("Reloading to force player.");
         }
       });
@@ -4014,6 +4015,7 @@ MistSkins.dev = {
       MistUtil.event.addListener(select,"change",function(){
         MistVideo.options.forceType = (this.value == "" ? false : this.value);
         if ((!MistVideo.source) || (MistVideo.options.forceType != MistVideo.source.type)) { //only reload if there is a change
+          if (MistVideo.options.startCombo) MistVideo.options.startCombo = false; //reset starting point for next combo
           MistVideo.reload("Reloading to force new type.");
         }
       });
@@ -4048,6 +4050,7 @@ MistSkins.dev = {
       MistUtil.event.addListener(select,"change",function(){
         MistVideo.options.forceSource = (this.value == "" ? false : this.value);
         if (MistVideo.options.forceSource != MistVideo.source.index) { //only reload if there is a change
+          if (MistVideo.options.startCombo) MistVideo.options.startCombo = false; //reset starting point for next combo
           MistVideo.reload("Reloading to force new source.");
         }
       });

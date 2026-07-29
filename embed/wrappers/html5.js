@@ -90,7 +90,13 @@ mistplayers.html5 = {
   getScore: function(varname,source){
     switch (varname) {
       case "cpu_viewer": return 10;
-      case "recovery": return 5;
+      case "recovery": {
+        if ((source.type.indexOf("html5/application/vnd.apple.mpegurl") > -1) && (MistUtil.getBrowser() != "safari")) {
+          //native HLS playback on non-safari performs poorly
+          return 0;
+        }
+        return 5;
+      }
     }
   },
   mistControls: true

@@ -130,7 +130,10 @@ function MistVideo(streamName,options) {
     if (!options) {
       options = {};
     }
-    options = MistUtil.object.extend(MistUtil.object.extend({},this.options),options)
+    options = MistUtil.object.extend(MistUtil.object.extend({},this.options),options);
+
+    var debug = false;
+    //debug = true;
     
     var source = false;
     var mistPlayer = false;
@@ -165,8 +168,17 @@ function MistVideo(streamName,options) {
         
     //helper class to store a player / source combo and calculate the score
     function Combo(sourceIndex,playerIndex){
-      this.sourceIndex = sourceIndex;
-      this.playerIndex = playerIndex;
+
+      //make it identifyable in devtools
+      this._ = players[playerIndex].shortname +" + "+ function(s){
+        if (s.hrn) {
+          if (s.hrn.length < s.type.length) return s.hrn;
+        }
+        return s.type;
+      }(sources[sourceIndex])+" @ "+sources[sourceIndex].url.replace(/[\?\&]tkn=\d+/,""); 
+
+      this.sourceIndex = Number(sourceIndex);
+      this.playerIndex = Number(playerIndex);
       this.score = null;    //will contain the score for this combo
       this.score_breakdown = {
         scores: {},
@@ -256,6 +268,10 @@ function MistVideo(streamName,options) {
 
     } //end of Combo class
 
+    if (debug) {
+      console.warn("List of sources\n"+sources.map(function(a){return a.type+" ("+a.s+")"}).join("\n"));
+    }
+
     var listofcombos = [];
     for (var i in sources) {
       var source = sources[i];
@@ -332,9 +348,19 @@ function MistVideo(streamName,options) {
       //don't start at the first combo, but where we left off
       
       if ("list" in options.startCombo) {
-        //technically, this list may be from a previous instance where the source list had different scores and the selected source may not even be valid anymore.. but I guess we ignore that for now
-        listofcombos = options.startCombo.list;
-        i = options.startCombo.start;
+        //technically, this list may be from a previous instance where the source list had different scores and the selected source may not even be valid anymore.. 
+        //check if the starting combo or similar is in the current list and start there
+        var desc = options.startCombo.list[options.startCombo.start]._;
+        var starters = listofcombos.filter(function(a){ return a._ == desc; });
+        if (starters.length == 0) {
+          //the starting combo is no longer in the list. Assume startCombo should be reset
+          MistVideo.log("The list of combo has changed since startCombo was set. Resetting startCombo.");
+          options.startCombo = false;
+        }
+        else {
+          //listofcombos = options.startCombo.list;
+          i = listofcombos.indexOf(starters[0]);
+        }
       }
       else {
         //old style
@@ -356,9 +382,9 @@ function MistVideo(streamName,options) {
       }
     }
 
-    /*if (!quiet) console.warn("Sorting of combos:\n"+listofcombos.map(function(a){
+    if (debug) console.warn("Sorting of combos:\n"+listofcombos.map(function(a){
       return a.toString();
-    }).join("\n"),"\nStarting at "+i,listofcombos);*/
+    }).join("\n"),"\nStarting at "+i,listofcombos);
 
 
     //do the actual loop
@@ -376,12 +402,14 @@ function MistVideo(streamName,options) {
           listofcombos.splice(i,1);
           //keep i at current value
           //console.warn("Combo cannot play, kicking: "+combo);
+          if (!quiet) MistVideo.log("Rejected "+combo+": No playable tracks");
           break;
         }
         default: {
           if (combo.canPlay() >= maxscore) return combo.report(); //just in case the canplay score returned is higher than the calculated max for some reason
 
           //not everything can play: check combos after this one that might be better
+          if (!quiet) MistVideo.log("Skipped "+combo+" for now: canPlay "+combo.canPlay()+" < "+maxscore);
           i++;
 
           //console.warn("Combo plays but will try to find a better one: "+combo);
@@ -389,6 +417,7 @@ function MistVideo(streamName,options) {
       }
     }
     //if we've reached this point, no combo can play both audio and video.
+    MistVideo.log("No combo's can play all tracks, looking for highest score..");
     
     if (!listofcombos.length) return false;
 
@@ -2070,6 +2099,9 @@ function MistVideo(streamName,options) {
           list: this.combo.list,
           start: Number(this.combo.i) + 1
         };
+        if (startCombo.start >= startCombo.list.length) {
+          startCombo.start = 0;
+        }
       }
       else {
         startCombo = {

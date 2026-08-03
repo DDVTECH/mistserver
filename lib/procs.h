@@ -4,14 +4,15 @@
 #pragma once
 #include <deque>
 #include <set>
+#include <stdint.h>
 #include <string>
 #include <unistd.h>
-#include <stdint.h> 
+#include <vector>
 
 /// Contains utility code, not directly related to streaming media
 namespace Util{
 
-  char *const *dequeToArgv(const std::deque<std::string> & argDeq);
+  std::vector<char *> dequeToArgv(const std::deque<std::string> & argDeq);
 
   /// Deals with spawning, monitoring and stopping child processes
   class Procs{

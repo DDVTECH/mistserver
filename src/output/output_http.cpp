@@ -1102,10 +1102,10 @@ namespace Mist{
       args.push_back(std::to_string(Util::printDebugLevel));
     }
     Util::optionsToArguments(cnf, capa, args);
-    char *const *argv = Util::dequeToArgv(args);
+    std::vector<char *> argv = Util::dequeToArgv(args);
 
     /// start new/better process
-    execv(argv[0], argv);
+    execv(argv[0], argv.data());
   }
 
   std::string HTTPOutput::getConnectedHost(){

@@ -710,12 +710,12 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     Socket::Connection io(0, 1);
     io.drop();
     INFO_MSG("Starting %s", args.begin()->c_str());
-    char *const *argv = Util::dequeToArgv(args);
-    if (!argv) {
+    std::vector<char *> argv = Util::dequeToArgv(args);
+    if (!argv.size()) {
       FAIL_MSG("Invalid arguments for input command - aborting");
       _exit(43);
     }
-    execvp(argv[0], argv);
+    execvp(argv[0], argv.data());
     FAIL_MSG("Starting process %s failed: %s", argv[0], strerror(errno));
     _exit(42);
   }

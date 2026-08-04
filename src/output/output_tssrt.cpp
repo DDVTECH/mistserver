@@ -651,7 +651,6 @@ namespace Mist {
 
     capa["optional"]["nostreamid"]["name"] = "Disable streamid";
     capa["optional"]["nostreamid"]["help"] = "Disable reading of the streamid field";
-    capa["optional"]["nostreamid"]["type"] = "boolean";
     capa["optional"]["nostreamid"]["option"] = "--nostreamid";
     capa["optional"]["nostreamid"]["short"] = "I";
 

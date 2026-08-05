@@ -303,8 +303,8 @@ namespace Mist{
     H.SetBody("<!DOCTYPE html><html><head><title>" + streamName +
               "</title><meta name=\"viewport\" content=\"width=device-width, "
               "initial-scale=1\"><style>html{margin:0;padding:0;display:table;width:100%;height:"
-              "100%;}body{color:white;background:#0f0f0f;margin:0;padding:0;display:table-cell;"
-              "vertical-align:middle;text-align:center}body>div>div{text-align:left;}</style></"
+              "100%;overflow:hidden}body{color:white;background:#0f0f0f;margin:0;padding:0;display:table-cell;"
+              "vertical-align:middle;text-align:center}body>div{max-width:100vw;max-height:100vh}body>div>div{text-align:left}</style></"
               "head><body><div class=mistvideo id=\"" +
               streamName + "\"><noscript><video controls autoplay><source src=\"" + hlsUrl +
               "\" type=\"application/vnd.apple.mpegurl\"><source src=\"" + mp4Url + "\" type=\"video/mp4\"><a href=\"" +

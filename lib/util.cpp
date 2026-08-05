@@ -604,7 +604,7 @@ namespace Util{
   bool ResizeablePointer::operator==(const ResizeablePointer & rhs) const {
     if (size() != rhs.size()) { return false; }
     if (!size()) { return true; }
-    return memcmp(ptr, rhs.ptr, size());
+    return !memcmp(ptr, rhs.ptr, size());
   }
 
   bool ResizeablePointer::operator<(const ResizeablePointer & rhs) const {

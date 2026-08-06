@@ -69,7 +69,11 @@ mistplayers.html5 = {
             case "video/mp4":
             case "html5/application/vnd.apple.mpegurl":
             default: {
-              result = v.canPlayType(shortmime+";codecs=\""+codecs+"\"");
+              // Safari requires codecs before additional MIME parameters such as version=7.
+              var mimeparts = shortmime.split(";");
+              var testmime = mimeparts.shift()+";codecs=\""+codecs+"\"";
+              if (mimeparts.length) { testmime += ";"+mimeparts.join(";"); }
+              result = v.canPlayType(testmime);
               break;
             }
           }
@@ -88,14 +92,13 @@ mistplayers.html5 = {
     this.onreadylist = [];
   },
   getScore: function(varname,source){
+    var nativeHls = source.type.indexOf("html5/application/vnd.apple.mpegurl") > -1;
     switch (varname) {
-      case "cpu_viewer": return 10;
+      case "cpu_viewer": return nativeHls ? 4 : 10;
       case "recovery": {
-        if ((source.type.indexOf("html5/application/vnd.apple.mpegurl") > -1) && (MistUtil.getBrowser() != "safari")) {
-          //native HLS playback on non-safari performs poorly
-          return 0;
-        }
-        return 5;
+        // Keep native HLS as a fallback, but prefer wrappers that expose and manage
+        // the complete HLS timeline instead of the browser's opaque native window.
+        return nativeHls ? 0 : 5;
       }
     }
   },
@@ -142,6 +145,9 @@ p.prototype.build = function (MistVideo,callback) {
       get: {},
       set: {}
     };
+    var isLiveMp4 = (MistVideo.info.type == "live") && (MistVideo.source.type == "html5/video/mp4");
+    var isNativeHls = (MistVideo.info.type == "live") &&
+      (MistVideo.source.type.indexOf("html5/application/vnd.apple.mpegurl") == 0);
     
     MistVideo.player.api = new Proxy(video,{
       get: function(target, key, receiver){
@@ -172,8 +178,129 @@ p.prototype.build = function (MistVideo,callback) {
       
     }
 
-    if (MistVideo.info.type == "live") {
-      
+    if (MistVideo.info.type == "live" && (isLiveMp4 || isNativeHls)) {
+      // The player controls use Mist packet time, while native media timelines may start at
+      // zero. Keep an explicit mapping between those two timelines. The previous liveOffset
+      // calculation applied the seek offset twice, which made the displayed duration jump
+      // into the future after seeking backwards.
+      var timelineOffset = 0;
+      var timelineOffsetSource = false;
+      var mp4SourceLiveOffset = 0;
+
+      function getInfoLastMs() {
+        var lastms = Number(MistVideo.info.lastms);
+        if (isFinite(lastms)) { return lastms; }
+
+        lastms = -Infinity;
+        for (var i in MistVideo.info.meta.tracks) {
+          var value = Number(MistVideo.info.meta.tracks[i].lastms);
+          if (isFinite(value)) { lastms = Math.max(lastms,value); }
+        }
+        return lastms;
+      }
+
+      function getLiveEdge() {
+        var lastms = getInfoLastMs();
+        if (!isFinite(lastms)) { return 0; }
+
+        var updated = MistVideo.info.updated;
+        var updatedAt = updated && (typeof updated.getTime == "function") ? updated.getTime() : NaN;
+        var age = isFinite(updatedAt) ? Math.max(0,Date.now()-updatedAt) : 0;
+        return (lastms+age)*1e-3;
+      }
+
+      function getTimelineOffset() {
+        if (!isNativeHls) { return timelineOffset; }
+
+        // Native HLS players may expose the media timeline's wall-clock origin when the playlist
+        // has EXT-X-PROGRAM-DATE-TIME. unixoffset converts it back to Mist packet time.
+        if ((typeof video.getStartDate == "function") && isFinite(Number(MistVideo.info.unixoffset))) {
+          try {
+            var startDate = video.getStartDate();
+            if (startDate && isFinite(startDate.getTime())) {
+              timelineOffset = (startDate.getTime()-Number(MistVideo.info.unixoffset))*1e-3;
+              timelineOffsetSource = "program-date-time";
+              return timelineOffset;
+            }
+          }
+          catch(e) {}
+        }
+
+        // Older/non-dated playlists have no exact wall-clock mapping. Pair the API edge with
+        // the first native seekable edge once, then keep that mapping stable as the window slides.
+        if (!timelineOffsetSource && video.seekable.length) {
+          timelineOffset = getLiveEdge()-video.seekable.end(video.seekable.length-1);
+          timelineOffsetSource = "api-live-edge";
+        }
+        return timelineOffset;
+      }
+
+      timelineOffset = getLiveEdge();
+
+      overrides.get.duration = function(){
+        return getLiveEdge();
+      };
+      overrides.set.currentTime = function(value){
+        var liveEdge = getLiveEdge();
+        var target = Math.min(Number(value),liveEdge);
+        if (!isFinite(target)) { return false; }
+
+        MistVideo.log("Seeking to "+MistUtil.format.time(target)+" ("+Math.round((liveEdge-target)*10)/10+"s from live)");
+
+        if (isNativeHls) {
+          var offset = getTimelineOffset();
+          var nativeTarget = target-offset;
+          if (video.seekable.length) {
+            var seekableStart = video.seekable.start(0);
+            var seekableEnd = video.seekable.end(video.seekable.length-1);
+            if (nativeTarget >= seekableStart && nativeTarget <= seekableEnd) {
+              video.currentTime = nativeTarget;
+              return true;
+            }
+          }
+
+          // A position outside the native window needs a new response. The controls already use
+          // Mist packet time, so pass that timestamp directly instead of converting it through
+          // wall-clock-relative startunix.
+          var params = {start:Math.round(target*1e3)};
+          MistVideo.player.api.setSource(MistUtil.http.url.addParam(MistVideo.source.url,params),true);
+          return true;
+        }
+
+        mp4SourceLiveOffset = target-liveEdge;
+        timelineOffset = target;
+        var params = {start:Math.round(target*1e3)};
+        MistVideo.player.api.setSource(MistUtil.http.url.addParam(MistVideo.source.url,params),true);
+        return true;
+      };
+      overrides.get.currentTime = function(){
+        return (isNaN(this.currentTime) ? 0 : this.currentTime)+getTimelineOffset();
+      };
+      overrides.get.buffered = function(){
+        var buffered = this.buffered;
+        var offset = getTimelineOffset();
+        return {
+          length: buffered.length,
+          start: function(i) { return buffered.start(i)+offset; },
+          end: function(i) { return buffered.end(i)+offset; }
+        };
+      };
+
+      MistUtil.event.addListener(video,"pause",function(){
+        MistVideo.player.api.pausedAt = new Date();
+      });
+      overrides.get.play = function(){
+        return function(){
+          if ((MistVideo.player.api.paused) && (MistVideo.player.api.pausedAt) && ((new Date()) - MistVideo.player.api.pausedAt > 5e3)) {
+            if (isLiveMp4) { timelineOffset = getLiveEdge()+mp4SourceLiveOffset; }
+            video.load();
+            MistVideo.log("Reloading source..");
+          }
+          return video.play.apply(video,arguments);
+        };
+      };
+    }
+    else if (MistVideo.info.type == "live") {
       overrides.get.duration = function(){
         //this should indicate the end of Mist's buffer
         var buffer_end = 0;
@@ -189,7 +316,7 @@ p.prototype.build = function (MistVideo,callback) {
         if (offset > 0) {offset = 0;} //don't allow positive numbers, as Mist will interpret them as unix timestamps
         
         MistVideo.player.api.liveOffset = offset;
-        
+
         MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
         
         var params = {startunix:offset};
@@ -254,8 +381,8 @@ p.prototype.build = function (MistVideo,callback) {
   else {
     MistVideo.player.api = video;
   }
-  MistVideo.player.api.setSource = function(url) {
-    if (url != this.source.src) {
+  MistVideo.player.api.setSource = function(url,force) {
+    if ((url != this.source.src) || force) {
       this.source.src = url;
       this.load();
     }

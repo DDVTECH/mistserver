@@ -579,7 +579,8 @@ MistSkins["default"] = {
 
       }
       
-      return this.video;
+      //The media API can live inside a player-specific element tree.
+      return (this.player && this.player.displayElement) || this.video;
     },
     videocontainer: function(){
       return this.UI.buildStructure(this.skin.structure.videocontainer);

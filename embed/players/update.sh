@@ -1,11 +1,20 @@
 #!/bin/bash
 
+set -e
+
+cd "$(dirname "$0")"
+
 echo "Dashjs"
 wget https://cdn.dashjs.org/latest/dash.all.min.js -O dash.all.min.js
 
 echo "Videojs"
-echo "You'll want to check for the latest version at https://videojs.com/getting-started/#download-cdn"
-wget https://vjs.zencdn.net/8.23.4/video.min.js -O video.min.js
+../node_modules/.bin/esbuild videojs.entry.js \
+  --bundle \
+  --format=esm \
+  --legal-comments=inline \
+  --minify \
+  --banner:js='/*! Video.js 10.0.0-beta.32, hls.js 1.7.1 and dash.js 5.2.1 | Apache-2.0 */' \
+  --outfile=video.min.js
 
 echo "HLSjs"
-echo "Releases at https://github.com/video-dev/hls.js/ - download the .zip, extract, and replace hls.js with hls.min.js"
+echo "Releases at https://github.com/video-dev/hls.js/releases - download the .zip, extract, and replace hls.js with hls.min.js"

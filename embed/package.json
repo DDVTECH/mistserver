@@ -6,7 +6,11 @@
     "minimize": "./minimize_internal.sh"
   },
   "dependencies": {
+    "@videojs/html": "10.0.0-beta.32",
     "clean-css-cli": "^4.3.0",
+    "dashjs": "5.2.1",
+    "esbuild": "0.25.9",
+    "hls.js": "1.7.1",
     "terser": "^3.17.0"
   }
 }

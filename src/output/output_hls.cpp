@@ -528,7 +528,10 @@ namespace Mist{
           return;
         }
         if (config->getString("chunkpath").size()){
-          manifest = liveIndex(idx, "", HTTP::URL(config->getString("chunkpath")).link(reqUrl).link("./").getUrl());
+          HTTP::URL base(reqUrl);
+          base = base.link("./");
+          HTTP::URL chunkPath = base.link(config->getString("chunkpath") + base.path);
+          manifest = liveIndex(idx, "", chunkPath.getLinkFrom(base));
         }else{
           std::string tknStr;
           if (tkn.size() && Comms::tknMode & 0x04){tknStr = "?tkn=" + tkn;}

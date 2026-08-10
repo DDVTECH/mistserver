@@ -2824,6 +2824,7 @@ namespace Mist{
     // Disable stats for HTTP internal output
     if (Comms::sessionStreamInfoMode == SESS_HTTP_DISABLED && capa["name"].asStringRef() == "HTTP"){return;}
     if (getenv("NOSESS")) { return; } // Disable sessions and stats if NOSESS env variable is set
+    if (getenv("MIST_ADMIN_HTTP")) { return; } // Disable sessions if using the admin_http feature
 
     // Set the token to the pid for outputs which do not generate it in the requestHandler
     if (!tkn.size()){ tkn = JSON::Value(getpid()).asString(); }

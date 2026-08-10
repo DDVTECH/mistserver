@@ -365,12 +365,13 @@ namespace Mist{
           if (fwdHostStr.find(',') != std::string::npos){fwdHostStr.erase(fwdHostStr.find(','));}
         }
         std::string trueHostStr = Output::getConnectedHost();
-        if (!fwdHostStr.size() || !isTrustedProxy(trueHostStr)){
+        // If there is no remote host, this is a local pipe, and we always trust it
+        if (trueHostStr.size() && trueHostStr != "PIPE" && (!fwdHostStr.size() || !isTrustedProxy(trueHostStr))) {
           if (fwdHostStr.size() && fwdHostStr != trueHostStr){
             WARN_MSG("Host %s is attempting to act as a proxy for %s, but not trusted", trueHostStr.c_str(), fwdHostStr.c_str());
           }
           fwdHostStr.clear();
-        }else{
+        } else {
           std::deque<Socket::Address> addrs = Socket::getAddrs(fwdHostStr, 0);
           if (addrs.size()) { fwdHostBin = addrs.begin()->binForm(); }
         }
@@ -1088,6 +1089,7 @@ namespace Mist{
     std::deque<std::string> args;
     args.push_back(Util::getMyPath() + "MistOut" + connector);
     std::string trueHostStr = Output::getConnectedHost();
+    if (!trueHostStr.size()) { trueHostStr = "PIPE"; }
     args.push_back("--ip");
     args.push_back(trueHostStr);
     args.push_back("--stream");

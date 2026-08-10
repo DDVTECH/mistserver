@@ -21,6 +21,7 @@ namespace Mist{
   private:
     std::string origStreamName;
     std::string mistPath;
+    std::string mistProto;
     std::string thisError;
   };
 }// namespace Mist

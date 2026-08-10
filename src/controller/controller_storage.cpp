@@ -30,6 +30,7 @@ namespace Controller{
   std::string accesslog;
   std::string udpApiBindAddr;
   Util::Config conf;
+  bool isTLSEnabled{false};
   JSON::Value Storage; ///< Global storage of data.
   std::mutex configMutex;
   std::mutex logMutex;

@@ -5,12 +5,10 @@
 
 #include "defines.h"
 #include "ev.h"
-#include "stream.h"
 
 #include <mutex>
 #include <signal.h>
 #include <spawn.h>
-#include <sstream>
 #include <string.h>
 #include <sys/types.h>
 #include <thread>
@@ -21,10 +19,9 @@
 #include <wait.h>
 #endif
 #include "timing.h"
-#include "json.h"
+
 #include <errno.h>
 #include <fcntl.h>
-#include <iostream>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -413,13 +410,19 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdIn, int *fdOut, in
 
   {
     std::lock_guard<std::mutex> guard(plistMutex);
-    for (auto it : Util::Procs::socketList) {
+    std::deque<int> toErase;
+    for (const auto & it : Util::Procs::socketList) {
+      if (fcntl(it, F_GETFD) != -1 || errno != EBADF) {
+        toErase.push_back(it);
+        continue;
+      }
       errno = posix_spawn_file_actions_addclose(&childFdActions, it);
 #if defined(_WIN32) || defined(CYGWIN)
       fcntl(it, F_SETFD, FD_CLOEXEC);
 #endif
       if (errno) { INFO_MSG("errno closing socket %d: %s", it, strerror(errno)); }
     }
+    for (const auto & it : toErase) { Util::Procs::socketList.erase(it); }
   }
 
   auto fdNotUnder3 = [&fd_unused](int & fd) {
@@ -515,13 +518,7 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdIn, int *fdOut, in
   // }while (ret && errno == EINTR);
   posix_spawn_file_actions_destroy(&childFdActions);
 
-  std::stringstream args;
-  for (size_t i = 0; i < 30; ++i) {
-    if (!argv[i] || !argv[i][0]) { break; }
-    args << argv[i] << " ";
-  }
-
-  if (ret) { FAIL_MSG("Could not start process %s: %s", args.str().c_str(), strerror(errno)); }
+  if (ret) { FAIL_MSG("Could not start process %s: %s", Util::argStr(argv).c_str(), strerror(errno)); }
 
   if (fdIn && *fdIn == -1) {
     close(pipein[0]); // close unused read end
@@ -555,7 +552,7 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdIn, int *fdOut, in
     plist.insert(pid);
   }
 
-  HIGH_MSG("Piped process %s started, PID %d", args.str().c_str(), pid);
+  HIGH_MSG("Piped process %s started, PID %d", Util::argStr(argv).c_str(), pid);
   return pid;
 }
 

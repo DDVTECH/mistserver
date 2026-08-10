@@ -24,6 +24,7 @@ namespace Controller{
   extern uint64_t lastConfigWrite;   ///< Unix time in seconds of last time configuration was written to disk
   extern JSON::Value lastConfigWriteAttempt; ///< Contents of last attempted config write
   extern JSON::Value lastConfigSeen; ///< Contents of config last time we looked at it. Used to check for changes.
+  extern bool isTLSEnabled;
 
   Util::RelAccX *logAccessor();
   Util::RelAccX *accesslogAccessor();

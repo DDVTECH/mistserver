@@ -38,6 +38,57 @@
 #define COMPILED_PASSWORD ""
 #endif
 
+#ifdef SSL
+class crtAndKey {
+  public:
+    crtAndKey() {
+      mbedtls_x509_crt_init(&crt);
+      mbedtls_pk_init(&key);
+    }
+    mbedtls_x509_crt crt;
+    mbedtls_pk_context key;
+    std::string crtFile, keyFile;
+};
+std::deque<crtAndKey> srvcerts;
+
+static int cert_callback(void *p_info, mbedtls_ssl_context *ssl, const unsigned char *name, size_t name_len) {
+  std::string sniName((char *)name, name_len);
+
+  for (auto & it : srvcerts) {
+    std::string subject((char *)it.crt.subject.val.p, it.crt.subject.val.len);
+    if (sniName != subject) {
+      bool found = false;
+      mbedtls_asn1_sequence *cur = &it.crt.subject_alt_names;
+      while (cur) {
+        if (sniName == std::string((char *)cur->buf.p, cur->buf.len)) {
+          found = true;
+          break;
+        }
+        if (cur->buf.len && cur->buf.p[0] == '*' && sniName.size() >= cur->buf.len) {
+          if (sniName.substr(sniName.size() - (cur->buf.len - 1)) == std::string((char *)cur->buf.p + 1, cur->buf.len - 1)) {
+            if (sniName.substr(0, sniName.size() - (cur->buf.len - 1)).find('.') == std::string::npos) {
+              found = true;
+              break;
+            }
+          }
+        }
+        cur = cur->next;
+      }
+      if (!found) { continue; }
+    }
+    MEDIUM_MSG("Matched %s to (%s, %s)!", sniName.c_str(), it.crtFile.c_str(), it.keyFile.c_str());
+
+    int r = mbedtls_ssl_set_hs_own_cert(ssl, &(it.crt), &(it.key));
+    if (r) { WARN_MSG("Could not set certificate!"); }
+    return r;
+  }
+  WARN_MSG("Could not find matching certificate for %s; using default certificate instead", sniName.c_str());
+  int r = mbedtls_ssl_set_hs_own_cert(ssl, &(srvcerts.begin()->crt), &(srvcerts.begin()->key));
+  if (r) { WARN_MSG("Could not set certificate!"); }
+  return r;
+}
+#endif
+
 uint64_t lastConfRead = 0;
 
 /// the following function is a simple check if the user wants to proceed to fix (y), ignore (n) or
@@ -262,6 +313,24 @@ int main_loop(int argc, char **argv){
   if (!stored_user["default"]) { stored_user["default"] = "root"; }
   Controller::conf.addOption("username", stored_user);
 
+  JSON::Value stored_cert(PARSEJSON, R"-({
+    "long":"certificate",
+    "short":"x",
+    "arg":"string",
+    "help":"Path to certificate .pem file for TLS (HTTPS)"
+  })-");
+  stored_cert["default"] = Controller::Storage["config"]["controller"]["certificate"];
+  Controller::conf.addOption("certificate", stored_cert);
+
+  JSON::Value stored_key(PARSEJSON, R"-({
+    "long":"key",
+    "short":"X",
+    "arg":"string",
+    "help":"Path to key .pem file for TLS (HTTPS)"
+  })-");
+  stored_key["default"] = Controller::Storage["config"]["controller"]["key"];
+  Controller::conf.addOption("key", stored_key);
+
   Controller::conf.addOption("account", R"-({
     "long":"account",
     "short":"a",
@@ -467,6 +536,131 @@ int main_loop(int argc, char **argv){
   Controller::loadActiveConnectors();
   Controller::externalWritersToShm();
 
+#ifdef SSL
+  Controller::isTLSEnabled = false;
+  mbedtls_entropy_context entropy;
+  mbedtls_ctr_drbg_context ctr_drbg;
+  mbedtls_ssl_config sslConf;
+  mbedtls_x509_crt srvcert;
+  mbedtls_pk_context pkey;
+  // No cert or key? Non-SSL mode.
+  if (!Controller::conf.getString("certificate").size() || !Controller::conf.getString("key").size()) {
+    INFO_MSG("No cert or key set, regular HTTP mode");
+  } else {
+
+    INFO_MSG("Cert and key set, HTTPS mode");
+
+    // Declare and set up all required mbedtls structures
+    int ret;
+    mbedtls_ssl_config_init(&sslConf);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_pk_init(&pkey);
+    mbedtls_x509_crt_init(&srvcert);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    Controller::isTLSEnabled = true;
+
+    mbedtls_debug_set_threshold(3);
+    mbedtls_ssl_conf_dbg(&sslConf, [](void *ctx, int level, const char *file, int line, const char *str) {
+      const int lvl = (level == 1) ? 4 : level + 6;
+      if (Util::printDebugLevel >= lvl) {
+        fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|TLS: %s\n", DBG_LVL_LIST[lvl], MIST_PROG, getpid(), file, line,
+                Util::streamName, str);
+      }
+    }, 0);
+
+    // seed the rng
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)APPNAME, strlen(APPNAME))) != 0) {
+      FAIL_MSG("Could not seed the random number generator!");
+    }
+
+    // Read certificate chain(s) from cmdline option(s)
+    bool ignoreKeys = false;
+    JSON::Value certs = Controller::conf.getOption("certificate", true);
+    jsonForEach (certs, it) {
+      const std::string & cFile = it->asStringRef();
+      if (!cFile.size()) { continue; } // Ignore empty entries (default is empty)
+      srvcerts.push_back(crtAndKey());
+      crtAndKey & srvcert = srvcerts.back();
+      if (cFile[0] == '[') {
+        ignoreKeys = true;
+        JSON::Value crtCnf(PARSEJSON, cFile);
+        jsonForEachConst (crtCnf, jt) {
+          if (!jt->asStringRef().size()) { continue; }
+          if (jt.num() + 1 != crtCnf.size()) {
+            if (!srvcert.crtFile.size()) { srvcert.crtFile = jt->asStringRef(); }
+            ret = mbedtls_x509_crt_parse_file(&srvcert.crt, jt->asStringRef().c_str());
+            if (ret) { WARN_MSG("Could not load any certificates from file: %s", jt->asStringRef().c_str()); }
+          } else {
+            srvcert.keyFile = jt->asStringRef();
+            ret = mbedtls_pk_parse_keyfile(&(srvcert.key), jt->asStringRef().c_str(), NULL
+#if MBEDTLS_VERSION_MAJOR > 2
+                                           ,
+                                           mbedtls_ctr_drbg_random, &ctr_drbg
+#endif
+            );
+            if (ret) { WARN_MSG("Could not load any keys from file: %s", jt->asStringRef().c_str()); }
+          }
+        }
+        continue;
+      }
+      srvcert.crtFile = cFile;
+      ret = mbedtls_x509_crt_parse_file(&srvcert.crt, cFile.c_str());
+      if (ret != 0) { WARN_MSG("Could not load any certificates from file: %s", cFile.c_str()); }
+    }
+
+    if (!ignoreKeys) {
+      auto crtIt = srvcerts.begin();
+      // Read key from cmdline option
+      JSON::Value keys = Controller::conf.getOption("key", true);
+      jsonForEach (keys, it) {
+        if (!it->asStringRef().size()) { continue; } // Ignore empty entries (default is empty)
+        if (crtIt == srvcerts.end()) { break; }
+        crtIt->keyFile = it->asStringRef();
+        ret = mbedtls_pk_parse_keyfile(&(crtIt->key), it->asStringRef().c_str(), NULL
+#if MBEDTLS_VERSION_MAJOR > 2
+                                       ,
+                                       mbedtls_ctr_drbg_random, &ctr_drbg
+#endif
+        );
+        if (ret != 0) { WARN_MSG("Could not load any keys from file: %s", Controller::conf.getString("key").c_str()); }
+        ++crtIt;
+      }
+    }
+
+    if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
+      FAIL_MSG("SSL config defaults failed");
+      return false;
+    }
+    mbedtls_ssl_conf_rng(&sslConf, mbedtls_ctr_drbg_random, &ctr_drbg);
+    mbedtls_ssl_conf_ca_chain(&sslConf, srvcert.next, NULL);
+    if ((ret = mbedtls_ssl_conf_own_cert(&sslConf, &srvcert, &pkey)) != 0) {
+      FAIL_MSG("SSL config own certificate failed");
+      return false;
+    }
+    mbedtls_ssl_conf_sni(&sslConf, cert_callback, (void *)&srvcerts);
+  }
+#endif
+
+  // Handle expiring admin_http tokens
+  Controller::E.addInterval([&]() {
+    if (!Controller::Storage.isMember("admin_http")) { return (size_t)60000; }
+    std::deque<std::string> toDelete;
+    uint64_t now = Util::epoch();
+    size_t nextCheck = 60000;
+    JSON::Value & admHttp = Controller::Storage["admin_http"];
+    jsonForEachConst (admHttp, it) {
+      if ((*it)["expire"].asInt() <= now) {
+        toDelete.push_back(it.key());
+      } else {
+        uint64_t timeLeft = ((*it)["expire"].asInt() - now) * 1000;
+        if (timeLeft < nextCheck) { nextCheck = timeLeft; }
+      }
+    }
+    for (const std::string & it : toDelete) { admHttp.removeMember(it); }
+    return nextCheck;
+  }, 1000);
+
   Controller::E.addInterval(Controller::jwkUriCheck, 1000);
   Controller::E.addInterval(Controller::runStats, 1000);
   Controller::E.addInterval(Controller::updateLoad, 1000);
@@ -474,12 +668,19 @@ int main_loop(int argc, char **argv){
   Controller::variableTimer = Controller::E.addInterval(Controller::variableRun, 750);
   Controller::E.addInterval(Controller::runPushCheck, 1000);
   Controller::E.addInterval(statusMonitor, 3000);
-  Controller::E.addSocket(apiSock.getSocket(), [&apiSock](void *) {
-    APIConn *aConn = new APIConn(Controller::E, apiSock);
+  Controller::E.addSocket(apiSock.getSocket(), [&](void *) {
+    APIConn *aConn = new APIConn(Controller::E, apiSock, [&](Socket::Connection & C) {
+#ifdef SSL
+      if (Controller::isTLSEnabled && !C.sslAccept(&sslConf, &ctr_drbg)) { return false; }
+#endif
+      return true;
+    });
     if (!aConn) {
       FAIL_MSG("Could not create new API connection: out of memory");
       return;
     }
+    // Delete the APIConn object if the connection failed
+    if (!aConn->C) { delete aConn; }
   }, 0);
 
   // Set up UDP API socket
@@ -603,6 +804,18 @@ int main_loop(int argc, char **argv){
   Util::wait(100);
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
   if (Util::Config::is_restarting){return 42;}
+
+#ifdef SSL
+  if (Controller::isTLSEnabled) {
+    // Free all the mbedtls structures
+    mbedtls_x509_crt_free(&srvcert);
+    mbedtls_pk_free(&pkey);
+    mbedtls_ssl_config_free(&sslConf);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+    Controller::isTLSEnabled = false;
+  }
+#endif
 
   // close logInput to make the log reading thread exit, then join it
   close(STDERR_FILENO);

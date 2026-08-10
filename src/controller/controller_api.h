@@ -10,10 +10,14 @@ class APIConn {
     Socket::Connection C;
     HTTP::Parser H;
 
+    Socket::Connection proxyC;
+    uint64_t proxyP{0};
+
     // Auth related
     bool authorized;
     size_t attempts;
     bool isLocal;
+    bool pass{false};
 
     // WebSocket related
     bool isWebSocket;
@@ -33,7 +37,7 @@ class APIConn {
                 const std::string & tags);
     void streamMeta(const std::string & stream, const JSON::Value & meta);
 
-    APIConn(Event::Loop & evLp, Socket::Server & srv);
+    APIConn(Event::Loop & evLp, Socket::Server & srv, std::function<bool(Socket::Connection & C)> cb);
     ~APIConn();
 
   private:

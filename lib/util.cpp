@@ -197,7 +197,67 @@ namespace Util{
     }
     val = val.substr(startPos, length);
   }
-  
+
+  /// Formats a deque of arguments for pretty-printing a command invocation
+  std::string argStr(const std::deque<std::string> & args) {
+    std::stringstream ret;
+    bool first = true;
+    for (const auto & it : args) {
+      if (first) {
+        first = false;
+      } else {
+        ret << " ";
+      }
+      if (it.find(' ') != std::string::npos) {
+        if (it.find('"') == std::string::npos) {
+          ret << "\"" << it << "\"";
+        } else {
+          if (it.find('\'') == std::string::npos) {
+            ret << "'" << it << "'";
+          } else {
+            std::string tmp = it;
+            Util::replace(tmp, " ", "\\ ");
+            ret << tmp;
+          }
+        }
+      } else {
+        ret << it;
+      }
+    }
+    return ret.str();
+  }
+
+  /// Formats an argv of arguments for pretty-printing a command invocation
+  std::string argStr(const char *const *args) {
+    std::stringstream ret;
+    bool first = true;
+    for (size_t i = 0; i < 512; ++i) {
+      if (!args[i] || !args[i][0]) { break; }
+      std::string it = args[i];
+      if (first) {
+        first = false;
+      } else {
+        ret << " ";
+      }
+      if (it.find(' ') != std::string::npos) {
+        if (it.find('"') == std::string::npos) {
+          ret << "\"" << it << "\"";
+        } else {
+          if (it.find('\'') == std::string::npos) {
+            ret << "'" << it << "'";
+          } else {
+            std::string tmp = it;
+            Util::replace(tmp, " ", "\\ ");
+            ret << tmp;
+          }
+        }
+      } else {
+        ret << it;
+      }
+    }
+    return ret.str();
+  }
+
   /// \brief splits a string on commas and returns a list of substrings
   void splitString(const std::string & src, char delim, std::deque<std::string> & result) {
     result.clear();

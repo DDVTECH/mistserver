@@ -134,7 +134,7 @@ size_t Controller::handleStreamMeta() {
   return 1000;
 }
 
-APIConn::APIConn(Event::Loop & evLp, Socket::Server & srv) : E(evLp) {
+APIConn::APIConn(Event::Loop & evLp, Socket::Server & srv, std::function<bool(Socket::Connection & C)> cb) : E(evLp) {
   authorized = false;
   attempts = 0;
   isLocal = false;
@@ -151,24 +151,27 @@ APIConn::APIConn(Event::Loop & evLp, Socket::Server & srv) : E(evLp) {
   }
   Util::Procs::socketList.insert(sock);
   C.setBlocking(false);
-  E.addSendSocket(sock, [](void *c) {
-    APIConn *A = (APIConn *)c;
-    A->C.send(0, 0);
-    if (!A->C) { delete A; }
-  }, [](void *c) {
-    APIConn *A = (APIConn *)c;
-    return A->C.sendingBlocked(1);
-  }, this);
-  C.onClose([this](int s) { E.remove(s); });
-  E.addSocket(sock, [](void *c) {
-    APIConn *A = (APIConn *)c;
-    if (!Controller::handleAPIConnection(A)) { delete A; }
-  }, this);
+  if (!cb || cb(C)) {
+    E.addSendSocket(sock, [](void *c) {
+      APIConn *A = (APIConn *)c;
+      A->C.send(0, 0);
+      if (!A->C) { delete A; }
+    }, [](void *c) {
+      APIConn *A = (APIConn *)c;
+      return A->C.sendingBlocked(1);
+    }, this);
+    C.onClose([this](int s) { E.remove(s); });
+    E.addSocket(sock, [](void *c) {
+      APIConn *A = (APIConn *)c;
+      if (!Controller::handleAPIConnection(A)) { delete A; }
+    }, this);
+  }
 }
 
 APIConn::~APIConn() {
   if (W) { delete W; }
   C.close();
+  proxyC.close();
   Util::Procs::socketList.erase(sock);
   Controller::deregister(this);
   E.remove(sock);
@@ -576,7 +579,126 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
     handleWebSocket(aConn);
     if (aConn->isWebSocket) { return aConn->C; }
   }
+  // Passthrough mode (proxied websockets)
+  if (aConn->pass) {
+    while (aConn->C.spool()) {
+      while (aConn->C.Received().size()) {
+        std::string & B = aConn->C.Received().get();
+        aConn->proxyC.SendNow(B);
+        B.clear();
+      }
+    }
+    if (!aConn->C) {
+      aConn->proxyC.close();
+      if (aConn->proxyP > 1 && Util::Procs::isRunning(aConn->proxyP)) { Util::Procs::Stop(aConn->proxyP); }
+    }
+    return aConn->C;
+  }
   while (aConn->C.spool() && aConn->C.Received().size() && aConn->H.Read(aConn->C)) {
+    std::string & url = aConn->H.url;
+
+    // Check admin_http access
+    if (Storage.isMember("admin_http") && url.size() > 6 && url.substr(0, 6) == "/http/") {
+      size_t slashPos = url.find('/', 6);
+      if (slashPos != std::string::npos) {
+        std::string token = url.substr(6, slashPos - 6);
+        if (!Storage["admin_http"].isMember(token)) {
+          // Invalid token? Just close the connection
+          aConn->C.close();
+          return false;
+        } else {
+          const JSON::Value & tknConf = Storage["admin_http"][token];
+          if (tknConf["expire"].asInt() < Util::epoch()) {
+            INFO_MSG("Admin token expired");
+            aConn->H.SetBody("Token expired");
+            aConn->H.SendResponse("403", "Token expired", aConn->C);
+            aConn->H.Clean();
+            Storage["admin_http"].removeMember(token);
+            continue;
+          }
+          // Strip the "/http/token" prefix, keep the following slash
+          aConn->H.url.erase(0, 6 + token.size());
+          if (!aConn->proxyP || !Util::Procs::childRunning(aConn->proxyP)) {
+            aConn->proxyP = 0;
+            std::string connector = "HTTP";
+            if (tknConf.isMember("connector")) { connector = tknConf["connector"].asStringRef(); }
+            if (!capabilities["connectors"].isMember(connector) && capabilities["connectors"].isMember("HTTP")) {
+              connector = "HTTP";
+            }
+            if (!capabilities["connectors"].isMember(connector) && capabilities["connectors"].isMember("HTTP.exe")) {
+              connector = "HTTP.exe";
+            }
+            std::string bin = Util::getMyPath() + "MistOut" + connector;
+            struct stat buf;
+            if (!::stat(bin.c_str(), &buf)) {
+              std::deque<std::string> args;
+              args.push_back(bin);
+              args.push_back("--connection_handler");
+              args.push_back(aConn->C.getHost());
+              Util::optionsToArguments(tknConf, capabilities["connectors"][connector], args);
+              int stdIn{-1};
+              int stdOut{-1};
+              int stdErr{STDERR_FILENO};
+              setenv("MIST_ADMIN_HTTP", "1", 1);
+              aConn->proxyP = Util::Procs::StartPiped(args, &stdIn, &stdOut, &stdErr);
+              unsetenv("MIST_ADMIN_HTTP");
+              if (stdIn < 0 || stdOut < 0 || aConn->proxyP < 1) {
+                if (stdIn >= 0) { ::close(stdIn); }
+                if (stdOut >= 0) { ::close(stdOut); }
+                if (aConn->proxyP > 1) { Util::Procs::Stop(aConn->proxyP); }
+                aConn->H.SetBody("Process spawn error!");
+                aConn->H.SendResponse("500", "Spawn error!", aConn->C);
+                aConn->H.Clean();
+                aConn->C.close();
+                return false;
+              }
+              Util::Procs::socketList.insert(stdIn);
+              Util::Procs::socketList.insert(stdOut);
+              INFO_MSG("Proxy to %s connected to %d (stdin) and %d (stdout)", Util::argStr(args).c_str(), stdIn, stdOut);
+              aConn->proxyC.open(stdIn, stdOut);
+              aConn->proxyC.setBlocking(false);
+              Controller::E.addSocket(stdOut, [](void *C) {
+                APIConn *aConn = (APIConn *)C;
+                while (aConn->proxyC.spool()) {
+                  while (aConn->proxyC.Received().size()) {
+                    std::string & B = aConn->proxyC.Received().get();
+                    aConn->C.SendNow(B);
+                    B.clear();
+                  }
+                }
+              }, aConn);
+              aConn->proxyC.onClose([&, stdIn, stdOut, aConn](int s) {
+                Util::Procs::socketList.erase(stdIn);
+                Util::Procs::socketList.erase(stdOut);
+                int origSock = aConn->C.getSocket();
+                if (origSock > 0) { ::shutdown(origSock, SHUT_RDWR); }
+                aConn->proxyP = 0;
+                E.remove(s);
+              });
+            }
+          }
+          if (aConn->proxyP && Util::Procs::childRunning(aConn->proxyP)) {
+            aConn->H.SetHeader("X-Forwarded-For", aConn->C.getHost());
+            if (Controller::isTLSEnabled) { aConn->H.SetHeader("X-Forwarded-Proto", "https"); }
+            aConn->H.SetHeader("X-Mst-Path", aConn->H.GetHeader("X-Mst-Path") + "/http/" + token);
+            aConn->H.SendRequest(aConn->proxyC);
+            // Upgrade requests go into passthrough mode and never come back
+            if (aConn->H.hasHeader("Upgrade")) {
+              aConn->pass = true;
+              return aConn->C;
+            }
+            aConn->H.Clean();
+            continue;
+          } else {
+            aConn->H.SetBody("Could not spawn process!");
+            aConn->H.SendResponse("500", "Spawn error!", aConn->C);
+            aConn->H.Clean();
+          }
+        }
+      }
+      continue;
+    }
+
     // Are we local and not forwarded? Instant-authorized.
     if (!aConn->authorized && !aConn->H.hasHeader("X-Forwarded-For") && !aConn->H.hasHeader("X-Real-IP") && aConn->C.isLocal()) {
       MEDIUM_MSG("Local API access automatically authorized");
@@ -610,23 +732,23 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
       }
     }
     // Catch websocket requests
-    if (aConn->H.url == "/ws") {
+    if (url == "/ws") {
       handleWebSocket(aConn);
       return aConn->C;
     }
-    if (aConn->H.url.size() > 11 && aConn->H.url.substr(0, 11) == "/ws/stream/") {
-      aConn->strmSingle = aConn->H.url.substr(11);
+    if (url.size() > 11 && url.substr(0, 11) == "/ws/stream/") {
+      aConn->strmSingle = url.substr(11);
       handleWebSocket(aConn);
       return aConn->C;
     }
     // Catch prometheus requests
     if (Controller::prometheus.size()) {
-      if (aConn->H.url == "/" + Controller::prometheus) {
+      if (url == "/" + Controller::prometheus) {
         handlePrometheus(aConn->H, aConn->C, PROMETHEUS_TEXT);
         aConn->H.Clean();
         continue;
       }
-      if (aConn->H.url.substr(0, Controller::prometheus.size() + 6) == "/" + Controller::prometheus + ".json") {
+      if (url.substr(0, Controller::prometheus.size() + 6) == "/" + Controller::prometheus + ".json") {
         handlePrometheus(aConn->H, aConn->C, PROMETHEUS_JSON);
         aConn->H.Clean();
         continue;
@@ -641,9 +763,10 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
       Request.fromString(aConn->H.GetVar("command"));
     }
     // invalid request? send the web interface, unless requested as "/api"
-    if (!Request.isObject() && aConn->H.url != "/api" && aConn->H.url != "/api2") {
+    if (!Request.isObject() && url != "/api" && url != "/api2") {
 #include "server.html.h"
       aConn->H.Clean();
+      aConn->H.setCORSHeaders();
       aConn->H.SetHeader("Content-Type", "text/html");
       aConn->H.SetHeader("X-Info", "To force an API response, request the file /api");
       aConn->H.SetHeader("Server", APPIDENT);
@@ -654,7 +777,7 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
       aConn->H.Clean();
       break;
     }
-    if (aConn->H.url == "/api2") { Request["minimal"] = true; }
+    if (url == "/api2") { Request["minimal"] = true; }
     { // lock the config mutex here - do not unlock until done processing
       std::lock_guard<std::mutex> guard(configMutex);
       if (!Controller::conf.is_active) { return 0; }
@@ -1069,6 +1192,78 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       else
         in.append(Request["addjwks"]);
       parseKeys(in, out);
+    }
+  }
+
+  // Add admin http access.
+  // Token and expire are optional, auto-generated if left out.
+  // If expire is more than 10 hours behind the current unix time, it's added to the unix time instead
+  // Expire is clipped to be lower than the current time + 1 hour, and defaults to 5 minutes.
+  // All other parameters are HTTP options, and are optional
+  if (Request.isMember("admin_http_add")) {
+    JSON::Value & R = Request["admin_http_add"];
+    if (!R.isMember("token")) { R["token"] = Util::generateUUID(); }
+    if (!R.isMember("expire") || !R["expire"].asInt()) { R["expire"] = Util::epoch() + 300; }
+    if (R["expire"].asInt() < Util::epoch() - 360000) { R["expire"] = Util::epoch() + R["expire"].asInt(); }
+    if (R["expire"].asInt() > Util::epoch() + 3600) { R["expire"] = Util::epoch() + 3600; }
+    Storage["admin_http"][R["token"].asStringRef()] = R;
+    Response["admin_http_token"] = R["token"];
+  }
+
+  // Extends one or more admin http access tokens by the given number of seconds, or sets them to expire at the given time
+  if (Request.isMember("admin_http_extend")) {
+    if (Storage.isMember("admin_http")) {
+      if (Request["admin_http_extend"].isObject()) {
+        jsonForEachConst (Request["admin_http_extend"], it) {
+          if (Storage["admin_http"].isMember(it.key())) {
+            JSON::Value & V = Storage["admin_http"][it.key()];
+            if (it->asInt() <= 3600) {
+              V["expire"] = V["expire"].asInt() + it->asInt();
+            } else {
+              V["expire"] = it->asInt();
+            }
+            if (V["expire"].asInt() > Util::epoch() + 3600) { V["expire"] = Util::epoch() + 3600; }
+            if (V["expire"].asInt() < Util::epoch()) { V["expire"] = Util::epoch() + 300; }
+          }
+        }
+      } else if (Request["admin_http_extend"].isArray()) {
+        jsonForEachConst (Request["admin_http_extend"], it) {
+          if (Storage["admin_http"].isMember(it->asStringRef())) {
+            JSON::Value & V = Storage["admin_http"][it->asStringRef()];
+            if (V["expire"].asInt() < Util::epoch() + 300) { V["expire"] = Util::epoch() + 300; }
+            if (V["expire"].asInt() > Util::epoch() + 3600) { V["expire"] = Util::epoch() + 3600; }
+          }
+        }
+      } else if (Request["admin_http_extend"].isString()) {
+        if (Storage["admin_http"].isMember(Request["admin_http_extend"].asStringRef())) {
+          JSON::Value & V = Storage["admin_http"][Request["admin_http_extend"].asStringRef()];
+          if (V["expire"].asInt() < Util::epoch() + 300) { V["expire"] = Util::epoch() + 300; }
+          if (V["expire"].asInt() > Util::epoch() + 3600) { V["expire"] = Util::epoch() + 3600; }
+        }
+      }
+    }
+  }
+
+  // Erases admin http access tokens
+  if (Request.isMember("admin_http_delete")) {
+    if (Storage.isMember("admin_http")) {
+      if (Request["admin_http_delete"].isObject()) {
+        jsonForEachConst (Request["admin_http_delete"], it) { Storage["admin_http"].removeMember(it.key()); }
+      } else if (Request["admin_http_delete"].isArray()) {
+        jsonForEachConst (Request["admin_http_delete"], it) { Storage["admin_http"].removeMember(it->asStringRef()); }
+      } else if (Request["admin_http_delete"].isString()) {
+        Storage["admin_http"].removeMember(Request["admin_http_delete"]);
+      }
+    }
+  }
+
+  // List current admin http tokens and their options, or return null if none or set
+  if (Request.isMember("admin_http_list") || Request.isMember("admin_http_add") ||
+      Request.isMember("admin_http_extend") || Request.isMember("admin_http_delete")) {
+    if (Storage.isMember("admin_http")) {
+      Response["admin_http"] = Storage["admin_http"];
+    } else {
+      Response["admin_http"].null();
     }
   }
 

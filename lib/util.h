@@ -20,6 +20,8 @@ namespace Util{
   void stringToLower(std::string &val);
   size_t replace(std::string &str, const std::string &from, const std::string &to);
   void stringTrim(std::string &val);
+  std::string argStr(const std::deque<std::string> & args);
+  std::string argStr(const char *const *args);
   void splitString(const std::string & val, char delim, std::deque<std::string> & result);
   void shellSplit(const std::string & val, std::deque<std::string> & result);
   bool externalWriter(const std::string & file, Socket::Connection & conn, bool append = false);

@@ -239,7 +239,7 @@ namespace Mist{
       fullURL.port = altURL.port;
       fullURL.path = altURL.path;
     }
-    if (mistPath.size()){fullURL = mistPath;}
+    if (mistPath.size()) { fullURL = fullURL.link(mistPath); }
     std::string uAgent = req.GetHeader("User-Agent");
 
     JSON::Value opts;
@@ -288,7 +288,7 @@ namespace Mist{
     }
 
     H.Clean();
-    H.SetHeader("Content-Type", "text/html");
+    H.SetHeader("Content-Type", "text/html; charset=utf-8");
     H.SetHeader("X-UA-Compatible", "IE=edge");
     if (headersOnly){
       H.SendResponse("200", "OK", myConn);
@@ -647,18 +647,22 @@ namespace Mist{
         }
         if (!pubAddrs.size()) { pubAddrs.push_back(""); }
       }
+      if (capa.getMember("provides").asString() != "HTTP") {
+        pubAddrs.clear();
+        pubAddrs.push_back("");
+      } else {
+        outURL = reqHost;
+        if (!outURL.protocol.size()) { outURL.protocol = capa.getMember("protocol").asString(); }
+      }
 
       // Prepare the capabilities + config as a single JSON object
       JSON::Value capa_json = capa.asJSON();
       capa_json["cnf"] = P.asJSON();
 
       // If we have a method on this protocol, add it.
-      if (capa.getMember("url_rel") || capa.getMember("methods")) {
+      if (!capa.hasMember("deps") && (capa.getMember("url_rel") || capa.getMember("methods"))) {
         for (const std::string & A : pubAddrs) {
-          HTTP::URL altURL = outURL;
-          if (A.size()) { altURL = A; }
-          if (!altURL.host.size()) { altURL.host = outURL.host; }
-          if (!altURL.protocol.size()) { altURL.protocol = outURL.protocol; }
+          HTTP::URL altURL = outURL.link(A);
           addSources(altURL, capa_json);
         }
       }
@@ -676,10 +680,7 @@ namespace Mist{
           subcapa_json["cnf"].extend(subP.asJSON());
 
           for (const std::string & A : pubAddrs) {
-            HTTP::URL altURL = outURL;
-            if (A.size()) { altURL = A; }
-            if (!altURL.host.size()) { altURL.host = outURL.host; }
-            if (!altURL.protocol.size()) { altURL.protocol = outURL.protocol; }
+            HTTP::URL altURL = outURL.link(A);
             addSources(altURL, subcapa_json);
           }
         });
@@ -941,7 +942,8 @@ namespace Mist{
       HTTPOutput::respondHTTP(req, headersOnly);
       if (websocketHandler(req, headersOnly)){return;}
       bool metaEverywhere = req.GetVar("metaeverywhere").size();
-      std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
+      std::string reqHost = req.GetHeader("Host");
+      if (req.hasHeader("X-Forwarded-Proto")) { reqHost = req.GetHeader("X-Forwarded-Proto") + "://" + reqHost; }
       std::string useragent = req.GetVar("ua");
       if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
       std::string response;
@@ -982,7 +984,7 @@ namespace Mist{
         fullURL.port = altURL.port;
         fullURL.path = altURL.path;
       }
-      if (mistPath.size()){fullURL = mistPath;}
+      if (mistPath.size()) { fullURL = fullURL.link(mistPath); }
       std::string response;
       std::string rURL = req.url;
 
@@ -1263,7 +1265,8 @@ namespace Mist{
 
   bool OutHTTP::websocketHandler(const HTTP::Parser & req, bool headersOnly){
     stayConnected = true;
-    std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
+    std::string reqHost = req.GetHeader("Host");
+    if (req.hasHeader("X-Forwarded-Proto")) { reqHost = req.GetHeader("X-Forwarded-Proto") + "://" + reqHost; }
     bool metaEverywhere = req.GetVar("metaeverywhere").size();
     if (req.GetHeader("X-Mst-Path").size()){mistPath = req.GetHeader("X-Mst-Path");}
     std::string useragent = req.GetVar("ua");

@@ -439,6 +439,7 @@ namespace Mist{
 
 #define HTTP_CONVERT(var) if (H.GetVar(var) != ""){targetParams[var] = H.GetVar(var);}
 
+      targetParams.clear();
       HTTP_CONVERT("audio");
       HTTP_CONVERT("video");
       HTTP_CONVERT("meta");
@@ -994,7 +995,6 @@ namespace Mist{
 
   /// Default implementation of preHTTP simply calls selectDefaultTracks.
   void HTTPOutput::preHTTP(){
-    targetParams.clear();
     meta.removeLimiter();
     selectDefaultTracks();
   }

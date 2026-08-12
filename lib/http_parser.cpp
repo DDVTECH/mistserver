@@ -179,7 +179,11 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
 
     std::map<std::string, std::string>::iterator it;
     if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-    builder = method + " " + url + " " + protocol + "\r\n";
+    if (!(method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded") && vars.size() && url.find('?') == std::string::npos){
+      builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
+    }else{
+      builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + " " + protocol + "\r\n";
+    }
     if (reqbodyLen){SetHeader("Content-Length", reqbodyLen);}
     for (it = headers.begin(); it != headers.end(); it++){
       if ((*it).first != "" && (*it).second != ""){
@@ -197,7 +201,12 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
   }
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-  builder = method + " " + url + " " + protocol + "\r\n";
+  if (!(method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded") && vars.size() &&
+      url.find('?') == std::string::npos) {
+    builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
+  } else {
+    builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + " " + protocol + "\r\n";
+  }
   conn.SendNow(builder);
   if (reqbodyLen){SetHeader("Content-Length", reqbodyLen);}
   for (it = headers.begin(); it != headers.end(); it++){

@@ -11197,6 +11197,7 @@ context_menu: function(){
         delete mist.user.loggedin;
         mist.data = {};
         UI.sockets.http_host = null;
+        UI.sockets.admin_proxy = null;
         sessionStorage.removeItem('mistLogin');
 
         mist.send(function(){
@@ -11467,6 +11468,22 @@ context_menu: function(){
         var debug = false; 
         //debug = true; //activates logging of found urls
 
+        cont.getUrls = function(kind){
+          return cont.urls;
+        }
+
+        let token;
+        if (!fullsearch) {
+          token = mist.admin_http_token();
+          if (token) {
+            //test it: skip findHTTP, go straight to retrieveInfo
+            retrieveInfo([mist.getApiUrl({
+              pathname: "/http/"+token+"/"
+            })],0);
+            return cont;
+          }
+        }
+
         function makeUnique(ret) {
           var unique = [];
           for (var i = 0; i < ret.length; i++) {
@@ -11642,13 +11659,32 @@ context_menu: function(){
           }
         }
         function on_fail(urls) {
-          if ((urls.length == 1) && (urls[0] == UI.sockets.http_host)) { 
-            //reset the saved url and try searching again
-            UI.sockets.http_host = null;
-            findHTTP(function(result){
-              urls = result;
-              retrieveInfo(result,0);
-            });
+          if (urls.length == 1) {
+            if (urls[0] == UI.sockets.http_host) { 
+              //reset the saved url and try searching again
+              UI.sockets.http_host = null;
+              findHTTP(function(result){
+                urls = result;
+                retrieveInfo(result,0);
+              });
+            }
+            else if (token && (urls[0].indexOf("http/"+token) >= 0)) {
+              //try recreating the token, then re-test
+              mist.send(function(d){
+                if (d.admin_http && (token in d.admin_http)) {
+                  retrieveInfo(urls,0);
+                }
+                else {
+                  //failure
+                  token = null;
+                  let savestring = "LSP_admin_http_"+mist.user.name+"_"+mist.user.host;
+                  delete localStorage[savestring];
+                  delete window[savestring];
+                }
+              },{
+                admin_http_add: { token: token }
+              });
+            }
           }
 
           var $attempts;
@@ -11737,7 +11773,10 @@ context_menu: function(){
         function on_success(url,handler) {
           //this was the correct url, save
           
-          if (url != UI.sockets.http_host) {
+          if (token && (url.indexOf("http/"+token) >= 0)) {
+            UI.sockets.admin_proxy = url;
+          }
+          else if (url != UI.sockets.http_host) {
             UI.sockets.http_host = url;
             mist.stored.set("HTTP"+(url.slice(0,5) == "https" ? "S" : "")+"Url",url);
           }
@@ -11750,10 +11789,6 @@ context_menu: function(){
           retrieveInfo(result,0);
         });
 
-        cont.getUrls = function(kind){
-          return cont.urls;
-        }
-
         return cont;
       },
       livestreamhint: function(streamname){
@@ -11761,13 +11796,13 @@ context_menu: function(){
 
         var settings = mist.data.streams[streamname.split("+")[0]];
         if (settings?.source && (settings.source.slice(0,1) != "/") && (!settings.source.match(/-exec:/))) {
-          if ("streamkeys" in mist.data) {
+          if (("streamkeys" in mist.data) && (mist.data.capabilities)) {
             UI.updateLiveStreamHint(streamname,settings.source,$cont);
           }
           else {
             mist.send(function(){
               UI.updateLiveStreamHint(streamname,settings.source,$cont);
-            },{streamkeys: true});
+            },{streamkeys: true, capabilities: true});
           }
         }
         else { 
@@ -11948,39 +11983,49 @@ context_menu: function(){
           return;
         }
         else {
+          
+          function onCapa() {
+            if (!UI.findOutput("JPG")) { return; }
 
-          if (!UI.findOutput("JPG")) { return; }
-
-          jpg.hover(function(){
-            if (image && stream) {
-              $(this).attr("src",stream);
-            }
-          },function(){
-            if (image && stream) {
-              $(this).attr("src",image);
-            }
-          });
-
-          UI.sockets.ws.info_json.subscribe(function(data){
-            if (!data.source) return;
-            //find mjpg and jpg urls
-            for (var i in data.source) {
-              if (data.source[i].type == "html5/image/jpeg") {
-                var url = data.source[i].url;
-                if (url.indexOf(".mjpg") > -1) { stream = url; }
-                else { image = url; }
-                if (image && stream) { break; }
+            jpg.hover(function(){
+              if (image && stream) {
+                $(this).attr("src",stream);
               }
-            }
-            if (stream || image) {
-              if (!stream) stream = image;
-              else if (!image) image = stream;
+            },function(){
+              if (image && stream) {
+                $(this).attr("src",image);
+              }
+            });
 
-              jpg.attr("src",image);
-              $cont[0].style.setProperty("--src","url('"+image+"')");
-              if (clone) clone.attr("src",image);
-            }
-          },streamname);
+            UI.sockets.ws.info_json.subscribe(function(data){
+              if (!data.source) return;
+              //find mjpg and jpg urls
+              for (var i in data.source) {
+                if (data.source[i].type == "html5/image/jpeg") {
+                  var url = data.source[i].url;
+                  if (url.indexOf(".mjpg") > -1) { stream = url; }
+                  else { image = url; }
+                  if (image && stream) { break; }
+                }
+              }
+              if (stream || image) {
+                if (!stream) stream = image;
+                else if (!image) image = stream;
+
+                jpg.attr("src",image);
+                $cont[0].style.setProperty("--src","url('"+image+"')");
+                if (clone) clone.attr("src",image);
+              }
+            },streamname,undefined,"?noinput=1");
+          }
+
+          if (!mist.data.capabilities) {
+            mist.send(onCapa,{capabilities:true});
+          }
+          else {
+            onCapa();
+          }
+
         }
         
         return $cont.html(
@@ -12981,7 +13026,7 @@ context_menu: function(){
         UI.sockets.http.player(function(){
           mistPlay(streamname,{
             target: $preview_cont[0],
-            host: UI.sockets.http_host,
+            host: UI.sockets.getUrl(),
             skin: {
               inherit: "dev",
               colors:{accent:"var(--accentColor)"},
@@ -13070,7 +13115,7 @@ context_menu: function(){
 
         if (!$("link#devcss").length) {
           document.head.appendChild(
-            $("<link>").attr("rel","stylesheet").attr("type","text/css").attr("href",UI.sockets.http_host+"skins/dev.css").attr("id","devcss")[0]
+            $("<link>").attr("rel","stylesheet").attr("type","text/css").attr("href",UI.sockets.getUrl()+"skins/dev.css").attr("id","devcss")[0]
           );
         }
 
@@ -13682,7 +13727,7 @@ context_menu: function(){
               displayTracks(msg);
             }
 
-          },streamname,baseurl.replace(/^http/,"ws")+ "json_" + encodeURIComponent(streamname) + ".js",false,"?inclzero=1");
+          },streamname,baseurl.replace(/^http/,"ws")+ "json_" + encodeURIComponent(streamname) + ".js",false,"?inclzero=1&noinput=1");
 
         }
         connect2info(otherbase);
@@ -16526,6 +16571,8 @@ context_menu: function(){
   },
   sockets: {
     http_host: null,
+    admin_proxy: null,
+    getUrl: function(){ return this.admin_proxy || this.http_host; },
     http: {
       api: {
         command: {},
@@ -16603,10 +16650,10 @@ context_menu: function(){
       },
       player: function(callback,errorCallback){
         if (!mistPlay) {
-          if (!UI.sockets.http_host) {
+          if (!UI.sockets.getUrl()) {
             errorCallback("Could not find player.js: MistServer host unknown");
           }
-          var url = UI.sockets.http_host+"player.js";
+          var url = UI.sockets.getUrl()+"player.js";
           $.ajax({
             type: "GET",
             url: url,
@@ -16631,9 +16678,10 @@ context_menu: function(){
               listeners: [],
               messages: [],
               init: function(error_callback){
-                var url = parseURL(mist.user.host);
-                url = parseURL(mist.user.host,{pathname:url.pathname.replace(/\/api$/,"")+"ws/stream/"+streamname});
-                var metaWs = UI.websockets.create(url.full.replace(/^http/,"ws"),error_callback);
+                var url = mist.getApiUrl({
+                  pathname: "/ws/stream/"+streamname
+                });
+                var metaWs = UI.websockets.create(url.replace(/^http/,"ws"),error_callback);
                 this.ws = metaWs;
                 var me = this;
                 metaWs.authState = 0;
@@ -16747,15 +16795,14 @@ context_menu: function(){
           if (!streamname && !url) { throw "Stream name not specified."; }
           if (!params) { params = ""; }
           if (!url) {
-            if (!UI.sockets.http_host) {
+            if (!UI.sockets.getUrl()) {
               var me = this;
-              var args = arguments;
               UI.modules.stream.findMist(function(url){
-                me.subscribe.apply(me,args);
+                me.subscribe.apply(me,[callback,streamname,url,params]);
               });  
               return;
             }
-            url = UI.sockets.http_host.replace(/^http/,"ws") + "json_" + encodeURIComponent(streamname) + ".js"+params;  
+            url = UI.sockets.getUrl().replace(/^http/,"ws") + "json_" + encodeURIComponent(streamname) + ".js"+params;  
           }
 
           if (!(url in this.children) || (this.children[url].ws.readyState > 1)) {
@@ -16772,9 +16819,11 @@ context_menu: function(){
         listeners: [],
         messages: [],
         init: function(error_callback){
-          var url = parseURL(mist.user.host);
-          url = parseURL(mist.user.host,{pathname:url.pathname.replace(/\/api$/,"")+"/ws",search:"?logs=100&accs=100&streams=1"});
-          var apiWs = UI.websockets.create(url.full.replace(/^http/,"ws"),error_callback);
+          var url = mist.getApiUrl({
+            pathname: "/ws",
+            search:"?logs=100&accs=100&streams=1"
+          });
+          var apiWs = UI.websockets.create(url.replace(/^http/,"ws"),error_callback);
           this.ws = apiWs;
           var me = this;
           apiWs.authState = 0;
@@ -16885,7 +16934,7 @@ var mist = {
       timeout: opts.timeout*1000,
       async: true,
       error: function(jqXHR,textStatus,errorThrown){
-        console.warn("connection failed :(",errorThrown);
+        console.warn("Connection failed :(",errorThrown);
         
         //connection failed
         delete mist.user.loggedin;
@@ -16898,13 +16947,15 @@ var mist = {
             case 'abort':
               textStatus = $('<i>').text('The connection was aborted. ');
               break;
+            case 'error':
+              break;
             default:
               textStatus = $('<i>').text(textStatus+'. ').css('text-transform','capitalize');
           }
           $('#message').addClass('red').text('An error occurred while attempting to communicate with MistServer:').append(
             $('<br>')
           ).append(
-            $("<span>").text(textStatus)
+            $("<span>").html(textStatus)
           ).append(
             $('<a>').text('Send server request again').click(function(){
               mist.send(callback,sendData,opts);
@@ -17399,7 +17450,7 @@ var mist = {
         else {
           //unless sorting is specified, put groups last
           list.sort(function(a,b){
-            return input[type[j]][a].type == "group" ? 1 : -1;
+            return input[type[j]][a].type == "group" ? 1 : 0;
           });
         }
         //loop over the list of field names
@@ -17483,6 +17534,185 @@ var mist = {
         
       },{ui_settings: mist.data.ui_settings});
     }
+  },
+  admin_http_token: function(opts){
+    let self = this;
+    opts = opts || {};
+
+    let savestring = "LSP_admin_http_"+mist.user.name+"_"+mist.user.host;
+    let dorenewal = true;
+    this.tokenobj = null;
+    if (!opts.token) {
+      function testAndUseToken(tokenobj) {
+        if (tokenobj && tokenobj.expire) {
+          let d = new Date(tokenobj.expire);
+          if (d - new Date() > 5e3) {
+            //it's useable
+            console.log("Found valid admin http proxy token - reusing");
+            opts.token = tokenobj.token;
+            tokenobj.expire = d;
+            self.tokenobj = tokenobj;
+            window[savestring] = self.tokenobj;
+            localStorage[savestring] = JSON.stringify(self.tokenobj);
+            return true;
+          }
+          else {
+            delete window[savestring];
+            delete localStorage[savestring];
+          }
+        }
+        return false;
+      }
+
+      if ((savestring in window) && testAndUseToken(window[savestring])) {
+        //renewal is happening elsewhere
+        dorenewal = false;
+      }
+      else if (savestring in localStorage) {
+        let tokenobj = localStorage[savestring];
+        tokenobj = JSON.parse(tokenobj);
+        if (tokenobj && testAndUseToken(tokenobj)) {
+          //renewal should happen here, but we can re-use the token
+        }
+      }
+    }
+
+    opts = $.extend({
+      token: "LSP_"+(Math.random().toString().slice(2))
+      //expire: 3600 ([s], default: 5 minutes, max 1h - also takes unixtime [s])
+    },opts);
+
+    this.token = opts.token;
+
+    function processToken(tokenobj,servertime){
+      self.tokenobj = tokenobj;
+      if (servertime) {
+        self.tokenobj.expire = function(delta){
+          let d = new Date();
+          d.setSeconds(d.getSeconds() + delta);
+          return d;
+        }(tokenobj.expire - servertime); //"correct" server time to local machine time
+      }
+      else {
+        self.tokenobj.expire = new Date(tokenobj.expire*1e3);
+      }
+      console.log("Received admin http proxy token",self.token,"- expires at",self.tokenobj.expire.toLocaleTimeString());
+
+      //save token globally
+      window[savestring] = self.tokenobj;
+
+      //save token into localStorage
+      localStorage[savestring] = JSON.stringify(self.tokenobj);
+
+      self.startRenewal();
+    }
+
+    //create a new admin http proxy token
+    this.create = function(){
+      if (this.tokenobj) return new Promise(function(resolve,reject){
+        self.delete().then(function(){
+          self.create().then(resolve).catch(reject);
+        }).catch(reject);
+      });
+
+      return new Promise(function(resolve,reject){
+        mist.send(function(d){
+          if (d.admin_http && (self.token in d.admin_http)) {
+            processToken(d.admin_http[self.token],d.config.time);
+            resolve(self.tokenobj);
+          }
+          else reject();
+        },{
+          admin_http_add: opts
+        });
+
+      });
+    };
+    //remove this token
+    this.delete = function(){
+      return new Promise(function(resolve,reject){
+        if (self.token === null) return;
+        mist.send(function(d){
+          if (d) {
+            self.token = null;
+            self.tokenobj = null;
+            delete localStorage[savestring];
+            delete window[savestring];
+            resolve();
+          }
+          else { reject(); }
+        },{
+          admin_http_delete: self.token //[token,token2,token3 ...] is also accepted
+        });
+      });
+    };
+    //extend this token's expiry time
+    this.extend = function(){
+      return new Promise(function(resolve,reject){
+        if (!self.tokenobj || !self.token) throw "Create an admin token before renewing it";
+        let cmd = { admin_http_extend: {} };
+        if (opts.expire) cmd.admin_http_extend[self.token] = opts.expire;
+        else cmd.admin_http_extend = self.token;
+
+        mist.send(function(d){
+          if (d.admin_http && (self.token in d.admin_http)) {
+            processToken(d.admin_http[self.token]);
+            resolve(self.tokenobj);
+          }
+          else reject("Token not found");
+        },cmd);
+      });
+    };
+    let timer = false;
+    this.startRenewal = function(){
+      if (timer) return; //already running
+      if (!this.tokenobj) throw "Create an admin token before renewing it";
+
+      let delay = this.tokenobj.expire.getTime() - new Date().getTime(); //[ms]
+      if (delay < 1e3) delay = 1e3; //wait at least a second
+      else delay -= delay*0.1; //
+
+      //console.log("Setting admin http proxy renewal timer with delay",delay);
+      timer = setTimeout(function(){
+        timer = false;
+        self.extend().catch(function(err){
+          //failed to extend admin token
+          console.warn("Failed to extend admin http proxy token - attempting to recreate",err ? "("+err+")" : "");
+          self.tokenobj = null;
+          self.create().catch(function(err){
+            console.warn("Failed to recreate admin http proxy token",err ? "("+err+")" : "");
+            self.token = null;
+          });
+        });
+      },delay);
+    };
+
+    if (this.tokenobj) {
+      if (dorenewal) this.startRenewal();
+    }
+    else this.create();
+    return this.token; //the create call might not have completed yet - but this is the token that will be valid
+  },
+  getApiUrl: function(opts){
+    let orig = parseURL(mist.user.host);
+    let base = parseURL(orig.full,{
+      search: "", //strip params
+      pathname: orig.pathname.replace(/^\/api\/?$/,"") //strip /api or /api/ if that is the full path
+    });
+    if (opts) {
+      if (opts.pathname) {
+
+        //prevent double slashes after the base url (eg http://localhost:4242//ws)
+        let t = base.pathname;
+        if (opts.pathname[0] == "/") t = t.replace(/\/$/,"");
+        else if (t.length && (t[t.length-1] != "/")) t += "/";
+        
+        //append opts.pathname to current pathname
+        opts.pathname = t + opts.pathname;
+      }
+      base = parseURL(base.full,opts);
+    }
+    return base.full;
   }
 };
 

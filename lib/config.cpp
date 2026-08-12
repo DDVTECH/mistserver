@@ -981,6 +981,12 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
     o["append"]["type"] = "bool";
     o["append"]["format"] = "set_or_unset";
     o["append"]["sort"] = "bf";
+
+    o["noinput"]["name"] = "Don't boot stream";
+    o["noinput"]["help"] = "If set to any value, won't start a stream's input if it's not already running";
+    o["noinput"]["type"] = "bool";
+    o["noinput"]["format"] = "set_or_unset";
+    o["noinput"]["sort"] = "bg";
   }
 
 }

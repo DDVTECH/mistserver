@@ -372,7 +372,7 @@ namespace Mist{
     Util::sanitizeName(streamName);
     Util::setStreamName(streamName);
 
-    if (config->hasOption("noinput") && config->getBool("noinput")) {
+    if (targetParams.count("noinput") || (config->hasOption("noinput") && config->getBool("noinput"))) {
       if (!Util::streamAlive(streamName)){
         onFail("Stream not active already, aborting");
         return;

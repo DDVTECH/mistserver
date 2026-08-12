@@ -456,6 +456,7 @@ namespace Mist{
       HTTP_CONVERT("maxtrackms");
       HTTP_CONVERT("mintrackkeys");
       HTTP_CONVERT("maxwaittrackms");
+      HTTP_CONVERT("noinput");
       // allow setting of max lead time through buffer variable.
       // max lead time is set in MS, but the variable is in integer seconds for simplicity.
       if (H.GetVar("buffer") != ""){

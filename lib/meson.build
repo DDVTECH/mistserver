@@ -61,6 +61,7 @@ headers = [
   'url.h',
   'urireader.h',
   'flac.h',
+  'tr.h',
 ]
 
 if have_srt 

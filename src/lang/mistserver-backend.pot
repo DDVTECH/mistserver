@@ -1,0 +1,42 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR DDVTech
+# This file is distributed under the same license as the mistserver-backend package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: mistserver-backend\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-12 12:49+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/output/output_flac.cpp:12
+msgid "Free Lossless Audio Codec"
+msgstr ""
+
+#: src/output/output_flac.cpp:13
+msgid "Pseudostreaming in FLAC format over HTTP"
+msgstr ""
+
+#: src/output/output_mp4.cpp:124
+msgid "MP4 over HTTP"
+msgstr ""
+
+#: src/output/output_mp4.cpp:125
+msgid "Pseudostreaming in MP4 format over HTTP"
+msgstr ""
+
+#: src/output/output_ogg.cpp:18
+msgid "OGG over HTTP"
+msgstr ""
+
+#: src/output/output_ogg.cpp:19
+msgid "Pseudostreaming in OGG format over HTTP"
+msgstr ""

@@ -3,6 +3,7 @@
 #include <mist/bitfields.h>
 #include <mist/bitstream.h>
 #include <mist/defines.h>
+#include <mist/tr.h>
 
 namespace Mist{
   OutOGG::OutOGG(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : HTTPOutput(conn, _cfg, _capa) {
@@ -14,8 +15,8 @@ namespace Mist{
   void OutOGG::init(Util::Config *cfg, JSON::Value & capa) {
     HTTPOutput::init(cfg, capa);
     capa["name"] = "OGG";
-    capa["friendly"] = "OGG over HTTP";
-    capa["desc"] = "Pseudostreaming in OGG format over HTTP";
+    capa["friendly"] = tr("OGG over HTTP");
+    capa["desc"] = tr("Pseudostreaming in OGG format over HTTP");
     capa["deps"] = "HTTP";
     capa["url_rel"] = "/$.ogg";
     capa["url_match"] = "/$.ogg";

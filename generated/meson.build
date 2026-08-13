@@ -44,3 +44,38 @@ endforeach
 
 
 server_html = custom_target('embed_server.html', output: 'server.html.h', input: gen_html, command: [sourcery, '@INPUT@', 'server_html', '@OUTPUT@'])
+
+# Translation catalogs, embedded as a lookup table so the controller can serve
+# /translations/<code>.json without a per-language code change.
+gen_lang_header = files('../scripts/gen_lang_header.py')
+lang_catalogs = custom_target('lang_catalogs',
+  output: 'lang_catalogs.h',
+  input: lang_json_tgts,
+  command: [py_installation, gen_lang_header, '@OUTPUT@'] + lang_specs + ['--', '@INPUT@'])
+
+# Backend (C++) translation catalogs. Separate from the LSP ones above: these
+# are consumed by the controller itself (to translate API responses, since
+# the API is also used standalone / by other front-ends), never served to a
+# browser. --prefix keeps the generated types/variables from colliding with
+# the frontend ones if both headers are ever included in the same file;
+# --no-index skips the code -> native-name index JSON the frontend uses for
+# its language picker, since nothing here ever lists backend languages.
+backend_languages = [
+  {'code': 'de-DE', 'name': 'Deutsch'},
+]
+
+backend_lang_json_tgts = []
+backend_lang_specs = []
+
+foreach l : backend_languages
+  backend_lang_json_tgts += custom_target('backend_lang_json_' + l.get('code'),
+    input: '../src/lang/' + l.get('code') + '.po',
+    output: 'backend_' + l.get('code') + '.json',
+    command: [py_installation, po2json, '@INPUT@', '@OUTPUT@'])
+  backend_lang_specs += l.get('code') + '=' + l.get('name')
+endforeach
+
+backend_lang_catalogs = custom_target('backend_lang_catalogs',
+  output: 'backend_lang_catalogs.h',
+  input: backend_lang_json_tgts,
+  command: [py_installation, gen_lang_header, '@OUTPUT@', '--prefix', 'Backend', '--no-index'] + backend_lang_specs + ['--', '@INPUT@'])

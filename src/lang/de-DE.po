@@ -1,0 +1,42 @@
+# German translations for mistserver-backend package.
+# Copyright (C) 2026 DDVTech
+# This file is distributed under the same license as the mistserver-backend package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: mistserver-backend\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-12 12:36+0000\n"
+"PO-Revision-Date: 2026-08-10 09:40+0000\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/output/output_flac.cpp:12
+msgid "Free Lossless Audio Codec"
+msgstr "Free Lossless Audio Codec"
+
+#: src/output/output_flac.cpp:13
+msgid "Pseudostreaming in FLAC format over HTTP"
+msgstr "Pseudostreaming im FLAC-Format über HTTP"
+
+#: src/output/output_mp4.cpp:124
+msgid "MP4 over HTTP"
+msgstr "MP4 über HTTP"
+
+#: src/output/output_mp4.cpp:125
+msgid "Pseudostreaming in MP4 format over HTTP"
+msgstr "Pseudostreaming im MP4-Format über HTTP"
+
+#: src/output/output_ogg.cpp:18
+msgid "OGG over HTTP"
+msgstr "OGG über HTTP"
+
+#: src/output/output_ogg.cpp:19
+msgid "Pseudostreaming in OGG format over HTTP"
+msgstr "Pseudostreaming im OGG-Format über HTTP"

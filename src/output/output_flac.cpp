@@ -1,4 +1,5 @@
 #include "output_flac.h"
+#include <mist/tr.h>
 
 namespace Mist{
 
@@ -8,8 +9,8 @@ namespace Mist{
   void OutFLAC::init(Util::Config *cfg, JSON::Value & capa) {
     HTTPOutput::init(cfg, capa);
     capa["name"] = "FLAC";
-    capa["friendly"] = "Free Lossless Audio Codec";
-    capa["desc"] = "Pseudostreaming in FLAC format over HTTP";
+    capa["friendly"] = tr("Free Lossless Audio Codec");
+    capa["desc"] = tr("Pseudostreaming in FLAC format over HTTP");
     capa["url_rel"] = "/$.flac";
     capa["url_match"] = "/$.flac";
     capa["codecs"][0u][0u].append("FLAC");

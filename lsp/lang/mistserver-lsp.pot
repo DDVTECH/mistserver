@@ -1,0 +1,158 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR DDVTech
+# This file is distributed under the same license as the mistserver-lsp package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: mistserver-lsp\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-12 12:49+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: lsp/mist.js:182
+msgid "MistServer MI"
+msgstr ""
+
+#: lsp/mist.js:188
+msgid "Interface language"
+msgstr ""
+
+#: lsp/mist.js:14048 lsp/mist.js:15765
+msgid "Cancel"
+msgstr ""
+
+#: lsp/mist.js:14054 lsp/mist.js:15771
+msgid "Save"
+msgstr ""
+
+#: lsp/mist.js:16769
+msgid "Account created"
+msgstr ""
+
+#: lsp/mist.js:16769
+msgid "Changelog"
+msgstr ""
+
+#: lsp/mist.js:16769
+msgid "Connections"
+msgstr ""
+
+#: lsp/mist.js:16769
+msgid "Create a new account"
+msgstr ""
+
+#: lsp/mist.js:16770
+msgid "Disconnect"
+msgstr ""
+
+#: lsp/mist.js:16770
+msgid "Documentation"
+msgstr ""
+
+#: lsp/mist.js:16770
+msgid "Edit"
+msgstr ""
+
+#: lsp/mist.js:16770
+msgid "Edit JWK"
+msgstr ""
+
+#: lsp/mist.js:16770
+msgid "Edit Protocol"
+msgstr ""
+
+#: lsp/mist.js:16771
+msgid "Edit Trigger"
+msgstr ""
+
+#: lsp/mist.js:16771
+msgid "Edit external writer"
+msgstr ""
+
+#: lsp/mist.js:16771
+msgid "Edit variable"
+msgstr ""
+
+#: lsp/mist.js:16771
+msgid "Email for Help"
+msgstr ""
+
+#: lsp/mist.js:16772
+msgid "Embed"
+msgstr ""
+
+#: lsp/mist.js:16772
+msgid "General"
+msgstr ""
+
+#: lsp/mist.js:16772
+msgid "Login"
+msgstr ""
+
+#: lsp/mist.js:16772
+msgid "Logs"
+msgstr ""
+
+#: lsp/mist.js:16772
+msgid "Overview"
+msgstr ""
+
+#: lsp/mist.js:16772
+msgid "Preview"
+msgstr ""
+
+#: lsp/mist.js:16773
+msgid "Protocols"
+msgstr ""
+
+#: lsp/mist.js:16773
+msgid "Push"
+msgstr ""
+
+#: lsp/mist.js:16773
+msgid "Server Stats"
+msgstr ""
+
+#: lsp/mist.js:16773
+msgid "Start Push"
+msgstr ""
+
+#: lsp/mist.js:16773
+msgid "Statistics"
+msgstr ""
+
+#: lsp/mist.js:16774
+msgid "Status"
+msgstr ""
+
+#: lsp/mist.js:16774
+msgid "Stream keys"
+msgstr ""
+
+#: lsp/mist.js:16774
+msgid "Streams"
+msgstr ""
+
+#: lsp/mist.js:16774
+msgid "Triggers"
+msgstr ""
+
+#: lsp/mist.js:16776
+msgid "Management Interface"
+msgstr ""
+
+#: lsp/mist.js:16776
+msgid "Disconnected"
+msgstr ""
+
+#: lsp/mist.js:16776
+msgid "Loading.."
+msgstr ""

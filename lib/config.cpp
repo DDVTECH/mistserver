@@ -536,7 +536,6 @@ bool Util::Config::setupServerSocket(Socket::Server & s) {
     FAIL_MSG("Failed to open listening socket");
     return false;
   }
-  serv_sock_fd = s.getSocket();
   activate();
   if (s.getSocket()) {
     int oldSock = s.getSocket();
@@ -545,6 +544,7 @@ bool Util::Config::setupServerSocket(Socket::Server & s) {
       close(oldSock);
     }
   }
+  serv_sock_fd = s.getSocket();
   Util::Procs::socketList.insert(s.getSocket());
   boundServer = s.getBoundAddr();
   return true;

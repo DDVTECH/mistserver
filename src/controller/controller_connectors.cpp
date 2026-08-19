@@ -14,7 +14,6 @@
 
 #include <cstring> // strcpy
 #include <signal.h>
-#include <stdio.h> // cout, cerr
 #include <string>
 #include <sys/stat.h> //stat
 #include <unistd.h>
@@ -22,10 +21,7 @@
 ///\brief Holds everything unique to the controller.
 namespace Controller{
 
-  static std::set<size_t> needsReload; ///< List of connector indices that needs a reload
   static std::map<std::string, pid_t> currentConnectors; ///< The currently running connectors.
-
-  void reloadProtocol(size_t indice){needsReload.insert(indice);}
 
   /// Updates the shared memory page with active connectors
   void saveActiveConnectors(bool forceOverride){
@@ -163,11 +159,6 @@ namespace Controller{
       runningConns.insert(myCmd);
       if (currentConnectors.count(myCmd) && Util::Procs::isActive(currentConnectors[myCmd])){
         (*ait)["online"] = 1;
-        // Reload connectors that need it
-        if (needsReload.count(ait.num())){
-          kill(currentConnectors[myCmd], SIGUSR1);
-          needsReload.erase(ait.num());
-        }
       }else{
         (*ait)["online"] = 0;
       }

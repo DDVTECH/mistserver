@@ -2786,6 +2786,16 @@ section.clients > div.horizontal table tr:not(:has(td:not(:first-child):not(:emp
   display: none;
 }
 section.clients .inputs:has(table thead tr td:nth-child(3)) h3:after { content: "s"; }
+section.clients table .data_transmitted {
+  span[data-value="0"] { display: none; }
+  span[data-prefix]:before { 
+    content: attr(data-prefix);
+    transform: scale(2);
+    margin-right: 0.25em;
+    font-size: 1.5em;
+    line-height: 1;
+  }
+}
 
 .streamkeys:empty:before,
 .streamkeys:not(:has(.stream:not(.hidden))):before {

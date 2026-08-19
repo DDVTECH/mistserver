@@ -14437,11 +14437,15 @@ context_menu: function(){
           Connected: function(d){
             return [d.conntime,UI.format.duration(d.conntime)];
           },
-          "Data downloaded": function(d){
-            return [d.down,UI.format.bytes(d.down)];
+          "Data transmitted": function(d){
+            return [d.down + d.up,$("<div>").addClass("data_transmitted").append(
+              UI.format.bytes(d.up).attr("data-value",d.up).attr("title","Uploaded").attr("data-prefix","↑")
+            ).append(
+              UI.format.bytes(d.down).attr("data-value",d.down).attr("title","Downloaded").attr("data-prefix","↓")
+            )];
           },
           "Current bitrate": function(d){
-            return [d.downbps,UI.format.bits(d.downbps*8,true)];
+            return [d.downbps + d.upbps,UI.format.bits((d.downbps+d.upbps)*8,true)];
           },
           "Media time": function(d){
             return [d.position,d.position ? UI.format.duration(d.position) : ""];
@@ -14454,6 +14458,15 @@ context_menu: function(){
           },
           "Packets retransmitted": function(d){
             return [d.pktretransmit,d.pktcount ? UI.format.number(d.pktretransmit,{round:false}) : ""]
+          },
+          "Packets recovered": function(d){
+            return [d.pktrecover,d.pktcount ? UI.format.number(d.pktrecover,{round:false}) : ""]
+          },
+          "Round trip time": function(d){
+            return [d.rtt,d.pktcount ? UI.format.addUnit(UI.format.number(d.rtt),"ms") : ""]
+          },
+          "Latency": function(d){
+            return [d.latency,d.pktcount ? UI.format.addUnit(UI.format.number(d.latency),"ms") : ""]
           }
         };
         const context_menu = new UI.context_menu();

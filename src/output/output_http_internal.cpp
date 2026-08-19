@@ -181,42 +181,31 @@ namespace Mist{
       opt["option"] = "--wrappers";
       opt["short"] = "w";
     }
-    capa["optional"]["certbot"]["name"] = "Certbot validation token";
-    capa["optional"]["certbot"]["help"] = "Automatically set by the MistUtilCertbot authentication "
-                                          "hook for certbot. Not intended to be set manually.";
-    capa["optional"]["certbot"]["default"] = "";
-    capa["optional"]["certbot"]["type"] = "str";
-    capa["optional"]["certbot"]["option"] = "--certbot";
-    capa["optional"]["certbot"]["short"] = "C";
-    cfg->addConnectorOptions(8080, capa);
-    cfg->addOption("nostreamtext", R"-("{
-      "arg":"string",
-      "default":"",
-      "short":"t",
-      "long":"nostreamtext",
-      "help":"Text or HTML to display when streams are unavailable."
+    capa["optional"]["certbot"].fromString(R"-({
+      "name": "Certbot validation token",
+      "help": "Automatically set by the MistUtilCertbot authentication hook for certbot. Not intended to be set manually.",
+      "default": "",
+      "type": "str",
+      "option": "--certbot",
+      "short": "C"
     })-");
     capa["optional"]["nostreamtext"].fromString(R"-({
       "name":"Stream unavailable text",
       "help": "Text or HTML to display when streams are unavailable.",
       "default": "",
       "type": "str",
-      "option": "--nostreamtext"
-    })-");
-    cfg->addOption("pubaddr", R"-({
-      "arg":"string",
-      "default":"",
-      "short":"A",
-      "long":"public-address",
-      "help":"Full public address this output is available as."
+      "option": "--nostreamtext",
+      "short": "t"
     })-");
     capa["optional"]["pubaddr"].fromString(R"-({
       "name": "Public address",
       "help": "Full public address this output is available as, if being proxied",
       "default": "",
       "type": "inputlist",
-      "option": "--public-address"
+      "option": "--public-address",
+      "short": "A"
     })-");
+    cfg->addConnectorOptions(8080, capa);
   }
 
   /// Sorts the JSON::Value objects that hold source information by preference.

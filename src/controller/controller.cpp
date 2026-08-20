@@ -668,6 +668,15 @@ int main_loop(int argc, char **argv){
   Controller::variableTimer = Controller::E.addInterval(Controller::variableRun, 750);
   Controller::E.addInterval(Controller::runPushCheck, 1000);
   Controller::E.addInterval(statusMonitor, 3000);
+
+  // Make sure CheckProtocols runs immediately if a child signal is received
+  Controller::E.onChildSig([&]() {
+    if (Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities)) {
+      Controller::writeProtocols();
+    }
+    return (size_t)0;
+  });
+
   Controller::E.addSocket(apiSock.getSocket(), [&](void *) {
     APIConn *aConn = new APIConn(Controller::E, apiSock, [&](Socket::Connection & C) {
 #ifdef SSL

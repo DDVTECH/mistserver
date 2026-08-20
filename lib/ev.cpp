@@ -51,6 +51,14 @@ namespace Event{
   Loop::~Loop(){
   }
 
+  void Loop::checkChild() {
+    if (childready) {
+      childready = false;
+      Util::Procs::reap();
+      for (auto & it : childFuncs) { it(); }
+    }
+  }
+
   /// Waits for up to maxMs milliseconds for an event to occur, returning the event ID.
   /// If no event occurred, returns zero.
   size_t Loop::await(size_t maxMs){
@@ -59,10 +67,7 @@ namespace Event{
       pending.erase(ret);
       return ret;
     }
-    if (childready){
-      Util::Procs::reap();
-      childready = false;
-    }
+    checkChild();
     if (continued){
       continued = false;
       return std::string::npos;
@@ -112,10 +117,7 @@ namespace Event{
         continued = false;
         return std::string::npos;
       }
-      if (childready) {
-        Util::Procs::reap();
-        childready = false;
-      }
+      checkChild();
       return 0;
     }
     uint64_t currPace = Util::getMicros();
@@ -149,9 +151,8 @@ namespace Event{
       }
       if (childready) {
         int oldErrNo = errno;
-        Util::Procs::reap();
+        checkChild();
         errno = oldErrNo;
-        childready = false;
       }
     } while (r < 0 && (errno == EINTR || errno == EAGAIN));
     if (r < 0 && errno == EBADF){
@@ -276,6 +277,10 @@ namespace Event{
     timerFuncs[timerCount] = cb;
     timerTimes.insert({Util::bootMS() + millis, timerCount});
     return timerCount++;
+  }
+
+  void Loop::onChildSig(std::function<size_t()> cb) {
+    childFuncs.push_back(cb);
   }
 
   void Loop::removeInterval(size_t id) {

@@ -533,7 +533,7 @@ bool Util::Config::setupServerSocket(Socket::Server & s) {
     s = Socket::Server(getInteger("port"), getString("interface"), false);
   }
   if (!s.connected()) {
-    FAIL_MSG("Failed to open listening socket");
+    Util::logExitReason(ER_READ_START_FAILURE, "failed to open listening socket");
     return false;
   }
   activate();
@@ -654,7 +654,7 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
     case SIGINT: // these three signals will set is_active to false.
     case SIGTERM:
       if (!mutabort || mutabort->try_lock()) {
-        if (serv_sock_fd != -1) { close(serv_sock_fd); }
+        if (serv_sock_fd != -1) { shutdown(serv_sock_fd, SHUT_RDWR); }
         if (mutabort) { mutabort->unlock(); }
       }
     case SIGHUP:

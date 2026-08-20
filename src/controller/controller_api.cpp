@@ -1771,7 +1771,6 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
   ///
   if (Request.isMember("clearstatlogs") || Request.isMember("log") || !Request.isMember("minimal")){
-    std::lock_guard<std::mutex> guard(logMutex);
     if (!Controller::conf.is_active){return;}
     if (!Request.isMember("minimal") || Request.isMember("log")){
       Response["log"] = Controller::Storage["log"];

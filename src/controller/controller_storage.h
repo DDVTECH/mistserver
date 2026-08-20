@@ -14,7 +14,6 @@ namespace Controller{
   extern std::string udpApiBindAddr; ///< Bound address where the UDP API listens
   extern Util::Config conf;          ///< Global storage of configuration.
   extern JSON::Value Storage;        ///< Global storage of data.
-  extern std::mutex logMutex;    ///< Mutex for log thread.
   extern std::mutex configMutex; ///< Mutex for server config access.
   extern bool isTerminal;            ///< True if connected to a terminal and not a log file.
   extern bool isColorized;           ///< True if we colorize the output
@@ -29,6 +28,8 @@ namespace Controller{
   Util::RelAccX *logAccessor();
   Util::RelAccX *accesslogAccessor();
   Util::RelAccX *streamsAccessor();
+
+  std::string findLastErrorForPids(std::set<uint64_t> & pids);
 
   void logParser();
   void logAccess(const std::string &sessId, const std::string &strm, const std::string &conn,

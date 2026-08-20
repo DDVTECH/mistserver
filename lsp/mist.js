@@ -4060,6 +4060,19 @@ context_menu: function(){
       }
       if ('error' in item) {
         $s.text(item.error);
+
+        //Existing messages:
+        //- Missing connector name
+        //- Not installed
+        //- Push only
+        //- Enabled
+        //- Invalid configuration
+        //- 1 (process is running)
+        //- Binary not found (was there before)
+        //- Not installed (was not there before)
+        //- Port in use
+        //- Starting..
+        //- Start failure
       }
       return $s;
     },

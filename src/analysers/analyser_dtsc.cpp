@@ -1,5 +1,7 @@
 #include "analyser_dtsc.h"
 
+#include <mist/encode.h>
+#include <mist/ev.h>
 #include <mist/h264.h>
 #include <mist/timing.h>
 
@@ -47,7 +49,70 @@ bool AnalyserDTSC::parsePacket(){
     std::cout << S.toPrettyString() << std::endl;
     return false;
   }
-  P.reInit(conn);
+
+
+
+  Util::ResizeablePointer pktBuf;
+  Event::Loop evLp;
+
+
+      pktBuf.truncate(0);
+      P.null();
+
+      // Event-loop until we have a whole header
+      if (conn && !conn.Received().available(8)) {
+        evLp.addSocket(4242, conn.getSocket());
+        while (conn && !conn.Received().available(8)) {
+          size_t ret = evLp.await(10000);
+          if (ret == 4242) { conn.spool(); }
+        }
+        evLp.remove(conn.getSocket());
+      }
+      // No log message since the only reasons this could happen is interrupt or disconnect.
+      // We log both of those exit reasons elsewhere already
+      if (!conn.Received().available(8)) { return false; }
+
+      // Check if (likely) valid packet header
+      if (conn.Received().copy(2) != "DT") {
+        WARN_MSG("Invalid DTSC Packet header encountered (%s)", Encodings::Hex::encode(conn.Received().copy(4)).c_str());
+        return false;
+      }
+
+      // All good so far, let's read the payload size in bytes from the 8-byte header
+      size_t paySize = Bit::btohl(conn.Received().copy(8).data() + 4);
+
+      if (!pktBuf.allocate(paySize + 8)) {
+        FAIL_MSG("Could not allocate packet buffer for size=%zub packet!", paySize + 8);
+        return false;
+      }
+
+      // Read what we have buffered so far
+      conn.Received().remove(pktBuf, conn.Received().bytes(paySize + 8 - pktBuf.size()));
+
+      // Event-loop until we have a whole packet
+      if (pktBuf.size() < paySize + 8 && conn) {
+        evLp.addSocket(4242, conn.getSocket());
+        while (pktBuf.size() < paySize + 8 && conn) {
+          size_t ret = evLp.await(10000);
+          if (ret == 4242) {
+            if (conn.spool()) {
+              conn.Received().remove(pktBuf, conn.Received().bytes(paySize + 8 - pktBuf.size()));
+            }
+          }
+        }
+        evLp.remove(conn.getSocket());
+      }
+
+      // No log message since the only reasons this could happen is interrupt or disconnect.
+      // We log both of those exit reasons elsewhere already
+      if (pktBuf.size() < paySize + 8) { return false; }
+
+      // Read success! Initialize P from our packet buffer
+      P.reInit(pktBuf, pktBuf.size());
+
+
+
+
   if (conn && !P){
     FAIL_MSG("Invalid DTSC packet @ byte %" PRIu64, totalBytes)
     return false;

@@ -136,37 +136,6 @@ namespace DTSC{
     }
   }
 
-  void Packet::reInit(Socket::Connection &src){
-    int sleepCount = 0;
-    null();
-    Util::ResizeablePointer ptr;
-    while (src.connected()){
-      if (!ptr.rsize() && src.Received().available(8)){
-        if (src.Received().copy(2) != "DT"){
-          WARN_MSG("Invalid DTSC Packet header encountered (%s)",
-                   Encodings::Hex::encode(src.Received().copy(4)).c_str());
-          break;
-        }
-        ptr.allocate(Bit::btohl(src.Received().copy(8).data() + 4) + 8);
-      }
-      unsigned int readable = src.Received().bytes(ptr.rsize() - ptr.size());
-      if (ptr.rsize() && readable){
-        src.Received().remove(ptr, readable);
-        if (ptr.size() == ptr.rsize()){
-          reInit(ptr, ptr.size());
-          return;
-        }
-      }
-      if (!src.spool()){
-        if (sleepCount++ > 750){
-          WARN_MSG("Waiting for packet on connection timed out");
-          return;
-        }
-        Util::sleep(20);
-      }
-    }
-  }
-
   ///\brief Initializes a packet with new data
   ///\param data_ The new data for the packet
   ///\param len The length of the data pointed to by data_

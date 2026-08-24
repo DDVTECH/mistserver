@@ -709,7 +709,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     for (auto sock : Util::Procs::socketList) { close(sock); }
     Socket::Connection io(0, 1);
     io.drop();
-    INFO_MSG("Starting %s", args.begin()->c_str());
+    INFO_MSG("Starting %s -> %s", filename.c_str(), args.begin()->c_str());
     std::vector<char *> argv = Util::dequeToArgv(args);
     if (!argv.size()) {
       FAIL_MSG("Invalid arguments for input command - aborting");

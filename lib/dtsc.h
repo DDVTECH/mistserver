@@ -118,7 +118,6 @@ namespace DTSC{
     void operator=(const Packet &rhs);
     operator bool() const;
     packType getVersion() const;
-    void reInit(Socket::Connection &src);
     void reInit(const char *data_, unsigned int len, bool noCopy = false);
     void genericFill(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                      size_t packDataSize, uint64_t packBytePos, bool isKeyframe);

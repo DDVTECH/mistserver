@@ -2,6 +2,7 @@
 
 #include <mist/bitfields.h>
 #include <mist/defines.h>
+#include <mist/encode.h>
 #include <mist/http_parser.h>
 #include <mist/stream.h>
 #include <mist/util.h>
@@ -20,8 +21,10 @@ namespace Mist{
     capa["priority"] = 9;
     capa["source_match"].append("/*.dtsc");
     capa["source_match"].append("dtsc://*");
+    capa["source_match"].append("dtscs://*");
     capa["source_prefill"].append("/");
     capa["source_prefill"].append("dtsc://");
+    capa["source_prefill"].append("dtscs://");
 #if defined(__CYGWIN__)
     capa["source_syntax"].append("/cygdrive/[DRIVE/path/to/][file_name]");
     capa["source_help"]["/cygdrive/[DRIVE/path/to/][file_name]"] = "Location where MistServer can find the input file.";
@@ -86,14 +89,52 @@ namespace Mist{
 
   bool InputDTSC::needsLock(){
     if (!lockCache){
-      lockNeeded =
-          config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input") != "-";
       lockCache = true;
+      std::string input = config->getString("input");
+      if (input == "-") { return lockNeeded = false; }
+      return lockNeeded = input.size() < 8 || (input.substr(0, 7) != "dtsc://" && input.substr(0, 8) != "dtscs://");
     }
     return lockNeeded;
   }
 
   void InputDTSC::parseStreamHeader() {
+    lastRecvTime = lastPktTime = Util::bootMS();
+    evLp.addInterval([&]() {
+      uint64_t nowMs = Util::bootMS();
+      if (lastRecvTime + 10000 < nowMs) {
+        Util::logExitReason(ER_READ_START_FAILURE, "Receive timeout on DTSC socket");
+        config->is_active = false;
+        return (size_t)0;
+      }
+      return (size_t)(lastRecvTime + 10000 - nowMs);
+    }, 10000);
+
+    if (getenv("MIST_BALANCE_URL")) {
+      HTTP::URL balanceUrl = (std::string)getenv("MIST_BALANCE_URL");
+      evLp.addInterval([&, balanceUrl]() {
+        if (balanceDl.isEventLooping()) { return 1000; }
+        uint64_t nowMs = Util::bootMS();
+        if (lastPktTime + 2000 < nowMs) {
+          balanceDl.progressCallback = 0;
+          balanceDl.getEventLooped(evLp, balanceUrl, 5, [&]() {
+            // success
+            HTTP::URL localUrl = config->getString("input");
+            HTTP::URL wantedUrl = balanceDl.data();
+            if (localUrl.protocol != wantedUrl.protocol || localUrl.host != wantedUrl.host){
+              Util::logExitReason(ER_CLEAN_EOF, "Shutting down pull due to balancer URL change");
+              config->is_active = false;
+            }
+            lastPktTime = Util::bootMS();
+          }, [&]() {
+            // failure
+            INFO_MSG("Error reading from balancer: %s", balanceDl.getStatusText().c_str());
+            lastPktTime = Util::bootMS();
+          });
+        }
+        return 1000;
+      }, 1000);
+    }
+
     // Open metadata
     meta.reInit(streamName, false);
     if (!meta) {
@@ -152,6 +193,7 @@ namespace Mist{
     prep["version"] = APPIDENT;
     prep["stream"] = streamName;
     if (args.count("sync")) { prep["sync"].fromString(args["sync"]); }
+    if (args.count("noinput")) { prep["noinput"].fromString(args["noinput"]); }
     srcConn.SendNow("DTCM");
     char sSize[4] ={0, 0, 0, 0};
     Bit::htobl(sSize, prep.packedSize());
@@ -305,7 +347,61 @@ namespace Mist{
   void InputDTSC::getNextFromStream(size_t idx, bool returnAfterMetaReceived) {
     bool clearMeta = returnAfterMetaReceived;
     while (config->is_active && srcConn) {
-      thisPacket.reInit(srcConn);
+
+      pktBuf.truncate(0);
+      thisPacket.null();
+
+      // Event-loop until we have a whole header
+      if (srcConn && config->is_active && !srcConn.Received().available(8)) {
+        evLp.addSocket(4242, srcConn.getSocket());
+        while (srcConn && config->is_active && !srcConn.Received().available(8)) {
+          size_t ret = evLp.await(10000);
+          if (ret == 4242 && srcConn.spool()) { lastRecvTime = Util::bootMS(); }
+        }
+        evLp.remove(srcConn.getSocket());
+      }
+      // No log message since the only reasons this could happen is interrupt or disconnect.
+      // We log both of those exit reasons elsewhere already
+      if (!srcConn.Received().available(8)) { return; }
+
+      // Check if (likely) valid packet header
+      if (srcConn.Received().copy(2) != "DT") {
+        WARN_MSG("Invalid DTSC Packet header encountered (%s)", Encodings::Hex::encode(srcConn.Received().copy(4)).c_str());
+        return;
+      }
+
+      // All good so far, let's read the payload size in bytes from the 8-byte header
+      size_t paySize = Bit::btohl(srcConn.Received().copy(8).data() + 4);
+
+      if (!pktBuf.allocate(paySize + 8)) {
+        FAIL_MSG("Could not allocate packet buffer for size=%zub packet!", paySize + 8);
+        return;
+      }
+
+      // Read what we have buffered so far
+      srcConn.Received().remove(pktBuf, srcConn.Received().bytes(paySize + 8 - pktBuf.size()));
+
+      // Event-loop until we have a whole packet
+      if (pktBuf.size() < paySize + 8 && srcConn && config->is_active) {
+        evLp.addSocket(4242, srcConn.getSocket());
+        while (pktBuf.size() < paySize + 8 && srcConn && config->is_active) {
+          size_t ret = evLp.await(10000);
+          if (ret == 4242) {
+            if (srcConn.spool()) {
+              lastRecvTime = Util::bootMS();
+              srcConn.Received().remove(pktBuf, srcConn.Received().bytes(paySize + 8 - pktBuf.size()));
+            }
+          }
+        }
+        evLp.remove(srcConn.getSocket());
+      }
+
+      // No log message since the only reasons this could happen is interrupt or disconnect.
+      // We log both of those exit reasons elsewhere already
+      if (pktBuf.size() < paySize + 8) { return; }
+
+      // Read success! Initialize thisPacket from our packet buffer
+      thisPacket.reInit(pktBuf, pktBuf.size());
 
       // Handle command packets
       if (thisPacket.getVersion() == DTSC::DTCM) {
@@ -347,7 +443,9 @@ namespace Mist{
         if (cmd == "hi") {
           // let's log the version at INFO level
           thisPacket.getString("version", cmd);
-          if (cmd.size()) { INFO_MSG("Connected to remote server version %s", cmd.c_str()); }
+          if (cmd.size()) {
+            INFO_MSG("Connected to remote server %s version %s", srcConn.getHost().c_str(), cmd.c_str());
+          }
           continue;
         }
         // Ignore all other commands
@@ -367,6 +465,7 @@ namespace Mist{
 
       // Track data packet
       if (thisPacket.getVersion() == DTSC::DTSC_V1 || thisPacket.getVersion() == DTSC::DTSC_V2) {
+        lastPktTime = Util::bootMS();
         thisTime = thisPacket.getTime();
         thisIdx = M.trackIDToIndex(thisPacket.getTrackId());
         if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)) {

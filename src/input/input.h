@@ -1,19 +1,21 @@
-#include <cstdlib>
-#include <fstream>
-#include <map>
 #include <mist/bitfields.h>
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/dtsc.h>
+#include <mist/ev.h>
 #include <mist/json.h>
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
 #include <mist/url.h>
-#include <set>
 
 #ifdef SSL
 #include <mist/encryption.h>
 #endif
+
+#include <cstdlib>
+#include <fstream>
+#include <map>
+#include <set>
 
 #include "../io.h"
 
@@ -50,6 +52,7 @@ namespace Mist {
     virtual bool publishesTracks(){return true;}
 
   protected:
+    Event::Loop evLp;
     bool internalOnly;
     bool isBuffer;
     Comms::Connections statComm;
@@ -121,8 +124,6 @@ namespace Mist {
     IPC::sharedPage streamStatus;
 
     std::map<size_t, std::map<uint32_t, uint64_t> > pageCounter;
-
-    static Input *singleton;
 
     bool hasSrt;
     std::ifstream srtSource;

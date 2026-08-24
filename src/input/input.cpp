@@ -517,6 +517,7 @@ namespace Mist{
     }
 
     if (isChild || getenv("NOFORK") || getenv("ATHEIST")) {
+      evLp.setup();
       config->activate();
       if (!isChild) { INFO_MSG("Not using angel process due to ATHEIST environment variable"); }
       if ((isChild && isChild[0] == '1') || playerLock) {
@@ -1074,43 +1075,19 @@ namespace Mist{
   }
 
   void Input::streamMainLoop(){
-    uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
-    Comms::Connections statComm;
-    getNext();
-    if (thisPacket && !userSelect.count(thisIdx)){
-      userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT);
-    }
-    while (thisPacket && config->is_active && userSelect[thisIdx]){
-      if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
-        break;
-      }
-      if (isSingular() && !bufferActive()){
-        Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
-        return;
-      }
-      bufferLivePacket(thisPacket);
-      getNext();
-      if (!thisPacket){
-        Util::logExitReason(ER_CLEAN_EOF, "no more data");
-        break;
-      }
-      if (thisPacket && !userSelect.count(thisIdx)){
-        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT);
-      }
-
-      if (Util::bootSecs() - statTimer > 1){
+    // Add a 1s timer for stats if not internal-only and the session system is enabled.
+    if (!internalOnly && !getenv("NOSESS")) {
+      evLp.addInterval([&]() {
         // Connect to stats for INPUT detection
-        if (!statComm && !getenv("NOSESS")) {
-          statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(),
-                          "INPUT:" + capa["name"].asStringRef(), "");
+        if (!statComm) {
+          statComm.reload(streamName, getConnectedBinHost(), std::to_string(getpid()), "INPUT:" + capa["name"].asStringRef(), "");
         }
-        if (statComm){
-          if (statComm.getExit() || statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
+        if (statComm) {
+          if (statComm.getExit() || statComm.getStatus() & COMM_STATUS_REQDISCONNECT) {
             config->is_active = false;
             Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from session");
-            return;
+            return 0;
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
@@ -1119,9 +1096,29 @@ namespace Mist{
           statComm.setLastSecond(0);
           connStats(statComm);
         }
+        return 1000;
+      }, 1000);
+    }
 
-        statTimer = Util::bootSecs();
+    getNext();
+
+    while (thisPacket && config->is_active && userSelect[thisIdx]){
+      if (thisPacket && !internalOnly){
+        if (!userSelect.count(thisIdx)){
+          userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT);
+        }
+        if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
+          Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
+          break;
+        }
       }
+      if (isSingular() && !bufferActive()){
+        Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
+        break;
+      }
+      bufferLivePacket(thisPacket);
+      getNext();
+      if (!thisPacket) { Util::logExitReason(ER_CLEAN_EOF, "no more data"); }
     }
   }
   

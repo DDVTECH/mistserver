@@ -141,6 +141,21 @@ namespace Mist{
       return 1;
     }
 
+    // Inject noinput=true if getting a DTSC url from the balancer
+    {
+      HTTP::URL srcUrl = source;
+      if (srcUrl.protocol == "dtsc" || srcUrl.protocol == "dtscs"){
+        std::map<std::string, std::string> args;
+        HTTP::parseVars(srcUrl.args, args);
+        args["noinput"] = "1";
+        srcUrl.args = HTTP::argStr(args, false);
+        source = srcUrl.getUrl();
+      }
+    }
+
+    // Set the balance URL used, so that DTSC inputs can check for changes if they are stuck
+    setenv("MIST_BALANCE_URL", url.getUrl().c_str(), 1);
+
     // Attempt to boot the source we got
     Util::startInput(streamName, source, false, getenv("MISTPROVIDER"));
     return 1;

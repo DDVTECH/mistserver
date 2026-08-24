@@ -1,9 +1,10 @@
 #include "input.h"
 
+#include <mist/dtsc.h>
+#include <mist/urireader.h>
+
 #include <set>
 #include <stdio.h> //for FILE
-
-#include <mist/dtsc.h>
 
 namespace Mist{
   ///\brief A simple structure used for ordering byte seek positions.
@@ -55,8 +56,12 @@ namespace Mist{
     std::set<seekPos> currentPositions;
 
     uint64_t lastreadpos;
+    uint64_t lastRecvTime{0};
+    uint64_t lastPktTime{0};
+    HTTP::Downloader balanceDl;
 
     char buffer[8];
+    Util::ResizeablePointer pktBuf;
 
     void seekNext(uint64_t ms, size_t trackIdx, bool forceSeek = false);
 

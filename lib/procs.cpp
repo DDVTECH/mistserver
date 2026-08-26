@@ -252,10 +252,10 @@ void Util::Procs::setHandler(){
       sigemptyset(&new_action.sa_mask);
       new_action.sa_flags = 0;
       sigaction(SIGCHLD, &new_action, NULL);
-      atexit(exit_handler);
     }else{
       VERYHIGH_MSG("Not setting child signal handler; already handled elsewhere");
     }
+    atexit(exit_handler);
     handler_set = true;
   }
 }

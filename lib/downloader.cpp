@@ -141,7 +141,11 @@ namespace HTTP{
       }
     }else{
       H.url = "/" + Encodings::URL::encode(link.path, "/:=@[]");
-      if (link.args.size()){H.url += "?" + link.args;}
+      if (link.args.size()) {
+        std::map<std::string, std::string> args;
+        HTTP::parseVars(link.args, args);
+        for (auto & it : args) { H.SetVar(it.first, it.second); }
+      }
       if (link.port.size()){
         H.SetHeader("Host", link.host + ":" + link.port);
       }else{

@@ -597,6 +597,29 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
   while (aConn->C.spool() && aConn->C.Received().size() && aConn->H.Read(aConn->C)) {
     std::string & url = aConn->H.url;
 
+    if (!strncmp(url.c_str(), "/.well-known", 12)) {
+      aConn->H.SetHeader("Content-Type", "image/x-icon");
+      aConn->H.SetHeader("Server", APPIDENT);
+      aConn->H.setCORSHeaders();
+      aConn->H.SetBody("No .well-known endpoints implemented");
+      aConn->H.SendResponse("404", "Not found", aConn->C);
+      aConn->H.Clean();
+      continue;
+    }
+
+    // Handle favicon
+    if (HTTP::URL(url).getExt() == "ico") {
+#include "../icon.h"
+      aConn->H.SetHeader("Content-Type", "image/x-icon");
+      aConn->H.SetHeader("Server", APPIDENT);
+      aConn->H.SetHeader("Content-Length", icon_len);
+      aConn->H.setCORSHeaders();
+      aConn->H.SendResponse("200", "OK", aConn->C);
+      aConn->C.SendNow((const char *)icon_data, icon_len);
+      aConn->H.Clean();
+      continue;
+    }
+
     // Check admin_http access
     if (Storage.isMember("admin_http") && url.size() > 6 && url.substr(0, 6) == "/http/") {
       size_t slashPos = url.find('/', 6);

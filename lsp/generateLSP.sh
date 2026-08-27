@@ -2,7 +2,7 @@
 
 echo "Minimizing LSP.."
 
-terser -mo minified.js -- plugins/md5.js plugins/cattablesort.js mist.js
+terser -mo minified.js -- plugins/md5.js plugins/cattablesort.js i18n.js mist.js
 
 if [ $? -eq 0 ]; then
   echo "Done."

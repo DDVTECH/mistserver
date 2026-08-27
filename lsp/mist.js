@@ -11,7 +11,6 @@ $(function(){
     },
     context_menu: []
   };
-  UI.buildMenu();
   UI.stored.getOpts();
 
   document.body.setAttribute("data-browser",function(){
@@ -117,12 +116,20 @@ $(function(){
     if (user[1]) { mist.user.host = user[1]; }
   }
   
-  //check if we are logged in
-  mist.send(function(d){
-    //we're logged in
-    $(window).trigger('hashchange');
-  },{},{timeout: 5, hide: true});
-  
+  //Load the interface language before rendering anything: the menu and the
+  //first tab are built from translated strings.
+  UI.initLanguage(function(){
+    UI.buildMenu();
+    UI.buildLanguageSelect();
+    UI.translateStatic(true);
+
+    //check if we are logged in
+    mist.send(function(d){
+      //we're logged in
+      $(window).trigger('hashchange');
+    },{},{timeout: 5, hide: true});
+  });
+
   var lastpos = 0;
   $('body > div.filler').on('scroll',function(){
     var pos = $(this).scrollLeft();
@@ -150,7 +157,53 @@ var otherhost = {
 };
 var UI = {
   debug: false,
+  //i18n runtime, defined in i18n.js which is concatenated before this file
+  lang: MistLang,
   elements: {},
+  /* Determine which language to start in and load its catalog.
+   * Order of preference: stored preference > browser preference > English. */
+  initLanguage: function(callback){
+    UI.lang.loadIndex(function(){
+      var stored = UI.stored.getOpts().language;
+      var code = ((stored === undefined) || (stored === null) ? UI.lang.detect() : stored);
+      UI.lang.setLanguage(code,function(){
+        if (callback) { callback(); }
+      });
+    });
+  },
+  /* Translate the strings that live in the static HTML shell rather than in
+   * JS. Elements carrying data-tr-once are only done on the initial pass,
+   * because their contents get replaced by the app afterwards. */
+  translateStatic: function(initial){
+    $("[data-tr]").each(function(){
+      if (!initial && ($(this).attr("data-tr-once") !== undefined)) { return; }
+      $(this).text(tr($(this).attr("data-tr")));
+    });
+    document.title = tr("MistServer MI");
+  },
+  buildLanguageSelect: function(){
+    var codes = Object.keys(UI.lang.available);
+    if (codes.length < 2) { return; } //nothing to pick from, don't clutter the header
+    codes.sort();
+    var $select = $("<select>").attr("id","language_select").attr("title",tr("Interface language"));
+    for (var i in codes) {
+      $select.append(
+        $("<option>").val(codes[i]).text(UI.lang.available[codes[i]])
+      );
+    }
+    $select.val(UI.lang.current);
+    $select.on("change",function(){
+      var code = $(this).val();
+      UI.lang.setLanguage(code,function(){
+        UI.stored.saveOpt("language",UI.lang.current);
+        //rebuild everything that was rendered in the previous language
+        UI.buildMenu();
+        UI.translateStatic(false);
+        $(window).trigger("hashchange");
+      });
+    });
+    UI.elements.connection.status.before($select);
+  },
   stored: {
     getOpts: function(){
       var stored = localStorage['stored'];
@@ -1052,11 +1105,12 @@ context_menu: function(){
   ],
   buildMenu: function(){
     function createButton(j,button) {
-      var $button = $('<a>').addClass('button');
+      //j is the tab identifier and stays English; only the rendered text is translated
+      var $button = $('<a>').addClass('button').attr('data-tab',j);
       $button.html(
-        $('<span>').addClass('plain').text(j)
+        $('<span>').addClass('plain').text(tr(j))
       ).append(
-        $('<span>').addClass('highlighted').text(j)
+        $('<span>').addClass('highlighted').text(tr(j))
       );
       for (var k in button.classes) {
         $button.addClass(button.classes[k]);
@@ -1080,6 +1134,8 @@ context_menu: function(){
     }
     
     var $menu = UI.elements.menu;
+    //buildMenu is re-run when the language changes, so start from scratch
+    $menu.empty().siblings('#ih_button, .separator').remove();
     for (var i in UI.menu) {
       if (i > 0) {
         $menu.append($('<br>'));
@@ -4200,9 +4256,11 @@ context_menu: function(){
       }
     }
     
-    var $currbut = UI.elements.menu.removeClass('hide').find('.plain:contains("'+tab+'")').filter(function(){
-      return $(this).text() === tab;
-    }).closest('.button');
+    //match on the English identifier stored in data-tab, never on the rendered
+    //(possibly translated) button text
+    var $currbut = UI.elements.menu.removeClass('hide').find('.button[data-tab]').filter(function(){
+      return $(this).attr('data-tab') === tab;
+    });
     if ($currbut.length > 0) {
       //only remove previous button highlight if the current tab is found in the menu
       UI.elements.menu.find('.button.active').removeClass('active');
@@ -4223,7 +4281,7 @@ context_menu: function(){
     UI.elements.contextmenu = [];
 
     $main.attr("data-tab",tab).html(
-      $('<h2>').text(tab)
+      $('<h2>').text(tr(tab))
     );
     switch (tab) {
       case 'Login':
@@ -14067,13 +14125,13 @@ context_menu: function(){
                         type: "buttons",
                         buttons: [{
                           type: "cancel",
-                          label: "Cancel",
+                          label: tr("Cancel"),
                           "function": function(){
                             popup.close();
                           }
                         },{
                           type: "save",
-                          label: "Save",
+                          label: tr("Save"),
                           "function": function(){
                             mist.send(function(){
                               $out.update();
@@ -15784,13 +15842,13 @@ context_menu: function(){
             type: "buttons",
             buttons: [{
               type: "cancel",
-              label: "Cancel",
+              label: tr("Cancel"),
               "function": function(){
                 popup.close();
               }
             },{
               type: "save",
-              label: "Save",
+              label: tr("Save"),
               "function": function(){
                 save_template.updated = Math.floor(new Date().getTime()*1e-3);
                 if ((oldname in t[kind]) && (oldname != save_template.name)) {
@@ -16853,6 +16911,27 @@ if (location.origin == 'file://') {
 else {
   host = location.origin+location.pathname.replace(/\/+$/, "")+'/api';
 }
+/* Extraction-only: these strings are tab identifiers (UI.menu keys, and
+ * switch(tab) cases in UI.showTab) that get translated via tr(j) with a
+ * variable, so xgettext can never see them as literal calls. Listing them
+ * here as literal tr() calls, in code that never runs, is what makes them
+ * show up in the POT and therefore in Weblate. Keep this in sync with
+ * UI.menu and the tab names in UI.showTab.
+ *
+ * The last line covers strings that only exist as data-tr="..." attributes
+ * in header.html/footer.html (UI.translateStatic looks them up by literal
+ * text), which xgettext also cannot see since it never scans the HTML. */
+if (false) {
+  tr("Account created"); tr("Changelog"); tr("Connections"); tr("Create a new account");
+  tr("Disconnect"); tr("Documentation"); tr("Edit"); tr("Edit JWK"); tr("Edit Protocol");
+  tr("Edit Trigger"); tr("Edit external writer"); tr("Edit variable"); tr("Email for Help");
+  tr("Embed"); tr("General"); tr("Login"); tr("Logs"); tr("Overview"); tr("Preview");
+  tr("Protocols"); tr("Push"); tr("Server Stats"); tr("Start Push"); tr("Statistics");
+  tr("Status"); tr("Stream keys"); tr("Streams"); tr("Triggers");
+
+  tr("Management Interface"); tr("Disconnected"); tr("Loading..");
+}
+
 var mist = {
   data: {},
   user: {
@@ -16879,6 +16958,10 @@ var mist = {
       url: mist.user.host,
       type: 'POST',
       contentType: "application/json",
+      //tells the backend which language to translate response text (e.g.
+      //capability descriptions) into; Accept-Language isn't a forbidden
+      //fetch/XHR header, so this can differ from the browser's own default
+      headers: {"Accept-Language": UI.lang.current},
       data: JSON.stringify(data),
       dataType: 'json',
       crossDomain: true,

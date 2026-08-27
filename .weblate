@@ -1,0 +1,36 @@
+; Weblate component discovery config for MistServer.
+; See https://docs.weblate.org/en/latest/admin/addons.html#component-discovery
+;
+; Two independent components: the LSP admin panel (translated client-side,
+; in the browser) and the C++ backend (translated server-side, so the JSON
+; API itself can return already-translated text to standalone/other-frontend
+; callers). They don't share a catalog -- see plan_localization_v2.md for
+; why -- so each gets its own template/filemask/source strings. To add
+; either in Weblate: either point the "Component discovery" addon at this
+; file, or create the component by hand in the Weblate admin using the same
+; settings.
+[mistserver-lsp]
+name = MistServer LSP
+slug = mistserver-lsp
+project = mistserver
+file_format = po
+filemask = lsp/lang/*.po
+template = lsp/lang/mistserver-lsp.pot
+new_lang = add
+; msgids are the English source strings (gettext keyword extraction from
+; lsp/mist.js) - there is no separate "source_language" catalog file to
+; point at.
+source_language = en
+
+[mistserver-backend]
+name = MistServer Backend
+slug = mistserver-backend
+project = mistserver
+file_format = po
+filemask = src/lang/*.po
+template = src/lang/mistserver-backend.pot
+new_lang = add
+; msgids are the English source strings (gettext keyword extraction from
+; src/input|output|process capa["friendly"|"desc"|...] literals wrapped in
+; tr(), plus src/controller/controller_capabilities.cpp).
+source_language = en

@@ -12,10 +12,13 @@ executables += {
            'controller_capabilities.cpp',
            'controller_uplink.cpp',
            'controller_api.cpp',
+           'controller_i18n.cpp',
            'controller_push.cpp',
            'controller_variables.cpp'),
     header_tgts,
-    server_html],
+    server_html,
+    lang_catalogs,
+    backend_lang_catalogs],
   'defines': [],
   'deps' : [libmist_dep]
 }

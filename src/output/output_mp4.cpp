@@ -10,6 +10,7 @@
 #include <mist/mp4_generic.h>
 #include <mist/nal.h>
 #include <mist/stream.h> /* for `Util::codecString()` when streaming mp4 over websockets and playback using media source extensions. */
+#include <mist/tr.h>
 
 #include <inttypes.h>
 
@@ -120,8 +121,8 @@ namespace Mist{
   void OutMP4::init(Util::Config *cfg, JSON::Value & capa) {
     HTTPOutput::init(cfg, capa);
     capa["name"] = "MP4";
-    capa["friendly"] = "MP4 over HTTP";
-    capa["desc"] = "Pseudostreaming in MP4 format over HTTP";
+    capa["friendly"] = tr("MP4 over HTTP");
+    capa["desc"] = tr("Pseudostreaming in MP4 format over HTTP");
     capa["url_match"][0u] = "/$.mp4";
     capa["url_match"][1u] = "/$.3gp";
     capa["url_match"][2u] = "/$.fmp4";

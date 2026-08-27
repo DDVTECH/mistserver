@@ -1,0 +1,158 @@
+# German translations for mistserver-lsp package.
+# Copyright (C) 2026 DDVTech
+# This file is distributed under the same license as the mistserver-lsp package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: mistserver-lsp\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-12 12:49+0000\n"
+"PO-Revision-Date: 2026-08-09 10:19+0000\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lsp/mist.js:182
+msgid "MistServer MI"
+msgstr "MistServer MI"
+
+#: lsp/mist.js:188
+msgid "Interface language"
+msgstr "Oberflächensprache"
+
+#: lsp/mist.js:14048 lsp/mist.js:15765
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#: lsp/mist.js:14054 lsp/mist.js:15771
+msgid "Save"
+msgstr "Speichern"
+
+#: lsp/mist.js:16769
+msgid "Account created"
+msgstr "Konto erstellt"
+
+#: lsp/mist.js:16769
+msgid "Changelog"
+msgstr "Änderungsprotokoll"
+
+#: lsp/mist.js:16769
+msgid "Connections"
+msgstr "Verbindungen"
+
+#: lsp/mist.js:16769
+msgid "Create a new account"
+msgstr "Neues Konto erstellen"
+
+#: lsp/mist.js:16770
+msgid "Disconnect"
+msgstr "Trennen"
+
+#: lsp/mist.js:16770
+msgid "Documentation"
+msgstr "Dokumentation"
+
+#: lsp/mist.js:16770
+msgid "Edit"
+msgstr "Bearbeiten"
+
+#: lsp/mist.js:16770
+msgid "Edit JWK"
+msgstr "JWK bearbeiten"
+
+#: lsp/mist.js:16770
+msgid "Edit Protocol"
+msgstr "Protokoll bearbeiten"
+
+#: lsp/mist.js:16771
+msgid "Edit Trigger"
+msgstr "Trigger bearbeiten"
+
+#: lsp/mist.js:16771
+msgid "Edit external writer"
+msgstr "Externen Writer bearbeiten"
+
+#: lsp/mist.js:16771
+msgid "Edit variable"
+msgstr "Variable bearbeiten"
+
+#: lsp/mist.js:16771
+msgid "Email for Help"
+msgstr "E-Mail für Hilfe"
+
+#: lsp/mist.js:16772
+msgid "Embed"
+msgstr "Einbetten"
+
+#: lsp/mist.js:16772
+msgid "General"
+msgstr "Allgemein"
+
+#: lsp/mist.js:16772
+msgid "Login"
+msgstr "Anmelden"
+
+#: lsp/mist.js:16772
+msgid "Logs"
+msgstr "Protokolle (Logs)"
+
+#: lsp/mist.js:16772
+msgid "Overview"
+msgstr "Übersicht"
+
+#: lsp/mist.js:16772
+msgid "Preview"
+msgstr "Vorschau"
+
+#: lsp/mist.js:16773
+msgid "Protocols"
+msgstr "Protokolle"
+
+#: lsp/mist.js:16773
+msgid "Push"
+msgstr "Push"
+
+#: lsp/mist.js:16773
+msgid "Server Stats"
+msgstr "Serverstatistiken"
+
+#: lsp/mist.js:16773
+msgid "Start Push"
+msgstr "Push starten"
+
+#: lsp/mist.js:16773
+msgid "Statistics"
+msgstr "Statistiken"
+
+#: lsp/mist.js:16774
+msgid "Status"
+msgstr "Status"
+
+#: lsp/mist.js:16774
+msgid "Stream keys"
+msgstr "Stream-Schlüssel"
+
+#: lsp/mist.js:16774
+msgid "Streams"
+msgstr "Streams"
+
+#: lsp/mist.js:16774
+msgid "Triggers"
+msgstr "Trigger"
+
+#: lsp/mist.js:16776
+msgid "Management Interface"
+msgstr "Verwaltungsoberfläche"
+
+#: lsp/mist.js:16776
+msgid "Disconnected"
+msgstr "Getrennt"
+
+#: lsp/mist.js:16776
+msgid "Loading.."
+msgstr "Wird geladen.."

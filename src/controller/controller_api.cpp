@@ -3,6 +3,7 @@
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
 #include "controller_external_writers.h"
+#include "controller_i18n.h"
 #include "controller_push.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
@@ -20,6 +21,8 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/url.h>
+
+#include "lang_catalogs.h"
 
 #include <dirent.h>
 #include <fstream>
@@ -632,6 +635,42 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
         continue;
       }
     }
+    // Catch translation catalog requests. These are served before the web
+    // interface branch below, which would otherwise swallow them.
+    if (aConn->H.url.size() > 14 && aConn->H.url.substr(0, 14) == "/translations/" &&
+        aConn->H.url.substr(aConn->H.url.size() - 5) == ".json") {
+      std::string code = aConn->H.url.substr(14, aConn->H.url.size() - 19);
+      const char *body = 0;
+      uint32_t bodyLen = 0;
+      if (code == "index") {
+        body = langIndexJson;
+        bodyLen = langIndexJsonLen;
+      } else {
+        for (size_t i = 0; i < langCatalogCount; ++i) {
+          if (code == langCatalogs[i].code) {
+            body = langCatalogs[i].json;
+            bodyLen = langCatalogs[i].len;
+            break;
+          }
+        }
+      }
+      aConn->H.Clean();
+      aConn->H.SetHeader("Server", APPIDENT);
+      if (!body) {
+        aConn->H.SetBody("{}");
+        aConn->H.SetHeader("Content-Type", "application/json");
+        aConn->H.SendResponse("404", "Not found", aConn->C);
+        aConn->H.Clean();
+        continue;
+      }
+      aConn->H.SetHeader("Content-Type", "application/json");
+      aConn->H.SetHeader("Content-Length", bodyLen);
+      aConn->H.SendResponse("200", "OK", aConn->C);
+      aConn->C.SendNow(body, bodyLen);
+      aConn->H.Clean();
+      continue;
+    }
+
     JSON::Value Response;
     JSON::Value Request;
     std::string reqContType = aConn->H.GetHeader("Content-Type");
@@ -667,6 +706,16 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
       }
       if (aConn->authorized) {
         handleAPICommands(Request, Response);
+        // The API is also consumed standalone / by other front-ends, so
+        // translated capability text has to come from the server itself,
+        // not rely on a client-side catalog lookup. Language is negotiated
+        // via Accept-Language only (no query param) and applied to the
+        // per-request Response copy -- Controller::capabilities itself
+        // stays English, since it is cached and shared across every
+        // request in every language.
+        if (Response.isMember("capabilities")) {
+          Controller::translateCapabilities(Response["capabilities"], Controller::resolveLang(aConn->H));
+        }
         if (Request.isMember("logout")) { aConn->authorized = false; }
       }
     } // config mutex lock

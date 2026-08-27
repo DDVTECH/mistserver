@@ -1075,16 +1075,8 @@ void Socket::Connection::drop(){
   if (sslConnected){
     sslConnected = false;
     DONTEVEN_MSG("SSL close");
-    if (ssl){mbedtls_ssl_close_notify(ssl);}
-    if (server_fd){
-      int prevFd = server_fd->fd;
-      mbedtls_net_free(server_fd);
-      delete server_fd;
-      server_fd = 0;
-      for (auto cb : closeCallbacks) { cb(prevFd); }
-      closeCallbacks.clear();
-    }
-    if (ssl){
+    if (ssl) {
+      mbedtls_ssl_close_notify(ssl);
       mbedtls_ssl_free(ssl);
       delete ssl;
       ssl = 0;
@@ -1103,6 +1095,14 @@ void Socket::Connection::drop(){
       mbedtls_entropy_free(entropy);
       delete entropy;
       entropy = 0;
+    }
+    if (server_fd) {
+      int prevFd = server_fd->fd;
+      for (auto cb : closeCallbacks) { cb(prevFd); }
+      closeCallbacks.clear();
+      mbedtls_net_free(server_fd);
+      delete server_fd;
+      server_fd = 0;
     }
     return;
   }
@@ -1216,61 +1216,6 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
   fflush((FILE *)ctx);
 }
 
-/// Takes a just-accepted socket and SSL-ifies it.
-bool Socket::Connection::sslAccept(mbedtls_ssl_config * sslConf, mbedtls_ctr_drbg_context * dbgCtx){
-  int ret;
-  server_fd = new mbedtls_net_context;
-  mbedtls_net_init(server_fd);
-  server_fd->fd = getSocket();
-
-  ssl = new mbedtls_ssl_context;
-  mbedtls_ssl_init(ssl);
-  if ((ret = mbedtls_ctr_drbg_reseed(dbgCtx, (const unsigned char *)"child", 5)) != 0){
-    FAIL_MSG("Could not reseed");
-    close();
-    return false;
-  }
-
-  // Set up the SSL connection
-  if ((ret = mbedtls_ssl_setup(ssl, sslConf)) != 0){
-    FAIL_MSG("Could not set up SSL connection");
-    close();
-    return false;
-  }
-
-  // Inform mbedtls how we'd like to use the connection (uses default bio handlers)
-  // We tell it to use non-blocking IO here
-  mbedtls_net_set_nonblock(server_fd);
-  blocking = false;
-  mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
-  // do the SSL handshake
-  while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
-    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
-      char error_buf[200];
-      mbedtls_strerror(ret, error_buf, 200);
-      WARN_MSG("Could not handshake, SSL error: %s (%d)", error_buf, ret);
-      close();
-      return false;
-    }else{
-      Util::sleep(20);
-    }
-  }
-  sslConnected = true;
-  HIGH_MSG("Started SSL connection handler");
-  return true;
-}
-
-#endif
-
-/// Create a new TCP Socket. This socket will (try to) connect to the given host/port right away.
-/// \param host String containing the hostname to connect to.
-/// \param port String containing the port to connect to.
-/// \param nonblock Whether the socket should be nonblocking.
-Socket::Connection::Connection(std::string host, int port, bool nonblock, bool with_ssl){
-  clear();
-  open(host, port, nonblock, with_ssl);
-}
-
 #if HAVE_UPSTREAM_MBEDTLS_SRTP
 #if MBEDTLS_VERSION_MAJOR > 2
 static void dumpSecrets(void *user, mbedtls_ssl_key_export_type type, const unsigned char *ms, size_t,
@@ -1314,6 +1259,68 @@ static int dumpSecrets(void *user, const unsigned char *ms, const unsigned char 
 #endif
 }
 #endif
+
+/// Takes a just-accepted socket and SSL-ifies it.
+bool Socket::Connection::sslAccept(mbedtls_ssl_config * sslConf, mbedtls_ctr_drbg_context * dbgCtx){
+  int ret;
+  server_fd = new mbedtls_net_context;
+  mbedtls_net_init(server_fd);
+  server_fd->fd = getSocket();
+
+  ssl = new mbedtls_ssl_context;
+  mbedtls_ssl_init(ssl);
+  if ((ret = mbedtls_ctr_drbg_reseed(dbgCtx, (const unsigned char *)"child", 5)) != 0){
+    FAIL_MSG("Could not reseed");
+    close();
+    return false;
+  }
+
+#if HAVE_UPSTREAM_MBEDTLS_SRTP && MBEDTLS_VERSION_MAJOR == 2
+  if (getenv("SSLKEYLOGFILE")) { mbedtls_ssl_conf_export_keys_ext_cb(&ssl_conf, dumpSecrets, this); }
+#endif
+#if MBEDTLS_VERSION_MAJOR > 2
+  if (getenv("SSLKEYLOGFILE")) { mbedtls_ssl_set_export_keys_cb(ssl, dumpSecrets, this); }
+#endif
+
+  // Set up the SSL connection
+  if ((ret = mbedtls_ssl_setup(ssl, sslConf)) != 0){
+    FAIL_MSG("Could not set up SSL connection");
+    close();
+    return false;
+  }
+
+  // Inform mbedtls how we'd like to use the connection (uses default bio handlers)
+  // We tell it to use non-blocking IO here
+  mbedtls_net_set_nonblock(server_fd);
+  blocking = false;
+  mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+  // do the SSL handshake
+  while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
+    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
+      char error_buf[200];
+      mbedtls_strerror(ret, error_buf, 200);
+      WARN_MSG("Could not handshake, SSL error: %s (%d)", error_buf, ret);
+      close();
+      return false;
+    }else{
+      Util::sleep(20);
+    }
+  }
+  sslConnected = true;
+  HIGH_MSG("Started SSL connection handler");
+  return true;
+}
+
+#endif
+
+/// Create a new TCP Socket. This socket will (try to) connect to the given host/port right away.
+/// \param host String containing the hostname to connect to.
+/// \param port String containing the port to connect to.
+/// \param nonblock Whether the socket should be nonblocking.
+Socket::Connection::Connection(std::string host, int port, bool nonblock, bool with_ssl){
+  clear();
+  open(host, port, nonblock, with_ssl);
+}
 
 /// Open TCP connection.
 /// Closes any existing connections and resets all internal values beforehand.
@@ -1562,8 +1569,11 @@ void Socket::Connection::send(const char *data, size_t len) {
     while (upBuffer.size() && connected()) {
       std::string & B = upBuffer.get();
       size_t written = iwrite(B.data(), B.size());
+      // If we can't write, stop writing
       if (!written) { break; }
       B.erase(0, written);
+      // If the write was partial, stop writing
+      if (B.size()) { break; }
     }
     // Abort if the connection isn't open (anymore), or we have nothing to write
     if (!connected() || !len) { return; }
@@ -1582,10 +1592,10 @@ void Socket::Connection::send(const char *data, size_t len) {
   size_t i = 0;
   do {
     size_t written = iwrite(data + i, std::min(len - i, (size_t)SOCKETSIZE));
-    if (!written && !blocking) {
+    if (i + written < len && !blocking) {
       // Socket full? Buffer the rest, if non-blocking
       INFO_MSG("Socket full - buffering %zu bytes", len - i);
-      upBuffer.append(data + i, len - i);
+      upBuffer.append(data + i + written, len - i - written);
       break;
     }
     i += written;

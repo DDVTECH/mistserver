@@ -561,7 +561,7 @@ int main_loop(int argc, char **argv){
 
     mbedtls_debug_set_threshold(3);
     mbedtls_ssl_conf_dbg(&sslConf, [](void *ctx, int level, const char *file, int line, const char *str) {
-      const int lvl = (level == 1) ? 4 : level + 6;
+      const int lvl = level + 5;
       if (Util::printDebugLevel >= lvl) {
         fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|TLS: %s\n", DBG_LVL_LIST[lvl], MIST_PROG, getpid(), file, line,
                 Util::streamName, str);

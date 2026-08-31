@@ -63,8 +63,6 @@ rules.ninja
 .ninja_deps
 .cache
 aes_ctr128
-/embed/testing
-*test
 CMakeDoxyfile.in
 RelAccXSampler
 subprojects/

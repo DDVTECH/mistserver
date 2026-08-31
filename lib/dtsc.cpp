@@ -4079,6 +4079,8 @@ namespace DTSC{
     uint32_t keyIdx = getKeyIndexForTime(idx, timestamp);
     DTSC::Keys Keys(getKeys(idx));
     DTSC::Parts Parts(parts(idx));
+    if (!Keys.getEndValid()) { return 0; }
+    if (keyIdx >= Keys.getEndValid()) { keyIdx = Keys.getEndValid() - 1; }
     uint64_t currentTime = Keys.getTime(keyIdx);
     res = Keys.getFirstPart(keyIdx);
     size_t endPart = Parts.getEndValid();
@@ -4099,10 +4101,11 @@ namespace DTSC{
     if (idx == INVALID_TRACK_ID){return 0;}
     DTSC::Keys Keys(getKeys(idx));
     DTSC::Parts Parts(parts(idx));
-    size_t kId = 0;
-    for (kId = 0; kId < Keys.getEndValid(); ++kId){
+    if (partIndex < Parts.getFirstValid() || partIndex >= Parts.getEndValid()) { return 0; }
+    for (size_t kId = Keys.getFirstValid(); kId < Keys.getEndValid(); ++kId) {
       size_t keyPartId = Keys.getFirstPart(kId);
-      if (keyPartId+Keys.getParts(kId) > partIndex){
+      if (partIndex < keyPartId) { return 0; }
+      if (keyPartId + Keys.getParts(kId) > partIndex) {
         //It's inside this key. Step through.
         uint64_t res = Keys.getTime(kId);
         while (keyPartId < partIndex){
@@ -4355,9 +4358,9 @@ namespace DTSC{
     uint64_t t2Firstms = t2.track.getInt(t2.trackFirstmsField);
     uint64_t firstms = t1Firstms > t2Firstms ? t1Firstms : t2Firstms;
 
-    uint64_t t1Lastms = t1.track.getInt(t1.trackFirstmsField);
-    uint64_t t2Lastms = t2.track.getInt(t2.trackFirstmsField);
-    uint64_t lastms = t1Lastms > t2Lastms ? t1Lastms : t2Lastms;
+    uint64_t t1Lastms = t1.track.getInt(t1.trackLastmsField);
+    uint64_t t2Lastms = t2.track.getInt(t2.trackLastmsField);
+    uint64_t lastms = t1Lastms < t2Lastms ? t1Lastms : t2Lastms;
 
     if (firstms > lastms) {
       WARN_MSG("Cannot check for timing alignment for tracks %zu and %zu: No overlap", idx1, idx2);
@@ -4370,9 +4373,11 @@ namespace DTSC{
     DTSC::Keys keys1(tracks.at(idx1).keys);
     DTSC::Keys keys2(tracks.at(idx2).keys);
 
-    while(true) {
-      if (lastms < keys1.getTime(keyIdx1) || lastms < keys2.getTime(keyIdx2)) {return true;}
-      if (keys1.getTime(keyIdx1) != keys2.getTime(keyIdx2)) {return false;}
+    while (keyIdx1 < keys1.getEndValid() && keyIdx2 < keys2.getEndValid()) {
+      uint64_t time1 = keys1.getTime(keyIdx1);
+      uint64_t time2 = keys2.getTime(keyIdx2);
+      if (lastms < time1 || lastms < time2) { return true; }
+      if (time1 != time2) { return false; }
       keyIdx1++;
       keyIdx2++;
     }

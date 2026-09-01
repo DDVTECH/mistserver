@@ -93,6 +93,12 @@ namespace Mist{
     if (M.getType(timingTid) != "video"){timingTid = M.mainTrack();}
     if (timingTid == INVALID_TRACK_ID){timingTid = tid;}
 
+    uint64_t systemBoot = 0;
+    if (M.getLive()) {
+      systemBoot = Util::getGlobalConfig("systemBoot").asInt();
+      if (!systemBoot) { systemBoot = Util::unixMS() - Util::bootMS(); }
+    }
+
     std::stringstream result;
     // parse single track
     uint32_t targetDuration = (M.biggestFragment(timingTid) / 1000) + 1;
@@ -124,14 +130,19 @@ namespace Mist{
       if (startTime >= M.getLastms(timingTid)){continue;}
       if (startTime + duration > M.getLastms(timingTid)){duration = M.getLastms(timingTid) - startTime;}
       double floatDur = (double)duration / 1000;
-      char lineBuf[400];
+      char lineBuf[512];
+      std::string dateTimeLine;
+      if (M.getLive()) {
+        uint64_t unixMs = M.packetTimeToUnixMs(startTime, systemBoot);
+        if (unixMs) { dateTimeLine = "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\r\n"; }
+      }
 
       if (M.getCodec(tid) == "subtitle"){
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.webvtt?meta=%zu&from=%" PRIu64 "&to=%" PRIu64 "\r\n",
-                 (double)duration / 1000, streamName.c_str(), tid, startTime, startTime + duration);
+        snprintf(lineBuf, sizeof(lineBuf), "%s#EXTINF:%f,\r\n../../../%s.webvtt?meta=%zu&from=%" PRIu64 "&to=%" PRIu64 "\r\n",
+                 dateTimeLine.c_str(), (double)duration / 1000, streamName.c_str(), tid, startTime, startTime + duration);
       }else{
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts%s\r\n", floatDur, urlPrefix.c_str(),
-            startTime, startTime + duration, tknStr.c_str());
+        snprintf(lineBuf, sizeof(lineBuf), "%s#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts%s\r\n", dateTimeLine.c_str(),
+                 floatDur, urlPrefix.c_str(), startTime, startTime + duration, tknStr.c_str());
       }
       totalDuration += duration;
       durations.push_back(duration);
@@ -277,16 +288,6 @@ namespace Mist{
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
 
-    cfg->addOption("nonchunked", R"-({
-      "short":"C","long":"nonchunked"
-      "help":"Do not send chunked, but buffer whole segments.",
-    })-");
-    capa["optional"]["nonchunked"]["name"] = "Send whole segments";
-    capa["optional"]["nonchunked"]["help"] =
-        "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance "
-        "significantly, but increases compatibility somewhat.";
-    capa["optional"]["nonchunked"]["option"] = "--nonchunked";
-
     cfg->addOption("chunkpath", R"-({
       "arg":"string","default":"",
       "short":"e","long":"chunkpath",
@@ -389,15 +390,6 @@ namespace Mist{
       return;
     }
 
-    bool VLCworkaround = false;
-    if (UA.substr(0, 3) == "VLC") {
-      std::string vlcver = UA.substr(4);
-      if (vlcver[0] == '0' || vlcver[0] == '1' || (vlcver[0] == '2' && vlcver[2] < '2')){
-        INFO_MSG("Enabling VLC version < 2.2.0 bug workaround.");
-        VLCworkaround = true;
-      }
-    }
-
     initialize();
     if (!keepGoing()){return;}
 
@@ -462,7 +454,7 @@ namespace Mist{
         return;
       }
 
-      H.StartResponse(req, myConn, VLCworkaround || config->getBool("nonchunked"));
+      H.StartResponse(req, myConn, true);
       responded = true;
       // we assume whole fragments - but timestamps may be altered at will
       uint32_t fragIndice = M.getFragmentIndexForTime(vidTrack, from);
@@ -546,7 +538,7 @@ namespace Mist{
   void OutHLS::sendTS(const char *tsData, size_t len){H.Chunkify(tsData, len, myConn);}
 
   void OutHLS::onFail(const std::string &msg, bool critical){
-    if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
+    if (HTTP::URL(reqUrl).getExt().substr(0, 3) != "m3u") {
       HTTPOutput::onFail(msg, critical);
       return;
     }

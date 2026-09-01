@@ -291,7 +291,11 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 /// request to respond to. \param conn The connection to send over.
 void HTTP::Parser::StartResponse(std::string code, std::string message, const HTTP::Parser & request,
                                  Socket::Connection & conn, bool bufferAllChunks) {
-  Clean();
+  {
+    std::map<std::string, std::string> oldHeaders = headers;
+    Clean();
+    headers = oldHeaders;
+  }
   protocol = request.protocol;
   const std::string reqConn = request.getHeaderLower("Connection");
   keepAlive = (protocol == "HTTP/1.1") ? (reqConn != "close") : (reqConn == "keep-alive");

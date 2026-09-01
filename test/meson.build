@@ -206,6 +206,15 @@ test('DTSC Sizing Test', dtsc_sizing_test)
 http_response_test = executable('http_response_test', 'http_response.cpp', header_tgts, dependencies: libmist_dep)
 test('HTTP response persistence and framing', http_response_test, suite: 'HTTP parser', protocol:'tap')
 
+dtsc_part_time_test = executable('dtsc_part_time_test', 'dtsc_part_time_unit.cpp', header_tgts, dependencies: libmist_dep)
+test('DTSC part time skips deleted keys', dtsc_part_time_test, protocol:'tap')
+
+hls_live_window_test = executable('hls_live_window_test', 'hls_live_window.cpp', header_tgts, dependencies: libmist_dep)
+test('CMAF HLS playlist generator', hls_live_window_test, suite: 'HLS', protocol:'tap')
+
+cmaf_muxed_test = executable('cmaf_muxed_test', 'cmaf_muxed.cpp', header_tgts, dependencies: libmist_dep)
+test('CMAF muxer', cmaf_muxed_test, suite: 'CMAF', protocol:'tap')
+
 bitwritertest = executable('bitwritertest', 'bitwriter.cpp', header_tgts, dependencies: libmist_dep)
 test('bitWriter Test', bitwritertest)
 

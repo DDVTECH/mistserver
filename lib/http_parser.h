@@ -27,6 +27,7 @@ namespace HTTP{
     bool Read(Socket::Connection & conn, std::function<void(const char *, size_t)> onData = 0);
     bool Read(std::string &strbuf);
     const std::string &GetHeader(const std::string &i) const;
+    const std::string getHeaderLower(const std::string & i) const;
     bool hasHeader(const std::string &i) const;
     void clearHeader(const std::string &i);
     uint8_t getPercentage() const;
@@ -53,7 +54,6 @@ namespace HTTP{
     void Chunkify(const char *data, unsigned int size, Socket::Connection &conn);
     void Proxy(Socket::Connection &from, Socket::Connection &to);
     void Clean();
-    void CleanPreserveHeaders();
     void auth(const std::string &user, const std::string &pass, const std::string &authReq,
               const std::string &headerName = "Authorization");
     std::string body;
@@ -63,19 +63,20 @@ namespace HTTP{
     size_t length;
     bool knownLength;
     size_t currentLength;
-    bool headerOnly; ///< If true, do not parse body if the length is a known size.
-    bool bufferChunks;
-    // this bool was private
-    bool sendingChunks;
-    void (*bodyCallback)(const char *, size_t);
+    bool headerOnly; ///< If true, do not parse body if the length is a known size
+    bool bufferChunks; ///< If true, we buffer all outgoing body data locally and send it only when done
+    bool sendingChunks; ///< True if we're sending in chunked mode.
 
   private:
     std::string cnonce;
-    bool seenHeaders;
+    bool seenHeaders; ///< True if we've seen all headers and are now parsing body
     bool seenReq;
-    bool getChunks;
-    bool possiblyComplete;
-    unsigned int doingChunk;
+    bool getChunks; ///< True if we're receiving in chunked mode
+    bool possiblyComplete; ///< True if the body is only complete if the connection is closed (e.g. no Content-Length)
+    bool keepAlive; ///< If false, connection is closed on transmit end
+    bool bodyAllowed; ///< If false, no HTTP body may be transmitted
+    bool lengthAllowed; ///< If false, no Content-Length (or body) may be transmitted
+    unsigned int doingChunk; ///< Bytes left in the current chunk we're receiving
     bool parse(std::string & HTTPbuffer, std::function<void(const char *, size_t)> onData = 0);
     std::string builder;
     std::string read_buffer;

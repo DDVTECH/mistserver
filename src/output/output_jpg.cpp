@@ -18,6 +18,7 @@ namespace Mist{
     // Set global defaults
     HTTPOutput::respondHTTP(req, headersOnly);
 
+    H.Clean();
     motion = (req.url.find(".mj") != std::string::npos);
     if (motion){
       boundary = Util::getRandomAlphanumeric(24);
@@ -25,7 +26,6 @@ namespace Mist{
       H.SetHeader("Connection", "close");
     }
 
-    H.CleanPreserveHeaders();
     H.SendResponse("200", "OK", myConn);
     if (headersOnly){return;}
     if (motion){

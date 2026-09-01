@@ -225,7 +225,7 @@ namespace Mist{
     H.setCORSHeaders();
     H.SetBody(generateSDP(targetIP, streamName));
     H.SendResponse("200", "OK", myConn);
-    H.CleanPreserveHeaders();
+    H.Clean();
     // No more requests needed. Keep alive until we are no longer receiving RTCP packets
     parseData = true;
     wantRequest = false;

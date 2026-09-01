@@ -203,6 +203,9 @@ test('RTSP linking', urltest, suite: 'URL parser',
 dtsc_sizing_test = executable('dtsc_sizing_test', 'dtsc_sizing.cpp', header_tgts, dependencies: libmist_dep)
 test('DTSC Sizing Test', dtsc_sizing_test)
 
+http_response_test = executable('http_response_test', 'http_response.cpp', header_tgts, dependencies: libmist_dep)
+test('HTTP response persistence and framing', http_response_test, suite: 'HTTP parser', protocol:'tap')
+
 bitwritertest = executable('bitwritertest', 'bitwriter.cpp', header_tgts, dependencies: libmist_dep)
 test('bitWriter Test', bitwritertest)
 

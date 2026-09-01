@@ -1,42 +1,39 @@
 /// \file http_parser.cpp
 /// Holds all code for the HTTP namespace.
 
+#include "http_parser.h"
+
 #include "auth.h"
 #include "defines.h"
 #include "encode.h"
-#include "http_parser.h"
+#include "json.h"
 #include "timing.h"
 #include "url.h"
 #include "util.h"
-#include "json.h"
+
+#include <algorithm>
 #include <iomanip>
-#include <strings.h>
 #include <sstream>
+#include <strings.h>
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().
 HTTP::Parser::Parser(){
   headerOnly = false;
-  bodyCallback = 0;
   Clean();
   std::stringstream nStr;
   nStr << std::hex << std::setw(16) << std::setfill('0') << (uint64_t)(Util::bootMS());
   cnonce = nStr.str();
 }
 
-/// Completely re-initializes the HTTP::Parser, leaving it ready for either reading or writing
-/// usage.
-void HTTP::Parser::Clean(){
-  CleanPreserveHeaders();
-  headers.clear();
-}
-
-/// Completely re-initializes the HTTP::Parser, leaving it ready for either reading or writing
-/// usage.
-void HTTP::Parser::CleanPreserveHeaders(){
+/// Completely re-initializes the HTTP::Parser, leaving it ready for either reading or writing usage.
+void HTTP::Parser::Clean() {
   seenHeaders = false;
   seenReq = false;
   possiblyComplete = false;
+  keepAlive = false;
+  bodyAllowed = true;
+  lengthAllowed = true;
   getChunks = false;
   sendingChunks = false;
   doingChunk = 0;
@@ -48,6 +45,7 @@ void HTTP::Parser::CleanPreserveHeaders(){
   length = 0;
   knownLength = false;
   vars.clear();
+  headers.clear();
 }
 
 /// Local-only helper function for use in auth()
@@ -150,9 +148,10 @@ std::string &HTTP::Parser::BuildRequest(){
   /// \todo Include POST variable handling for vars?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-  if (!(method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded") && vars.size() && url.find('?') == std::string::npos){
+  if (!(method == "POST" && getHeaderLower("Content-Type") == "application/x-www-form-urlencoded") && vars.size() &&
+      url.find('?') == std::string::npos) {
     builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
-  }else{
+  } else {
     builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + " " + protocol + "\r\n";
   }
   for (it = headers.begin(); it != headers.end(); it++){
@@ -179,9 +178,10 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
 
     std::map<std::string, std::string>::iterator it;
     if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-    if (!(method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded") && vars.size() && url.find('?') == std::string::npos){
+    if (!(method == "POST" && getHeaderLower("Content-Type") == "application/x-www-form-urlencoded") && vars.size() &&
+        url.find('?') == std::string::npos) {
       builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
-    }else{
+    } else {
       builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + " " + protocol + "\r\n";
     }
     if (reqbodyLen){SetHeader("Content-Length", reqbodyLen);}
@@ -201,7 +201,7 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
   }
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-  if (!(method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded") && vars.size() &&
+  if (!(method == "POST" && getHeaderLower("Content-Type") == "application/x-www-form-urlencoded") && vars.size() &&
       url.find('?') == std::string::npos) {
     builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
   } else {
@@ -289,31 +289,45 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 /// a zero-content-length HTTP/1.0 response. \param code The HTTP response code. Usually you want
 /// 200. \param message The HTTP response message. Usually you want "OK". \param request The HTTP
 /// request to respond to. \param conn The connection to send over.
-void HTTP::Parser::StartResponse(std::string code, std::string message, const HTTP::Parser &request,
-                                 Socket::Connection &conn, bool bufferAllChunks){
-  std::string prot = request.protocol;
-  bool willSendChunks =
-      (!bufferAllChunks && request.protocol == "HTTP/1.1" && request.GetHeader("Connection") != "close");
-  CleanPreserveHeaders();
-  sendingChunks = willSendChunks;
-  protocol = prot;
-  if (sendingChunks){
+void HTTP::Parser::StartResponse(std::string code, std::string message, const HTTP::Parser & request,
+                                 Socket::Connection & conn, bool bufferAllChunks) {
+  Clean();
+  protocol = request.protocol;
+  const std::string reqConn = request.getHeaderLower("Connection");
+  keepAlive = (protocol == "HTTP/1.1") ? (reqConn != "close") : (reqConn == "keep-alive");
+  lengthAllowed = code != "204" && !(code.size() == 3 && code[0] == '1');
+  bodyAllowed = lengthAllowed && request.method != "HEAD" && code != "304";
+  sendingChunks = bodyAllowed && !bufferAllChunks && request.protocol == "HTTP/1.1" && keepAlive;
+  if (sendingChunks) {
     SetHeader("Transfer-Encoding", "chunked");
-    //Chunked encoding does not allow a Content-Length, so convert to Content-Range instead
-    if (headers.count("Content-Length")){
+    // Chunked encoding does not allow a Content-Length, so convert to Content-Range instead
+    if (headers.count("Content-Length")) {
       uint32_t len = atoi(headers["Content-Length"].c_str());
-      if (len && !headers.count("Content-Range")){
+      if (len && !headers.count("Content-Range")) {
         std::stringstream rangeReply;
-        rangeReply << "bytes 0-" << (len-1) << "/" << len;
+        rangeReply << "bytes 0-" << (len - 1) << "/" << len;
         SetHeader("Content-Range", rangeReply.str());
       }
       headers.erase("Content-Length");
     }
-  }else{
-    if (!headers.count("Content-Length")){SetHeader("Connection", "close");}
+  } else {
+    clearHeader("Transfer-Encoding");
+    if (!lengthAllowed) { clearHeader("Content-Length"); }
+    keepAlive = keepAlive && (!bodyAllowed || hasHeader("Content-Length") || bufferAllChunks);
+    if (!keepAlive) {
+      SetHeader("Connection", "close");
+    } else if (protocol == "HTTP/1.0") {
+      SetHeader("Connection", "keep-alive");
+    }
   }
   bufferChunks = bufferAllChunks;
-  if (!bufferAllChunks){SendResponse(code, message, conn);}
+  if (!bufferAllChunks) {
+    SendResponse(code, message, conn);
+  } else {
+    // url and method are used in Chunkify when buffering all chunks, to send the completed response
+    url = code;
+    method = message;
+  }
 }
 
 /// Creates and sends a valid HTTP 1.0 or 1.1 response, based on the given request.
@@ -456,6 +470,13 @@ const std::string &HTTP::Parser::GetHeader(const std::string &i) const{
   // Return empty string if not found
   static const std::string empty;
   return empty;
+}
+
+/// Returns header i, if set, in lower case.
+const std::string HTTP::Parser::getHeaderLower(const std::string & i) const {
+  std::string v = GetHeader(i);
+  std::transform(v.begin(), v.end(), v.begin(), ::tolower);
+  return v;
 }
 
 /// Returns header i, if set.
@@ -628,10 +649,10 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
           length = 0;
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
-            if (!bodyCallback && !onData && body.capacity() < length) { body.reserve(length); }
+            if (!onData && body.capacity() < length) { body.reserve(length); }
             knownLength = true;
           }
-          if (GetHeader("Transfer-Encoding") == "chunked"){
+          if (getHeaderLower("Transfer-Encoding") == "chunked") {
             getChunks = true;
             doingChunk = 0;
           }
@@ -663,12 +684,6 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
 
         if (toappend > 0){
           bool shouldAppend = true;
-          // check if pointer callback function is set and run callback. remove partial data from buffer
-          if (bodyCallback){
-            bodyCallback(HTTPbuffer.data(), toappend);
-            shouldAppend = false;
-          }
-
           // check if reference callback function is set and run callback. remove partial data from buffer
           if (onData) {
             onData(HTTPbuffer.data(), toappend);
@@ -681,7 +696,9 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
         }
         if (length == currentLength) {
           // parse POST body if the content type is URLEncoded
-          if (method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded"){parseVars(body, vars);}
+          if (method == "POST" && getHeaderLower("Content-Type") == "application/x-www-form-urlencoded") {
+            parseVars(body, vars);
+          }
           return true;
         } else {
           return false;
@@ -694,11 +711,6 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
             if (toappend > doingChunk){toappend = doingChunk;}
 
             bool shouldAppend = true;
-            if (bodyCallback){
-              bodyCallback(HTTPbuffer.data(), toappend);
-              shouldAppend = false;
-            }
-
             if (onData) {
               onData(HTTPbuffer.data(), toappend);
               shouldAppend = false;
@@ -735,11 +747,6 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
           if (protocol.substr(0, 4) == "RTSP" || method.substr(0, 4) == "RTSP"){return true;}
           unsigned int toappend = HTTPbuffer.size();
           bool shouldAppend = true;
-          if (bodyCallback){
-            bodyCallback(HTTPbuffer.data(), toappend);
-            shouldAppend = false;
-          }
-
           if (onData) {
             onData(HTTPbuffer.data(), toappend);
             shouldAppend = false;
@@ -821,23 +828,26 @@ void HTTP::Parser::Chunkify(const char *data, unsigned int size, Socket::Connect
     if (size){
       body.append(data, size);
     }else{
-      SetHeader("Content-Length", body.length());
-      SetHeader("Connection", "keep-alive");
-      SendResponse("200", "OK", conn);
+      if (lengthAllowed) { SetHeader("Content-Length", body.length()); }
+      if (!bodyAllowed) { body.clear(); }
+      SendResponse(url, method, conn);
+      if (!keepAlive) { conn.close(); }
       Clean();
     }
     return;
   }
-  if (sendingChunks){
-    conn.setChunkedMode(true);
-    conn.SendNow(data, size);
-  }else{
-    // just send the chunk itself
-    conn.SendNow(data, size);
-    // close the connection if this was the end of the file
-    if (!size){
-      conn.close();
-      Clean();
+  if (bodyAllowed) {
+    if (sendingChunks) {
+      conn.setChunkedMode(true);
+      conn.SendNow(data, size);
+    } else {
+      // just send the chunk itself
+      conn.SendNow(data, size);
+      // close the connection if this was the end of the file
     }
+  }
+  if (!size) {
+    if (!keepAlive) { conn.close(); }
+    Clean();
   }
 }

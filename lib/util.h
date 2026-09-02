@@ -26,6 +26,8 @@ namespace Util{
   void shellSplit(const std::string & val, std::deque<std::string> & result);
   bool externalWriter(const std::string & file, Socket::Connection & conn, bool append = false);
 
+  bool atomicWriteFile(const std::string & filename, const std::string & contents);
+
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 
   void getRandomBytes(void * dest, size_t len);

@@ -454,6 +454,43 @@ namespace Util{
               uri.c_str(), target.protocol.c_str());
     return false;
   }
+
+  /// Writes the given contents to the given filename atomically.
+  /// Does so by creating a temporary file, writing to it, then renaming to the target filename.
+  /// Creates any needed subdirectories, if needed.
+  /// Returns true on success, false on failure.
+  bool atomicWriteFile(const std::string & filename, const std::string & contents){
+    std::string path;
+
+    HTTP::URL tgt = HTTP::localURIResolver().link(filename);
+    std::string tmpFile = tgt.link("./XXXXXX").getFilePath();
+    std::string tgtFile = tgt.getFilePath();
+
+    createPathFor(tgtFile);
+    int outFile = mkstemp((char*)tmpFile.c_str());
+    if (outFile == -1){
+      WARN_MSG("Unable to open a file handle to %s", tmpFile.c_str());
+      return false;
+    }
+    size_t i = 0;
+    while (i < contents.size()){
+      int ret = write(outFile, contents.data() + i, contents.size() - i);
+      if (ret == -1){
+        WARN_MSG("Could not write data to temp file %s", tmpFile.c_str());
+        close(outFile);
+        return false;
+      }
+      i += ret;
+    }
+    close(outFile);
+    if (chmod(tmpFile.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)){
+      WARN_MSG("Could not set permissions of %s: %s", tmpFile.c_str(), strerror(errno));
+    }
+    if (!rename(tmpFile.c_str(), tgtFile.c_str())) { return true; }
+    FAIL_MSG("Could not overwrite %s: %s", tgtFile.c_str(), strerror(errno));
+    return false;
+  }
+
   //Returns the time to wait in milliseconds for exponential back-off waiting.
   //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
   //Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.

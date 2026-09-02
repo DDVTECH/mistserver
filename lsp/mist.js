@@ -16815,6 +16815,7 @@ context_menu: function(){
             if (!UI.sockets.getUrl()) {
               var me = this;
               UI.modules.stream.findMist(function(url){
+                url = url.replace(/^http/,"ws") + "json_" + encodeURIComponent(streamname) + ".js"+params
                 me.subscribe.apply(me,[callback,streamname,url,params]);
               });  
               return;
@@ -17711,6 +17712,9 @@ var mist = {
     return this.token; //the create call might not have completed yet - but this is the token that will be valid
   },
   getApiUrl: function(opts){
+    if (!mist.user.host) {
+      mist.user.host = "";
+    }
     let orig = parseURL(mist.user.host);
     let base = parseURL(orig.full,{
       search: "", //strip params

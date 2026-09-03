@@ -9547,9 +9547,9 @@ context_menu: function(){
 
         var $findMist = UI.modules.stream.findMist(function(url){
 
-            window.mv = {};
-            var $preview = $("<div>");
-            $dashboard.append($preview);
+          window.mv = {};
+          var $preview = $("<div>");
+          $dashboard.append($preview);
 
           //MistServer was found and data contains player.js, jQuery should already have added it to the page
           if (typeof mistplayers == "undefined") {
@@ -9570,7 +9570,6 @@ context_menu: function(){
           ).append(
             UI.modules.stream.metadata(other)
           );
-
 
         });
 
@@ -11210,7 +11209,8 @@ context_menu: function(){
         delete mist.user.loggedin;
         mist.data = {};
         UI.sockets.http_host = null;
-        UI.sockets.admin_proxy = null;
+        UI.sockets.admin_proxy = null; 
+        document.body.dispatchEvent(new Event("admin_proxy_updated"));
         sessionStorage.removeItem('mistLogin');
 
         mist.send(function(){
@@ -11356,6 +11356,11 @@ context_menu: function(){
       header: function(streamname,currenttab,parentstream){
         var $cont = $("<div>").addClass("header");
         var $nav = $("<ul>").addClass("tabnav");
+        let $adminmode = false;
+
+        if (currenttab == "Preview") {
+          $adminmode = $("<span>").addClass("admin_mode");
+        }
 
         $cont.append(
           $("<div>").css("display","flex").css("align-items","baseline").append(
@@ -11370,10 +11375,10 @@ context_menu: function(){
             currenttab == "Edit"  
             ? (parentstream in mist.data.streams ? "Edit \""+parentstream+"\"" : "Create \""+parentstream+"\"")
             : currenttab
-          )
+          ).append($adminmode)
         );
 
-        var tabs = [["Settings","Edit"],"Status","Preview","Embed"]
+        var tabs = [["Settings","Edit"],"Status","Preview","Embed"];
         
         var isFolderStream = false;
         if (streamname.indexOf("+") < 0) {
@@ -11420,6 +11425,40 @@ context_menu: function(){
           );
         }
 
+        if ($adminmode) {
+          //on the preview tab, if the admin http token is used to view the stream, display "Admin mode" with some help about what this means
+          if (UI.sockets.admin_proxy) {
+            $adminmode.text("Admin mode");
+          }
+          else {
+            $adminmode.text("");
+          }
+
+          $adminmode.hover(function(e){
+            if (!$adminmode.text()) return;
+            UI.tooltip.show(e,
+              $("<div>").append(
+                $("<h3>").text(
+                  $adminmode.text()
+                )
+              ).append(
+                $("<p>").css("max-width","20em").text("In admin mode you bypass any access control that's been set up and do not count to viewer statistics. Should you wish to experience normal viewer behaviour we recommend opening the stream's HTML page.")
+              ).children()
+            );
+          },function(){
+            UI.tooltip.hide();
+          });
+
+          //technically we should remove the listener if $adminmode is no longer on the page
+          document.body.addEventListener("admin_proxy_update",function(){
+            if (UI.sockets.admin_proxy) { 
+              $adminmode.text("Admin mode"); 
+            }
+            else {
+              $adminmode.text("");
+            }
+          });
+        }
 
         return $cont;
       },
@@ -11788,6 +11827,7 @@ context_menu: function(){
           
           if (token && (url.indexOf("http/"+token) >= 0)) {
             UI.sockets.admin_proxy = url;
+            document.body.dispatchEvent(new Event("admin_proxy_updated"));
           }
           else if (url != UI.sockets.http_host) {
             UI.sockets.http_host = url;
@@ -16909,6 +16949,20 @@ context_menu: function(){
     }
   }
 };
+
+//add event emitter when admin_proxy is changed
+let admin_proxy = null;
+Object.defineProperty(UI.sockets,"admin_proxy",{
+  enumerable: true,
+  configurable: true,
+  set: function(v){
+    admin_proxy = v;
+    document.body.dispatchEvent(new Event("admin_proxy_update"));
+  },
+  get: function(){
+    return admin_proxy;
+  }
+});
 
 if (!('origin' in location)) {
   location.origin = location.protocol+'//';

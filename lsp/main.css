@@ -1967,6 +1967,22 @@ button[data-icon]:after {
   }
 }
 
+.header {
+  h2 > .admin_mode {
+    color: var(--textColor);
+    font-size: 0.67em;
+    border: 0.5px solid var(--scrollbarMainColor);
+    border-radius: 0 0.5em;
+    margin-left: 1em;
+    padding: 0.2em 0.5em;
+    cursor: pointer;
+
+    &:empty {
+      display: none;
+    }
+  }
+}
+
 main[data-tab="Status"] .dashboard,
 main[data-tab="Preview"] .dashboard {
   display: grid;

@@ -39,7 +39,7 @@ function MistVideo(streamName,options) {
     ABR_bitrate: true,    //for supporting wrappers: when there are playback issues, request a lower bitrate video track
     useDateTime: true,    //when the unix timestamp of the stream is known, display the date/time,
     subscribeToMetaTrack: false, //pass [[track index,callback]]; the callback function will be called whenever the specified meta data track receives a message.
-    liveCatchup: 60,      //when the player supports it, and the playback position is within 60 seconds from live, play slightly faster to catch up TODO
+    liveCatchup: 60,      //when the player supports it, and the playback position is within 60 seconds from live, play slightly faster to catch up
     MistVideoObject: false//no reference object is passed
   },options);
   if (options.host) { options.host = MistUtil.http.url.sanitizeHost(options.host); }
@@ -810,7 +810,7 @@ function MistVideo(streamName,options) {
               var score = this.vars.score;
               
               //passive: only if nothing is already showing
-              this.MistVideo.showError("Poor playback: "+Math.max(0,Math.round(score*100))+"%",{
+              this.MistVideo.showError("Playback issues detected.",{
                 passive: true,
                 reload: true,
                 nextCombo: true,

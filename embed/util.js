@@ -1119,7 +1119,9 @@ var MistUtil = {
         if ("max" in options.y) { area.y.min = options.y.max*-1; }
         if ("min" in options.y) { area.y.max = options.y.min*-1; }
       }
+      try {
       svg.setAttributeNS(null,"viewBox",[area.x.min,area.y.min,area.x.max - area.x.min,area.y.max - area.y.min].join(" "));
+      } catch(e) {}
       
       gradient.setAttributeNS(null,"x1",0);
       gradient.setAttributeNS(null,"x2",0);
@@ -2242,8 +2244,8 @@ var MistUtil = {
           high: 2
         },
         actions: { //action to take when the bounds are reached
-          faster: 1.05,
-          slower: 0.98
+          faster: 1.025,
+          slower: 0.99
         }
       };
       function TimeControl(){
@@ -2364,7 +2366,17 @@ var MistUtil = {
       //listen for seeks and add desiredBuffer
       controlChannel.addSendListener("seek",function(msg){
         state.seeking = true;
-        if (!msg.ff_add) {
+        //try to use ff_add for the desired buffer, but use ff_to if possible
+        if (("seek_time" in msg) && (!isNaN(msg.seek_time))) {
+          if (msg.ff_add) {
+            msg.ff_to = msg.seek_time + msg.ff_add;
+            delete msg.ff_add;
+          }
+          else if (!msg.ff_to) {
+            msg.ff_to = msg.seek_time + Math.round(get.desiredBuffer); //NB: ensure cast to number
+          }
+        }
+        else if (!msg.ff_to && !msg.ff_add) {
           msg.ff_add = Math.round(get.desiredBuffer); //NB: ensure cast to number
         }
         return msg; //return modified message object
@@ -2387,6 +2399,8 @@ var MistUtil = {
       controlChannel.addListener("on_time",function(msg){
         var buffer = get.buffer();
         var desired = typeof get.desiredBuffer == "function" ? get.desiredBuffer() : get.desiredBuffer;
+        //if (buffer < 0) console.warn("buffer:",buffer,state,"desired:",0+desired);
+        //if (desired > 5000) console.warn("desired",0+desired,desired);
         if ((buffer !== null) && !state.seeking && !state.pending) {
           //if the buffer is known, and we're not in the middle of a seek or additional data request
 

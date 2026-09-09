@@ -92,6 +92,22 @@ to{opacity:1}
 .mistvideo-maincontainer:hover:not([data-hidecursor]) .mistvideo-subtitles,.mistvideo[data-controls=show] .mistvideo-subtitles,.mistvideo[data-show-submenu] .mistvideo-subtitles{bottom:42px;transition:none}
 .mistvideo-background{background-color:$background}
 .mistvideo-totalTime:before{content:'/';margin:.2em}
+.mistvideo-totalTime.mistvideo-pointer:focus:after,.mistvideo-totalTime.mistvideo-pointer:hover:after{content:"•";color:$accent;display:inline-block;margin-left:.5em;transform:scale(2)}
+.mistvideo-passiveError{margin:0 auto;padding:0 .5em;text-align:center;display:flex;flex-flow:row nowrap;align-items:baseline;flex-shrink:1;min-width:0}
+.mistvideo-passiveError:has(.message_container:empty){display:none}
+.mistvideo-passiveError .mistvideo-iconcontainer{margin-right:.5em;display:inline-flex;align-items:center}
+.mistvideo-passiveError .mistvideo-iconcontainer:before{content:"\200B"}
+.mistvideo-passiveError .mistvideo-iconcontainer:empty:before{content:"⚠️ ";align-items:baseline}
+.mistvideo-passiveError .message_container{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;opacity:.8}
+.mistvideo-passiveError .mistvideo-buttoncontainer{display:flex;flex-flow:row nowrap;align-items:baseline;margin-left:.5em;position:relative}
+.mistvideo-passiveError .mistvideo-buttoncontainer:not(:hover):not(:focus-within) .mistvideo-menu{display:none}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu{position:absolute;display:flex;flex-flow:column-reverse nowrap;bottom:100%;background-color:rgba(0,0,0,.8);z-index:3;width:max-content;margin-left:-.25em;margin-bottom:.5em}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu:after{content:"";position:absolute;bottom:-.5em;left:0;right:0;height:.5em}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu+button{background:0 0;border:none;opacity:1;font-size:inherit;padding:0;margin:0;white-space:nowrap;text-decoration:underline}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu+button:hover{text-decoration:none}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown{margin-left:.5em;opacity:.8;font-size:.8em;white-space:nowrap}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:first-letter{text-transform:uppercase}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:after{content:".."}
 .mistvideo-progress{padding:10px 0;margin:-10px 0;z-index:2}
 .mistvideo-progress>*{height:2px;background-color:$progressBackground;opacity:.95;position:relative}
 .mistvideo-novideo .mistvideo-progress>*,.mistvideo-progress:hover>*{height:10px}
@@ -116,7 +132,7 @@ to{opacity:1}
 .mistvideo[data-show-submenu] .mistvideo-submenu{right:5px}
 .mistvideo[data-hide-submenu] .mistvideo-submenu{right:-1000px!important}
 .mistvideo[data-show-submenu] .mistvideo-controls{bottom:0}
-.mistvideo:has(.mistvideo-hoverWindow:hover.mistvideo-submenu),.mistvideo[data-show-submenu]{overflow:visible}
+.mistvideo:has(.mistvideo-hoverWindow:hover .mistvideo-submenu),.mistvideo[data-show-submenu]{overflow:visible}
 .mistvideo-currentTime{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mistvideo-currentTime .mistvideo-realtime,.mistvideo-progress .mistvideo-realtime{opacity:.6}
 .mistvideo-videobackground{position:absolute;width:100%;height:100%;z-index:-1}

@@ -275,6 +275,22 @@ function GenericPipeline(ref,track,opts){
       writable: new FrameTracker()
     }
   };
+  let state = "starting";
+  Object.defineProperty(pipeline,"state",{
+    get: function(){
+      return state;
+    },
+    set: function(v){
+      if (v != state) {
+        state = v;
+        self.postMessage({
+          idx: track.idx,
+          type: "statechange",
+          state: state
+        });
+      }
+    }
+  });
 
   var outputTimer = {
     tid: false,
@@ -340,8 +356,12 @@ function GenericPipeline(ref,track,opts){
     }
 
     if (outputTimer.tid) {
-      if (debugging && (new Date().getTime() - outputTimer.targetTime > 1e3)) {
-        console.log(
+      if (new Date().getTime() > outputTimer.targetTime) {
+        //just do it now
+        clearTimeout(outputTimer.tid);
+        outputTimer.tid = false;
+        outputTimer.targetTime = false;
+        if (debugging) console.log(
           "💼",
           "⚠️",
           function(t){
@@ -351,13 +371,29 @@ function GenericPipeline(ref,track,opts){
               default: return t;
             }
           }(track.type),
-          "processOutputQueue() outputTimer already active:",
-          "ending at",new Date(outputTimer.targetTime).toLocaleTimeString(),
-          "seeking to",frameTiming.seeking ? MistUtil.format.time(frameTiming.seeking*1e-6) : "not seeking",
-          "first timestamp",MistUtil.format.time(pipeline.queues.out[0].timestamp*1e-6)
+          "processOutputQueue() timer is overdue, executing now"
         );
       }
-      return;
+      else {
+        if (debugging && (new Date().getTime() - outputTimer.targetTime > 1e3)) {
+          console.log(
+            "💼",
+            "⚠️",
+            function(t){
+              switch (t) {
+                case "video": return "🎞️";
+                case "audio": return "🎵";
+                default: return t;
+              }
+            }(track.type),
+            "processOutputQueue() outputTimer already active:",
+            "ending at",new Date(outputTimer.targetTime).toLocaleTimeString(),
+            "seeking to",frameTiming.seeking ? MistUtil.format.time(frameTiming.seeking*1e-6) : "not seeking",
+            "first timestamp",MistUtil.format.time(pipeline.queues.out[0].timestamp*1e-6)
+          );
+        }
+        return;
+      }
     }
     if (waitingTimer) {
       clearTimeout(waitingTimer);
@@ -419,6 +455,19 @@ function GenericPipeline(ref,track,opts){
         return writeFrame();
       }
       else {
+        if (delay > 1000) {
+          if (debugging) console.warn(
+            "💼",
+            function(t){
+              switch (t) {
+                case "video": return "🎞️";
+                case "audio": return "🎵";
+                default: return t;
+              }
+            }(track.type),
+"Delay is",delay,"ms! Let's not. Delay is now 1s.");
+          delay = 1e3;
+        }
 
         outputTimer.tid = setTimeout(function(){
           outputTimer.tid = false;
@@ -473,7 +522,13 @@ function GenericPipeline(ref,track,opts){
     if (frameTiming.seeking) {
       if (frame.timestamp < frameTiming.seeking) {
         //skip
-        frame.close();
+        
+        if (frameTiming.seeking - frame.timestamp > 5e6) {
+          if (debugging) {
+            console.warn("Timestamp of "+track.type+" frame way off ("+Math.round((frameTiming.seeking - frame.timestamp)*1e-6)+"s)",pipeline.stats.timing.decoder);
+          }
+        }
+
         if (debugging) {
           console.log(
             "💼",
@@ -486,14 +541,23 @@ function GenericPipeline(ref,track,opts){
               }
             }(track.type),
             "Skipped display of "+track.type+" frame because it is before the seek time",
-            frame.timestamp,"<",frameTiming.seeking
+            frame.timestamp,"<",frameTiming.seeking,"diff",(frameTiming.seeking - frame.timestamp)*1e-6,"s"
           );
         }
+        frame.close();
         return;
       }
       else {
-        if (debugging) console.warn("💼","Reached seek target of ["+MistUtil.format.time(frameTiming.seeking*1e-6)+"]: returning to normal playback");
+        if (debugging) console.warn("💼",function(t){
+              switch (t) {
+                case "video": return "🎞️";
+                case "audio": return "🎵";
+                default: return t;
+              }
+            }(track.type),"Reached seek target of ["+MistUtil.format.time(frameTiming.seeking*1e-6)+"]: returning to normal playback");
+        frameTiming.basetime = null; //performance.now() - frameTiming.seeking*1e-3 / frameTiming.speed.combined; //[milliseconds]
         frameTiming.seeking = undefined;
+        post({type:"sendevent",kind:"playing"});
         post({type:"sendevent",kind:"seeked"});
       }
     }
@@ -502,6 +566,25 @@ function GenericPipeline(ref,track,opts){
     pipeline.stats.timing.writable.start(frame.timestamp);
     var timestamp = frame.timestamp; //cache this as frame data stops being available if frame is postMessage'd to main thread (audio on Safari)
     frameTiming.written = timestamp;
+
+    if (debugging && (track.type == "audio")) {
+      //store audio level
+      let bytes = new Float32Array(frame.allocationSize({ format: 'f32-planar', planeIndex: 0 }));
+      frame.copyTo(bytes, { format: 'f32-planar', planeIndex: 0 });
+
+      let max = -Infinity;
+      let min = Infinity;
+
+      for (let i = 0; i < bytes.length; i++) {
+        const val = bytes[i];
+        if (val > max) max = val;
+        if (val < min) min = val;
+      }
+      if (isFinite(max) && isFinite(min)) {
+        pipeline.stats.audiolevel.add(max - min);
+      }
+    }
+
     var promise = pipeline.trackWriter.write(frame).then(function(){
       //frame.close(); shouldnt be needed
       frameTiming.out = Math.max(frameTiming.out,timestamp); //TODO overwrite only if > current .out?
@@ -546,6 +629,7 @@ function GenericPipeline(ref,track,opts){
     pipeline.decoderConfigOpts.description = header;
     pipeline.decoder.configure(pipeline.decoderConfigOpts);
     if (debugging) console.log("💼","Configure track "+track.idx+" complete");
+    pipeline.state = pipeline.decoder.state;
     return true; //indicate a keyframe may be required 
   };
 
@@ -567,7 +651,7 @@ function GenericPipeline(ref,track,opts){
     //add to out queue
     pipeline.queues.out.push(frame);
 
-    if (debugging == "verbose") console.log("💼","New frame exited "+track.type+" decoder:",frame);
+    if (debugging == "verbose") console.log("💼","New frame exited "+track.type+" decoder:","timestamp:",frame.timestamp,"frame:",frame);
 
     //asyncify other tasks
     setTimeout(function(){
@@ -577,7 +661,13 @@ function GenericPipeline(ref,track,opts){
   };
   pipeline.onDecoderError = function(err){
     if (debugging) console.error("💼",track.type+" decoder error:",err,"Config:",pipeline.decoderConfigOpts);
+    pipeline.state = pipeline.decoder.state;
     log(MistUtil.format.ucFirst(track.type)+" decoder error: "+err+" (Track "+track.idx+")");
+    post({
+      type: "sendevent",
+      kind: "decodererror",
+      when: pipeline.stats.timing.decoder.last_out,
+    });
     pipeline.reset();
   };
 
@@ -616,6 +706,20 @@ function GenericPipeline(ref,track,opts){
 
           while (pipeline.queues.in.length) {
             var first = pipeline.queues.in.shift();
+            if (debugging == "verbose") console.log(
+              "💼",
+              "Sending to decoder",
+              function(t){
+                switch (t) {
+                  case "video": return "🎞️";
+                  case "audio": return "🎵";
+                  default: return t;
+                }
+              }(track.type),
+              "Queue length:",pipeline.queues.in.length,
+              chunkOpts
+
+            );
             pipeline.decode(first);
             pipeline.stats.framerate.effective.add(first.timestamp);
           }
@@ -641,7 +745,10 @@ function GenericPipeline(ref,track,opts){
   pipeline.reset = function(){
     if (resetting) return resetting;
     resetting = new Promise(function(resolve,reject){
-      if (debugging) console.log("💼","Resetting track "+track.idx+" ("+track.codec+" "+track.type+")");
+      if (debugging) {
+        console.log("💼","Resetting track "+track.idx+" ("+track.codec+" "+track.type+")");
+        //console.trace();
+      }
       if (pipeline.decoder.state == "closed") {
         if ((pipeline.lastReset === null) || (new Date().getTime() - pipeline.lastReset.getTime() > 1e3)) {
           //return;
@@ -872,6 +979,22 @@ function AudioPipeline(track,opts){
       });
     }
   }
+  pipeline.stats.audiolevel = {
+    log: [],
+    add: function(v){
+      this.log.push(v);
+      if (this.log.length > 100) this.log.unshift();
+    },
+    get: function(v){
+      if (this.log.length == 0) return undefined;
+      let sum = 0;
+      for (var i of this.log) {
+        sum += i;
+      }
+      let out = sum / this.log.length;
+      return out;
+    }
+  };
 
   if (track.init == "") {
     //this codec does not use init data, so we can configure it right away
@@ -923,6 +1046,7 @@ function VideoPipeline(track,opts){
           }(track.type)+" key!",chunkOpts);
         }
         wantKey = false;
+        pipeline.state = pipeline.decoder.state;
       }
       else {
         if (debugging) console.log("💼","Skipped "+function(t){
@@ -942,7 +1066,11 @@ function VideoPipeline(track,opts){
   var cd = pipeline.configureDecoder;
   pipeline.configureDecoder = function(){
     var output = cd.apply(pipeline,arguments);
-    if (output) wantKey = true;
+    if (output) {
+      wantKey = true;
+      pipeline.state = "waiting for key";
+    }
+    else pipeline.state = pipeline.decoder.state;
     return output;
   }
   pipeline.createGenerator = function(){
@@ -1012,6 +1140,7 @@ function ImagePipeline(track,opts) {
   pipeline.configureDecoder = function(){
     self.postMessage({ type: "addtrack", idx: track.idx });
     pipeline.decoder.state = "configured";
+    pipeline.state = pipeline.decoder.state;
   };
   pipeline.decoder = {
     state: "unconfigured",
@@ -1020,6 +1149,7 @@ function ImagePipeline(track,opts) {
     reset: function(){},
     close: function(){}
   };
+  pipeline.state = pipeline.decoder.state;
   pipeline.createGenerator = function(){
     if (VideoTrackGenerator) {
       //safari only
@@ -1091,7 +1221,8 @@ function gatherStats(){
       timing: {
         decoder: p.stats.timing.decoder.getCopy(),
         writable: p.stats.timing.writable.getCopy()
-      }
+      },
+      audiolevel: p.stats.audiolevel ? p.stats.audiolevel.get() : undefined
     };
   }
 
@@ -1135,16 +1266,13 @@ this.onmessage = function(e) {
       case "seek": {
         var seekTo = msg.seek_time; //[ms]
 
-        //flush frame queue and reset decoders
-        for (var i in pipelines) {
-          pipelines[i].empty();
-          pipelines[i].reset();
-        }
+        //pause processing of frames while we wait for new data
+        frameTiming.paused = true;
 
         //set timestamp to target
         frameTiming.seeking = seekTo*1e3; //[microseconds]
         frameTiming.out = seekTo*1e3; //[microseconds]
-        frameTiming.basetime = performance.now() - seekTo / frameTiming.speed.combined; //[milliseconds]
+        //frameTiming.basetime = performance.now() - seekTo / frameTiming.speed.combined; //[milliseconds]
         if (debugging) console.log("💼","Frame timing was set to seek mode",{
           seeking: frameTiming.seeking,
           out: frameTiming.out
@@ -1155,6 +1283,54 @@ this.onmessage = function(e) {
           idx: null,
           message: seekTo*1e-3 //[seconds]
         });
+
+        break;
+      }
+      case "seeked": {
+
+        //after this (server sent type seek), we will start receiving new data packages
+        if (debugging) console.warn("💼","The server has received our seek request and will now start sending us data. Emptying queues and resetting decoders..");
+
+        //flush frame queue and reset decoders
+        for (var i in pipelines) {
+          let pipeline = pipelines[i];
+          pipeline.empty().then(function(){
+            return pipeline.reset();
+          }).then(function(){
+            if (debugging) {
+              console.warn(
+                "💼", function(t){
+                  switch (t) {
+                    case "video": return "🎞️";
+                    case "audio": return "🎵";
+                    default: return t;
+                  }
+                }(pipeline.track.type),"Pipeline reset complete, ready for playback"
+              );
+            }
+
+          }).catch(function(){
+            if (debugging) {
+              console.error("💼","‼️",function(t){
+                switch (t) {
+                  case "video": return "🎞️";
+                  case "audio": return "🎵";
+                  default: return t;
+                }
+              }(pipeline.track.type),"Error while resetting:",e);
+            }
+          });
+        }
+
+        if (debugging) console.log("💼","Frame timing should still be set to seek mode",{
+          seeking: frameTiming.seeking,
+          out: frameTiming.out
+        });
+
+        frameTiming.paused = false;
+        frameTiming.basetime = null; //performance.now() - frameTiming.seeking*1e-3 / frameTiming.speed.combined; //[milliseconds]
+
+        //now, start ramming frames through the decoder until we reach the seek target
 
         break;
       }

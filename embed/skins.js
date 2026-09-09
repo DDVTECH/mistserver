@@ -71,7 +71,7 @@ MistSkins["default"] = {
       },
       then: { //use this subsctructure for players that have an api with at least a play function available
         type: "container",
-        classes: ["mistvideo-column"],
+        classes: ["mistvideo-controls","mistvideo-column"],
         children: [
         {
           type: "progress",
@@ -96,6 +96,7 @@ MistSkins["default"] = {
               },
               then: {type: "totalTime"}
             },
+            { type: "passiveError" },
             {
               type: "container",
               classes: ["mistvideo-align-right"],
@@ -316,7 +317,7 @@ MistSkins["default"] = {
           }
           var delay = options.delay;
           var uid = MistUtil.createUnique();
-          return '<defs><mask id="'+uid+'"><rect x="0" y="0" width="25" height="25" fill="#fff"/><rect x="-5" y="-5" width="17.5" height="35" fill="#000" transform="rotate(180,12.5,12.5)"><animateTransform attributeName="transform" type="rotate" from="0,12.5,12.5" to="180,12.5,12.5" begin="DOMNodeInsertedIntoDocument" dur="'+(delay/2)+'s" repeatCount="1"/></rect><rect x="0" y="0" width="12.5" height="25" fill="#fff"/><rect x="-5" y="-5" width="17.5" height="35" fill="#000" transform="rotate(360,12.5,12.5)"><animate attributeType="CSS" attributeName="opacity" from="0" to="1" begin="DOMNodeInsertedIntoDocument" dur="'+(delay)+'s" calcMode="discrete" repeatCount="1" /><animateTransform attributeName="transform" type="rotate" from="180,12.5,12.5" to="360,12.5,12.5" begin="DOMNodeInsertedIntoDocument+'+(delay/2)+'s" dur="'+(delay/2)+'s" repeatCount="1"/></rect><circle cx="12.5" cy="12.5" r="8" fill="#000"/></mask></defs><circle cx="12.5" cy="12.5" r="12.5" class="fill" mask="url(#'+uid+')"/>';
+          return '<defs><mask id="'+uid+'"><rect x="0" y="0" width="25" height="25" fill="#fff"/><rect x="-5" y="-5" width="17.5" height="35" fill="#000"><animateTransform attributeName="transform" type="rotate" from="0,12.5,12.5" to="180,12.5,12.5" begin="0s" dur="'+(delay/2)+'s" fill="freeze" repeatCount="1"/></rect><rect x="0" y="0" width="12.5" height="25" fill="#fff"/><rect x="-5" y="-5" width="17.5" height="35" fill="#000" transform="rotate(360,12.5,12.5)"><animate attributeType="CSS" attributeName="opacity" from="0" to="1" begin="0s" dur="'+(delay)+'s" calcMode="discrete" repeatCount="1" /><animateTransform attributeName="transform" type="rotate" from="180,12.5,12.5" to="360,12.5,12.5" begin="'+(delay/2)+'s" dur="'+(delay/2)+'s" fill="freeze" repeatCount="1"/></rect><circle cx="12.5" cy="12.5" r="8" fill="#000"/></mask></defs><circle cx="12.5" cy="12.5" r="12.5" class="fill" mask="url(#'+uid+')"/>';
         }
       },
       popout: {
@@ -1481,6 +1482,12 @@ MistSkins["default"] = {
       if (MistVideo.info.type == "live") {
         text.nodeValue = "live";
         container.className = "live";
+        if (MistVideo.player && MistVideo.player.api) {
+          MistUtil.class.add(container,"mistvideo-pointer");
+          MistUtil.event.addListener(container,"click",function(){
+            MistVideo.player.api.currentTime = MistVideo.player.api.duration - 0.5;
+          });
+        }
       }
       else {
         container.set = function(duration){
@@ -2130,6 +2137,8 @@ MistSkins["default"] = {
       var delay = ("delay" in options ? options.delay : 5);
       
       var icon = this.skin.icons.build("timeout",false,{delay:delay});
+      icon.setCurrentTime(0);
+      icon.endtime = new Date().getTime() + delay*1e3;
       
       icon.timeout = this.timers.start(function(){
         options.function();
@@ -2208,6 +2217,7 @@ MistSkins["default"] = {
         var message_container = document.createElement("div");
         message_container.className = "message";
         this.appendChild(message_container);
+        message_container._options = options;
         
         if (!options.polling && !options.passive && !options.hideTitle) {
           var header = document.createElement("h3");
@@ -2236,7 +2246,7 @@ MistSkins["default"] = {
           if (details) {
             d.appendChild(document.createTextNode(details));
           }
-          else if ("decodingIssues" in MistVideo.skin.blueprints) { //dev mode
+          else if (("decodingIssues" in MistVideo.skin.blueprints) && (!options.passive)) { //dev mode
             if (("player" in MistVideo) && ("api" in MistVideo.player) && (MistVideo.video)) {
               details = [];
               if (typeof MistVideo.state != "undefined") {
@@ -2321,6 +2331,10 @@ MistSkins["default"] = {
         
         var identifyer = (options.type ? options.type : message);
         if (identifyer in ignoreThese) { return; }
+
+        if ((options.passive) && ("showPassiveError" in MistVideo)) {
+          return MistVideo.showPassiveError(message,options);
+        }
         
         if (options.reload === true) {
           if ((MistVideo.options.reloadDelay) && (!isNaN(Number(MistVideo.options.reloadDelay)))) {
@@ -2443,6 +2457,8 @@ MistSkins["default"] = {
         MistUtil.class.remove(container,"show");
         
         showingError = false;
+
+        if ("clearPassiveError" in MistVideo) MistVideo.clearPassiveError();
       };
       this.clearError = container.clear;
       
@@ -2452,6 +2468,7 @@ MistSkins["default"] = {
         for (var i in events) {
           MistUtil.event.addListener(MistVideo.video,events[i],function(e){
             if (!showingError) { return; }
+            if (message_global._options.keepCondition && message_global._options.keepCondition(e)) { return; }
             if (e.type == "timeupdate") {
               if (MistVideo.player.api.currentTime == 0) { return; }
               if (((new Date()).getTime() - since) < 2e3) { return; }
@@ -2462,6 +2479,190 @@ MistSkins["default"] = {
         }
       }
       
+      return container;
+    },
+    passiveError: function(){
+      var MistVideo = this;
+      var currentError = null;
+
+      var text = document.createTextNode("");
+      var icon_container = document.createElement("div");
+      icon_container.className = "mistvideo-iconcontainer";  
+      var button_container = document.createElement("div");
+      button_container.className = "mistvideo-buttoncontainer";
+
+      var ignoreThese = {};
+      MistVideo.showPassiveError = function(msg,options){
+        if (!options) {
+          options = {
+            softReload: !!(MistVideo.player && MistVideo.player.api && MistVideo.player.api.load),
+            reload: true,
+            nextCombo: !!MistVideo.info,
+            polling: false
+          };
+        }
+        var identifyer = (options.type ? options.type : msg);
+        if (identifyer in ignoreThese) { return; }
+
+        if (currentError) {
+          //only update the text
+          text.nodeValue = msg;
+          container.setAttribute("title",msg);
+          currentError.msg = msg;
+          currentError.since = new Date();
+
+          return;
+        }
+       
+        MistUtil.empty(button_container);
+        MistUtil.empty(icon_container);
+        //add buttons
+        if (options.softReload && !MistVideo.casting) {
+          var obj = {
+            type: "button",
+            label: "Reload video",
+            action: "reloading",
+            title: "Keep the media player, but attempt to reload the media source.",
+            onclick: function(){
+              MistVideo.player.api.load();
+            }
+          };
+          if (!isNaN(options.softReload+"")) { obj.delay = options.softReload; }
+          button_container.appendChild(MistVideo.UI.buildStructure(obj));
+        }
+        if (options.reload) {
+          var obj = {
+            type: "button",
+            label: "Rebuild player",
+            action: "rebuilding",
+            title: "Destroy and rebuild the media player.",
+            onclick: function(){
+              MistVideo.reload("Reloading because reload button was clicked.");
+            }
+          };
+          if (!isNaN(options.reload+"")) { obj.delay = options.reload; }
+          button_container.appendChild(MistVideo.UI.buildStructure(obj));
+        }
+        if (options.nextCombo) {
+          var obj = {
+            type: "button",
+            label: "Next protocol",
+            action: "switching",
+            title: "Select the next player / protocol combination and rebuild the media player.",
+            onclick: function(){
+              MistVideo.nextCombo();
+            }
+          };
+          if (!isNaN(options.nextCombo+"")) { obj.delay = options.nextCombo; }
+          button_container.appendChild(MistVideo.UI.buildStructure(obj));
+        }
+        if (options.ignore) {
+          var obj = {
+            type: "button",
+            label: "Ignore",
+            action: "ignoring",
+            title: "Take no action and stop showing this error message.",
+            onclick: function(){
+              this.clearError();
+              ignoreThese[identifyer] = true;
+              //stop showing this error
+            }
+          };
+          if (!isNaN(options.ignore+"")) { obj.delay = options.ignore; }
+          button_container.appendChild(MistVideo.UI.buildStructure(obj));
+        }
+        if (options.polling) {
+          icon_container.appendChild(MistVideo.UI.buildStructure({type:"polling"}));
+        }
+        if (button_container.children.length > 1) {
+          // move the buttons into an action menu if there's more than one button
+          var menu = document.createElement("div");
+          menu.className = "mistvideo-menu";
+          while (button_container.children.length) {
+            menu.appendChild(button_container.children[0]);
+          }
+          var action = document.createElement("button");
+          action.appendChild(document.createTextNode("Take action?"));
+          button_container.appendChild(menu);
+          button_container.appendChild(action);
+
+          var icons = menu.querySelectorAll("svg.icon");
+          if (icons.length) {
+            //find the shortest delay
+            var endtime = Infinity;
+            var first = false;
+            for (var i = 0; i < icons.length; i++) {
+              if (!("endtime" in icons[i])) continue;
+              if (icons[i].endtime < endtime) {
+                endtime = icons[i].endtime;
+                first = icons[i];
+              }
+            }
+            if (first) {
+              var timeout = document.createElement("div");
+              timeout.className = "countdown";
+              button_container.appendChild(timeout);
+              timeout.appendChild(document.createTextNode((first.action ? first.action : first.parentNode.innerText)+" in "));
+              var t = document.createTextNode("");;
+              timeout.appendChild(t);
+              timeout.update = function(){
+                let delay = (first.endtime - new Date().getTime()) * 1e-3;
+                if (delay > 0) {
+                  t.nodeValue = Math.round(delay)+"s";
+                  setTimeout(timeout.update,1e3)
+                }
+              };
+              timeout.update();
+            }
+          }
+        }
+
+        currentError = {
+          msg: msg,
+          options: options,
+          since: new Date()
+        };
+        text.nodeValue = msg;
+        container.setAttribute("title",msg);
+        return;
+      };
+
+      var container = document.createElement("div");
+      var message_container = document.createElement("div");
+      message_container.className = "message_container";
+      message_container.appendChild(text);
+      container.appendChild(icon_container);
+      container.appendChild(message_container);
+      container.appendChild(button_container);
+      container.clear = function(){
+        currentError = null;
+        text.nodeValue = "";
+        container.removeAttribute("title");
+        var countdowns = container.querySelectorAll("svg.icon.timeout");
+        for (var i = 0; i < countdowns.length; i++) {
+          MistVideo.timers.stop(countdowns[i].timeout);
+        }
+        MistUtil.empty(button_container);
+        MistUtil.empty(icon_container);
+      };
+      MistVideo.clearPassiveError = container.clear;
+
+      if ("video" in MistVideo) {
+        var events = ["timeupdate","playing","canplay"];//,"progress"];
+        for (var i in events) {
+          MistUtil.event.addListener(MistVideo.video,events[i],function(e){
+            if (!currentError) { return; }
+            if (currentError.options.keepCondition && currentError.options.keepCondition(e)) { return; }
+            if (e.type == "timeupdate") {
+              if (MistVideo.player.api.currentTime == 0) { return; }
+              if (((new Date()).getTime() - currentError.since.getTime()) < 2e3) { return; }
+            }
+            MistVideo.log("Removing passive error because of "+e.type+" event");
+            container.clear();
+          },container);
+        }
+      }
+
       return container;
     },
     tooltip: function(){
@@ -2563,6 +2764,9 @@ MistSkins["default"] = {
           });
           if (countdown) {
             button.appendChild(countdown);
+          }
+          if (options.action) {
+            countdown.action = options.action;
           }
         }
       }
@@ -3832,6 +4036,11 @@ MistSkins.dev = {
               return MistUtil.format.number(MistVideo.player.api.sync)+"ms";
             }
           },
+          "Audio level": function(){
+            if (MistVideo.player.api && "audiolevel" in MistVideo.player.api) {
+              return MistUtil.format.number(MistVideo.player.api.audiolevel);
+            }
+          },
           "Earliness": function(){
             if (MistVideo.player.api && "earliness" in MistVideo.player.api) {
               return processMultiOutput(MistVideo.player.api.earliness,function(v){
@@ -3847,6 +4056,16 @@ MistSkins.dev = {
           "Local jitter": function(){
             if (MistVideo.player.api && "local_jitter" in MistVideo.player.api) {
               return MistUtil.format.number(MistVideo.player.api.local_jitter)+"ms";
+            }
+          },
+          "Remote jitter": function(){
+            if (MistVideo.player.api && "on_time" in MistVideo.player.api) {
+              if (MistVideo.player.api.on_time && ("jitter" in MistVideo.player.api.on_time)) {
+                return MistUtil.format.number(MistVideo.player.api.on_time.jitter)+"ms";
+              }
+              else {
+                return 0;
+              }
             }
           },
           "Timestamp shift": function(){
@@ -3926,15 +4145,23 @@ MistSkins.dev = {
         }
         var updates = [];
         for (var i in videovalues) {
-          if (typeof videovalues[i]() == "undefined") { continue; }
-          buildItem({
-            name: i,
-            function: videovalues[i]
-          });
+          try {
+            if (typeof videovalues[i]() == "undefined") { continue; }
+            buildItem({
+              name: i,
+              function: videovalues[i]
+            });
+          } catch (e) {
+            MistVideo.log("Error while building stats for "+i+":"+e);
+          }
         }
         container.update = function(){
           for (var i in updates) {
-            updates[i]();
+            try {
+              updates[i]();
+            } catch (e) {
+              MistVideo.log("Error while updating stats for "+i+":"+e);
+            }
           }
           MistVideo.timers.start(function(){
             container.update();

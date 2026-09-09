@@ -52,6 +52,97 @@
   content: '/';
   margin: 0.2em;
 }
+.mistvideo-totalTime.mistvideo-pointer:hover:after,
+.mistvideo-totalTime.mistvideo-pointer:focus:after {
+  content: "•";
+  color: $accent;
+  display: inline-block;
+  margin-left: 0.5em;
+  transform: scale(2);
+}
+.mistvideo-passiveError {
+  margin: 0 auto;
+  padding: 0 0.5em;
+  text-align: center;
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: baseline;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.mistvideo-passiveError:has(.message_container:empty) {
+  display: none;
+}
+.mistvideo-passiveError .mistvideo-iconcontainer {
+  margin-right: 0.5em;
+  display: inline-flex;
+  align-items: center;
+}
+.mistvideo-passiveError .mistvideo-iconcontainer:before {
+  content: "\200B"; /* Zero-width space */
+}
+.mistvideo-passiveError .mistvideo-iconcontainer:empty:before {
+  content: "⚠️ ";
+  align-items: baseline;
+}
+.mistvideo-passiveError .message_container {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  opacity: 0.8;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: baseline;
+  margin-left: 0.5em;
+  position: relative;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer:not(:hover):not(:focus-within) .mistvideo-menu {
+  display: none;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu {
+  position: absolute;
+  display: flex;
+  flex-flow: column-reverse nowrap;
+  bottom: 100%;
+  background-color: rgba(0,0,0,0.8);
+  z-index: 3; /* above progress bar and submenu */
+  width: max-content;
+  margin-left: -0.25em;
+  margin-bottom: 0.5em;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu:after {
+  /* bridge the gap to parent */
+  content: "";
+  position: absolute;
+  bottom: -0.5em; left: 0;
+  right: 0;
+  height: 0.5em;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu + button {
+  background: none;
+  border: none;
+  opacity: 1;
+  font-size: inherit;
+  padding: 0;
+  margin: 0;
+  white-space: nowrap;
+  text-decoration: underline;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu + button:hover {
+  text-decoration: none;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown {
+  margin-left: 0.5em;
+  opacity: 0.8;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:first-letter { text-transform: uppercase; }
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:after { content: ".."; }
+
 .mistvideo-progress {
   padding: 10px 0;
   margin: -10px 0;

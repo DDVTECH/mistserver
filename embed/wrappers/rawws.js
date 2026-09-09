@@ -418,188 +418,6 @@ p.prototype.build = function (MistVideo,callback) {
           }
         }
 
-        //buffer management
-        /*var bounds = { // if the buffer <> desiredBuffer*bounds[low,high], take action
-          low: 0.6,
-          high: 2
-        };
-        var tweaks = { //action to take when the bounds are reached
-          faster: 1.05,
-          slower: 0.98
-        }
-        var buffer = null;
-        var playbackPoint = controller.frameTiming.out;
-        var receivePoint = controller.frameTiming.in;
-        var decodePoint = controller.frameTiming.decoded;
-        if (playbackPoint && decodePoint) { 
-          buffer = Math.round(decodePoint*1e-3 - playbackPoint*1e-3); //in ms
-          decodingTime = Math.round(receivePoint*1e-3 - decodePoint*1e-3); //in ms
-        }
-
-        if ((buffer !== null) && !controller.frameTiming.seeking && !requestingMoreBuffer) { //if the buffer is known, and we're not in the middle of a seek or additional data request
-          var desiredBuffer = controller.desiredBuffer();
-
-          if (main.debugging) {
-            var args = [
-              "▶️",
-              "Buffer:",
-              function(){
-                if (buffer > desiredBuffer*bounds.high) { return "⬆️"; }
-                if (buffer < desiredBuffer*bounds.low)  { return "⬇️"; }
-                return "🟢";
-              }(),
-              buffer,"/",desiredBuffer,
-              { 
-                keepAway: keepAway,
-                serverDelay: Math.round(controller.control.serverDelay.get()),
-                jitter: Math.round(controller.jitter.get())
-              },
-              "Decoding time:",Math.round(Math.max.apply(null,Object.values(main.api.decodeTime))),
-              "Decoding queues:",Math.max.apply(null,Object.values(main.api.decodeQueue)),
-              "Earliness:",Math.round(Math.min.apply(null,Object.values(main.api.earliness))),
-              "Server jitter:",msg.jitter,
-              "Available:",msg.end - msg.current, 
-              "Tweak:",
-              function(t){
-                if (t > 1) { return "↗️"; }
-                if (t < 1) { return "↘️"; }
-                return "🟢";
-              }(controller.frameTiming.speed.tweak),
-              controller.frameTiming.speed.tweak
-            ];
-            if (MistVideo.info.type == "live") {
-              args.unshift("From live:",Math.round(msg.end*1e-2 - playbackPoint*1e-5)/10,"s");
-            }
-            console.log.apply(null,args);
-          }
-
-          if ((buffer < desiredBuffer*bounds.low) && (msg.play_rate_curr != "fast-forward") && (controller.frameTiming.speed.tweak >= 1)) {
-
-            var underflow = 0;
-            if (buffer < 10) {
-              //if the buffer is empty, there may also be an underflow on the decoder output -> trackwriter timer
-              //aka, the decoded packets are shown in the video element too late
-              //add this lateness to the extra buffer we're requesting
-              var early = main.api.earliness;
-              if (early) underflow = -1*Math.min.apply(null,Object.values(early));
-              underflow = Math.max(0,underflow);
-            }
-
-            if (msg.current < msg.end) {
-              requestingMoreBuffer = true;
-              //request more data
-              control.send({
-                type: "fast_forward",
-                ff_add: desiredBuffer + underflow
-              });
-              if (controller.frameTiming.speed.tweak > 1) {
-                controller.frameTiming.tweakSpeed(1);
-              }
-              MistVideo.log("Our buffer ("+buffer+"ms) is small (<"+Math.round(desiredBuffer*bounds.low)+"ms), requesting more data (+"+Math.round(desiredBuffer + underflow)+"ms)..");
-              //test if we received enough data
-              var gotsetspeed = false;
-              control.addListener("set_speed").then(function(m){
-                gotsetspeed = true;
-                if (m.play_rate_prev == "fast-forward") {
-                  control.addListener("on_time").then(function(m){
-                    var newbuffer = 0;
-                    var playbackPoint = controller.frameTiming.out;
-                    var decodePoint = controller.frameTiming.in;
-                    if (playbackPoint && decodePoint) { 
-                      newbuffer = Math.round(decodePoint*1e-3 - playbackPoint*1e-3); //in ms
-                    }
-                    var increase = m.current - msg.current - (m._received - msg._received);
-                    if (main.debugging) console.warn("▶️","Extra buffer received:",m.current - msg.current,"ms","Time taken:",m._received - msg._received,"ms","Increase:",increase,"ms");
-                    if (buffer + increase < desiredBuffer*bounds.low) {
-                      controller.frameTiming.tweakSpeed(tweaks.slower);
-                      keepAway += 100;
-                      MistVideo.log("Didn't receive enough extra data to increase our buffer ("+increase+"/"+Math.round(desiredBuffer*bounds.low - buffer)+"ms): slowing down..");
-                      //once slowed down, the fast_forward request code will not trigger
-                      //it may be tried again if the buffer shrinks again after playback speed returned to 1
-                    }
-                    else {
-                      MistVideo.log("Received +"+increase+"ms extra data")
-                    }
-                    requestingMoreBuffer = false;
-                  });
-                }
-                else {
-                  //eh? reset
-                  requestingMoreBuffer = false;
-                }
-              });
-              //it's possible we don't receive a set_speed answer - in that case there is no extra data available
-              control.addListener("on_time").then(function(m){
-                if (gotsetspeed) return;
-
-                if (requestingMoreBuffer && (m.play_rate_curr != "fast-forward")) {
-                  requestingMoreBuffer = false;
-                  controller.frameTiming.tweakSpeed(tweaks.slower);
-                  keepAway += 100;
-                  MistVideo.log("Didn't receive extra data: slowing down..");
-                }
-              });
-            }
-            else { //(msg.current >= msg.end)
-              if (controller.frameTiming.speed.main > 1) {
-                //if main playback speed is faster than real time, reset it to 1
-                //controller.frameTiming.setSpeed(1,tweaks.slower);
-                control.send({type:"set_speed",play_rate:"auto"});
-              }
-              controller.frameTiming.tweakSpeed(tweaks.slower);
-              MistVideo.log("Our buffer ("+buffer+"ms) is small (<"+Math.round(desiredBuffer*bounds.low)+"ms), but can't request more data: slowing down..");
-            }
-          }
-          else {
-            if ((controller.frameTiming.speed.tweak < 1) && (buffer >= desiredBuffer)) {
-              controller.frameTiming.tweakSpeed(1);
-              MistVideo.log("Our buffer ("+buffer+"ms) is large enough (>"+Math.round(desiredBuffer)+"ms), so return to normal playback.");
-            }
-            else {
-              if ((MistVideo.info.type == "live") && (MistVideo.options.liveCatchup)) { //in an else to prevent sending fast_forward more than once
-
-                //if the buffer is large, tweak playback speed to catch up
-                if ((msg.play_rate_curr == "auto") && controller.frameTiming) {
-
-                  //do not try to buffer less than the maximum frame duration (e.g. for JPEG tracks): no need to speed up if there is no next frame
-                  var max_frame_duration = 0; //in microseconds
-                  for (var i in controller.pipelines) {
-                    max_frame_duration = Math.max(max_frame_duration,controller.pipelines[i].stats.frame_duration);
-                  }
-                  desiredBuffer = Math.max(desiredBuffer,max_frame_duration*1e-3);
-
-
-                  if ((controller.frameTiming.speed.tweak <= 1) && (buffer > desiredBuffer*bounds.high)) {
-                    controller.frameTiming.tweakSpeed(tweaks.faster);
-                    MistVideo.log("Our buffer ("+buffer+"ms) is big (>"+Math.round(desiredBuffer*bounds.high)+"ms), so tweak the playback speed to catch up.");
-
-                  }
-                  else if ((controller.frameTiming.speed.tweak > 1) && (buffer <= desiredBuffer)) {
-                    controller.frameTiming.tweakSpeed(1);
-                    MistVideo.log("Our buffer ("+buffer+"ms) is small enough (<"+Math.round(desiredBuffer)+"ms), so return to normal playback.");
-                  }
-                }
-
-                //live catchup
-                if (msg.play_rate_curr != "fast-forward") {
-                  var distanceToLive = msg.end - msg.current;
-                  if (
-                    (distanceToLive < MistVideo.options.liveCatchup*1e3)  // we're within a minute of the live point
-                    && (distanceToLive > Math.max(msg.jitter*1.1,msg.jitter+250)) // the current (download) timestamp is more than jitter*1.1 and jitter+250 away from the live point
-                    && (buffer-desiredBuffer < 1e3) // our buffer is less than a second larger than the desired buffer size
-                  ) {
-                    control.send({
-                      type: "fast_forward",
-                      ff_add: 5e3 //request an additional 5 seconds of data
-                    });
-                    MistVideo.log("We're away ("+(distanceToLive)+"ms) from the live point, requesting more data..");
-                  }
-                }
-              }
-            }
-          }
-        }*/
-
         controller.frameTiming.server = msg;
       });
       this.control.addListener("set_speed",function(msg){
@@ -626,9 +444,15 @@ p.prototype.build = function (MistVideo,callback) {
         MistUtil.event.send("seeking",seekTo*1e-3,video);
         controller.jitter.reset();
 
-        if (main.debugging) console.warn("▶️","Seeking to ["+MistUtil.format.time(seekTo*1e-3)+"]: Emptying decoding and display queues");
+        if (main.debugging) console.warn("▶️","Seeking to ["+MistUtil.format.time(seekTo*1e-3)+"]");
 
       });
+      this.control.addListener("seek",function(){
+        //the server has received the seek command, and will now start sending the new packages
+        //{"type":"seek","data":{"ff_to":106047,"play_rate_curr":"fast-forward","pos":103019}}
+        controller.worker.post({type:"seeked"});
+      });
+
       this.control.addListener("pause",function(msg){
         if (msg.paused) controller.frameTiming.paused = true;
       });
@@ -855,6 +679,7 @@ p.prototype.build = function (MistVideo,callback) {
           data: chunk.data                                 //An ArrayBuffer, a TypedArray, or a DataView containing the video data.
         });
         MistUtil.event.send("progress",null,video);
+
       }
       catch (err) {
         if (main.debugging) console.error("▶️","Error while decoding track "+chunk.track+" ("+pipeline.track.codec+" "+pipeline.track.type+")",chunk,err);
@@ -958,6 +783,7 @@ p.prototype.build = function (MistVideo,callback) {
                   Object.assign(p.stats.queues,stats.queues);
                   Object.assign(p.stats.timing.decoder,stats.timing.decoder);
                   Object.assign(p.stats.timing.writable,stats.timing.writable);
+                  if (typeof stats.audiolevel != "undefined") p.stats.audiolevel = stats.audiolevel;
                 }
               }
             }
@@ -1117,6 +943,18 @@ p.prototype.build = function (MistVideo,callback) {
         msg.kind,msg.message ? msg.message : ("idx" in msg ? "track "+msg.idx : null),
         video
       );
+      if (msg.kind == "decodererror") {
+        var pipeline = controller.pipelines[msg.idx];
+        if (!pipeline) return;
+        MistVideo.showError("The "+pipeline.track.type+" track encountered a decoding error. Recovering..",{
+          passive: true,
+          polling: true,
+          keepCondition: function(){
+            if (pipeline && pipeline.state == "waiting for key") return true; 
+            return false;
+          }
+        });
+      }
     });
     this.worker.addListener({type: "addtrack"},function(msg){
       var pipeline = controller.pipelines[msg.idx];
@@ -1154,6 +992,13 @@ p.prototype.build = function (MistVideo,callback) {
     this.worker.addListener({type: "haveVideoTrackGenerator"},function(msg){
       controller.worker.haveVideoTrackGenerator = msg.value;
     });
+    this.worker.addListener({type: "statechange"},function(msg){
+      var pipeline = controller.pipelines[msg.idx];
+      if (pipeline) {
+        pipeline.state = msg.state;
+      }
+    });
+
     function Pipeline(track) {
       if (!(typeof track == "object")) {
         track = getTrack(track);
@@ -1229,6 +1074,8 @@ p.prototype.build = function (MistVideo,callback) {
           writable: new FrameTracker()
         }
       };
+      pipeline.state = null;
+      
 
       pipeline.createTrackGenerator = function(){
         if (!window.MediaStreamTrackGenerator && controller.worker.haveVideoTrackGenerator) {
@@ -1328,8 +1175,7 @@ p.prototype.build = function (MistVideo,callback) {
 
     var keepAway = MistVideo.info.type == "live" ? 100 : 500;
     this.desiredBuffer = function(){
-      var out = keepAway + controller.control.serverDelay.get() + controller.jitter.get(); //in ms
-      return Math.round(out);
+      return this.bm.desiredBuffer.get();
     };
 
     //connects to the control websocket and requests codecs
@@ -1356,14 +1202,24 @@ p.prototype.build = function (MistVideo,callback) {
             base: MistVideo.info.type == "live" ? 100 : 500,           //never changes
             keepAway: 250,                                             //slowly decays by keepAwayDecay every on_time if buffer state is ok, increases when waiting event is triggered
             serverDelay: controller.control.serverDelay.get,
+            jitter: function(){
+              return main && main.api && main.api.on_time && main.api.on_time.jitter ? main.api.on_time.jitter : 100; //server jitter in ms; if unknown, default to 100ms
+            },
             underflow: function(){
               //if the buffer is empty, there may be an underflow on the decoder output -> trackwriter timer
               //aka, the decoded packets are shown in the video element too late
               //add this lateness (when the value for earliness is negative) to the extra buffer we're requesting
-              var buffer = (controller.frameTiming.decoded - controller.frameTiming.out)*1e-3;
+              var buffer = (controller.frameTiming.decoded - controller.frameTiming.out)*1e-3; //[ms]
               if (buffer < 10) {
                 var early = main.api.earliness;
                 var out = -1*Math.min.apply(null,Object.values(early));
+                if (buffer < 0) {
+                  out += buffer; //probably right after seeking - this makes it make more sense
+                }
+                if (out > 1000) { 
+                  //console.warn("underflow",out,"buffer",buffer,"seeking",controller.frameTiming.seeking,controller.frameTiming,"buffer + underflow");
+                  return 1000; //cap it
+                }
                 return Math.max(0,out);
               }
               return 0;
@@ -1380,9 +1236,13 @@ p.prototype.build = function (MistVideo,callback) {
             }
           }),
           buffer: function(){
-            return (controller.frameTiming.decoded - controller.frameTiming.out)*1e-3; //[ms]
+            var out = controller.frameTiming.in - controller.frameTiming.out; //[microseconds]
+            if (out < 0) {
+              out = 0;
+            }
+            return out*1e-3; //[ms]
           },
-          keepAwayDecay: 0.25,
+          keepAwayDecay: 0.1,
           setPlaybackRate: function(value){
             return controller.frameTiming.setSpeed(value);
           }
@@ -1586,11 +1446,10 @@ p.prototype.build = function (MistVideo,callback) {
       //send seek command
       //  MistServer will send new data:
       //  - starting with the first key frame before the specified seek_time
-      //  - fast forward data to seek_time, plus additional ff_add
+      //  - fast forward data to seek_time, plus additional ff_add (which is added by the buffer manager)
       main.controller.control.send({
         type: "seek",
-        seek_time: (value == "live" ? "live" : Math.round(value*1e3)),
-        ff_add: main.controller.desiredBuffer()
+        seek_time: (value == "live" ? "live" : Math.round(value*1e3))
       });
     }
   };
@@ -1598,13 +1457,14 @@ p.prototype.build = function (MistVideo,callback) {
   //the displayed buffer represents the frames that have been received from MistServer through the control channel, but have not yet been presented to the track writer
   //index 0 is What has been decoded but not yet passed to the track writer
   //index 1 is What was received but not yet decoded
+  //while seeking, buffer times based on this can get funky: when seeking, claim there is no buffer
   custom_funcs.buffered = {
     get: function(){
      return new function TimeRanges() {
        var frameTiming = main.controller.frameTiming;
        Object.defineProperty(this,"length",{
          get: function() { 
-           if (frameTiming && frameTiming.in && frameTiming.out) return 2;
+           if (frameTiming && !frameTiming.seeking && frameTiming.in && frameTiming.decoded && frameTiming.out) return 2;
            return 0;
          }
        });
@@ -1904,6 +1764,15 @@ p.prototype.build = function (MistVideo,callback) {
         }
       }
       return out;
+    }
+  };
+  custom_funcs.audiolevel = {
+    get: function(){
+      var pipeline = main.controller.pipelines.audio;
+      if (pipeline && pipeline.stats) {
+        return pipeline.stats.audiolevel || null;
+      }
+      return null;
     }
   };
 

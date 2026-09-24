@@ -702,7 +702,13 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
           }
           if (aConn->proxyP && Util::Procs::childRunning(aConn->proxyP)) {
             aConn->H.SetHeader("X-Forwarded-For", aConn->C.getHost());
-            if (Controller::isTLSEnabled) { aConn->H.SetHeader("X-Forwarded-Proto", "https"); }
+            if (!aConn->H.GetHeader("X-Forwarded-Proto").size()) {
+              if (Controller::isTLSEnabled) {
+                aConn->H.SetHeader("X-Forwarded-Proto", "https");
+              } else {
+                aConn->H.SetHeader("X-Forwarded-Proto", "http");
+              }
+            }
             aConn->H.SetHeader("X-Mst-Path", aConn->H.GetHeader("X-Mst-Path") + "/http/" + token);
             aConn->H.SendRequest(aConn->proxyC);
             // Upgrade requests go into passthrough mode and never come back

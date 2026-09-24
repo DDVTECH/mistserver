@@ -36,6 +36,7 @@ namespace Mist{
     capa["source_help"]["default"] = "Location where MistServer can find the input file.";
     capa["source_help"]["dtsc://[address][/streamname]"] = "Where MistServer can find the stream.\nInclude the DTSC port if it is not the default (4200).\nIf the stream name is omitted, the stream name of this stream is used.";
     capa["always_match"].append("dtsc://*"); // can be said to always-on mode
+    capa["always_match"].append("dtscs://*"); // can be said to always-on mode
     capa["source_file"] = "$source";
     capa["codecs"]["video"].append("H264");
     capa["codecs"]["video"].append("H263");

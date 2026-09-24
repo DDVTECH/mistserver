@@ -10,8 +10,60 @@
 #include <mist/http_parser.h>
 #include <sys/stat.h>
 
+class crtAndKey {
+  public:
+    crtAndKey() {
+      mbedtls_x509_crt_init(&crt);
+      mbedtls_pk_init(&key);
+    }
+    mbedtls_x509_crt crt;
+    mbedtls_pk_context key;
+    std::string crtFile, keyFile;
+};
+std::deque<crtAndKey> srvcerts;
+
+static int cert_callback(void *p_info, mbedtls_ssl_context *ssl, const unsigned char *name, size_t name_len) {
+  std::string sniName((char *)name, name_len);
+
+  for (auto & it : srvcerts) {
+    std::string subject((char *)it.crt.subject.val.p, it.crt.subject.val.len);
+    if (sniName != subject) {
+      bool found = false;
+      mbedtls_asn1_sequence *cur = &it.crt.subject_alt_names;
+      while (cur) {
+        if (sniName == std::string((char *)cur->buf.p, cur->buf.len)) {
+          found = true;
+          break;
+        }
+        if (cur->buf.len && cur->buf.p[0] == '*' && sniName.size() >= cur->buf.len) {
+          if (sniName.substr(sniName.size() - (cur->buf.len - 1)) == std::string((char *)cur->buf.p + 1, cur->buf.len - 1)) {
+            if (sniName.substr(0, sniName.size() - (cur->buf.len - 1)).find('.') == std::string::npos) {
+              found = true;
+              break;
+            }
+          }
+        }
+        cur = cur->next;
+      }
+      if (!found) { continue; }
+    }
+    MEDIUM_MSG("Matched %s to (%s, %s)!", sniName.c_str(), it.crtFile.c_str(), it.keyFile.c_str());
+
+    int r = mbedtls_ssl_set_hs_own_cert(ssl, &(it.crt), &(it.key));
+    if (r) { WARN_MSG("Could not set certificate!"); }
+    return r;
+  }
+  WARN_MSG("Could not find matching certificate for %s; using default certificate instead", sniName.c_str());
+  int r = mbedtls_ssl_set_hs_own_cert(ssl, &(srvcerts.begin()->crt), &(srvcerts.begin()->key));
+  if (r) { WARN_MSG("Could not set certificate!"); }
+  return r;
+}
+
 namespace Mist{
   OutDTSC::OutDTSC(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa) : Output(conn, _cfg, _capa) {
+#ifdef SSL
+    if (setupTLS()) { myConn.sslAccept(&sslConf, &ctr_drbg); }
+#endif
     JSON::Value prep;
     if (!config->getBool("syncmode")) { setSyncMode(false); }
     isSyncReceiver = false;
@@ -61,7 +113,124 @@ namespace Mist{
     sendCmd(prep);
   }
 
-  OutDTSC::~OutDTSC(){}
+#ifdef SSL
+  bool OutDTSC::setupTLS() {
+    isTLSEnabled = false;
+    // No cert or key? Non-SSL mode.
+    if (config->getOption("cert", true).size() < 2 || config->getOption("key", true).size() < 2){
+      INFO_MSG("No cert or key set, regular RTMP mode");
+      return false;
+    }
+
+    INFO_MSG("Cert and key set, RTMPS mode");
+
+    // Declare and set up all required mbedtls structures
+    int ret;
+    mbedtls_ssl_config_init(&sslConf);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_pk_init(&pkey);
+    mbedtls_x509_crt_init(&srvcert);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    isTLSEnabled = true;
+
+    mbedtls_debug_set_threshold(3);
+    mbedtls_ssl_conf_dbg(&sslConf, [](void *ctx, int level, const char *file, int line, const char *str) {
+      const int lvl = level + 5;
+      if (Util::printDebugLevel >= lvl) {
+        fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|TLS: %s\n", DBG_LVL_LIST[lvl], MIST_PROG, getpid(), file, line,
+                Util::streamName, str);
+      }
+    }, 0);
+
+    // seed the rng
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
+                                     (const unsigned char *)APPNAME, strlen(APPNAME))) != 0){
+      FAIL_MSG("Could not seed the random number generator!");
+    }
+
+    // Read certificate chain(s) from cmdline option(s)
+    bool ignoreKeys = false;
+    JSON::Value certs = config->getOption("cert", true);
+    jsonForEach (certs, it) {
+      const std::string & cFile = it->asStringRef();
+      if (!cFile.size()) { continue; } // Ignore empty entries (default is empty)
+      srvcerts.push_back(crtAndKey());
+      crtAndKey & srvcert = srvcerts.back();
+      if (cFile[0] == '[') {
+        ignoreKeys = true;
+        JSON::Value crtCnf(PARSEJSON, cFile);
+        jsonForEachConst (crtCnf, jt) {
+          if (!jt->asStringRef().size()) { continue; }
+          if (jt.num() + 1 != crtCnf.size()) {
+            if (!srvcert.crtFile.size()) { srvcert.crtFile = jt->asStringRef(); }
+            ret = mbedtls_x509_crt_parse_file(&srvcert.crt, jt->asStringRef().c_str());
+            if (ret) { WARN_MSG("Could not load any certificates from file: %s", jt->asStringRef().c_str()); }
+          } else {
+            srvcert.keyFile = jt->asStringRef();
+            ret = mbedtls_pk_parse_keyfile(&(srvcert.key), jt->asStringRef().c_str(), NULL
+#if MBEDTLS_VERSION_MAJOR > 2
+                                           ,
+                                           mbedtls_ctr_drbg_random, &ctr_drbg
+#endif
+            );
+            if (ret) { WARN_MSG("Could not load any keys from file: %s", jt->asStringRef().c_str()); }
+          }
+        }
+        continue;
+      }
+      srvcert.crtFile = cFile;
+      ret = mbedtls_x509_crt_parse_file(&srvcert.crt, cFile.c_str());
+      if (ret != 0) { WARN_MSG("Could not load any certificates from file: %s", cFile.c_str()); }
+    }
+
+    if (!ignoreKeys) {
+      auto crtIt = srvcerts.begin();
+      // Read key from cmdline option
+      JSON::Value keys = config->getOption("key", true);
+      jsonForEach (keys, it) {
+        if (!it->asStringRef().size()) { continue; } // Ignore empty entries (default is empty)
+        if (crtIt == srvcerts.end()) { break; }
+        crtIt->keyFile = it->asStringRef();
+        ret = mbedtls_pk_parse_keyfile(&(crtIt->key), it->asStringRef().c_str(), NULL
+#if MBEDTLS_VERSION_MAJOR > 2
+                                       ,
+                                       mbedtls_ctr_drbg_random, &ctr_drbg
+#endif
+        );
+        if (ret != 0) { WARN_MSG("Could not load any keys from file: %s", config->getString("key").c_str()); }
+        ++crtIt;
+      }
+    }
+
+    if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
+      FAIL_MSG("SSL config defaults failed");
+      return false;
+    }
+    mbedtls_ssl_conf_rng(&sslConf, mbedtls_ctr_drbg_random, &ctr_drbg);
+    mbedtls_ssl_conf_ca_chain(&sslConf, srvcert.next, NULL);
+    if ((ret = mbedtls_ssl_conf_own_cert(&sslConf, &srvcert, &pkey)) != 0){
+      FAIL_MSG("SSL config own certificate failed");
+      return false;
+    }
+    mbedtls_ssl_conf_sni(&sslConf, cert_callback, (void *)&srvcerts);
+    return true;
+  }
+#endif
+
+  OutDTSC::~OutDTSC(){
+#ifdef SSL
+    if (isTLSEnabled) {
+      // Free all the mbedtls structures
+      mbedtls_x509_crt_free(&srvcert);
+      mbedtls_pk_free(&pkey);
+      mbedtls_ssl_config_free(&sslConf);
+      mbedtls_ctr_drbg_free(&ctr_drbg);
+      mbedtls_entropy_free(&entropy);
+      isTLSEnabled = false;
+    }
+#endif
+  }
 
   bool OutDTSC::isFileTarget() {
     if (!isRecording()) { return false; }
@@ -107,6 +276,7 @@ namespace Mist{
     cfg->addStandardPushCapabilities(capa);
     capa["push_urls"].append("dtsc://*");
     capa["incoming_push_url"] = "dtsc://$host:$port/$stream?pass=$password";
+    capa["sort"] = "sort";
 
     capa["url_rel"] = "/$";
 
@@ -129,6 +299,28 @@ namespace Mist{
     capa["optional"]["syncmode"]["short"] = "x";
     capa["optional"]["syncmode"]["type"] = "uint";
     capa["optional"]["syncmode"]["default"] = 0;
+
+#ifdef SSL
+    capa["optional"]["cert"]["name"] = "Certificate";
+    capa["optional"]["cert"]["help"] =
+      "Path to the file(s) containing certificate chain(s). When multiple chains are used make sure to "
+      "provide their matching keys in the same order.";
+    capa["optional"]["cert"]["option"] = "--cert";
+    capa["optional"]["cert"]["short"] = "C";
+    capa["optional"]["cert"]["default"] = "";
+    capa["optional"]["cert"]["type"] = "inputlist";
+    capa["optional"]["cert"]["input"]["type"] = "browse";
+    capa["optional"]["cert"]["sort"] = "aab";
+    capa["optional"]["key"]["name"] = "Key";
+    capa["optional"]["key"]["help"] =
+      "Path to private key for SSL. When multiple are used make sure they are in order matching the certificates.";
+    capa["optional"]["key"]["option"] = "--key";
+    capa["optional"]["key"]["short"] = "k";
+    capa["optional"]["key"]["default"] = "";
+    capa["optional"]["key"]["type"] = "inputlist";
+    capa["optional"]["key"]["input"]["type"] = "browse";
+    capa["optional"]["key"]["sort"] = "aac";
+#endif
 
     JSON::Value opt;
     opt["arg"] = "string";

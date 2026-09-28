@@ -1102,7 +1102,7 @@ namespace Mist{
 
     getNext();
 
-    while (thisPacket && config->is_active && userSelect[thisIdx]){
+    while (thisPacket && config->is_active) {
       if (thisPacket && !internalOnly){
         if (!userSelect.count(thisIdx)){
           userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTSOURCEDNT);

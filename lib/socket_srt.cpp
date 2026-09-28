@@ -270,7 +270,9 @@ namespace Socket{
       case SRTS_CLOSING: return "closing";
       case SRTS_CLOSED: return "closed";
       case SRTS_NONEXIST: return "does not exist";
+#ifdef HAS_SRT_SHUTDOWN
       case SRTS_SHUTDOWN: return "closed_by_remote";
+#endif
     }
     return "unknown";
   }
@@ -702,7 +704,9 @@ namespace Socket{
 
   void SRTConnection::close() {
     if (sock != INVALID_SRT_SOCKET) {
+#ifdef HAS_SRT_SHUTDOWN
       if (srt_getsockstate(sock) == SRTS_SHUTDOWN) { closedByRemote = true; }
+#endif
       HIGH_MSG("Closing SRT socket %d (state = %s)", sock, getStateStr());
       setBlocking(true);
       srt_close(sock);

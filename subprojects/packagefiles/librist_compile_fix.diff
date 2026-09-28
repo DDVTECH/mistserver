@@ -1,0 +1,39 @@
+diff --git a/contrib/mbedtls/meson.build b/contrib/mbedtls/meson.build
+index 06929f9..e3177f6 100644
+--- a/contrib/mbedtls/meson.build
++++ b/contrib/mbedtls/meson.build
+@@ -16,7 +16,7 @@ if not builtin_mbedtls
+ #include <mbedtls/bignum.h>
+ void test_has_func() { mbedtls_mpi_random(NULL, 0, NULL, NULL, NULL); }
+ '''
+-		cdata.set10('MBEDTLS_HAS_MPI_RANDOM', cc.compiles(mpi_random_test, name: 'MbedTLS has mbedtls_mpi_random()', dependencies: mbedcrypto_lib))
++		cdata.set10('MBEDTLS_HAS_MPI_RANDOM', true)
+     endif
+ endif
+ if builtin_mbedtls and not mbedcrypto_lib_found
+diff --git a/src/rist-common.c b/src/rist-common.c
+index 8559c9c..fab9182 100755
+--- a/src/rist-common.c
++++ b/src/rist-common.c
+@@ -55,7 +55,7 @@ int parse_url_udp_options(const char* url, struct rist_udp_config *output_udp_co
+ 	if (!url || !url[0] || !output_udp_config)
+ 		return -1;
+ 
+-	query = strchr( url, '/' );
++	query = (char*)strchr( url, '/' );
+ 	if (query != NULL) {
+ 		prefix_len = (uint32_t)(query - url);
+ 		strncpy((void *)output_udp_config->prefix, url, prefix_len >= 16 ? 15 : prefix_len - 1);
+diff --git a/src/udpsocket.c b/src/udpsocket.c
+index 163ca54..5afbe80 100644
+--- a/src/udpsocket.c
++++ b/src/udpsocket.c
+@@ -385,7 +385,7 @@ int udpsocket_parse_url_parameters(const char *url, udpsocket_url_param_t *param
+ 	int i = 0;
+ 	char *token = NULL;
+ 
+-	query = strchr( url, '?' );
++	query = (char*)strchr( url, '?' );
+ 	if (query != NULL)
+ 		*clean_url_len = (uint32_t)(query - url + 1);
+ 	else

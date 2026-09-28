@@ -2,6 +2,7 @@
 directory = librist
 url = https://code.videolan.org/rist/librist.git
 revision = v0.2.11
+diff_files = librist_compile_fix.diff
 
 [provide]
 dependency_names = librist

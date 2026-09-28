@@ -192,16 +192,21 @@ endif
 
 libsrt = false
 if not get_option('NOSRT')
-  if ccpp.has_header_symbol('srt/srt.h', 'SRTS_SHUTDOWN')
+  have_srt_shutdown = ccpp.has_header_symbol('srt/srt.h', 'SRTS_SHUTDOWN')
+  if have_srt_shutdown or not get_option('SRTSHUTDOWN')
     libsrt = dependency('srt', fallback: ['libsrt', 'srt_dep'])
   else
     libsrt_proj = subproject('libsrt', default_options: ['default_library=static'])
     libsrt = libsrt_proj.get_variable('srt_dep')
+    have_srt_shutdown = true
   endif
 endif
 have_srt = not get_option('NOSRT') and libsrt.found()
 if have_srt
   option_defines += '-DWITH_SRT'
+  if have_srt_shutdown
+    option_defines += '-DHAS_SRT_SHUTDOWN'
+  endif
 endif
 
 librist = false

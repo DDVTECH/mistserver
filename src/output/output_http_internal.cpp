@@ -642,6 +642,7 @@ namespace Mist{
       } else {
         outURL = reqHost;
         if (!outURL.protocol.size()) { outURL.protocol = capa.getMember("protocol").asString(); }
+        if (outURL.protocol.find(':') != std::string::npos) { outURL.protocol.erase(outURL.protocol.find(':')); }
       }
 
       // Prepare the capabilities + config as a single JSON object

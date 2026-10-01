@@ -380,8 +380,10 @@ namespace SDP{
         // Server mode - find server ports
         data.SetDestination(host, cPortA);
         setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        data.autoSwitch = false;
         rtcp.SetDestination(host, cPortB);
         setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        rtcp.autoSwitch = false;
         portA = data.bind(0);
         portB = rtcp.bind(0);
         std::stringstream tStr;
@@ -393,8 +395,10 @@ namespace SDP{
         // Client mode - check ports and/or obey given ports if possible
         data.SetDestination(host, sPortA);
         setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        data.autoSwitch = false;
         rtcp.SetDestination(host, sPortB);
         setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        rtcp.autoSwitch = false;
         if (portA != cPortA){
           portA = data.bind(cPortA);
           if (portA != cPortA){

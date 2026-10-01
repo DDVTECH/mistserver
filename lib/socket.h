@@ -323,6 +323,7 @@ namespace Socket{
     uint64_t intTimer;
     uint64_t finTimer;
     bool wasEncrypted;
+    bool autoSwitch{true};
     void close();
     int getSock();
     void swapSocket(UDPConnection & other);

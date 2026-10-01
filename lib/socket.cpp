@@ -2603,6 +2603,7 @@ Socket::UDPConnection::UDPConnection(const UDPConnection &o){
   INFO_MSG("Copied socket of type %s", addrFam(o.family));
   if (o.destAddr.size()){destAddr = o.destAddr;}
   if (o.recvAddr.size()){recvAddr = o.recvAddr;}
+  autoSwitch = o.autoSwitch;
   if (o.data.size()){
     data = o.data;
     pretendReceive = true;
@@ -3279,7 +3280,7 @@ bool Socket::UDPConnection::Receive(){
     if (errno != EAGAIN){INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));}
     return false;
   }
-  if (destAddr.size() && destsize){destAddr.assign(&addr, destsize);}
+  if (autoSwitch && destAddr.size() && destsize) { destAddr.assign(&addr, destsize); }
 #ifdef HASPKTINFO
   if (recvAddr.size()){
     for (struct CMSGHDR *cmsg = CMSG_FIRSTHDR(&mHdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&mHdr, cmsg)) {

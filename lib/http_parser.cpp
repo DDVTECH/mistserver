@@ -541,7 +541,7 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 bool HTTP::Parser::Read(Socket::Connection & conn, std::function<void(const char *, size_t)> onData) {
   // In this case, we might have a broken connection and need to check if we're done
   if (!conn.Received().size()){
-    return parse(conn.Received().get(), onData) && (!possiblyComplete || !conn || !JSON::Value(url).asInt());
+    return parse(conn.Received().get(), onData) && (!possiblyComplete || !conn || !JSON::Value(url).asInt() || headerOnly);
   }
   while (conn.Received().size()){
     // Make sure the received data ends in a newline (\n).
@@ -561,7 +561,7 @@ bool HTTP::Parser::Read(Socket::Connection & conn, std::function<void(const char
     }
 
     // return true if a parse succeeds, and is not a request
-    if (parse(conn.Received().get(), onData) && (!possiblyComplete || !conn || !JSON::Value(url).asInt())) {
+    if (parse(conn.Received().get(), onData) && (!possiblyComplete || !conn || !JSON::Value(url).asInt() || headerOnly)) {
       return true;
     }
   }

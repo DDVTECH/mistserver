@@ -165,6 +165,7 @@ namespace Mist {
 
       // Create SRT socket
       Socket::SRT::libraryInit();
+      targetParams["maxbw"] = "0"; // Ensure maxbw defaults to 0 (relative) rather than -1 (infinite)
       HTTP::parseVars(target.args, targetParams);
       HTTP::parseVars(config->getString("sockopts"), targetParams);
       evLp.addSocket(1, udpSrv->getSock());
@@ -539,7 +540,7 @@ namespace Mist {
                "delivering to the application.",
                true);
     addBoolOpt(pp["srtopts"]["options"], "linger", "Linger closed sockets", "Whether to keep closed sockets around for 180 seconds of linger time or not.", true);
-    addIntOpt(pp["srtopts"]["options"], "maxbw", "Maximum send bandwidth", "Maximum send bandwidth, -1 for infinite, 0 for relative to input bandwidth.", -1,"bytes/s");
+    addIntOpt(pp["srtopts"]["options"], "maxbw", "Maximum send bandwidth", "Maximum send bandwidth, -1 for infinite, 0 for relative to input bandwidth.", 0,"bytes/s");
     pp["srtopts"]["options"]["maxbw"]["unit"][0u][0u] = "0.125";
     pp["srtopts"]["options"]["maxbw"]["unit"][0u][1u] = "bit/s";
     pp["srtopts"]["options"]["maxbw"]["unit"][1u][0u] = "125";

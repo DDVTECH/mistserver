@@ -180,6 +180,7 @@ namespace Mist{
     INFO_MSG("Parsed url: %s", u.getUrl().c_str());
     if (Socket::interpretSRTMode(u) == "listener"){
       std::map<std::string, std::string> arguments;
+      arguments["maxbw"] = "0"; // Ensure maxbw defaults to 0 (relative) rather than -1 (infinite)
       HTTP::parseVars(u.args, arguments);
       sSock = Socket::SRTServer(u.getPort(), u.host, arguments, false);
       struct sigaction new_action;

@@ -135,14 +135,7 @@ size_t Controller::handleStreamMeta() {
 }
 
 APIConn::APIConn(Event::Loop & evLp, Socket::Server & srv, std::function<bool(Socket::Connection & C)> cb) : E(evLp) {
-  authorized = false;
-  attempts = 0;
-  isLocal = false;
-  isWebSocket = false;
-  W = 0;
-  authTime = 0;
   C = srv.accept(true);
-
   sock = C.getSocket();
   if (sock >= 1024) {
     FAIL_MSG("New incoming API connection %d rejected: select() only supports file descriptors under 1024", sock);
@@ -594,249 +587,251 @@ bool Controller::handleAPIConnection(APIConn *aConn) {
     }
     return aConn->C;
   }
-  while (aConn->C.spool() && aConn->C.Received().size() && aConn->H.Read(aConn->C)) {
-    std::string & url = aConn->H.url;
+  while (aConn->C.spool()) {
+    while (aConn->C.Received().size() && aConn->H.Read(aConn->C)) {
+      std::string & url = aConn->H.url;
 
-    if (!strncmp(url.c_str(), "/.well-known", 12)) {
-      aConn->H.SetHeader("Content-Type", "image/x-icon");
-      aConn->H.SetHeader("Server", APPIDENT);
-      aConn->H.setCORSHeaders();
-      aConn->H.SetBody("No .well-known endpoints implemented");
-      aConn->H.SendResponse("404", "Not found", aConn->C);
-      aConn->H.Clean();
-      continue;
-    }
+      if (!strncmp(url.c_str(), "/.well-known", 12)) {
+        aConn->H.SetHeader("Content-Type", "image/x-icon");
+        aConn->H.SetHeader("Server", APPIDENT);
+        aConn->H.setCORSHeaders();
+        aConn->H.SetBody("No .well-known endpoints implemented");
+        aConn->H.SendResponse("404", "Not found", aConn->C);
+        aConn->H.Clean();
+        continue;
+      }
 
-    // Handle favicon
-    if (HTTP::URL(url).getExt() == "ico") {
+      // Handle favicon
+      if (HTTP::URL(url).getExt() == "ico") {
 #include "../icon.h"
-      aConn->H.SetHeader("Content-Type", "image/x-icon");
-      aConn->H.SetHeader("Server", APPIDENT);
-      aConn->H.SetHeader("Content-Length", icon_len);
-      aConn->H.setCORSHeaders();
-      aConn->H.SendResponse("200", "OK", aConn->C);
-      aConn->C.SendNow((const char *)icon_data, icon_len);
-      aConn->H.Clean();
-      continue;
-    }
+        aConn->H.SetHeader("Content-Type", "image/x-icon");
+        aConn->H.SetHeader("Server", APPIDENT);
+        aConn->H.SetHeader("Content-Length", icon_len);
+        aConn->H.setCORSHeaders();
+        aConn->H.SendResponse("200", "OK", aConn->C);
+        aConn->C.SendNow((const char *)icon_data, icon_len);
+        aConn->H.Clean();
+        continue;
+      }
 
-    // Check admin_http access
-    if (Storage.isMember("admin_http") && url.size() > 6 && url.substr(0, 6) == "/http/") {
-      size_t slashPos = url.find('/', 6);
-      if (slashPos != std::string::npos) {
-        std::string token = url.substr(6, slashPos - 6);
-        if (!Storage["admin_http"].isMember(token)) {
-          // Invalid token? Just close the connection
-          aConn->C.close();
-          return false;
-        } else {
-          const JSON::Value & tknConf = Storage["admin_http"][token];
-          if (tknConf["expire"].asInt() < Util::epoch()) {
-            INFO_MSG("Admin token expired");
-            aConn->H.SetBody("Token expired");
-            aConn->H.SendResponse("403", "Token expired", aConn->C);
-            aConn->H.Clean();
-            Storage["admin_http"].removeMember(token);
-            continue;
-          }
-          // Strip the "/http/token" prefix, keep the following slash
-          aConn->H.url.erase(0, 6 + token.size());
-          if (!aConn->proxyP || !Util::Procs::childRunning(aConn->proxyP)) {
-            aConn->proxyP = 0;
-            std::string connector = "HTTP";
-            if (tknConf.isMember("connector")) { connector = tknConf["connector"].asStringRef(); }
-            if (!capabilities["connectors"].isMember(connector) && capabilities["connectors"].isMember("HTTP")) {
-              connector = "HTTP";
-            }
-            if (!capabilities["connectors"].isMember(connector) && capabilities["connectors"].isMember("HTTP.exe")) {
-              connector = "HTTP.exe";
-            }
-            std::string bin = Util::getMyPath() + "MistOut" + connector;
-            struct stat buf;
-            if (!::stat(bin.c_str(), &buf)) {
-              std::deque<std::string> args;
-              args.push_back(bin);
-              args.push_back("--connection_handler");
-              args.push_back(aConn->C.getHost());
-              Util::optionsToArguments(tknConf, capabilities["connectors"][connector], args);
-              int stdIn{-1};
-              int stdOut{-1};
-              int stdErr{STDERR_FILENO};
-              setenv("MIST_ADMIN_HTTP", "1", 1);
-              aConn->proxyP = Util::Procs::StartPiped(args, &stdIn, &stdOut, &stdErr);
-              unsetenv("MIST_ADMIN_HTTP");
-              if (stdIn < 0 || stdOut < 0 || aConn->proxyP < 1) {
-                if (stdIn >= 0) { ::close(stdIn); }
-                if (stdOut >= 0) { ::close(stdOut); }
-                if (aConn->proxyP > 1) { Util::Procs::Stop(aConn->proxyP); }
-                aConn->H.SetBody("Process spawn error!");
-                aConn->H.SendResponse("500", "Spawn error!", aConn->C);
-                aConn->H.Clean();
-                aConn->C.close();
-                return false;
-              }
-              Util::Procs::socketList.insert(stdIn);
-              Util::Procs::socketList.insert(stdOut);
-              INFO_MSG("Proxy to %s connected to %d (stdin) and %d (stdout)", Util::argStr(args).c_str(), stdIn, stdOut);
-              aConn->proxyC.open(stdIn, stdOut);
-              aConn->proxyC.setBlocking(false);
-              Controller::E.addSocket(stdOut, [](void *C) {
-                APIConn *aConn = (APIConn *)C;
-                while (aConn->proxyC.spool()) {
-                  while (aConn->proxyC.Received().size()) {
-                    std::string & B = aConn->proxyC.Received().get();
-                    aConn->C.SendNow(B);
-                    B.clear();
-                  }
-                }
-              }, aConn);
-              aConn->proxyC.onClose([&, stdIn, stdOut, aConn](int s) {
-                Util::Procs::socketList.erase(stdIn);
-                Util::Procs::socketList.erase(stdOut);
-                int origSock = aConn->C.getSocket();
-                if (origSock > 0) { ::shutdown(origSock, SHUT_RDWR); }
-                aConn->proxyP = 0;
-                E.remove(s);
-              });
-            }
-          }
-          if (aConn->proxyP && Util::Procs::childRunning(aConn->proxyP)) {
-            aConn->H.SetHeader("X-Forwarded-For", aConn->C.getHost());
-            if (!aConn->H.GetHeader("X-Forwarded-Proto").size()) {
-              if (Controller::isTLSEnabled) {
-                aConn->H.SetHeader("X-Forwarded-Proto", "https");
-              } else {
-                aConn->H.SetHeader("X-Forwarded-Proto", "http");
-              }
-            }
-            aConn->H.SetHeader("X-Mst-Path", aConn->H.GetHeader("X-Mst-Path") + "/http/" + token);
-            aConn->H.SendRequest(aConn->proxyC);
-            // Upgrade requests go into passthrough mode and never come back
-            if (aConn->H.hasHeader("Upgrade")) {
-              aConn->pass = true;
-              return aConn->C;
-            }
-            aConn->H.Clean();
-            continue;
+      // Check admin_http access
+      if (Storage.isMember("admin_http") && url.size() > 6 && url.substr(0, 6) == "/http/") {
+        size_t slashPos = url.find('/', 6);
+        if (slashPos != std::string::npos) {
+          std::string token = url.substr(6, slashPos - 6);
+          if (!Storage["admin_http"].isMember(token)) {
+            // Invalid token? Just close the connection
+            aConn->C.close();
+            return false;
           } else {
-            aConn->H.SetBody("Could not spawn process!");
-            aConn->H.SendResponse("500", "Spawn error!", aConn->C);
-            aConn->H.Clean();
+            const JSON::Value & tknConf = Storage["admin_http"][token];
+            if (tknConf["expire"].asInt() < Util::epoch()) {
+              INFO_MSG("Admin token expired");
+              aConn->H.SetBody("Token expired");
+              aConn->H.SendResponse("403", "Token expired", aConn->C);
+              aConn->H.Clean();
+              Storage["admin_http"].removeMember(token);
+              continue;
+            }
+            // Strip the "/http/token" prefix, keep the following slash
+            aConn->H.url.erase(0, 6 + token.size());
+            if (!aConn->proxyP || !Util::Procs::childRunning(aConn->proxyP)) {
+              aConn->proxyP = 0;
+              std::string connector = "HTTP";
+              if (tknConf.isMember("connector")) { connector = tknConf["connector"].asStringRef(); }
+              if (!capabilities["connectors"].isMember(connector) && capabilities["connectors"].isMember("HTTP")) {
+                connector = "HTTP";
+              }
+              if (!capabilities["connectors"].isMember(connector) && capabilities["connectors"].isMember("HTTP.exe")) {
+                connector = "HTTP.exe";
+              }
+              std::string bin = Util::getMyPath() + "MistOut" + connector;
+              struct stat buf;
+              if (!::stat(bin.c_str(), &buf)) {
+                std::deque<std::string> args;
+                args.push_back(bin);
+                args.push_back("--connection_handler");
+                args.push_back(aConn->C.getHost());
+                Util::optionsToArguments(tknConf, capabilities["connectors"][connector], args);
+                int stdIn{-1};
+                int stdOut{-1};
+                int stdErr{STDERR_FILENO};
+                setenv("MIST_ADMIN_HTTP", "1", 1);
+                aConn->proxyP = Util::Procs::StartPiped(args, &stdIn, &stdOut, &stdErr);
+                unsetenv("MIST_ADMIN_HTTP");
+                if (stdIn < 0 || stdOut < 0 || aConn->proxyP < 1) {
+                  if (stdIn >= 0) { ::close(stdIn); }
+                  if (stdOut >= 0) { ::close(stdOut); }
+                  if (aConn->proxyP > 1) { Util::Procs::Stop(aConn->proxyP); }
+                  aConn->H.SetBody("Process spawn error!");
+                  aConn->H.SendResponse("500", "Spawn error!", aConn->C);
+                  aConn->H.Clean();
+                  aConn->C.close();
+                  return false;
+                }
+                Util::Procs::socketList.insert(stdIn);
+                Util::Procs::socketList.insert(stdOut);
+                INFO_MSG("Proxy to %s connected to %d (stdin) and %d (stdout)", Util::argStr(args).c_str(), stdIn, stdOut);
+                aConn->proxyC.open(stdIn, stdOut);
+                aConn->proxyC.setBlocking(false);
+                Controller::E.addSocket(stdOut, [](void *C) {
+                  APIConn *aConn = (APIConn *)C;
+                  while (aConn->proxyC.spool()) {
+                    while (aConn->proxyC.Received().size()) {
+                      std::string & B = aConn->proxyC.Received().get();
+                      aConn->C.SendNow(B);
+                      B.clear();
+                    }
+                  }
+                }, aConn);
+                aConn->proxyC.onClose([&, stdIn, stdOut, aConn](int s) {
+                  Util::Procs::socketList.erase(stdIn);
+                  Util::Procs::socketList.erase(stdOut);
+                  int origSock = aConn->C.getSocket();
+                  if (origSock > 0) { ::shutdown(origSock, SHUT_RDWR); }
+                  aConn->proxyP = 0;
+                  E.remove(s);
+                });
+              }
+            }
+            if (aConn->proxyP && Util::Procs::childRunning(aConn->proxyP)) {
+              aConn->H.SetHeader("X-Forwarded-For", aConn->C.getHost());
+              if (!aConn->H.GetHeader("X-Forwarded-Proto").size()) {
+                if (Controller::isTLSEnabled) {
+                  aConn->H.SetHeader("X-Forwarded-Proto", "https");
+                } else {
+                  aConn->H.SetHeader("X-Forwarded-Proto", "http");
+                }
+              }
+              aConn->H.SetHeader("X-Mst-Path", aConn->H.GetHeader("X-Mst-Path") + "/http/" + token);
+              aConn->H.SendRequest(aConn->proxyC);
+              // Upgrade requests go into passthrough mode and never come back
+              if (aConn->H.hasHeader("Upgrade")) {
+                aConn->pass = true;
+                return aConn->C;
+              }
+              aConn->H.Clean();
+              continue;
+            } else {
+              aConn->H.SetBody("Could not spawn process!");
+              aConn->H.SendResponse("500", "Spawn error!", aConn->C);
+              aConn->H.Clean();
+            }
           }
         }
+        continue;
       }
-      continue;
-    }
 
-    // Are we local and not forwarded? Instant-authorized.
-    if (!aConn->authorized && !aConn->H.hasHeader("X-Forwarded-For") && !aConn->H.hasHeader("X-Real-IP") && aConn->C.isLocal()) {
-      MEDIUM_MSG("Local API access automatically authorized");
-      aConn->isLocal = true;
-      aConn->authorized = true;
-    }
+      // Are we local and not forwarded? Instant-authorized.
+      if (!aConn->authorized && !aConn->H.hasHeader("X-Forwarded-For") && !aConn->H.hasHeader("X-Real-IP") && aConn->C.isLocal()) {
+        MEDIUM_MSG("Local API access automatically authorized");
+        aConn->isLocal = true;
+        aConn->authorized = true;
+      }
 #ifdef NOAUTH
-    // If auth is disabled, always allow access.
-    aConn->authorized = true;
+      // If auth is disabled, always allow access.
+      aConn->authorized = true;
 #endif
-    if (!aConn->authorized && aConn->H.hasHeader("Authorization")) {
-      std::string auth = aConn->H.GetHeader("Authorization");
-      if (auth.substr(0, 5) == "json ") {
-        INFO_MSG("Checking auth header");
-        JSON::Value req;
-        req["authorize"].fromString(auth.substr(5));
-        if (Storage["account"]) {
-          std::lock_guard<std::mutex> guard(configMutex);
-          if (!Controller::conf.is_active) { return 0; }
-          aConn->authorized = authorize(req, req, aConn->C);
-          if (!aConn->authorized) {
-            aConn->H.Clean();
-            aConn->H.body = "Please login first or provide a valid token authentication.";
-            aConn->H.SetHeader("Server", APPIDENT);
-            aConn->H.SetHeader("WWW-Authenticate", "json " + req["authorize"].toString());
-            aConn->H.SendResponse("403", "Not authorized", aConn->C);
-            aConn->H.Clean();
-            continue;
+      if (!aConn->authorized && aConn->H.hasHeader("Authorization")) {
+        std::string auth = aConn->H.GetHeader("Authorization");
+        if (auth.substr(0, 5) == "json ") {
+          INFO_MSG("Checking auth header");
+          JSON::Value req;
+          req["authorize"].fromString(auth.substr(5));
+          if (Storage["account"]) {
+            std::lock_guard<std::mutex> guard(configMutex);
+            if (!Controller::conf.is_active) { return 0; }
+            aConn->authorized = authorize(req, req, aConn->C);
+            if (!aConn->authorized) {
+              aConn->H.Clean();
+              aConn->H.body = "Please login first or provide a valid token authentication.";
+              aConn->H.SetHeader("Server", APPIDENT);
+              aConn->H.SetHeader("WWW-Authenticate", "json " + req["authorize"].toString());
+              aConn->H.SendResponse("403", "Not authorized", aConn->C);
+              aConn->H.Clean();
+              continue;
+            }
           }
         }
       }
-    }
-    // Catch websocket requests
-    if (url == "/ws") {
-      handleWebSocket(aConn);
-      return aConn->C;
-    }
-    if (url.size() > 11 && url.substr(0, 11) == "/ws/stream/") {
-      aConn->strmSingle = url.substr(11);
-      handleWebSocket(aConn);
-      return aConn->C;
-    }
-    // Catch prometheus requests
-    if (Controller::prometheus.size()) {
-      if (url == "/" + Controller::prometheus) {
-        handlePrometheus(aConn->H, aConn->C, PROMETHEUS_TEXT);
-        aConn->H.Clean();
-        continue;
+      // Catch websocket requests
+      if (url == "/ws") {
+        handleWebSocket(aConn);
+        return aConn->C;
       }
-      if (url.substr(0, Controller::prometheus.size() + 6) == "/" + Controller::prometheus + ".json") {
-        handlePrometheus(aConn->H, aConn->C, PROMETHEUS_JSON);
-        aConn->H.Clean();
-        continue;
+      if (url.size() > 11 && url.substr(0, 11) == "/ws/stream/") {
+        aConn->strmSingle = url.substr(11);
+        handleWebSocket(aConn);
+        return aConn->C;
       }
-    }
-    JSON::Value Response;
-    JSON::Value Request;
-    std::string reqContType = aConn->H.GetHeader("Content-Type");
-    if (reqContType == "application/json") {
-      Request.fromString(aConn->H.body);
-    } else {
-      Request.fromString(aConn->H.GetVar("command"));
-    }
-    // invalid request? send the web interface, unless requested as "/api"
-    if (!Request.isObject() && url != "/api" && url != "/api2") {
-#include "server.html.h"
-      aConn->H.Clean();
-      aConn->H.setCORSHeaders();
-      aConn->H.SetHeader("Content-Type", "text/html");
-      aConn->H.SetHeader("X-Info", "To force an API response, request the file /api");
-      aConn->H.SetHeader("Server", APPIDENT);
-      aConn->H.SetHeader("Content-Length", server_html_len);
-      aConn->H.SetHeader("X-UA-Compatible", "IE=edge;chrome=1");
-      aConn->H.SendResponse("200", "OK", aConn->C);
-      aConn->C.SendNow(server_html, server_html_len);
-      aConn->H.Clean();
-      break;
-    }
-    if (url == "/api2") { Request["minimal"] = true; }
-    { // lock the config mutex here - do not unlock until done processing
-      std::lock_guard<std::mutex> guard(configMutex);
-      if (!Controller::conf.is_active) { return 0; }
-      // if already authorized, do not re-check for authorization
-      if (aConn->authorized && Storage["account"]) {
-        Response["authorize"]["status"] = "OK";
-        if (aConn->isLocal) { Response["authorize"]["local"] = true; }
+      // Catch prometheus requests
+      if (Controller::prometheus.size()) {
+        if (url == "/" + Controller::prometheus) {
+          handlePrometheus(aConn->H, aConn->C, PROMETHEUS_TEXT);
+          aConn->H.Clean();
+          continue;
+        }
+        if (url.substr(0, Controller::prometheus.size() + 6) == "/" + Controller::prometheus + ".json") {
+          handlePrometheus(aConn->H, aConn->C, PROMETHEUS_JSON);
+          aConn->H.Clean();
+          continue;
+        }
+      }
+      JSON::Value Response;
+      JSON::Value Request;
+      std::string reqContType = aConn->H.GetHeader("Content-Type");
+      if (reqContType == "application/json") {
+        Request.fromString(aConn->H.body);
       } else {
-        aConn->authorized |= authorize(Request, Response, aConn->C);
+        Request.fromString(aConn->H.GetVar("command"));
       }
-      if (aConn->authorized) {
-        handleAPICommands(Request, Response);
-        if (Request.isMember("logout")) { aConn->authorized = false; }
+      // invalid request? send the web interface, unless requested as "/api"
+      if (!Request.isObject() && url != "/api" && url != "/api2") {
+#include "server.html.h"
+        aConn->H.Clean();
+        aConn->H.setCORSHeaders();
+        aConn->H.SetHeader("Content-Type", "text/html");
+        aConn->H.SetHeader("X-Info", "To force an API response, request the file /api");
+        aConn->H.SetHeader("Server", APPIDENT);
+        aConn->H.SetHeader("Content-Length", server_html_len);
+        aConn->H.SetHeader("X-UA-Compatible", "IE=edge;chrome=1");
+        aConn->H.SendResponse("200", "OK", aConn->C);
+        aConn->C.SendNow(server_html, server_html_len);
+        aConn->H.Clean();
+        break;
       }
-    } // config mutex lock
-    if (!aConn->authorized) { aConn->attempts++; }
-    // send the response, either normally or through JSONP callback.
-    std::string jsonp = "";
-    if (aConn->H.GetVar("callback") != "") { jsonp = aConn->H.GetVar("callback"); }
-    if (aConn->H.GetVar("jsonp") != "") { jsonp = aConn->H.GetVar("jsonp"); }
-    aConn->H.Clean();
-    aConn->H.SetHeader("Content-Type", "text/javascript");
-    aConn->H.setCORSHeaders();
-    if (jsonp == "") {
-      aConn->H.SetBody(Response.toString() + "\n\n");
-    } else {
-      aConn->H.SetBody(jsonp + "(" + Response.toString() + ");\n\n");
+      if (url == "/api2") { Request["minimal"] = true; }
+      { // lock the config mutex here - do not unlock until done processing
+        std::lock_guard<std::mutex> guard(configMutex);
+        if (!Controller::conf.is_active) { return 0; }
+        // if already authorized, do not re-check for authorization
+        if (aConn->authorized && Storage["account"]) {
+          Response["authorize"]["status"] = "OK";
+          if (aConn->isLocal) { Response["authorize"]["local"] = true; }
+        } else {
+          aConn->authorized |= authorize(Request, Response, aConn->C);
+        }
+        if (aConn->authorized) {
+          handleAPICommands(Request, Response);
+          if (Request.isMember("logout")) { aConn->authorized = false; }
+        }
+      } // config mutex lock
+      if (!aConn->authorized) { aConn->attempts++; }
+      // send the response, either normally or through JSONP callback.
+      std::string jsonp = "";
+      if (aConn->H.GetVar("callback") != "") { jsonp = aConn->H.GetVar("callback"); }
+      if (aConn->H.GetVar("jsonp") != "") { jsonp = aConn->H.GetVar("jsonp"); }
+      aConn->H.Clean();
+      aConn->H.SetHeader("Content-Type", "text/javascript");
+      aConn->H.setCORSHeaders();
+      if (jsonp == "") {
+        aConn->H.SetBody(Response.toString() + "\n\n");
+      } else {
+        aConn->H.SetBody(jsonp + "(" + Response.toString() + ");\n\n");
+      }
+      aConn->H.SendResponse("200", "OK", aConn->C);
+      aConn->H.Clean();
     }
-    aConn->H.SendResponse("200", "OK", aConn->C);
-    aConn->H.Clean();
   }
   return aConn->C;
 }

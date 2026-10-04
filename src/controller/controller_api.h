@@ -14,19 +14,19 @@ class APIConn {
     uint64_t proxyP{0};
 
     // Auth related
-    bool authorized;
-    size_t attempts;
-    bool isLocal;
+    bool authorized{false};
+    size_t attempts{0};
+    bool isLocal{false};
     bool pass{false};
 
     // WebSocket related
-    bool isWebSocket;
-    HTTP::Websocket *W;
+    bool isWebSocket{false};
+    HTTP::Websocket *W{0};
     std::string logArg;
     std::string accsArg;
     std::string strmsArg;
     std::string strmSingle;
-    uint64_t authTime;
+    uint64_t authTime{0};
     std::map<std::string, JSON::Value> lastStreamMeta;
 
     void log(uint64_t time, const std::string & kind, const std::string & message, const std::string & stream,

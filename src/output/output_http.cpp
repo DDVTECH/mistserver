@@ -172,6 +172,7 @@ namespace Mist{
       if (match){
         if (streamname.size()){
           setenv("stream_raw", streamname.c_str(), 1);
+          Util::sanitizeName(streamname);
           setenv("stream", streamname.c_str(), 1);
         } else {
           unsetenv("stream");
@@ -421,9 +422,6 @@ namespace Mist{
         //Prepare switch
         disconnect();
         streamName = safenv("stream");
-        userSelect.clear();
-        trackSelectionChanged();
-        if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}
         reConnector(handler);
         onFail("Server error - could not start connector", true);
         return;

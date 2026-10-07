@@ -11,19 +11,6 @@
 namespace Mist{
   OutEBML::OutEBML(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
     : HTTPOutput(conn, _cfg, _capa) {
-    subtractTime = 0;
-    currentClusterTime = 0;
-    newClusterTime = 0;
-    segmentSize = 0xFFFFFFFFFFFFFFFFull;
-    tracksSize = 0;
-    infoSize = 0;
-    cuesSize = 0;
-    seekheadSize = 0;
-    seekSize = 0;
-    doctype = "matroska";
-    readPos = 0;
-    seenTime = false;
-    timeOffset = 0;
     if (config->getString("target").size()){
       if (config->getString("target").substr(0, 9) == "mkv-exec:"){
         std::deque<std::string> args;
@@ -39,20 +26,23 @@ namespace Mist{
         return;
       }
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
-      initialize();
-      initialSeek();
+    }
+  }
 
+  void OutEBML::initialSeek(bool dryRun) {
+    HTTPOutput::initialSeek(dryRun);
+    if (!dryRun) {
       std::string timestamps = "zero";
-      if (targetParams.count("ts")){timestamps = targetParams["ts"];}
-      if (timestamps == "zero"){
+      if (targetParams.count("ts")) { timestamps = targetParams["ts"]; }
+      if (timestamps == "zero") {
         subtractTime = currentTime();
-      } else if (timestamps == "keep"){
+      } else if (timestamps == "keep") {
         subtractTime = 0;
-      }else if (M){
+      } else if (M) {
         int64_t utcTime = M.packetTimeToUnixMs(currentTime());
-        if (utcTime){subtractTime = currentTime() - utcTime;}
+        if (utcTime) { subtractTime = currentTime() - utcTime; }
       }
-      if (M && !M.getLive()){calcVodSizes();}
+      if (M && !M.getLive()) { calcVodSizes(); }
     }
   }
 

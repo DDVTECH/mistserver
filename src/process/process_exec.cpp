@@ -51,9 +51,13 @@ namespace Mist{
       }
       InputEBML::getNext(idx);
       if (thisPacket){
+        while (!sendFirst && config->is_active) { Util::sleep(50); }
         if (!getFirst){
           packetTimeDiff = sendPacketTime - thisTime;
           getFirst = true;
+        } else if (packetTimeDiff < 0 && -packetTimeDiff > thisTime) {
+          WARN_MSG("Shifted timestamps by %zums to account for late track addition", -packetTimeDiff - thisTime);
+          packetTimeDiff = -thisTime;
         }
         thisTime += packetTimeDiff;
         thisPacket.setTime(thisTime);

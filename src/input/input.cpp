@@ -899,6 +899,7 @@ namespace Mist{
     activityCounter = Util::bootSecs();
     // main serve loop
     while (keepRunning()){
+      evLp.await(0);
       uint64_t preMs = Util::bootMS();
       // load pages for connected clients on request
       userLeadIn();
@@ -1117,6 +1118,7 @@ namespace Mist{
         break;
       }
       bufferLivePacket(thisPacket);
+      evLp.await(0);
       getNext();
       if (!thisPacket) { Util::logExitReason(ER_CLEAN_EOF, "no more data"); }
     }

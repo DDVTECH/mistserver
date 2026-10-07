@@ -324,7 +324,9 @@ namespace Mist{
     if (M.getLive() && updateActCtr) {
       uint64_t currLastUpdate = M.getLastUpdated();
       if (currLastUpdate > activityCounter) {
-        if ((connectedUsers || isAlwaysOn()) && M.getValidTracks().size()) { activityCounter = currLastUpdate; }
+        if ((connectedUsers || isAlwaysOn() || hasPush) && M.getValidTracks().size()) {
+          activityCounter = currLastUpdate;
+        }
       }
     }
     return Input::keepRunning(false);

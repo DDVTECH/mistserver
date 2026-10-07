@@ -8,8 +8,8 @@ namespace Mist{
   bool getFirst = false;
   bool sendFirst = false;
 
-  uint64_t packetTimeDiff;
-  uint64_t sendPacketTime;
+  int64_t packetTimeDiff = 0;
+  uint64_t sendPacketTime = 0;
   JSON::Value opt; /// Options
 
   class ProcMKVExec{

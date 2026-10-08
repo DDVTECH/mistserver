@@ -438,15 +438,62 @@ var MistUtil = {
     }
   },
   
-  createUnique: function() {
-    var i = "uid"+Math.random().toString().replace("0.","");
+  createUnique: function(prefix) {
+    if (!prefix) prefix = "uid";
+    var i = prefix+this.generateToken();
     if (document.querySelector("."+i)) {
       //if this is already used, try again
       return createUnique();
     }
     return i;
   },
-  
+  generateToken: function(length){
+    if (!length) length = 16;
+    var str = "";
+    while (str.length < length) {
+      //get a random number in base36 (0-9a-z), remove "0." from the front and then take 8 chars.
+      //keep appending this to the string until the desired length is reached
+      str += Math.random().toString(36).substring(2,10);
+    }
+    return str.substring(0,length);
+  },
+  generateHash: function(str){
+    //convert str to a hash with length 16
+
+    // Two different 32-bit offset bases
+    var h1 = 0x811c9dc5;
+    var h2 = 0x050c5d1f; // Alternate seed
+
+    function addByte(b) {
+      // Pass 1
+      h1 ^= (b & 0xff);
+      h1 += (h1 << 1) + (h1 << 4) + (h1 << 7) + (h1 << 8) + (h1 << 24);
+
+      // Pass 2 (uses a different mix pattern)
+      h2 ^= (b & 0xff);
+      h2 += (h2 << 1) + (h2 << 4) + (h2 << 7) + (h2 << 8) + (h2 << 24);
+    }
+
+    for (var i = 0; i < str.length; i++) {
+      var code = str.charCodeAt(i);
+      if (code < 0x80) {
+        addByte(code);
+      } else if (code < 0x800) {
+        addByte(0xc0 | (code >> 6));
+        addByte(0x80 | (code & 0x3f));
+      } else {
+        addByte(0xe0 | (code >> 12));
+        addByte(0x80 | ((code >> 6) & 0x3f));
+        addByte(0x80 | (code & 0x3f));
+      }
+    }
+
+    var part1 = ('00000000' + (h1 >>> 0).toString(16)).slice(-8);
+    var part2 = ('00000000' + (h2 >>> 0).toString(16)).slice(-8);
+
+    return part1+part2;
+  },
+
   http: {
     getpost: function(type,url,data,callback,errorCallback) {
       var xhr = new XMLHttpRequest();
@@ -604,7 +651,7 @@ var MistUtil = {
       return style; //its empty now, but will be filled on load
     },
     applyColors: function(css,colors) {
-      return css.replace(/\$([^\s^;^}]*)/g,function(str,variable){
+      return css.replace(/\$([^\s^;^}^"^']*)/g,function(str,variable){
         var index = variable.split(".");
         var val = colors;
         for (var j in index) {
@@ -626,84 +673,303 @@ var MistUtil = {
       
       return style;
     },
-    prependClass: function (css,prepend,applyToChildren) {
+    prependClass: function (css, prepend, applyToChildren) {
       var style = false;
-      if (typeof css != "string") {
+      if (typeof css !== "string") {
         style = css;
         if (!("unprepended" in style)) {
           style.unprepended = style.textContent;
         }
         css = style.unprepended;
       }
-      //remove all block comments
-      css = css.replace(/\/\*.*?\*\//g,"");
-      
-      //remove all @ {} blocks (media, keyframes, screen etc) and save it to re-insert them after class prepending
-      //match anything starting with @ something {,  until the first }
-      var save = css.match(/@[^}]*}/g);
-      
-      for (var i in save) {
-        //add a placeholder for unfinished replace
-        css = css.replace(save[i],"@@#@@");
-        
-        var replacecount = 1;
-        
-        //while the amount of }s we've replaced is smaller than the amount of {'s in the match
-        while (replacecount < (save[i].match(/{/g).length)) {
-          //find the next } and save it in a group
-          var match = css.match(/@@#@@([^}]*})/); //match anything starting with @@#@@ until the first }
-          
-          //replace the full match with the unfinished placeholder
-          css = css.replace(match[0],"@@#@@");
-          
-          //add the group (the code untill the next }) to the save
-          save[i] += match[1];
-          
-          //increase the counter
-          replacecount++;
-        }
-        
-        //after the edits, @@@@ will be replaced with the contents of save[i]
-        css = css.replace("@@#@@","@@@@");
-      }
-      
-      //find and replace selectors
-      css = css.replace(/[^@]*?{[^]*?}/g,function(match){
-        var split = match.split("{")
-        var selectors = split[0].split(",");
-        var properties = "{"+split.slice(1).join("}");
-        
-        for (var i in selectors) {
-          selectors[i] = selectors[i].trim();
-          var str = "."+prepend+selectors[i];
-          if (applyToChildren) {
-            str += ",\n."+prepend+" "+selectors[i];
-          }
-          selectors[i] = str;
-        }
-        
-        
-        return "\n"+selectors+" "+properties;
-      });
-      
-      //reinsert saved blocks
-      for (var i in save) {
-        css = css.replace(/@@@@/,save[i]);
-      }
-      
+
+      //strip comments safely (ignoring /* inside strings)
+      css = stripComments(css);
+
+      //parse and transform blocks
+      var result = processBlock(css, prepend, applyToChildren, null);
+
       if (style) {
-        style.textContent = css;
+        style.textContent = result;
         return;
       }
-      
-      return css;
-    }
+      return result;
+
+      function stripComments(str) {
+        var out = "";
+        var inQuote = null;
+        for (var i = 0; i < str.length; i++) {
+          var ch = str[i];
+          if (inQuote) {
+            out += ch;
+            if (ch === "\\" && i + 1 < str.length) {
+              out += str[++i];
+            } else if (ch === inQuote) {
+              inQuote = null;
+            }
+          } else if (ch === '"' || ch === "'") {
+            inQuote = ch;
+            out += ch;
+          } else if (ch === "/" && str[i + 1] === "*") {
+            i += 2;
+            while (i < str.length && !(str[i] === "*" && str[i + 1] === "/")) {
+              i++;
+            }
+            i++; // skip closing '/'
+          } else {
+            out += ch;
+          }
+        }
+        return out;
+      }
+
+      function splitTopLevel(str, delimiter) {
+        var parts = [];
+        var current = "";
+        var parenDepth = 0;
+        var bracketDepth = 0;
+        var inQuote = null;
+
+        for (var i = 0; i < str.length; i++) {
+          var ch = str[i];
+          if (inQuote) {
+            current += ch;
+            if (ch === "\\" && i + 1 < str.length) {
+              current += str[++i];
+            } else if (ch === inQuote) {
+              inQuote = null;
+            }
+            continue;
+          }
+          if (ch === '"' || ch === "'") {
+            inQuote = ch;
+            current += ch;
+          } else if (ch === "(") {
+            parenDepth++;
+            current += ch;
+          } else if (ch === ")") {
+            parenDepth--;
+            current += ch;
+          } else if (ch === "[") {
+            bracketDepth++;
+            current += ch;
+          } else if (ch === "]") {
+            bracketDepth--;
+            current += ch;
+          } else if (ch === delimiter && parenDepth === 0 && bracketDepth === 0) {
+            parts.push(current);
+            current = "";
+          } else {
+            current += ch;
+          }
+        }
+        if (current.replace(/\s+/g, "") !== "") {
+          parts.push(current);
+        }
+        return parts;
+      }
+
+      function prefixSelectorList(rawSelector, prepend, applyToChildren, parentSelectors) {
+        var selectors = splitTopLevel(rawSelector, ",");
+        var resultSelectors = [];
+
+        for (var i = 0; i < selectors.length; i++) {
+          var sel = selectors[i].replace(/^\s+|\s+$/g, "");
+          if (!sel) continue;
+
+          if (!parentSelectors) {
+            // Top-level selector: prepend .uid
+            resultSelectors.push("." + prepend + sel);
+            if (applyToChildren) {
+              resultSelectors.push("." + prepend + " " + sel);
+            }
+          } else {
+            // Nested selector: combine with every already-prefixed parent selector (flattens nesting for IE!)
+            for (var p = 0; p < parentSelectors.length; p++) {
+              var parent = parentSelectors[p];
+              if (sel.indexOf("&") !== -1) {
+                resultSelectors.push(sel.replace(/&/g, parent));
+              } else {
+                resultSelectors.push(parent + " " + sel);
+              }
+            }
+          }
+        }
+        return resultSelectors;
+      }
+
+      function processBlock(source, prepend, applyToChildren, parentSelectors) {
+        var out = "";
+        var i = 0;
+        var len = source.length;
+        var buffer = "";
+        var inQuote = null;
+
+        while (i < len) {
+          var ch = source[i];
+
+          if (inQuote) {
+            buffer += ch;
+            if (ch === "\\" && i + 1 < len) {
+              buffer += source[++i];
+            } else if (ch === inQuote) {
+              inQuote = null;
+            }
+            i++;
+            continue;
+          }
+
+          if (ch === '"' || ch === "'") {
+            inQuote = ch;
+            buffer += ch;
+            i++;
+            continue;
+          }
+
+          // Statement at-rule like @import "..."; or @charset "...";
+          if (ch === ";" && buffer.replace(/^\s+/, "").charAt(0) === "@") {
+            out += buffer + ";\n";
+            buffer = "";
+            i++;
+            continue;
+          }
+
+          // Opening brace: either an @-rule block or a selector rule block
+          if (ch === "{") {
+            var header = buffer.replace(/^\s+|\s+$/g, "");
+            buffer = "";
+
+            // Find matching closing brace '}'
+            var depth = 1;
+            var bodyStart = i + 1;
+            var j = bodyStart;
+            var innerQuote = null;
+
+            while (j < len && depth > 0) {
+              var c = source[j];
+              if (innerQuote) {
+                if (c === "\\" && j + 1 < len) {
+                  j++;
+                } else if (c === innerQuote) {
+                  innerQuote = null;
+                }
+              } else if (c === '"' || c === "'") {
+                innerQuote = c;
+              } else if (c === "{") {
+                depth++;
+              } else if (c === "}") {
+                depth--;
+              }
+              j++;
+            }
+
+            var body = source.slice(bodyStart, j - 1);
+            i = j;
+
+            // Case A: At-rule block (@media, @supports, @keyframes, etc.)
+            if (header.charAt(0) === "@") {
+              if (/^@(media|supports|container|layer|document)\b/i.test(header)) {
+                out += header + " {\n" + processBlock(body, prepend, applyToChildren, parentSelectors) + "}\n";
+              } else {
+                // @keyframes, @font-face, @page: preserve untouched
+                out += header + " {\n" + body + "\n}\n";
+              }
+            }
+            // Case B: Standard or nested selector rule
+            else {
+              var scopedSelectors = prefixSelectorList(header, prepend, applyToChildren, parentSelectors);
+              var joinedSelector = scopedSelectors.join(", ");
+
+              // Separate direct declarations (color: red;) from nested blocks (.child { ... })
+              var directProps = "";
+              var nestedBlocks = "";
+              var k = 0;
+              var stmt = "";
+              var stmtQuote = null;
+
+              while (k < body.length) {
+                var bc = body[k];
+                if (stmtQuote) {
+                  stmt += bc;
+                  if (bc === "\\" && k + 1 < body.length) {
+                    stmt += body[++k];
+                  } else if (bc === stmtQuote) {
+                    stmtQuote = null;
+                  }
+                  k++;
+                  continue;
+                }
+                if (bc === '"' || bc === "'") {
+                  stmtQuote = bc;
+                  stmt += bc;
+                  k++;
+                  continue;
+                }
+                if (bc === ";") {
+                  var cleanStmt = stmt.replace(/^\s+|\s+$/g, "");
+                  if (cleanStmt !== "") {
+                    directProps += "  " + cleanStmt + ";\n";
+                  }
+                  stmt = "";
+                  k++;
+                } else if (bc === "{") {
+                  // Capture the entire nested block
+                  var nDepth = 1;
+                  var nStart = k + 1;
+                  var m = nStart;
+                  var nQuote = null;
+                  while (m < body.length && nDepth > 0) {
+                    var nc = body[m];
+                    if (nQuote) {
+                      if (nc === "\\" && m + 1 < body.length) m++;
+                      else if (nc === nQuote) nQuote = null;
+                    } else if (nc === '"' || nc === "'") {
+                      nQuote = nc;
+                    } else if (nc === "{") {
+                      nDepth++;
+                    } else if (nc === "}") {
+                      nDepth--;
+                    }
+                    m++;
+                  }
+                  nestedBlocks += stmt + "{" + body.slice(nStart, m - 1) + "}\n";
+                  stmt = "";
+                  k = m;
+                } else {
+                  stmt += bc;
+                  k++;
+                }
+              }
+
+              // Handle a trailing declaration that omitted the final semicolon
+              var trailingStmt = stmt.replace(/^\s+|\s+$/g, "");
+              if (trailingStmt !== "") {
+                directProps += "  " + trailingStmt + ";\n";
+              }
+
+              if (directProps !== "") {
+                out += joinedSelector + " {\n" + directProps + "}\n";
+              }
+              if (nestedBlocks !== "") {
+                out += processBlock(nestedBlocks, prepend, applyToChildren, scopedSelectors);
+              }
+            }
+
+            continue;
+          }
+
+          buffer += ch;
+          i++;
+        }
+
+        return out;
+      }
+    },
   },
-  
-  empty: function(DOMelement) {
-    while (DOMelement.lastChild){
-      if (DOMelement.lastChild.lastChild) {
-        //also empty this child
+    empty: function(DOMelement) {
+      while (DOMelement.lastChild){
+        if (DOMelement.lastChild.lastChild) {
+          //also empty this child
         this.empty(DOMelement.lastChild);
       }
       if ("attachedListeners" in DOMelement.lastChild) {
@@ -715,7 +981,6 @@ var MistUtil = {
       DOMelement.removeChild(DOMelement.lastChild);
     }
   },
-  
   event: {
     send: function(type,message,target){
       try {
@@ -850,11 +1115,11 @@ var MistUtil = {
   },
   
   tracks: {
-    parse: function(metaTracks){
+    parse: function(metaTracks,source){
       var output = {};
       for (var i in metaTracks) {
         var track = MistUtil.object.extend({},metaTracks[i]);
-        if (track.type == "meta") {
+        if ((track.type == "meta") || (track.type == "")) {
           track.type = track.codec;
           track.codec = "meta";
         }
@@ -875,7 +1140,12 @@ var MistUtil = {
               if (track.bps > 0) {
                 var val;
                 if (track.bps > 1024*1024/8) {
-                  val = Math.round(track.bps/1024/1024*8)+"mbps";
+                  if (track.bps > 1024*1024*1024/8) {
+                    val = Math.round(track.bps/1024/1024/1024*8)+"gbps";
+                  }
+                  else {
+                    val = Math.round(track.bps/1024/1024*8)+"mbps";
+                  }
                 }
                 else {
                   val = Math.round(track.bps/1024*8)+"kbps";
@@ -886,6 +1156,9 @@ var MistUtil = {
             case "fpks":
               if (track.fpks > 0) {
                 name[j] = track.fpks/1e3+"fps";
+              }
+              else if (("efpks" in track) && (track.efpks > 0)) {
+                name[j] = track.efpks/1e3+"fps";
               }
               break;
             case "channels":
@@ -909,7 +1182,84 @@ var MistUtil = {
         track.describe = name;
         
       }
-      
+
+      Object.defineProperty(output,"describe",{
+        value: function(subset){
+          var input = {};
+
+          //delete any tracks from the input object that are not in subset
+          if (subset) {
+            for (var type in this) {
+              input[type] = {};
+              for (var i in this[type]) {
+                if (subset.indexOf(Number(i)) >= 0) {
+                  input[type][i] = MistUtil.object.extend({},this[type][i]);
+                }
+              }
+            }
+          }
+          else input = this;
+
+          //filter what to display based on what is different
+          for (var type in input) {
+            var equal = false;
+            for (var i in input[type]) {
+              if (!equal) {
+                //fill equal with all the keys and values of the first track of this type
+                equal = MistUtil.object.extend({},input[type][i].describe);
+                continue;
+              }
+              if (MistUtil.object.keys(input[type]).length > 1) {
+                //if there is more than one track of this type
+                for (var j in input[type][i].describe) {
+                  if (equal[j] != input[type][i].describe[j]) {
+                    //remove key from equal if not equal
+                    delete equal[j];
+                  }
+                }
+              }
+            }
+            //apply
+            for (var i in input[type]) {
+              var different = {};
+              var same = {};
+              for (var j in input[type][i].describe) {
+                if (!(j in equal)){
+                  different[j] = input[type][i].describe[j];
+                }
+                else {
+                  same[j] = input[type][i].describe[j];
+                }
+              }
+              input[type][i].different = different;
+              input[type][i].same = same;
+              var d = MistUtil.object.values(different);
+              input[type][i].displayName = (d.length ? d.join(", ") : MistUtil.object.values(input[type][i].describe).join(" "));
+            }
+
+            //check if some tracks have the same display name
+            var names = {};
+            for (var i in input[type]) {
+              if (input[type][i].displayName in names) {
+                //we have double names, add the track id
+                var n = 1;
+                for (var i in input[type]) {
+                  input[type][i].different.trackid = n+")";
+                  input[type][i].displayName = "Track "+n+" ("+input[type][i].displayName+")";
+                  n++;
+                }
+                break;
+              }
+              names[input[type][i].displayName] = 1;
+            }
+
+          }
+
+          return input;
+        }
+      });
+     
+      /*
       //filter what to display based on what is different
       for (var type in output) {
         var equal = false;
@@ -962,7 +1312,9 @@ var MistUtil = {
           }
           names[output[type][i].displayName] = 1;
         }
-      }
+      }*/
+
+      output.describe();
       
       return output;
     },
@@ -989,7 +1341,7 @@ var MistUtil = {
           return track.codec.toLowerCase();
       }
     },
-    getSupported: function(trackmeta,source){
+    getSupported: function(trackmeta,source,player){
       //filters the tracks from the general metadata to show only audio and video tracks that the protocol (source) supports
       if (!trackmeta) throw "Missing track metadata";
       if (!source) throw "Please include the source object";
@@ -999,9 +1351,19 @@ var MistUtil = {
         var track = trackmeta[i];
 
         if (track.type == "meta") continue; //we're only interested in audio and video tracks
+        if (track.type == "subtitle") continue; //we're only interested in audio and video tracks
         if (source && ("sup_trk" in source)) { //if supported, backend reports what tracks can be put into this protocol
           if (MistUtil.array.indexOf(source.sup_trk,track.idx) == -1) continue;
         }
+
+        //check the player supported cache
+        if (player && player.cachedSupport && (source.suid in player.cachedSupport)) {
+          if (!player.cachedSupport[source.suid]) continue;
+          if (track.tuid in player.cachedSupport[source.suid].results) {
+            if (!player.cachedSupport[source.suid].results[track.tuid]) continue;
+          }
+        }
+
 
         result[i] = track;
       }
@@ -1015,6 +1377,320 @@ var MistUtil = {
         out[track.type] = true;
       }
       return MistUtil.object.keys(out);
+    },
+    orderValues: function(trackinfoobj){
+      var order = {
+        name:    -1,
+        trackid:  0,
+        language: 1,
+        width:    2,
+        bps:      3,
+        fpks:     4,
+        channels: 5,
+        codec:    6,
+        rate:     7
+      };
+      return MistUtil.object.values(trackinfoobj,function(keya,keyb,valuea,valueb){
+        if (order[keya] > order[keyb]) { return 1; }
+        if (order[keya] < order[keyb]) { return -1; }
+        return 0;
+      });
+    },
+    TrackList: function(trackmeta){
+      //convert a meta.tracks object to a TrackList
+      //usage: info.meta.tracks = new MistUtil.tracks.TrackList(info.meta.tracks);
+      if (!trackmeta) trackmeta = {};
+
+      if (trackmeta instanceof MistUtil.tracks.TrackList) return trackmeta;
+
+      var TrackList = this;
+
+      //make sure all tracks are instances of Track
+      for (var i in trackmeta) {
+        trackmeta[i] = new MistUtil.tracks.Track(trackmeta[i]);
+        this[i] = trackmeta[i];
+      }
+
+      var parsed = {}; //save an object shaped like { <type>: { <idx>: trackmeta } ... }
+      for (var i in trackmeta) {
+        var track = trackmeta[i];
+        var type = track.type;
+        if (!(type in parsed)) parsed[type] = {};
+        parsed[type][track.idx] = track;
+      }
+
+      function filter(filterfunc){
+        var out = {};
+        for (var i in trackmeta) {
+          var track = trackmeta[i];
+          if (filterfunc(track)) out[i] = track;
+        }
+        return new MistUtil.tracks.TrackList(out);
+      };
+      var same = null;
+      function describe() {
+        //for all tracks, read Track.describe and track differences
+        //do this per track type
+        same = {};
+        
+        for (var type in parsed) {
+          same[type] = null;
+          for (var i in parsed[type]) {
+            var track = parsed[type][i];
+            if (same[type] === null) {
+              same[type] = {};
+              for (var key in track.describe) {
+                same[type][key] = track.describe[key];
+              }
+              continue;
+            }
+            for (var key in same[type]) {
+              if (track.describe[key] == same[type][key]) continue;
+              delete same[type][key];
+            }
+          }
+          //same[type] has now been filled
+        }
+      }
+      function getDifferent(track){
+        var out = {};
+        for (var key in track.describe) {
+          if (key in TrackList.same[track.type]) continue;
+          out[key] = track.describe[key];
+        }
+        return out;
+      }
+      function getDisplayName(track){
+        if (!(track instanceof MistUtil.tracks.Track)) throw "Parameter 1 is not an instance of Track";
+        var diff = TrackList.getDifferent(track);
+        var desc = track.describe;
+        var out = {};
+        for (var key in desc) {
+          if (key in diff) {
+            out[key] = desc[key];
+          }
+        }
+        return MistUtil.tracks.orderValues(out).join(" ");
+      }
+      function getSupported(source,player,MistVideo){
+        if (!source || (typeof source != "object")) throw "Parameter 1 is not a source object";
+
+        var tl = TrackList;
+        if ("sup_trk" in source) {
+          tl = tl.filter(function(track){
+            return MistUtil.array.indexOf(source.sup_trk,track.idx) >= 0;
+          });
+        }
+        if (player) {
+          //check cache if available
+          if ("cachedSupport" in player) {
+            if (source.suid in player.cachedSupport) { //there are cached results
+              if (!player.cachedSupport[source.suid]) return new MistUtil.tracks.TrackList(); //the player is not supported
+              if (player.cachedSupport[source.suid] instanceof MistUtil.tracks.TestResults) {
+                var cache = player.cachedSupport[source.suid].results;
+                tl = tl.filter(function(track){
+                  return !(track.tuid in cache) || cache[track.tuid]; //keep tracks that are not in the cache, or have a trueish value
+                });
+              }
+              else {
+                //cachedSupport for this player is true
+              }
+            }
+          }
+
+          if (!MistVideo) throw "Player is defined but MistVideo isn't";
+          try {
+            var out = player.isBrowserSupported(source.type,source,MistVideo,tl);
+            if (out instanceof MistUtil.tracks.TestResults) {
+              tl = tl.filter(function(track){
+                if (track.tuid in out.results) return out.results[track.tuid];
+              });
+            }
+          } catch (e) { 
+            console.warn(e);
+          }
+        }
+        return tl;
+      }
+
+      if ("defineProperty" in Object) {
+        Object.defineProperty(this,"filter",{value: filter });
+        Object.defineProperty(this,"length",{value: Object.keys(trackmeta).length});
+        Object.defineProperty(this,"parsed",{value: parsed});
+        Object.defineProperty(this,"same",{get: function(){
+          if (same === null) describe();
+          return same;
+        }});
+        Object.defineProperty(this,"getDifferent",{ value: getDifferent });
+        Object.defineProperty(this,"getDisplayName",{ value: getDisplayName });
+        Object.defineProperty(this,"getSupported",{ value: getSupported });
+
+        //shorthands
+        Object.defineProperty(this,"audio",{get: function() {
+          return filter(function(t){ return t.type == "audio" });
+        }});
+        Object.defineProperty(this,"video",{get: function() {
+          return filter(function(t){ return t.type == "video" });
+        }});
+        Object.defineProperty(this,"subtitle",{get: function() {
+          return filter(function(t){ return t.codec == "subtitle" });
+        }});
+        Object.defineProperty(this,"meta",{get: function() {
+          return filter(function(t){ return (t.type == "meta") && (t.codec != "subtitle") });
+        }});
+
+        //TrackList[<idx>] = track
+        function a(track) {
+          Object.defineProperty(TrackList,track.idx,{ value: track });
+        }
+        for (var i in trackmeta) {
+          a(trackmeta[i]);
+        }
+      }
+      else {
+        this.filter = filter;
+        this.length = MistUtil.object.keys(trackmeta).length;
+        this.parsed = parsed;
+        describe();
+        this.same = same;
+        this.getDifferent = getDifferent;
+        this.getDisplayName = getDisplayName;
+        this.getSupported = getSupported;
+      }
+
+
+    },
+    Track: function(trackmeta){
+      if (trackmeta instanceof MistUtil.tracks.Track) return trackmeta;
+
+      //adds extra functionality to a track metadata object
+      MistUtil.object.extend(this,trackmeta);
+      
+      function describe() {
+        var track = trackmeta;
+        var out = {};
+        for (var key in track) {
+          var o = null;
+          switch (key) {
+            case "width":
+              o = track.width+"×"+track.height;
+              break;
+            case "bps":
+              if (track.type == "meta" || track.type == "subtitle") { continue; }
+              if (track.bps > 0) {
+                o = MistUtil.format.bits(track.bps*8)+"ps";
+              }
+              break;
+            case "fpks":
+              if (track.fpks > 0) {
+                o = track.fpks/1e3+"fps";
+              }
+              else if (("efpks" in track) && (track.efpks > 0)) {
+                o = track.efpks/1e3+"fps";
+              }
+              break;
+            case "channels":
+              if (track.channels > 0) {
+                o = (track.channels == 1 ? "Mono" : (track.channels == 2 ? "Stereo" : "Surround ("+track.channels+"ch)"));
+              }
+              break;
+            case "rate":
+              o = Math.round(track.rate*1e-3)+"Khz";
+              break;
+            case "language":
+              if (track.language != "Undetermined") { o = track.language; }
+              break;
+            case "codec":
+              if (track.codec == "subtitle") { continue; }
+              o = track.codec;
+              break;
+            case "name": 
+              o = track.name;
+          }
+          if (o !== null) out[key] = o;
+        }
+        if ("defineProperty" in Object) {
+          Object.defineProperty(out,"toString",{value: function(){
+            return MistUtil.tracks.orderValues(out).join(" ");
+          }});
+        }
+        return out;
+      }
+      function getType(){
+        var type = trackmeta.type;
+        if (trackmeta.codec == "subtitle") type = trackmeta.codec;
+        return type;
+      }
+      this.type = getType();
+      var tuid = null;
+      function createTuid() {
+        if (tuid === null) {
+          tuid = trackmeta.idx+"_"+trackmeta.codec+"_"+MistUtil.generateHash([trackmeta.idx,trackmeta.codec,trackmeta.init].join("|"));
+        }
+        return tuid;
+      }
+
+      if ("defineProperty" in Object) {
+        Object.defineProperty(this,"tuid",{get: createTuid});
+      }
+      else {
+        this.tuid = createTuid();
+      }
+
+      if ("defineProperty" in Object) {
+        Object.defineProperty(this,"describe",{get: describe});
+      }
+      else {
+        this.describe = describe();
+      }
+
+    },
+    TestResults: function(tracklist,testfunc) {
+      var self = this;
+
+      var results = {};
+      this.results = results;
+     
+      this.add = function(tuid,testresult){
+        if (testresult instanceof Promise) {
+          results[tuid] = new Promise(function(resolve,reject){
+            testresult.then(function(r){
+              results[tuid] = r;
+              resolve(r);
+            }).catch(function(e){
+              results[tuid] = false;
+              reject(e);
+            });
+          });
+          results[tuid].catch(function(){});
+        }
+        else {
+          results[tuid] = testresult;
+        }
+      };
+      this.extend = function(testresults){
+        //merges additional results into this result, maintaining promise results
+        var list;
+        if (testresults instanceof MistUtil.tracks.TestResults) {
+          list = testresults.results;
+        }
+        else if ((typeof testresults == "object") && !MistUtil.array.is(testresults)) {
+          list = testresults;
+        }
+        else throw "Invalid argument";
+        for (var tuid in list) {
+          this.add(tuid,list[tuid]);
+        }
+      };
+
+      if (!tracklist) {
+        tracklist = new MistUtil.tracks.TrackList();
+      }
+      if (testfunc) {
+        for (var i in tracklist) {
+          this.add(tracklist[i].tuid,testfunc(tracklist[i]));
+        }
+      }
     }
   },
   isTouchDevice: function(){
@@ -1226,6 +1902,27 @@ var MistUtil = {
         return sources[i];
       }
       return false;
+    },
+    Source: function(sourceobj){
+      if (sourceobj instanceof MistUtil.sources.Source) return sourceobj;
+
+      //adds extra functionality to a source metadata object
+      MistUtil.object.extend(this,sourceobj);
+
+      var suid = null;
+      function createSuid() {
+        if (suid === null) {
+          suid = sourceobj.type+"_"+MistUtil.generateHash([sourceobj.type,sourceobj.url].join("|"));
+        }
+        return suid;
+      }
+
+      if ("defineProperty" in Object) {
+        Object.defineProperty(this,"suid",{get: createSuid});
+      }
+      else {
+        this.suid = createSuid();
+      }
     }
   },
   shared: {
@@ -1861,27 +2558,58 @@ var MistUtil = {
         //save which tracks are playing and monitor changes
         if ((msg.tracks) && (currenttracks.join(",") != msg.tracks.join(","))) {
           var tracks = MistVideo.info ? MistUtil.tracks.parse(MistVideo.info.meta.tracks) : [];
+          var types = {};
+          function getType(idx) {
+            for (var j in tracks) {
+              if (idx in tracks[j]) {
+                return j;
+              }
+            }
+            if (!type) {
+              return null;
+            }
+          }
+
           for (var i in msg.tracks) {
             if (currenttracks.indexOf(msg.tracks[i]) < 0) {
               //find track type
-              var type;
+              var type = getType(msg.tracks[i]);
               for (var j in tracks) {
                 if (msg.tracks[i] in tracks[j]) {
                   type = j;
                   break;
                 }
               }
-              if (!type) {
+              if (type === null) {
                 //track type not found, this should not happen
                 continue;
               }
               if (type == "subtitle") { continue; }
+              types[type] = true;
 
               //create an event to pass this to the skin
               MistUtil.event.send("playerUpdate_trackChanged",{
                 type: type,
                 trackid: msg.tracks[i]
               },video);
+            }
+          }
+          if (currenttracks.length > msg.tracks) {
+            //if one of the previously playing tracks is now "none"
+            for (var i in currenttracks) {
+              if (msg.tracks.indexOf(currenttracks[i]) < 0) {
+                //this track is no longer selected
+                var type = getType(currenttracks[i]);
+                if (!(type in types)) {
+                  //this type (audio/video) was not replaced with another track
+                  //create an event to pass this to the skin
+                  MistUtil.event.send("playerUpdate_trackChanged",{
+                    type: type,
+                    trackid: "none"
+                  },video);
+
+                }
+              }
             }
           }
 
@@ -2397,6 +3125,15 @@ var MistUtil = {
 
       //listen to on_time
       controlChannel.addListener("on_time",function(msg){
+        //sanity check on msg begin / current / end values
+        if (msg.begin > msg.end) { MistVideo.showError("Invalid timing information: begin > end ("+MistUtil.format.time(msg.begin*1e-3,{ms:true})+" > "+MistUtil.format.time(msg.end*1e-3,{ms:true})+", off by "+Math.round(msg.begin - msg.end)+"ms)"); return; }
+
+        if (msg.current < msg.begin) { MistVideo.showError("Invalid timing information: current < begin ("+MistUtil.format.time(msg.current*1e-3,{ms:true})+" < "+MistUtil.format.time(msg.begin*1e-3,{ms:true})+", off by "+Math.round(msg.begin - msg.current)+"ms)"); return; }
+
+        if (msg.current-1e3 > msg.end) { MistVideo.showError("Invalid timing information: current > end ("+MistUtil.format.time(msg.current*1e-3,{ms:true})+" > "+MistUtil.format.time(msg.end*1e-3,{ms:true})+", off by "+Math.round(msg.current - msg.end)+"ms)"); return; }
+
+        if (msg.current > msg.end) { MistVideo.log("Dubious timing information: current > end ("+MistUtil.format.time(msg.current*1e-3,{ms:true})+" > "+MistUtil.format.time(msg.end*1e-3,{ms:true})+", off by "+Math.round(msg.current - msg.end)+"ms)"); }
+
         var buffer = get.buffer();
         var desired = typeof get.desiredBuffer == "function" ? get.desiredBuffer() : get.desiredBuffer;
         //if (buffer < 0) console.warn("buffer:",buffer,state,"desired:",0+desired);
@@ -2736,47 +3473,37 @@ var MistUtil = {
     testMediaSource: function(trackmeta) {
       //for each track in the track meta object, test if MediaSource can play it
 
-      if (!window.MediaSource) { return {}; }
+      if (!window.MediaSource) { return false; }
       if (!MediaSource.isTypeSupported) { return true; } //we can't ask
 
-      var out = {};
-      for (var i in trackmeta) {
-        var track = trackmeta[i];
-        var codec = MistUtil.tracks.translateCodec(track);
-
-        if (MediaSource.isTypeSupported(track.type+"/mp4;codecs=\""+codec+"\"")) {
-          out[i] = track;
-        }
-      }
-
-      return out;
+      return new MistUtil.tracks.TestResults(trackmeta,function(track){
+        return MediaSource.isTypeSupported(track.type+"/mp4;codecs=\""+track.codecstring+"\"")
+      });
     },
     testRTC: function(trackmeta) {
-      //for each track in the track meta object, test if RTCRttpReceiver supports it
-      var check = {
-        audio: {},
-        video: {}
-      };
-      for (var type in check) {
-        var supported = RTCRtpReceiver.getCapabilities(type).codecs;
-        for (var i in supported) {
-          var codec = supported[i].mimeType.toLowerCase();
-          codec = codec.replace(type+"/","");
-          check[type][codec] = true;
-        }
-      }
+      if (!RTCRtpReceiver) return false;
 
-      var out = {};
-      for (var i in trackmeta) {
-        var track = trackmeta[i];
+      //for each track in the track meta object, test if RTCRttpReceiver supports it
+      
+      var supported = {};
+      return new MistUtil.tracks.TestResults(trackmeta,function(track){
+        if (!(track.type in supported)) {
+          supported[track.type] = {};
+          var capa = RTCRtpReceiver.getCapabilities(track.type);
+
+          //rewrite codecs to match better
+          for (var i in capa.codecs) {
+            var codec = capa.codecs[i].mimeType.toLowerCase();
+            codec = codec.replace(track.type+"/","");
+            supported[track.type][codec] = true;
+          }
+        }
+
         var codec = track.codec;
         if (codec == "HEVC") codec = "H265";
-
-        if (check[track.type][codec.toLowerCase()]) {
-          out[i] = track;
-        }
-      }
-      return out;
+        if (codec.toLowerCase() in supported[track.type]) return true;
+        return false;
+      });
     }
   }
 };

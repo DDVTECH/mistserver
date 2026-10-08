@@ -192,7 +192,6 @@
   margin: 0 0.5em;
   font-size: inherit;
   cursor: pointer;
-  -ms-background-color: red;
 }
 .mistvideo select > option {
   background-color: $background;
@@ -226,7 +225,7 @@
 .mistvideo audio:not([controls]) { display: block !important; }
 .mistvideo-padding { padding: 5px 10px; }
 .mistvideo-pointer { cursor: pointer; }
-.msitvideo .description { 
+.mistvideo-description { 
   color: $semiFill;
   font-size: 0.9em;
 }
@@ -279,6 +278,202 @@
 }
 .mistvideo-tracks label > span {
   margin-right: 1em;
+}
+.mistvideo-tracks td:last-child {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+}
+.mistvideo-tracks option[data-issupported="false"], /* a track that is not supported */
+.mistvideo-tracks tr:has(span[data-issupported="false"]) { /* the only track for this type is not supported */ 
+  display: none;
+}
+@supports (appearance: base-select) {
+  .mistvideo select.mistvideo-base-select {
+    appearance: base-select;
+    color: inherit;
+    border: none;
+    padding: 0;
+
+    --autoIcon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" version="1.1" height="45" width="45"><path d="m24.139 3.834-1.4785 4.3223c-1.1018 0.0088-2.2727 0.13204-3.2031 0.33594l-2.3281-3.9473c-1.4974 0.45304-2.9327 1.091-4.2715 1.9004l1.3457 4.3672c-0.87808 0.62225-1.685 1.3403-2.4023 2.1426l-4.1953-1.8223c-0.9476 1.2456-1.7358 2.6055-2.3457 4.0469l3.6523 2.7383c-0.34895 1.0215-0.58154 2.0787-0.69336 3.1523l-4.4531 0.98828c-0.00716 0.14696-0.011931 0.29432-0.015625 0.44141 0.00628 1.4179 0.17336 2.8307 0.49805 4.2109l4.5703 0.070312c0.32171 1.0271 0.75826 2.0138 1.3008 2.9434l-3.0391 3.4355c0.89502 1.2828 1.9464 2.4492 3.1309 3.4707l3.7363-2.6289c0.86307 0.64582 1.7958 1.192 2.7812 1.6289l-0.43555 4.541c1.4754 0.52082 3.0099 0.85458 4.5684 0.99414l1.4766-4.3223c0.05369 3e-3 0.10838 0.005313 0.16211 0.007812 1.024-0.0061 2.0436-0.12048 3.043-0.34375l2.3281 3.9473c1.4974-0.45304 2.9327-1.091 4.2715-1.9004l-1.3457-4.3672c0.87808-0.62225 1.685-1.3403 2.4023-2.1426l4.1953 1.8223c0.9476-1.2456 1.7358-2.6055 2.3457-4.0469l-3.6523-2.7383c0.34895-1.0215 0.58154-2.0787 0.69336-3.1523l4.4531-0.98828c0.0072-0.14698 0.011925-0.29432 0.015625-0.44141-0.0062-1.4179-0.17336-2.8307-0.49805-4.2109l-4.5703-0.070312c-0.32171-1.0271-0.75826-2.0138-1.3008-2.9434l3.0391-3.4355c-0.89502-1.2828-1.9464-2.4492-3.1309-3.4707l-3.7363 2.6289c-0.86307-0.64582-1.7958-1.192-2.7812-1.6289l0.43555-4.541c-1.4754-0.52082-3.0099-0.85457-4.5684-0.99414zm-1.6387 7.8789a10.786 10.786 0 0 1 10.787 10.787 10.786 10.786 0 0 1-10.787 10.787 10.786 10.786 0 0 1-10.787-10.787 10.786 10.786 0 0 1 10.787-10.787z" fill="$semiFill "></path></svg>');
+
+    selectedcontent {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &::picker(select) {
+      appearance: base-select;
+      transform: translateX(-1em);
+      color: inherit;
+      padding: 0.5em 0;
+      margin: 0.25em 0;
+      background-color: $background;
+      backdrop-filter: blur(0.5em);
+      border: none;
+      display: flex;
+      flex-flow: column nowrap;
+    }
+    &::picker(select):not(:popover-open):not(:open) {
+      display: none !important;
+    }
+
+    &::selectedoption {
+      padding: 0;
+    }
+    & > option {
+      padding: 0.25em 0.5em;
+      color: inherit;
+      align-items: center;
+      gap: 0.25em;
+      border: none;
+      outline: none;
+      background: none;
+      min-width: 0;
+      flex-shrink: 1;
+      &:hover {
+        background-color: rgba(50,50,50,0.8);
+      }
+    }
+    ::checkmark,
+    &::checkmark {
+      width: 16px;
+      text-align: center;
+      color: $accent;
+      font-weight: bold;
+      margin-right: 0.5em;
+    }
+    &::picker-icon {
+      height: 1lh;
+      aspect-ratio: 1;
+      content: '';
+      background-color: $semiFill;
+      mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>') center / contain no-repeat;
+    }
+    &:open::picker-icon {
+      background-color: $accent;
+    }
+
+  }
+  .mistvideo .mistvideo-tracks {
+    select > option {
+      /*&[data-isdefault="true"]:after {
+        content: "[Default]";
+        opacity: 0.5;
+        font-size: 0.8em;
+        align-self: flex-start;
+      }*/
+      &[data-iscurrent="true"]:not(:checked)::checkmark {
+        font-weight: normal;
+        visibility: visible;
+      }
+    }
+    select > button[data-isautomatic="true"]:before,
+    select > option[data-iscurrent="true"]:not(:checked)::checkmark {
+      content: "A";
+      color: $fill;
+      background: var(--autoIcon) center / contain no-repeat;
+      margin: -0.5em 0.25em -0.5em -0.25em;
+      padding: 0.5em;
+      width: 16px;
+      line-height: 16px;
+      aspect-ratio: 1;
+      text-align: center;
+      font-size: 0.6em;
+    }
+    select > button[data-isautomatic="true"]:before {
+      margin-right: -0.25em;
+    }
+    /* if the select only has one (visible) option ( +  automatic), do not show as a select */
+    select:has(option[data-issupported]){ 
+      /* the select has options with the data-issupported tag*/
+
+      &:not(:has(option[data-issupported="true"] ~ option[data-issupported="true"])) {
+        /* only 1 track available: display as span, not select box */
+        cursor: auto;
+
+        &::picker-icon { display: none; }
+
+      }
+
+      & > option[data-issupported="false"] {
+        order: 999;
+      }
+    }
+  }
+  .mistvideo-forceType,
+  .mistvideo-forcePlayer,
+  .mistvideo-forceSource {
+    select.mistvideo-base-select > option {
+      --order: 0;
+      order: var(--order);
+      gap: 0;
+    }
+    select > option[data-supported="false"] {
+      opacity: 0.5;
+      order: 999;
+
+      &[data-playable] {
+        opacity: 0.75;
+        order: 888;
+      }
+    }
+    select > option[data-iscurrent]:not(:checked)::checkmark {
+      content: "A";
+      color: $fill;
+      background: var(--autoIcon) center / contain no-repeat;
+      margin: -0.5em 0.25em -0.5em -0.25em;
+      padding: 0.5em;
+      width: 16px;
+      line-height: 16px;
+      aspect-ratio: 1;
+      text-align: center;
+      font-size: 0.6em;
+      visibility: visible;
+    }
+    select > option > * {
+      flex-shrink: 1;
+      min-width: 0;
+    }
+    select > option > span {
+      line-height: 1;
+      margin: 0;
+      white-space: pre;
+    }
+  }
+}
+.mistvideo input[type="checkbox"] {
+  margin: 0;
+  margin-right: 0.2em;
+  border: 1px solid $semiFill;
+  border-radius: 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  -ms-appearance: none;
+  appearance: none;
+  width: 0.8em;
+  height: 0.8em;
+  color: inherit;
+  position: relative;
+  cursor: pointer;
+}
+.mistvideo input[type="checkbox"]:after {
+  position: absolute;
+  bottom: -0.2em;
+  left: 0;
+  font-size: 1.2em;
+}
+.mistvideo input[type="checkbox"]:checked:after {
+  content: "\2713";
+  color: $accent;
+}
+.mistvideo-tracks input[type="checkbox"] {
+  border: none;
+}
+.mistvideo-tracks input[type="checkbox"]:not(:checked):after {
+  content: "\274C";
+  font-size: 0.8em;
 }
 
 .mistvideo a {

@@ -803,12 +803,15 @@ MistSkins["default"] = {
       if ("transition" in options) {
         
         if (!("css" in structure)) { structure.css = []; }
-        structure.css.push(
-          ".hover_window_container:hover > .outer_window:not([data-hidecursor]) > .inner_window { "+options.transition.show+" }\n"+
+        structure.css.push( 
+          ".hover_window_container:hover > .outer_window:not([data-hidecursor]) > .inner_window"+
+          " { "+options.transition.show+" }\n"+
+          "@supports (appearance: base-select) { \n"+
+            ".hover_window_container:has(select:open) > .outer_window:not([data-hidecursor]) > .inner_window { "+options.transition.show+" }\n"+
+          " }\n"+
           ".hover_window_container > .outer_window { "+options.transition.viewport+" }\n"+
           ".hover_window_container > .outer_window > .inner_window { "+options.transition.hide+" }"
-        );
-        
+        ); 
       }
       
       structure.classes.push(options.mode);
@@ -1708,19 +1711,26 @@ MistSkins["default"] = {
 
       return button;
     },
-    tracks: function(){
+    tracks: function(opts){
+      opts = MistUtil.object.extend({
+        checkboxes: false //show checkboxes to toggle between audio/video: "none" and whatever is selected
+      },opts || {});
       
       if ((!this.info) || (!this.video)) { return; }
       
       var MistVideo = this;
       var table = document.createElement("table");
+      var current = {};
       
-      function build(tracks) {
+      function build(tracklist) {
         
         //empty table
         MistUtil.empty(table);
         
-        tracks = MistUtil.tracks.parse(tracks);
+        var tracks = tracklist.parsed; 
+
+        //prepare subset of supported tracks
+        var supportedTracks = tracklist.getSupported(MistVideo.source,mistplayers[MistVideo.playerName],MistVideo);
         
         var selections = {};
         var checkboxes = {};
@@ -1762,26 +1772,12 @@ MistSkins["default"] = {
           }
         }
         
-        //sort the tracks to ["audio","video",..,"subtitle",..etc]
-        var tracktypes = MistUtil.object.keys(tracks,function(keya,keyb){
-          function order(value) {
-            switch (value) {
-              case "audio": return "aaaaaaa";
-              case "video": return "aaaaaab";
-              default:      return value;
-            }
-          }
-          if (order(keya) > order(keyb)) { return 1; }
-          if (order(keya) < order(keyb)) { return -1; }
-          return 0;
-        });
-        function processTrack(t,type) {
+        var tracktypes = ["audio","video","subtitle"]; //show the track types in this order; do not show other track types
+        function processTrackType(type) {
 
-          if (MistUtil.array.indexOf(["video","audio","subtitle"],type) <= -1) {
-            //Do not display this track type
-            return;
-          }
-          
+          var tracks = tracklist[type];
+          if (tracks.length == 0) return;
+
           if (type == "subtitle") {
             if ((!("player" in MistVideo)) || (!("api" in MistVideo.player)) || (!("setWSSubtitle" in MistVideo.player.api) && !("setSubtitle" in MistVideo.player.api))) {
               //this player does not support adding subtitles, don't show track selection in the interface
@@ -1812,7 +1808,12 @@ MistSkins["default"] = {
             }
             
             //also add the option to disable subtitles
-            t[""] = { trackid: "", different: { none:"None" } };
+            tracks[""] = new MistUtil.tracks.Track({
+              type: "subtitle",
+              trackid: "", 
+              name: "None"
+            });
+            tracks = new MistUtil.tracks.TrackList(MistUtil.object.extend({},tracks));
             
           }
           
@@ -1820,7 +1821,7 @@ MistSkins["default"] = {
           tr.title = "The current "+type+" track";
           table.appendChild(tr);
           
-          if ("decodingIssues" in MistVideo.skin.blueprints) { //this is dev mode
+          if (opts.checkboxes) { //("decodingIssues" in MistVideo.skin.blueprints) { //this is dev mode
             var cell = document.createElement("td");
             tr.appendChild(cell);
             if (type != "subtitle") {
@@ -1891,90 +1892,183 @@ MistSkins["default"] = {
           header.appendChild(document.createTextNode(MistUtil.format.ucFirst(type)+":"));
           var cell = document.createElement("td");
           tr.appendChild(cell);
-          var trackkeys = MistUtil.object.keys(t);
-          
-          //var determine the display info for the tracks
-          function orderValues(trackinfoobj) {
-            var order = {
-              trackid:  0,
-              language: 1,
-              width:    2,
-              bps:      3,
-              fpks:     4,
-              channels: 5,
-              codec:    6,
-              rate:     7
-            };
-            return MistUtil.object.values(trackinfoobj,function(keya,keyb,valuea,valueb){
-              if (order[keya] > order[keyb]) { return 1; }
-              if (order[keya] < order[keyb]) { return -1; }
-              return 0;
-            });
-          }
-          
+                    
           //there is more than one track of this type, and the player supports switching tracks
-          if ((trackkeys.length > 1) && ("player" in MistVideo) && ("api" in MistVideo.player) && (("setTrack" in MistVideo.player.api) || ("setTracks" in MistVideo.player.api) || ("setSource" in MistVideo.player.api))) {
+          if ((tracks.length > 1) && ("player" in MistVideo) && ("api" in MistVideo.player) && (("setTrack" in MistVideo.player.api) || ("setTracks" in MistVideo.player.api) || ("setSource" in MistVideo.player.api))) {
             //show a select box
             var select = document.createElement("select");
+            select.className = "mistvideo-base-select";
             select.setAttribute("data-type",type);
             select.title = "Select another "+type+" track";
             selections[type] = select;
             select.trackType = type;
+            var playing = document.createElement("button");
+            var playing_span = document.createElement("span");
+            playing.appendChild(playing_span);
+            playing.set = function(idx){ 
+              var opt = typeof idx == "undefined" ? false : select.querySelector("option[value=\""+idx+"\"]");
+              if (opt === false) {
+                //if there is only 1 track, or a track that has the data-isdefault tag, show that one
+                var opts = select.querySelectorAll("option:not([value=\"\"])");
+                if (opts.length == 1) {
+                  opt = opts[0];
+                }
+                else {
+                  opts = Array.from(opts).filter(function(a){
+                    return a.matches("[data-isdefault=\"true\"]");
+                  });
+                  if (opts.length) { opt = opts[0]; }
+                }
+              }
+
+
+              if ((opt !== false) && (type != "subtitle")) {
+                playing_span.innerText = opt.innerText;
+                playing.setAttribute("title",opt.getAttribute("title"));
+                if (select.value == "") {
+                  this.setAttribute("data-isautomatic","true");
+                  select.setAttribute("title","The player automatically selected this track");
+                }
+                else {
+                  this.removeAttribute("data-isautomatic");
+                  select.setAttribute("title","Select another "+type+" track");
+                }
+                if (opt.hasAttribute("data-empty")) {
+                  this.setAttribute("data-empty",opt.getAttribute("data-empty"));
+                }
+                else {
+                  this.removeAttribute("data-empty");
+                }
+              }
+              else {
+                //just show the selected value
+                playing_span.innerText = "";
+                this.appendChild(document.createElement("selectedcontent"));
+              }
+            };
+            select.appendChild(playing);
             cell.appendChild(select);
-            
-            if (type != "subtitle") {
-              var option = document.createElement("option");
-              select.appendChild(option);
-              option.value = "";
-              option.appendChild(document.createTextNode("Automatic"));
-            }
-            
+
+            select.setCurrent = function(idx){
+              if (typeof idx == "undefined") {
+                //try to find the current playing tracks
+                if (type in current) idx = current[type];
+                else {
+                  if (MistVideo.reporting.stats && MistVideo.reporting.stats.d && MistVideo.reporting.stats.d.tracks) {
+                    for (var i in tracks) {
+                      if (MistVideo.reporting.stats.d.tracks.indexOf(i) >= 0) {
+                        idx = i;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+
+              //keep selected value on Automatic, but place "current" tag
+              var old = select.querySelector("option[data-iscurrent]");
+              if (old) old.removeAttribute("data-iscurrent");
+
+              if (typeof idx == "undefined") return; 
+
+              current[type] = idx;
+              
+              //set select button to display the current track
+              playing.set(idx);
+
+              if (idx == "none") { return; }
+
+              var newopt = select.querySelector("option[value=\""+idx+"\"]");
+              if (newopt) newopt.setAttribute("data-iscurrent","true");
+
+              //it the fancy css is not supported, select the track that has been selected to display it
+              if (!CSS.supports("appearance","base-select")) select.value = idx;
+
+
+              MistVideo.log("Player selected "+type+" track with id "+idx);
+            };
+
+            var option = document.createElement("option");
+            select.appendChild(option);
+            option.value = "";
+            option.appendChild(document.createTextNode(type == "subtitle" ? "None" : "Automatic"));
+
             //display properties that are the same for all tracks
-            var same = orderValues(t[MistUtil.object.keys(t)[0]].same);
-            if (same.length) {
+            if (MistUtil.object.keys(supportedTracks.same).length) {
               var span = document.createElement("span");
-              span.className = "mistvideo-description";
+              span.appendChild(document.createTextNode(MistUtil.tracks.orderValues(supportedTracks.same[type]).join(" ")));
+              span.setAttribute("hidden","");
               cell.appendChild(span);
-              cell.appendChild(document.createTextNode(same.join(" ")));
             }
-            
             
             //add options to the select
-            function n(str) {
-              if (str == "") { return -1; }
-              return Number(str);
-            }
-            var options = MistUtil.object.keys(t,function(a,b){
-              return n(a) - n(b);
-            }); //sort them
-            for (var i in options) {
-              var track = t[options[i]];
+            //sort them by quality score, if known, then track id
+            var ts = MistUtil.object.keys(tracklist.parsed[type]).sort(function(a,b){
+              function k(idx) {
+                if ("qscore" in tracklist.parsed[type][idx]) return tracklist.parsed[type][idx].qscore;
+                return 0;
+              }
+              var ka = k(a);
+              var kb = k(b);
+              if (ka == kb) {
+                function n(str) {
+                  if (str == "") { return -1; }
+                  return Number(str);
+                }
+                var na = n(a);
+                var nb = n(b);
+                return na - nb;
+              }
+              else return kb - ka;
+            });
+
+            for (var i in ts) {
+              var track = tracklist.parsed[type][ts[i]];
               var option = document.createElement("option");
               select.appendChild(option);
               option.value = ("idx" in track ? track.idx : track.trackid);
-              if (MistUtil.object.keys(track.different).length) {
-                option.appendChild(document.createTextNode(orderValues(track.different).join(" ")));
+              option.setAttribute("title",MistUtil.tracks.orderValues(track.describe).join(" "));
+
+              var text;
+              if ((type in supportedTracks.parsed) && (track.idx in supportedTracks.parsed[type])) {
+                text = MistUtil.tracks.orderValues(supportedTracks.getDifferent(track)).join(" ");
+                option.setAttribute("data-issupported","true");
               }
               else {
-                //all the tracks are the same as far as the metadata is concerned, just show a track number
-                option.appendChild(document.createTextNode("Track "+(Number(i)+1)));
+                text = MistUtil.tracks.orderValues(tracklist.getDifferent(track)).join(" ");
+                option.setAttribute("data-issupported","false");
+              }
+              option.appendChild(document.createTextNode(text));
+
+              if (type == "subtitle") {
+                option.removeAttribute("data-issupported");
+              }
+              else {
+                if (MistVideo.source && ("def_trk" in MistVideo.source)) {
+                  option.setAttribute("data-isdefault",(MistVideo.source.def_trk.indexOf(track.idx) >= 0).toString());
+                }
               }
             }
+            var empty = select.querySelectorAll("option:empty");
+            for (var i = 0; i < empty.length; i++) {
+              empty[i].innerText = "Track "+(1+Number(i));
+              empty[i].setAttribute("data-empty","");
+            }
+            playing.set();
             
             MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
-              
-              if ((e.message.type != type) || (e.message.trackid == "none")) { return; }
-              select.value = e.message.trackid;
-              MistVideo.log("Player selected "+type+" track with id "+e.message.trackid);
-              
+              if (e.message.type != type) return;
+              select.setCurrent(e.message.trackid);              
             },select);
             
             if (type == "subtitle") {
               MistUtil.event.addListener(select,"change",function(){
-                try {
-                  localStorage["mistSubtitleLanguage"] = t[this.value].lang;
+                if (tracks[this.value].lang) {
+                  try {
+                    localStorage["mistSubtitleLanguage"] = tracks[this.value].lang;
+                  }
+                  catch (e) {}
                 }
-                catch (e) {}
 
                 if ("setWSSubtitle" in MistVideo.player.api) {
                   MistVideo.player.api.setWSSubtitle(this.value == "" ? undefined : this.value);
@@ -1996,8 +2090,8 @@ MistSkins["default"] = {
               
               //load last used language if available
               if (("localStorage" in window) && (localStorage != null) && ("mistSubtitleLanguage" in localStorage)) {
-                for (var i in t) {
-                  if (t[i].lang == localStorage["mistSubtitleLanguage"]) {
+                for (var i in tracks) {
+                  if (tracks[i].lang == localStorage["mistSubtitleLanguage"]) {
                     select.value = i;
                     
                     //trigger onchange
@@ -2018,36 +2112,38 @@ MistSkins["default"] = {
                 if (!changeToTracks(this.trackType,this.value)) {
                   //trackchange failed, reset select to old value
                 }
-                
-              });
-              
-              //set to the track that plays by default
-              /*
-              if (MistVideo.info.type == "live") {
-                //for live, the default track is the highest index
-                select.value = MistUtil.object.keys(t).pop();
-              }
-              else {
-                //for vod, the default track is the lowest index
-                select.value = MistUtil.object.keys(t).shift();
-              }
-              */
-              
+                playing.set(this.value || undefined);
+              });              
             }
           }
           else {
             //show as text
+            var track = tracks.parsed[type][MistUtil.object.keys(tracks.parsed[type])[0]];
             var span = document.createElement("span");
-            span.className = "mistvideo-description";
             cell.appendChild(span);
-            span.appendChild(document.createTextNode(orderValues(t[trackkeys[0]].same).join(" ")));
+            span.appendChild(
+              document.createTextNode(
+                MistUtil.tracks.orderValues(
+                 track.describe
+                ).join(" ") || "Track 1"
+              )
+            );
+            if (supportedTracks) {
+              if ((type in supportedTracks.parsed) && (track.idx in supportedTracks.parsed[type])) {
+                span.setAttribute("data-issupported","true");
+                span.removeAttribute("title");
+              }
+              else if (type != "subtitle") {
+                span.setAttribute("data-issupported","false");
+                span.setAttribute("title","The "+type+" track is not supported");
+              }
+            }
           }
         }
 
         for (var j in tracktypes) {
           var type = tracktypes[j];
-          var t = tracks[type];
-          processTrack(t,type);
+          processTrackType(type);
         }
         
       }
@@ -2056,6 +2152,12 @@ MistSkins["default"] = {
         
         //reconstruct track selection interface
         build(e.message.meta.tracks);
+        
+      },table);
+      MistUtil.event.addListener(MistVideo.video,"metaUpdate_source",function(e){
+        //MistVideo.source has been updated
+        //reconstruct track selection interface
+        build(MistVideo.info.meta.tracks);
         
       },table);
       
@@ -3653,7 +3755,25 @@ MistSkins.dev = {
         var msg = document.createElement("span");
         msg.className = "message";
         td.appendChild(msg);
-        msg.appendChild(document.createTextNode(message));
+        //check for very long "words" and mark those for agressive wrapping
+        var words = message.split(" ");
+        var sentence = [document.createTextNode("")];
+        for (var i in words) {
+          var word = words[i];
+          if (word.length > 20) {
+            var span = document.createElement("span");
+            span.appendChild(document.createTextNode(word));
+            span.className = "breakall";
+            sentence.push(span);
+            sentence.push(document.createTextNode(" "));
+          }
+          else {
+            sentence[sentence.length-1].nodeValue += word+" ";
+          }
+        }
+        for (var i in sentence) {
+          msg.appendChild(sentence[i]);
+        }
         
         var counter = document.createElement("span");
         counter.style.display = "none";
@@ -4182,6 +4302,7 @@ MistSkins.dev = {
       s.appendChild(document.createTextNode("Force player: "));
       
       var select = document.createElement("select");
+      select.className = "mistvideo-base-select";
       container.appendChild(select);
       var option = document.createElement("option");
       select.appendChild(option);
@@ -4192,6 +4313,64 @@ MistSkins.dev = {
         select.appendChild(option);
         option.value = i;
         option.appendChild(document.createTextNode(mistplayers[i].name));
+
+        if (MistVideo.combo && MistVideo.combo.list.length) {
+          var found = false;
+          for (var n in MistVideo.combo.list) {
+            var combo = MistVideo.combo.list[n];
+            if (combo.getPlayer().shortname == i) {
+              found = true;
+              option.style.setProperty("--order",Number(n)+1);
+              break;
+            }
+          }
+          if (!found) {
+            option.setAttribute("data-supported","false");
+            option.setAttribute("title","This player will not be selected automatically");
+            var sources = MistVideo.info.source;
+            if (sources && sources.length) {
+              for (var j in sources) {
+                var source = sources[j];
+                if (mistplayers[i].isMimeSupported(source.type)) {
+                  //check player suid cache - if it is true or has any true testresults, player is playable
+                  if (function checkCachedSupport(player,source){
+                    if (("cachedSupport" in player) && (source.suid in player.cachedSupport)) {
+                      var cache = player.cachedSupport;
+                      if (cache == false) return false;
+                      if (cache === true) return true;
+                      if (cache instanceof MistUtil.tracks.TestResults) {
+                        for (var i in cache.results) {
+                          if (cache.results[i]) {
+                            //result is true-ish
+                            return true;
+                          }
+                        }
+                      }
+                    }
+                    return false;
+                  }(mistplayers[i],source) || function lazyCheckBrowserSupport(player,source){
+                    try {
+                      var result = player.isBrowserSupported(source.type,source,MistVideo,true); //sending true instead of trackmeta to avoid testing track support
+                      if (result === false) return false;
+                      if (result) return true;
+                    }
+                    catch(e) {
+                      //it probably tried to test track support but couldn't - it's not a false at least
+                      return true;
+                    }
+                  }(mistplayers[i],source)){
+                    option.setAttribute("data-playable","");
+                    option.setAttribute("title","This player could play with different player settings");
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (i == MistVideo.playerName) {
+          option.setAttribute("data-iscurrent","");
+        }
         
       }
       
@@ -4219,11 +4398,13 @@ MistSkins.dev = {
       s.appendChild(document.createTextNode("Force protocol: "));
       
       var select = document.createElement("select");
+      select.className = "mistvideo-base-select";
       container.appendChild(select);
       var option = document.createElement("option");
       select.appendChild(option);
       option.value = "";
       option.appendChild(document.createTextNode("Automatic"));
+
       var sofar = {};
       for (var i in MistVideo.info.source) {
         var source = MistVideo.info.source[i];
@@ -4236,8 +4417,37 @@ MistSkins.dev = {
         select.appendChild(option);
         option.value = source.type;
         option.appendChild(document.createTextNode(MistUtil.format.mime2human(source.type)));
-      }
+        
+        if (MistVideo.combo && MistVideo.combo.list.length) {
+          var found = false;
+          for (var n in MistVideo.combo.list) {
+            var combo = MistVideo.combo.list[n];
+            if (combo.getSource().type == source.type) {
+              found = true;
+              option.style.setProperty("--order",Number(n)+1);
+              break;
+            }
+          }
+          if (!found) {
+            option.setAttribute("data-supported","false");
+            option.setAttribute("title","This protocol will not be selected automatically");
       
+            //mark mimetypes that are not in the combo list, but could be played by a player (not affected by forcePlayer/forceSource/forceType options)
+            for (var shortname in mistplayers) {
+              if (mistplayers[shortname].isMimeSupported(source.type)) {
+                option.setAttribute("data-playable","");
+                option.setAttribute("title","This protocol could play with different player settings");
+                break;
+              }
+            }
+          }
+        }
+
+        if (MistVideo.source && (source.type == MistVideo.source.type)) {
+          option.setAttribute("data-iscurrent","");
+        }
+      }
+     
       if (this.options.forceType) { select.value = this.options.forceType; }
       
       MistUtil.event.addListener(select,"change",function(){
@@ -4260,7 +4470,91 @@ MistSkins.dev = {
       s.appendChild(document.createTextNode("Force source: "));
       
       var select = document.createElement("select");
+      select.className = "mistvideo-base-select";
       container.appendChild(select);
+      
+      if (CSS.supports("appearance","base-select")) {
+        var btn = document.createElement("button");
+        btn.appendChild(document.createElement("selectedcontent"));
+        select.appendChild(btn);
+
+        //find differences in the source urls
+        var urls = [];
+        var same;
+        for (var i in MistVideo.info.source) {
+          var source = MistVideo.info.source[i];
+          var url = new URL(source.url);
+          var parts = [
+            url.protocol+"//"
+          ];
+          parts = parts.concat(function splithost(hostname){
+            var split = hostname.split(".");
+            if (split.length > 1) return split.map(function(a,i){
+              if (i == split.length - 2) return a;
+              if (i == split.length - 1) return "."+a;
+              return a+".";
+            });
+            return hostname;
+          }(url.hostname));
+          if (url.port) {
+            parts.push(":"+url.port);
+          }
+          if (url.pathname) {
+            parts = parts.concat(function splitpath(pathname){
+              var split = pathname.split("/");
+
+              //put back / for all elements but the last
+              split = split.map(function(a,i){
+                if (i < split.length-1) return a+"/";
+                return a;
+              });
+
+              //find parts with an extension, and split the extension
+              split = split.reduce(function(acc,current){
+                var dot = current.split(".");
+                if (dot.length > 1) {
+                  acc.push(dot.slice(0,-1).join("."));
+                  acc.push("."+dot.slice(-1));
+                }
+                else acc.push(current);
+                return acc;
+              },[]);
+
+              return split;
+            }(url.pathname));
+          }
+          if (url.search) {
+            //hide tkn param
+            url.searchParams.delete("tkn");
+
+            if (url.search) {
+              parts = parts.concat(function splitsearch(search){
+                var split = search.split("&");
+
+                //put back & for all elements but the first
+                return split.map(function(a,i){
+                  if (i > 0) return "&"+a;
+                  return a;
+                });
+              }(url.search));
+            }
+          }
+          urls[i] = parts;
+          if (i == 0) {
+            same = parts.slice(0);
+          }
+          else {
+            //kick any from same that are not in parts
+            for (var i = same.length-1; i >= 0; i--) {
+              var str = same[i];
+              if (parts.indexOf(str) == -1) {
+                same.splice(i,1);
+              }
+            }
+          }
+        }
+      }
+
       var option = document.createElement("option");
       select.appendChild(option);
       option.value = "";
@@ -4269,15 +4563,66 @@ MistSkins.dev = {
         var source = MistVideo.info.source[i];
         var option = document.createElement("option");
         select.appendChild(option);
-        option.value = i;
-        option.appendChild(document.createTextNode(source.url+" ("+MistUtil.format.mime2human(source.type)+")"));
+        option.value = source.suid;
+        if (CSS.supports("appearance","base-select")) {
+          var s = document.createElement("span");
+          s.appendChild(document.createTextNode(source.hrn));
+          s.className = "mistvideo-mime";
+          option.appendChild(s);
+
+          var s = document.createElement("span");
+          s.appendChild(document.createTextNode(" via "));
+          s.className = "mistvideo-description";
+          option.appendChild(s);
+
+          for (var j in urls[i]) {
+            var part = urls[i][j];
+            var s = document.createElement("span");
+            s.appendChild(document.createTextNode(part));
+            if (same.indexOf(part) > -1) s.className = "mistvideo-description";
+            option.appendChild(s);
+          }
+
+        }
+        else {
+          option.appendChild(document.createTextNode(source.hrn+" via "+source.url));
+        }
+
+        if (MistVideo.combo && MistVideo.combo.list.length) {
+          var found = false;
+          for (var n in MistVideo.combo.list) {
+            var combo = MistVideo.combo.list[n];
+            if (combo.getSource().suid == source.suid) {
+              found = true;
+              option.style.setProperty("--order",Number(n)+1);
+              break;
+            }
+          }
+          if (!found) {
+            option.setAttribute("data-supported","false");
+            option.setAttribute("title","This source will not be selected automatically");
+
+            //mark sources that are not in the combo list, but could be played by a player (not affected by forcePlayer/forceSource/forceType options)
+            for (var shortname in mistplayers) {
+              if (mistplayers[shortname].isMimeSupported(source.type)) {
+                option.setAttribute("data-playable","");
+                option.setAttribute("title","This source could play with different player settings");
+                break;
+              }
+            }
+          }
+        }
+
+        if (source.suid == MistVideo.source.suid) {
+          option.setAttribute("data-iscurrent","");
+        }
       }
       
       if (this.options.forceSource) { select.value = this.options.forceSource; }
       
       MistUtil.event.addListener(select,"change",function(){
         MistVideo.options.forceSource = (this.value == "" ? false : this.value);
-        if (MistVideo.options.forceSource != MistVideo.source.index) { //only reload if there is a change
+        if (MistVideo.options.forceSource != MistVideo.source.suid) { //only reload if there is a change
           if (MistVideo.options.startCombo) MistVideo.options.startCombo = false; //reset starting point for next combo
           MistVideo.reload("Reloading to force new source.");
         }
@@ -4293,6 +4638,7 @@ MistSkins.dev = {
       s.appendChild(document.createTextNode("Debug level: "));
 
       var select = document.createElement("select");
+      select.className = "mistvideo-base-select";
       var opts = {
         "false": "Quiet (default)",
         "true": "Some",
@@ -4336,6 +4682,7 @@ MistSkins.dev.css = {skin: misthost+"/skins/dev.css"};
 MistSkins.dev.structure.submenu = MistUtil.object.extend({},MistSkins["default"].structure.submenu,true);
 MistSkins.dev.structure.submenu.type = "draggable";
 MistSkins.dev.structure.submenu.style.width = "25em";
+MistSkins.dev.structure.submenu.children[0].checkboxes = true;
 MistSkins.dev.structure.submenu.children.unshift({
   type: "container",
   style: { flexShrink: 1 },
@@ -4349,7 +4696,7 @@ MistSkins.dev.structure.submenu.children.unshift({
       },
       then: {
         type: "container",
-        classes: ["mistvideo-description","mistvideo-displayCombo"],
+        classes: ["mistvideo-displayCombo"],
         style: { display: "block" },
         children: [
           {type: "playername", style: { display: "inline" }},
@@ -4391,7 +4738,7 @@ MistSkins.dev.structure.submenu.children.unshift({
         {type:"forcePlayer"},
         {type:"forceType"},
         {type: "debuglevel"}
-        //,{type:"forceSource"}
+        ,{type:"forceSource"}
       ]
     }
   ]

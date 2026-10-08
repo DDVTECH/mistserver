@@ -5,7 +5,7 @@ mistplayers.flv = {
   isMimeSupported: function (mimetype) {
     return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,trackmeta) {
     
     //check for http/https mismatch
     if (location.protocol != MistUtil.http.url.split(source.url).protocol) {
@@ -18,9 +18,8 @@ mistplayers.flv = {
       }
     }
     
-    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
-    supported = MistUtil.shared.testMediaSource(supported);
-    return MistUtil.tracks.tracktypes(supported);
+    if (!trackmeta) trackmeta = MistVideo.info.meta.tracks;
+    return MistUtil.shared.testMediaSource(MistUtil.tracks.getSupported(trackmeta,source));
   },
   player: function(){
     this.onreadylist = [];
@@ -80,10 +79,12 @@ p.prototype.build = function (MistVideo,callback) {
       hasAudio: false,
       hasVideo: false
     };
+
+    var supportedTracks = MistVideo.info.meta.tracks.getSupported(MistVideo.source,mistplayers.flv,MistVideo);
+    if ("audio" in supportedTracks.parsed) opts.hasAudio = true;
+    if ("video" in supportedTracks.parsed) opts.hasVideo = true;
     //if for example audio is not supported, send hasAudio = false flag or you get a bunch of errors ^_^
-    for (var i in MistVideo.source.supportedCodecs) {
-      opts["has"+MistVideo.source.supportedCodecs[i].charAt(0).toUpperCase()+MistVideo.source.supportedCodecs[i].slice(1)] = true;
-    }
+
     MistVideo.player.create = function(o){
       o = MistUtil.object.extend({},o); //create a copy to force flv.js to recreate the segments key
       MistVideo.player.flvPlayer = flvjs.createPlayer(o,{

@@ -1,183 +1,1094 @@
-.mistvideo{display:block;margin:0 auto;position:relative;color:$stroke;font-family:sans-serif;background-color:#000;justify-content:center;align-items:center;max-width:100vw!important;max-width:min(100%,100vw)!important;max-width:min(100%,100vw,100dvw)!important;max-height:100vh!important;max-height:min(100%,100vh)!important;max-height:min(100%,100vh,100dvh)!important;overflow:hidden}
-.mistvideo-controls{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
-.mistvideo.novideo{overflow:visible}
-.mistvideo-video{overflow:hidden;outline:0}
-.mistvideo .mistvideo-videocontainer{justify-content:center;align-items:center}
-.mistvideo .mistvideo-maincontainer,.mistvideo .mistvideo-videocontainer{width:var(--width);height:var(--height)}
-.mistvideo[data-fullscreen] .mistvideo-maincontainer,.mistvideo[data-fullscreen] .mistvideo-videocontainer{width:100vw;height:100vh}
-[data-mist-rotate="-1"],[data-mist-rotate="1"]{width:var(--height)!important;height:var(--width)!important;transform-origin:bottom left;transform:translate(calc(var(--factor) * var(--width)),calc(var(--factor) * var(--height) - var(--width))) rotate(var(--rotate));object-fit:contain}
-.mistvideo[data-fullscreen] [data-mist-rotate="-1"],.mistvideo[data-fullscreen] [data-mist-rotate="1"]{width:100vh!important;height:100vw!important;transform-origin:bottom left;transform:translate(calc(var(--factor) * 100vw),calc(var(--factor) * 100vh - 100vw)) rotate(var(--rotate));object-fit:contain}
-[data-mist-rotate="1"]{--rotate:90deg;--factor:0}
-[data-mist-rotate="-1"]{--rotate:-90deg;--factor:1}
-[data-mist-rotate="2"]{transform:rotate(180deg);transform-origin:center center}
-.mistvideo svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
-.mistvideo[data-loading]{position:relative}
-.mistvideo[data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
-.mistvideo[data-loading] svg.icon.loading{z-index:2;opacity:1}
-.mistvideo[data-loading-css] .mistvideo-controls{display:none}
-.mistvideo[data-hidecursor],.mistvideo[data-hidecursor] *,.mistvideo[data-hidecursor] .mistvideo-pointer{cursor:none}
-.mistvideo-error{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background-color:$background;align-items:center;justify-content:center;text-align:center;z-index:2;cursor:default;min-height:fit-content;min-width:fit-content;height:100%}
-.mistvideo-error.show{display:flex}
-.mistvideo-error .message{max-width:80%}
-.mistvideo-error .message .details table{text-align:left}
-.mistvideo-keyControls{position:absolute;top:0;left:0;bottom:0;right:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 1s 1s;white-space:pre;text-align:center}
-.mistvideo-keyControls[data-show]{opacity:1;transition:opacity .2s}
-.mistvideo-keyControls>*{background-color:#0005}
-.mistvideo-keyControls>div{transform:scale(0);transition:transform ease-in 1.5s 1s}
-.mistvideo-keyControls>div:not(:empty){padding:2em;border-radius:50%;margin:1em}
-.mistvideo-keyControls[data-show]>div:not(:empty){transform:scale(1);transition:transform cubic-bezier(1,2,.5,1) .2s}
-.mistvideo-keyControls>div>.icon.play{transform:translateX(8px)}
-.mistvideo-keyControls>span{font-size:1.5em;padding:0 .25em}
-.mistvideo[data-controls=show] .mistvideo-controls{bottom:0;transition-delay:0s!important;transition-duration:.1s!important}
-.mistvideo-controls button,.mistvideo-error button,.mistvideo-video:not(.video-js) button{color:$stroke;border:1px solid $semiFill;background-color:$background;margin:.25em;padding:.5em 1em;opacity:.5;cursor:pointer}
-.mistvideo button:hover{opacity:1}
-.mistvideo select{background-color:transparent;color:$stroke;border:none;margin:0 .5em;font-size:inherit;cursor:pointer;-ms-background-color:red}
-.mistvideo select>option{background-color:$background}
-.browser-edge select,.browser-safari select{border:1px solid $semiFill;border-top:none;border-left:none;margin-top:2px}
-@keyframes mistvideo-spin{
-0%{transform:rotate(0)}
-100%{transform:rotate(360deg)}
+/* skins/dev.css */
+.mistvideo-log {
+  margin: .5em 0;
 }
-[data-fullscreen]{position:fixed;top:0;left:0;right:0;bottom:0;width:100%!important;height:100%!important;background-color:#111!important;z-index:999}
-.mistvideo video{display:block;flex-shrink:0}
-.mistvideo table{color:inherit;font-size:inherit;font-style:inherit}
-.mistvideo audio:not([controls]){display:block!important}
-.mistvideo-padding{padding:5px 10px}
-.mistvideo-pointer{cursor:pointer}
-.msitvideo .description{color:$semiFill;font-size:.9em}
-.mistvideo-container{display:flex;flex-wrap:nowrap}
-.mistvideo-container.mistvideo{display:inline-flex;max-width:100%}
-.mistvideo-container.mistvideo-row{flex-direction:row}
-.mistvideo-container.mistvideo-column{flex-direction:column}
-.mistvideo-container.mistvideo-center{justify-content:center}
-.mistvideo-align-right{margin-left:auto;margin-right:0}
-.hover_window_container.pos>.outer_window{position:absolute;pointer-events:none;overflow:hidden}
-.hover_window_container.pos>.outer_window>.inner_window{position:absolute;pointer-events:all}
-.hover_window_container:not(:hover)>.outer_window>.inner_window,.hover_window_container>.outer_window[data-hidecursor]>.inner_window{transition:all .5s ease-in .5s}
-.outer_window>.inner_window{flex-grow:1}
-.hover_window_container>.outer_window>.inner_window>*{flex-shrink:0}
-.mistvideo-draggable{overflow:hidden}
-.mistvideo-tooltip{position:absolute;background-color:$background;padding:.5em 1em;z-index:2}
-:not(:hover)>.mistvideo-tooltip{transition:opacity .25s ease-in}
-.mistvideo-tooltip .triangle{border:10px solid $background;position:absolute}
-.mistvideo-tracks label{display:block}
-.mistvideo-tracks label>span{margin-right:1em}
-.mistvideo a{color:$accent}
-.mistvideo-log .logs{-webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text}
-.mistvideo-placeholder{max-width:100%;max-height:100%}
-.mistvideo-topright{position:absolute;top:0;right:0}
-.mistvideo-topleft{position:absolute;top:0;left:0}
-.mistvideo-delay-display{animation:mistvideo-appear 1s;animation-iteration-count:1;animation-timing-function:steps(1,end)}
-@keyframes mistvideo-appear{
-from{opacity:0}
-to{opacity:1}
+.mistvideo-log .logs {
+  max-height: 10em;
+  min-height: 5em;
+  width: 100%;
+  padding: .2em 1em .2em 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-size: .9em;
 }
-.mistvideo svg.icon{display:block;stroke-width:$strokeWidth;fill:none;stroke:none}
-.mistvideo svg.icon.fill,svg.icon .fill{fill:$fill}
-.mistvideo svg.icon.semiFill,svg.icon .semiFill{fill:$semiFill}
-.mistvideo svg.icon.stroke,svg.icon .stroke{stroke:$stroke;vector-effect:non-scaling-stroke}
-.mistvideo svg.icon.off .toggle .fill,.mistvideo svg.icon.off .toggle .semiFill,.mistvideo svg.icon.off .toggle.fill,.mistvideo svg.icon.off .toggle.semiFill{fill:none}
-.mistvideo svg.icon.spin,svg.icon .spin{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
-.vjs-text-track-display{pointer-events:none}
-.vjs-controls-disabled .vjs-control-bar,.vjs-error .vjs-control-bar,.vjs-error-display,.vjs-hidden,.vjs-using-native-controls .vjs-control-bar{display:none!important}
-.vjs-controls-disabled .vjs-big-play-button,.vjs-controls-disabled .vjs-loading-spinner,.vjs-error .vjs-big-play-button,.vjs-has-started .vjs-big-play-button,.vjs-using-native-controls .vjs-big-play-button{display:none}
-.mistvideo{line-height:1.2;font-size:14.5px}
-.mistvideo svg{margin:2.5px}
-.mistvideo-video{display:flex;align-items:center;justify-content:center}
-.mistvideo-subtitles{position:absolute;top:0;bottom:0;width:100%;display:flex;align-items:flex-end;justify-content:center;font-size:1.5em;font-size:clamp(1em,1cm,calc(var(--height)*.1));transition:bottom .5s ease-in .5s;pointer-events:none}
-.mistvideo-subtitles[data-position=top]{align-items:flex-start}
-.mistvideo-subtitles>*{margin:.5em 0;padding:.1em .3em;text-align:center;background:rgba(0,0,0,.5);white-space:pre-wrap;pointer-events:auto;cursor:pointer}
-.mistvideo-subtitles>:empty{display:none}
-.mistvideo[data-fullscreen] .mistvideo-subtitles{font-size:5vh;font-size:clamp(2em,2cm,5vh)}
-.mistvideo-maincontainer:hover:not([data-hidecursor]) .mistvideo-subtitles,.mistvideo[data-controls=show] .mistvideo-subtitles,.mistvideo[data-show-submenu] .mistvideo-subtitles{bottom:42px;transition:none}
-.mistvideo-background{background-color:$background}
-.mistvideo-totalTime:before{content:'/';margin:.2em}
-.mistvideo-totalTime.mistvideo-pointer:focus:after,.mistvideo-totalTime.mistvideo-pointer:hover:after{content:"•";color:$accent;display:inline-block;margin-left:.5em;transform:scale(2)}
-.mistvideo-passiveError{margin:0 auto;padding:0 .5em;text-align:center;display:flex;flex-flow:row nowrap;align-items:baseline;flex-shrink:1;min-width:0}
-.mistvideo-passiveError:has(.message_container:empty){display:none}
-.mistvideo-passiveError .mistvideo-iconcontainer{margin-right:.5em;display:inline-flex;align-items:center}
-.mistvideo-passiveError .mistvideo-iconcontainer:before{content:"\200B"}
-.mistvideo-passiveError .mistvideo-iconcontainer:empty:before{content:"⚠️ ";align-items:baseline}
-.mistvideo-passiveError .message_container{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;opacity:.8}
-.mistvideo-passiveError .mistvideo-buttoncontainer{display:flex;flex-flow:row nowrap;align-items:baseline;margin-left:.5em;position:relative}
-.mistvideo-passiveError .mistvideo-buttoncontainer:not(:hover):not(:focus-within) .mistvideo-menu{display:none}
-.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu{position:absolute;display:flex;flex-flow:column-reverse nowrap;bottom:100%;background-color:rgba(0,0,0,.8);z-index:3;width:max-content;margin-left:-.25em;margin-bottom:.5em}
-.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu:after{content:"";position:absolute;bottom:-.5em;left:0;right:0;height:.5em}
-.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu+button{background:0 0;border:none;opacity:1;font-size:inherit;padding:0;margin:0;white-space:nowrap;text-decoration:underline}
-.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu+button:hover{text-decoration:none}
-.mistvideo-passiveError .mistvideo-buttoncontainer .countdown{margin-left:.5em;opacity:.8;font-size:.8em;white-space:nowrap}
-.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:first-letter{text-transform:uppercase}
-.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:after{content:".."}
-.mistvideo-progress{padding:10px 0;margin:-10px 0;z-index:2}
-.mistvideo-progress>*{height:2px;background-color:$progressBackground;opacity:.95;position:relative}
-.mistvideo-novideo .mistvideo-progress>*,.mistvideo-progress:hover>*{height:10px}
-.mistvideo-progress:not(:hover)>*{transition:height .25s ease-in .5s}
-.mistvideo-progress .bar{height:inherit;width:100%;transform:scaleX(0);transform-origin:left;position:absolute;border-right:inherit;background-color:$accent;z-index:2;transition:transform .2s}
-.mistvideo-progress .buffer{height:inherit;width:0;position:absolute;background-color:$semiFill}
-.mistvideo-progress .bar:after{content:'';border:5px solid $accent;border-radius:5px;position:absolute;right:-5px;top:50%;transform:translateY(-50%)}
-.mistvideo-progress .mistvideo-tooltip .mistvideo-realtime{text-align:center;display:block}
-.mistvideo-play[data-state=playing] svg.play{display:none}
-.mistvideo-play[data-state=paused] svg.pause{display:none}
-.mistvideo-main{align-items:center}
-.mistvideo svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right:.25em;vertical-align:top}
-.mistvideo>.mist.largeplay,.mistvideo>.mist.muted{position:absolute;opacity:.5;background-color:$background;border-radius:50%;padding:.5em}
-.mistvideo>.mist.largeplay{top:50%;left:0;right:0;margin:auto;transform:translateY(-50%);padding:1em}
-.mistvideo>.mist.largeplay path{stroke-width:2.67;transform:scale(.75) translateX(3px);transform-origin:center}
-.mistvideo>.mist.largeplay:hover path{stroke:$accent}
-.mistvideo>.mist.muted{top:0;right:0;margin:1%;max-height:20%;width:auto}
-.mistvideo-secondaryVideo{z-index:1;position:absolute;right:0;top:0;width:50%;height:50%;max-width:fit-content;max-height:fit-content}
-.mistvideo-polling{display:inline-block;position:relative;width:25px;height:25px}
-.mistvideo-polling svg.icon.loading{z-index:0;opacity:1}
-.mistvideo:not([data-hide-submenu]) .mistvideo-hoverWindow:hover>svg.icon.settings .fill,.mistvideo[data-fullscreen] svg.icon.fullscreen .fill,.mistvideo[data-show-submenu] svg.icon.settings .fill{fill:$accent}
-.mistvideo[data-show-submenu] .mistvideo-submenu{right:5px}
-.mistvideo[data-hide-submenu] .mistvideo-submenu{right:-1000px!important}
-.mistvideo[data-show-submenu] .mistvideo-controls{bottom:0}
-.mistvideo:has(.mistvideo-hoverWindow:hover.mistvideo-submenu),.mistvideo[data-show-submenu]{overflow:visible}
-.mistvideo-currentTime{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mistvideo-currentTime .mistvideo-realtime,.mistvideo-progress .mistvideo-realtime{opacity:.6}
-.mistvideo-videobackground{position:absolute;width:100%;height:100%;z-index:-1}
-.mistvideo-videobackground:after{content:'';display:block;position:absolute;width:100%;height:100%;backdrop-filter:blur(1cm);z-index:2}
-.mistvideo-videobackground *{position:absolute;filter:opacity(0);transition:filter 0s 2s;width:100%;height:100%}
-.mistvideo-videobackground [data-front]{z-index:1;filter:opacity(1);transition:filter 2s}
-.mistvideo-videocontainer{position:relative;overflow:hidden}
-.mistvideo.casting .mistvideo-controls{bottom:0}
-.mistvideo.casting .mistvideo-video{filter:blur(1em)}
-.mistvideo.casting .mistvideo-maincontainer{overflow:hidden}
-.mistvideo.casting .mistvideo-casting{position:absolute;top:50%;transform:translateY(-50%);text-align:center;width:100%;font-size:2em;text-shadow:1px 1px 5px #000a}
-.mistvideo-error[data-passive]{bottom:auto;left:auto;height:auto;margin:.5em;padding:.5em}
-.mistvideo-error[data-passive] .message{max-width:none}
-.mistvideo-error .mistvideo-buttoncontainer{display:flex;flex-flow:row nowrap;justify-content:center}
-.mistvideo-error .mistvideo-buttoncontainer .mistvideo-button{white-space:nowrap}
-.browser-ie .mist.icon.loading{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
-.browser-ie .mist.icon.loading .spin{animation:none}
-.mistvideo-chromecast{display:flex}
-.mistvideo google-cast-launcher{width:24px;height:24px;--connected-color:$fill;--disconnected-color:$semiFill}
-.mistvideo google-cast-launcher.active{--connected-color:$accent;--disconnected-color:$fill}
-.mistvideo.casting .mistvideo-slideshow_mode{display:none}
-.mistvideo-log{margin:.5em 0}
-.mistvideo-log .logs{max-height:10em;min-height:5em;width:100%;padding:.2em 0;padding-right:1em;overflow-y:auto;overflow-x:hidden;font-size:.9em}
-.mistvideo-log .logs table td{vertical-align:top;padding:0}
-.mistvideo-log .logs .entry .message{margin:0 .2em}
-.mistvideo-log .logs .entry.type-error{color:$accent}
-.mistvideo-log .logs .counter,.mistvideo-log .logs .timestamp{color:$semiFill}
-.mistvideo-log .logs .timestamp:before{content:'['}
-.mistvideo-log .logs .timestamp:after{content:']'}
-.mistvideo-log .logs .counter:before{content:'('}
-.mistvideo-log .logs .counter:after{content:'\00d7)'}
-.mistvideo-devbuttons{font-size:.9em}
-.mistvideo-devbuttons button{font-size:.8em;margin:.1em;padding:.2em .4em}
-.mistvideo-debuglevel>span,.mistvideo-forcePlayer>span,.mistvideo-forceSource>span,.mistvideo-forceType>span{display:inline-block;width:7em}
-.mistvideo-debuglevel>select,.mistvideo-forcePlayer>select,.mistvideo-forceSource>select,.mistvideo-forceType>select{width:15em;min-width:auto}
-.mistvideo-devcontrols{margin:.5em 0}
-.mistvideo-decodingIssues>div>*{display:flex;width:50%;max-width:20em;flex-flow:row nowrap;align-items:flex-start;justify-content:space-between;font-size:.9em}
-.mistvideo-decodingIssues>div>*>:last-child{margin-right:.5em}
-.mistvideo-decodingIssues>div{display:flex;flex-flow:row wrap;justify-content:space-between}
-.mistvideo-decodingIssues label{position:relative}
-.mistvideo-decodingIssues label .value{font-size:.8em;align-self:flex-end}
-.mistvideo-decodingIssues label>span>span>div>div{display:flex;justify-content:space-between;align-items:baseline}
-.mistvideo-decodingIssues label>span>span>div>div:first-child:last-child>.mistvideo-description{display:none}
-.mistvideo svg.icon.graph{position:absolute;right:0;top:0;bottom:0;width:6em}
-.mistvideo select{border-radius:0}
-.mistvideo input[type=checkbox]{margin:0;margin-right:.2em;border:1px solid $semiFill;border-radius:0;-webkit-appearance:none;-moz-appearance:none;-ms-appearance:none;appearance:none;width:.8em;height:.8em;color:inherit;position:relative;cursor:pointer}
-.mistvideo input[type=checkbox]:checked:after{content:"\2713";position:absolute;bottom:-.2em;left:0;font-size:1.2em}
-.mistvideo.casting .mistvideo-displayCombo,.mistvideo.casting .mistvideo-forcePlayer,.mistvideo.casting .mistvideo-forceType{display:none!important}
+.mistvideo-log .logs table td {
+  vertical-align: top;
+  padding: 0;
+}
+.mistvideo-log .logs .entry .message {
+  margin: 0 .2em;
+}
+.mistvideo-log .logs .entry .message .breakall {
+  word-break: break-all;
+}
+.mistvideo-log .logs .entry.type-error {
+  color: $accent;
+}
+.mistvideo-log .logs .timestamp,
+.mistvideo-log .logs .counter {
+  color: $semiFill;
+}
+.mistvideo-log .logs .timestamp:before {
+  content: "[";
+}
+.mistvideo-log .logs .timestamp:after {
+  content: "]";
+}
+.mistvideo-log .logs .counter:before {
+  content: "(";
+}
+.mistvideo-log .logs .counter:after {
+  content: "\d7)";
+}
+.mistvideo-devbuttons {
+  font-size: .9em;
+}
+.mistvideo-devbuttons button {
+  font-size: .8em;
+  margin: .1em;
+  padding: .2em .4em;
+}
+.mistvideo-debuglevel > span,
+.mistvideo-forceSource > span,
+.mistvideo-forceType > span,
+.mistvideo-forcePlayer > span {
+  display: inline-block;
+  width: 7em;
+}
+.mistvideo-debuglevel > select,
+.mistvideo-forceSource > select,
+.mistvideo-forceType > select,
+.mistvideo-forcePlayer > select {
+  width: 15em;
+  min-width: auto;
+}
+.mistvideo-devcontrols {
+  margin: .5em 0;
+}
+.mistvideo-decodingIssues > div > * {
+  display: flex;
+  width: 50%;
+  max-width: 20em;
+  flex-flow: row nowrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  font-size: .9em;
+}
+.mistvideo-decodingIssues > div > * > :last-child {
+  margin-right: .5em;
+}
+.mistvideo-decodingIssues > div {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-between;
+}
+.mistvideo-decodingIssues label {
+  position: relative;
+}
+.mistvideo-decodingIssues label .value {
+  font-size: .8em;
+  align-self: flex-end;
+}
+.mistvideo-decodingIssues label > span > span > div > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.mistvideo-decodingIssues label > span > span > div > div:first-child:last-child > .mistvideo-description {
+  display: none;
+}
+.mistvideo svg.icon.graph {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6em;
+}
+.mistvideo select {
+  border-radius: 0;
+}
+.mistvideo.casting .mistvideo-forcePlayer,
+.mistvideo.casting .mistvideo-forceType,
+.mistvideo.casting .mistvideo-displayCombo {
+  display: none !important;
+}
+.mistvideo-tracks select option[data-issupported=false] {
+  display: initial;
+  opacity: .4;
+}
+.mistvideo-tracks tr:has(td span[data-issupported=false]) {
+  display: table-row;
+  opacity: .4;
+}
+.mistvideo-tracks select + [hidden] {
+  display: initial;
+}
+@supports (appearance: base-select) {
+  .mistvideo-tracks select > option[data-issupported=false][value] {
+    display: flex;
+  }
+  .mistvideo .mistvideo-tracks select[data-type]:has(option[data-issupported]):not(:has(option[data-issupported=true] ~ option[data-issupported=true])) {
+    cursor: pointer;
+    &::picker-icon {
+      display: initial;
+    }
+    button[data-empty] {
+      &:after {
+        content: attr(title);
+      }
+      > span {
+        display: none;
+      }
+    }
+    &:has(button[data-empty]) + span {
+      display: none;
+    }
+  }
+}
+
+/* skins/general.css */
+.mistvideo {
+  display: block;
+  margin: 0 auto;
+  position: relative;
+  color: $stroke;
+  font-family: sans-serif;
+  background-color: #000;
+  justify-content: center;
+  align-items: center;
+  max-width: 100vw !important;
+  max-width: min(100%, 100vw) !important;
+  max-width: min(100%, 100vw, 100dvw) !important;
+  max-height: 100vh !important;
+  max-height: min(100%, 100vh) !important;
+  max-height: min(100%, 100vh, 100dvh) !important;
+  overflow: hidden;
+}
+.mistvideo-controls {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.mistvideo.novideo {
+  overflow: visible;
+}
+.mistvideo-video {
+  overflow: hidden;
+  outline: none;
+}
+.mistvideo .mistvideo-videocontainer {
+  justify-content: center;
+  align-items: center;
+}
+.mistvideo .mistvideo-maincontainer,
+.mistvideo .mistvideo-videocontainer {
+  width: var(--width);
+  height: var(--height);
+}
+.mistvideo[data-fullscreen] .mistvideo-maincontainer,
+.mistvideo[data-fullscreen] .mistvideo-videocontainer {
+  width: 100vw;
+  height: 100vh;
+}
+[data-mist-rotate="1"],
+[data-mist-rotate="-1"] {
+  width: var(--height) !important;
+  height: var(--width) !important;
+  transform-origin: bottom left;
+  transform: translate(calc(var(--factor) * var(--width)), calc(var(--factor) * var(--height) - var(--width))) rotate(var(--rotate));
+  object-fit: contain;
+}
+.mistvideo[data-fullscreen] [data-mist-rotate="1"],
+.mistvideo[data-fullscreen] [data-mist-rotate="-1"] {
+  width: 100vh !important;
+  height: 100vw !important;
+  transform-origin: bottom left;
+  transform: translate(calc(var(--factor) * 100vw), calc(var(--factor) * 100vh - 100vw)) rotate(var(--rotate));
+  object-fit: contain;
+}
+[data-mist-rotate="1"] {
+  --rotate: 90deg;
+  --factor: 0;
+}
+[data-mist-rotate="-1"] {
+  --rotate: -90deg;
+  --factor: 1;
+}
+[data-mist-rotate="2"] {
+  transform: rotate(180deg);
+  transform-origin: center center;
+}
+.mistvideo svg.icon.loading {
+  z-index: -1;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+}
+.mistvideo[data-loading] {
+  position: relative;
+}
+.mistvideo[data-loading=stalled] svg.icon.loading {
+  transition: opacity 0s 3s;
+}
+.mistvideo[data-loading] svg.icon.loading {
+  z-index: 2;
+  opacity: 1;
+}
+.mistvideo[data-loading-css] .mistvideo-controls {
+  display: none;
+}
+.mistvideo[data-hidecursor],
+.mistvideo[data-hidecursor] .mistvideo-pointer,
+.mistvideo[data-hidecursor] * {
+  cursor: none;
+}
+.mistvideo-error {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background-color: $background;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 2;
+  cursor: default;
+  min-height: fit-content;
+  min-width: fit-content;
+  height: 100%;
+}
+.mistvideo-error.show {
+  display: flex;
+}
+.mistvideo-error .message {
+  max-width: 80%;
+}
+.mistvideo-error .message .details table {
+  text-align: left;
+}
+.mistvideo-keyControls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s 1s;
+  white-space: pre;
+  text-align: center;
+}
+.mistvideo-keyControls[data-show] {
+  opacity: 1;
+  transition: opacity .2s;
+}
+.mistvideo-keyControls > * {
+  background-color: #0005;
+}
+.mistvideo-keyControls > div {
+  transform: scale(0);
+  transition: transform ease-in 1.5s 1s;
+}
+.mistvideo-keyControls > div:not(:empty) {
+  padding: 2em;
+  border-radius: 50%;
+  margin: 1em;
+}
+.mistvideo-keyControls[data-show] > div:not(:empty) {
+  transform: scale(1);
+  transition: transform cubic-bezier(1, 2, .5, 1) .2s;
+}
+.mistvideo-keyControls > div > .icon.play {
+  transform: translate(8px);
+}
+.mistvideo-keyControls > span {
+  font-size: 1.5em;
+  padding: 0 .25em;
+}
+.mistvideo[data-controls=show] .mistvideo-controls {
+  bottom: 0;
+  transition-delay: 0s !important;
+  transition-duration: .1s !important;
+}
+.mistvideo-video:not(.video-js) button,
+.mistvideo-error button,
+.mistvideo-controls button {
+  color: $stroke;
+  border: 1px solid $semiFill;
+  background-color: $background;
+  margin: .25em;
+  padding: .5em 1em;
+  opacity: .5;
+  cursor: pointer;
+}
+.mistvideo button:hover {
+  opacity: 1;
+}
+.mistvideo select {
+  background-color: transparent;
+  color: $stroke;
+  border: none;
+  margin: 0 .5em;
+  font-size: inherit;
+  cursor: pointer;
+}
+.mistvideo select > option {
+  background-color: $background;
+}
+.browser-edge select,
+.browser-safari select {
+  border: 1px solid $semiFill;
+  border-top: none;
+  border-left: none;
+  margin-top: 2px;
+}
+@keyframes mistvideo-spin {
+  0% {
+    transform: rotate(0);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+[data-fullscreen] {
+  position: fixed;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: #111 !important;
+  z-index: 999;
+}
+.mistvideo video {
+  display: block;
+  flex-shrink: 0;
+}
+.mistvideo table {
+  color: inherit;
+  font-size: inherit;
+  font-style: inherit;
+}
+.mistvideo audio:not([controls]) {
+  display: block !important;
+}
+.mistvideo-padding {
+  padding: 5px 10px;
+}
+.mistvideo-pointer {
+  cursor: pointer;
+}
+.mistvideo-description {
+  color: $semiFill;
+  font-size: .9em;
+}
+.mistvideo-container {
+  display: flex;
+  flex-wrap: nowrap;
+}
+.mistvideo-container.mistvideo {
+  display: inline-flex;
+  max-width: 100%;
+}
+.mistvideo-container.mistvideo-row {
+  flex-direction: row;
+}
+.mistvideo-container.mistvideo-column {
+  flex-direction: column;
+}
+.mistvideo-container.mistvideo-center {
+  justify-content: center;
+}
+.mistvideo-align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+.hover_window_container.pos > .outer_window {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+}
+.hover_window_container.pos > .outer_window > .inner_window {
+  position: absolute;
+  pointer-events: all;
+}
+.hover_window_container:not(:hover) > .outer_window > .inner_window,
+.hover_window_container > .outer_window[data-hidecursor] > .inner_window {
+  transition: all .5s ease-in .5s;
+}
+.outer_window > .inner_window {
+  flex-grow: 1;
+}
+.hover_window_container > .outer_window > .inner_window > * {
+  flex-shrink: 0;
+}
+.mistvideo-draggable {
+  overflow: hidden;
+}
+.mistvideo-tooltip {
+  position: absolute;
+  background-color: $background;
+  padding: .5em 1em;
+  z-index: 2;
+}
+*:not(:hover) > .mistvideo-tooltip {
+  transition: opacity .25s ease-in;
+}
+.mistvideo-tooltip .triangle {
+  border: 10px solid $background;
+  position: absolute;
+}
+.mistvideo-tracks label {
+  display: block;
+}
+.mistvideo-tracks label > span {
+  margin-right: 1em;
+}
+.mistvideo-tracks td:last-child {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+}
+.mistvideo-tracks option[data-issupported=false],
+.mistvideo-tracks tr:has(span[data-issupported=false]) {
+  display: none;
+}
+@supports (appearance: base-select) {
+  .mistvideo select.mistvideo-base-select {
+    appearance: base-select;
+    color: inherit;
+    border: none;
+    padding: 0;
+    --autoIcon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" version="1.1" height="45" width="45"><path d="m24.139 3.834-1.4785 4.3223c-1.1018 0.0088-2.2727 0.13204-3.2031 0.33594l-2.3281-3.9473c-1.4974 0.45304-2.9327 1.091-4.2715 1.9004l1.3457 4.3672c-0.87808 0.62225-1.685 1.3403-2.4023 2.1426l-4.1953-1.8223c-0.9476 1.2456-1.7358 2.6055-2.3457 4.0469l3.6523 2.7383c-0.34895 1.0215-0.58154 2.0787-0.69336 3.1523l-4.4531 0.98828c-0.00716 0.14696-0.011931 0.29432-0.015625 0.44141 0.00628 1.4179 0.17336 2.8307 0.49805 4.2109l4.5703 0.070312c0.32171 1.0271 0.75826 2.0138 1.3008 2.9434l-3.0391 3.4355c0.89502 1.2828 1.9464 2.4492 3.1309 3.4707l3.7363-2.6289c0.86307 0.64582 1.7958 1.192 2.7812 1.6289l-0.43555 4.541c1.4754 0.52082 3.0099 0.85458 4.5684 0.99414l1.4766-4.3223c0.05369 3e-3 0.10838 0.005313 0.16211 0.007812 1.024-0.0061 2.0436-0.12048 3.043-0.34375l2.3281 3.9473c1.4974-0.45304 2.9327-1.091 4.2715-1.9004l-1.3457-4.3672c0.87808-0.62225 1.685-1.3403 2.4023-2.1426l4.1953 1.8223c0.9476-1.2456 1.7358-2.6055 2.3457-4.0469l-3.6523-2.7383c0.34895-1.0215 0.58154-2.0787 0.69336-3.1523l4.4531-0.98828c0.0072-0.14698 0.011925-0.29432 0.015625-0.44141-0.0062-1.4179-0.17336-2.8307-0.49805-4.2109l-4.5703-0.070312c-0.32171-1.0271-0.75826-2.0138-1.3008-2.9434l3.0391-3.4355c-0.89502-1.2828-1.9464-2.4492-3.1309-3.4707l-3.7363 2.6289c-0.86307-0.64582-1.7958-1.192-2.7812-1.6289l0.43555-4.541c-1.4754-0.52082-3.0099-0.85457-4.5684-0.99414zm-1.6387 7.8789a10.786 10.786 0 0 1 10.787 10.787 10.786 10.786 0 0 1-10.787 10.787 10.786 10.786 0 0 1-10.787-10.787 10.786 10.786 0 0 1 10.787-10.787z" fill="$semiFill "></path></svg>');
+    selectedcontent {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    &::picker(select) {
+      appearance: base-select;
+      transform: translate(-1em);
+      color: inherit;
+      padding: .5em 0;
+      margin: .25em 0;
+      background-color: $background;
+      backdrop-filter: blur(.5em);
+      border: none;
+      display: flex;
+      flex-flow: column nowrap;
+    }
+    &::picker(select):not(:popover-open):not(:open) {
+      display: none !important;
+    }
+    &::selectedoption {
+      padding: 0;
+    }
+    > option {
+      padding: .25em .5em;
+      color: inherit;
+      align-items: center;
+      gap: .25em;
+      border: none;
+      outline: none;
+      background: none;
+      min-width: 0;
+      flex-shrink: 1;
+      &:hover {
+        background-color: #323232cc;
+      }
+    }
+    ::checkmark,
+    &::checkmark {
+      width: 16px;
+      text-align: center;
+      color: $accent;
+      font-weight: 700;
+      margin-right: .5em;
+    }
+    &::picker-icon {
+      height: 1lh;
+      aspect-ratio: 1;
+      content: "";
+      background-color: $semiFill;
+      mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>') center / contain no-repeat;
+    }
+    &:open::picker-icon {
+      background-color: $accent;
+    }
+  }
+  .mistvideo .mistvideo-tracks {
+    select > option {
+      &[data-iscurrent=true]:not(:checked)::checkmark {
+        font-weight: 400;
+        visibility: visible;
+      }
+    }
+    select > button[data-isautomatic=true]:before,
+    select > option[data-iscurrent=true]:not(:checked)::checkmark {
+      content: "A";
+      color: $fill;
+      background: var(--autoIcon) center / contain no-repeat;
+      margin: -.5em .25em -.5em -.25em;
+      padding: .5em;
+      width: 16px;
+      line-height: 16px;
+      aspect-ratio: 1;
+      text-align: center;
+      font-size: .6em;
+    }
+    select > button[data-isautomatic=true]:before {
+      margin-right: -.25em;
+    }
+    select:has(option[data-issupported]) {
+      &:not(:has(option[data-issupported=true] ~ option[data-issupported=true])) {
+        cursor: auto;
+        &::picker-icon {
+          display: none;
+        }
+      }
+      > option[data-issupported=false] {
+        order: 999;
+      }
+    }
+  }
+  .mistvideo-forceType,
+  .mistvideo-forcePlayer,
+  .mistvideo-forceSource {
+    select.mistvideo-base-select > option {
+      --order: 0;
+      order: var(--order);
+      gap: 0;
+    }
+    select > option[data-supported=false] {
+      opacity: .5;
+      order: 999;
+      &[data-playable] {
+        opacity: .75;
+        order: 888;
+      }
+    }
+    select > option[data-iscurrent]:not(:checked)::checkmark {
+      content: "A";
+      color: $fill;
+      background: var(--autoIcon) center / contain no-repeat;
+      margin: -.5em .25em -.5em -.25em;
+      padding: .5em;
+      width: 16px;
+      line-height: 16px;
+      aspect-ratio: 1;
+      text-align: center;
+      font-size: .6em;
+      visibility: visible;
+    }
+    select > option > * {
+      flex-shrink: 1;
+      min-width: 0;
+    }
+    select > option > span {
+      line-height: 1;
+      margin: 0;
+      white-space: pre;
+    }
+  }
+}
+.mistvideo input[type=checkbox] {
+  margin: 0 .2em 0 0;
+  border: 1px solid $semiFill;
+  border-radius: 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  -ms-appearance: none;
+  appearance: none;
+  width: .8em;
+  height: .8em;
+  color: inherit;
+  position: relative;
+  cursor: pointer;
+}
+.mistvideo input[type=checkbox]:after {
+  position: absolute;
+  bottom: -.2em;
+  left: 0;
+  font-size: 1.2em;
+}
+.mistvideo input[type=checkbox]:checked:after {
+  content: "\2713";
+  color: $accent;
+}
+.mistvideo-tracks input[type=checkbox] {
+  border: none;
+}
+.mistvideo-tracks input[type=checkbox]:not(:checked):after {
+  content: "\274c";
+  font-size: .8em;
+}
+.mistvideo a {
+  color: $accent;
+}
+.mistvideo-log .logs {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+.mistvideo-placeholder {
+  max-width: 100%;
+  max-height: 100%;
+}
+.mistvideo-topright {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.mistvideo-topleft {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.mistvideo-delay-display {
+  animation: mistvideo-appear 1s;
+  animation-iteration-count: 1;
+  animation-timing-function: steps(1, end);
+}
+@keyframes mistvideo-appear {
+  0% {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.mistvideo svg.icon {
+  display: block;
+  stroke-width: $strokeWidth;
+  fill: none;
+  stroke: none;
+}
+.mistvideo svg.icon.fill,
+svg.icon .fill {
+  fill: $fill;
+}
+.mistvideo svg.icon.semiFill,
+svg.icon .semiFill {
+  fill: $semiFill;
+}
+.mistvideo svg.icon.stroke,
+svg.icon .stroke {
+  stroke: $stroke;
+  vector-effect: non-scaling-stroke;
+}
+.mistvideo svg.icon.off .toggle.fill,
+.mistvideo svg.icon.off .toggle.semiFill,
+.mistvideo svg.icon.off .toggle .fill,
+.mistvideo svg.icon.off .toggle .semiFill {
+  fill: none;
+}
+.mistvideo svg.icon.spin,
+svg.icon .spin {
+  animation: mistvideo-spin 1.5s infinite linear;
+  transform-origin: 50% 50%;
+}
+.vjs-text-track-display {
+  pointer-events: none;
+}
+.vjs-controls-disabled .vjs-control-bar,
+.vjs-using-native-controls .vjs-control-bar,
+.vjs-error .vjs-control-bar,
+.vjs-error-display,
+.vjs-hidden {
+  display: none !important;
+}
+.vjs-controls-disabled .vjs-loading-spinner,
+.vjs-controls-disabled .vjs-big-play-button,
+.vjs-has-started .vjs-big-play-button,
+.vjs-using-native-controls .vjs-big-play-button,
+.vjs-error .vjs-big-play-button {
+  display: none;
+}
+
+/* skins/default.css */
+.mistvideo {
+  line-height: 1.2;
+  font-size: 14.5px;
+}
+.mistvideo svg {
+  margin: 2.5px;
+}
+.mistvideo-video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mistvideo-subtitles {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-size: 1.5em;
+  font-size: clamp(1em, 1cm, calc(var(--height)*.1));
+  transition: bottom .5s ease-in .5s;
+  pointer-events: none;
+}
+.mistvideo-subtitles[data-position=top] {
+  align-items: flex-start;
+}
+.mistvideo-subtitles > * {
+  margin: .5em 0;
+  padding: .1em .3em;
+  text-align: center;
+  background: #00000080;
+  white-space: pre-wrap;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.mistvideo-subtitles > *:empty {
+  display: none;
+}
+.mistvideo[data-fullscreen] .mistvideo-subtitles {
+  font-size: 5vh;
+  font-size: clamp(2em, 2cm, 5vh);
+}
+.mistvideo[data-show-submenu] .mistvideo-subtitles,
+.mistvideo[data-controls=show] .mistvideo-subtitles,
+.mistvideo-maincontainer:hover:not([data-hidecursor]) .mistvideo-subtitles {
+  bottom: 42px;
+  transition: none;
+}
+.mistvideo-background {
+  background-color: $background;
+}
+.mistvideo-totalTime:before {
+  content: "/";
+  margin: .2em;
+}
+.mistvideo-totalTime.mistvideo-pointer:hover:after,
+.mistvideo-totalTime.mistvideo-pointer:focus:after {
+  content: "\2022";
+  color: $accent;
+  display: inline-block;
+  margin-left: .5em;
+  transform: scale(2);
+}
+.mistvideo-passiveError {
+  margin: 0 auto;
+  padding: 0 .5em;
+  text-align: center;
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: baseline;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.mistvideo-passiveError:has(.message_container:empty) {
+  display: none;
+}
+.mistvideo-passiveError .mistvideo-iconcontainer {
+  margin-right: .5em;
+  display: inline-flex;
+  align-items: center;
+}
+.mistvideo-passiveError .mistvideo-iconcontainer:before {
+  content: "\200b";
+}
+.mistvideo-passiveError .mistvideo-iconcontainer:empty:before {
+  content: "\26a0\fe0f  ";
+  align-items: baseline;
+}
+.mistvideo-passiveError .message_container {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  opacity: .8;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: baseline;
+  margin-left: .5em;
+  position: relative;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer:not(:hover):not(:focus-within) .mistvideo-menu {
+  display: none;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu {
+  position: absolute;
+  display: flex;
+  flex-flow: column-reverse nowrap;
+  bottom: 100%;
+  background-color: #000c;
+  z-index: 3;
+  width: max-content;
+  margin-left: -.25em;
+  margin-bottom: .5em;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu:after {
+  content: "";
+  position: absolute;
+  bottom: -.5em;
+  left: 0;
+  right: 0;
+  height: .5em;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu + button {
+  background: none;
+  border: none;
+  opacity: 1;
+  font-size: inherit;
+  padding: 0;
+  margin: 0;
+  white-space: nowrap;
+  text-decoration: underline;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .mistvideo-menu + button:hover {
+  text-decoration: none;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown {
+  margin-left: .5em;
+  opacity: .8;
+  font-size: .8em;
+  white-space: nowrap;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:first-letter {
+  text-transform: uppercase;
+}
+.mistvideo-passiveError .mistvideo-buttoncontainer .countdown:after {
+  content: "..";
+}
+.mistvideo-progress {
+  padding: 10px 0;
+  margin: -10px 0;
+  z-index: 2;
+}
+.mistvideo-progress > * {
+  height: 2px;
+  background-color: $progressBackground;
+  opacity: .95;
+  position: relative;
+}
+.mistvideo-novideo .mistvideo-progress > *,
+.mistvideo-progress:hover > * {
+  height: 10px;
+}
+.mistvideo-progress:not(:hover) > * {
+  transition: height .25s ease-in .5s;
+}
+.mistvideo-progress .bar {
+  height: inherit;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  position: absolute;
+  border-right: inherit;
+  background-color: $accent;
+  z-index: 2;
+  transition: transform .2s;
+}
+.mistvideo-progress .buffer {
+  height: inherit;
+  width: 0;
+  position: absolute;
+  background-color: $semiFill;
+}
+.mistvideo-progress .bar:after {
+  content: "";
+  border: 5px solid $accent;
+  border-radius: 5px;
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.mistvideo-progress .mistvideo-tooltip .mistvideo-realtime {
+  text-align: center;
+  display: block;
+}
+.mistvideo-play[data-state=playing] svg.play {
+  display: none;
+}
+.mistvideo-play[data-state=paused] svg.pause {
+  display: none;
+}
+.mistvideo-main {
+  align-items: center;
+}
+.mistvideo svg.icon.timeout {
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  margin: 0 .25em 0 0;
+  vertical-align: top;
+}
+.mistvideo > .mist.largeplay,
+.mistvideo > .mist.muted {
+  position: absolute;
+  opacity: .5;
+  background-color: $background;
+  border-radius: 50%;
+  padding: .5em;
+}
+.mistvideo > .mist.largeplay {
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin: auto;
+  transform: translateY(-50%);
+  padding: 1em;
+}
+.mistvideo > .mist.largeplay path {
+  stroke-width: 2.67;
+  transform: scale(.75) translate(3px);
+  transform-origin: center;
+}
+.mistvideo > .mist.largeplay:hover path {
+  stroke: $accent;
+}
+.mistvideo > .mist.muted {
+  top: 0;
+  right: 0;
+  margin: 1%;
+  max-height: 20%;
+  width: auto;
+}
+.mistvideo-secondaryVideo {
+  z-index: 1;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  max-width: fit-content;
+  max-height: fit-content;
+}
+.mistvideo-polling {
+  display: inline-block;
+  position: relative;
+  width: 25px;
+  height: 25px;
+}
+.mistvideo-polling svg.icon.loading {
+  z-index: 0;
+  opacity: 1;
+}
+.mistvideo:not([data-hide-submenu]) .mistvideo-hoverWindow:hover > svg.icon.settings .fill,
+.mistvideo[data-show-submenu] svg.icon.settings .fill,
+.mistvideo[data-fullscreen] svg.icon.fullscreen .fill {
+  fill: $accent;
+}
+.mistvideo[data-show-submenu] .mistvideo-submenu {
+  right: 5px;
+}
+.mistvideo[data-hide-submenu] .mistvideo-submenu {
+  right: -1000px !important;
+}
+.mistvideo[data-show-submenu] .mistvideo-controls {
+  bottom: 0;
+}
+.mistvideo[data-show-submenu],
+.mistvideo:has(.mistvideo-hoverWindow:hover .mistvideo-submenu) {
+  overflow: visible;
+}
+.mistvideo-currentTime {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mistvideo-currentTime .mistvideo-realtime,
+.mistvideo-progress .mistvideo-realtime {
+  opacity: .6;
+}
+.mistvideo-videobackground {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+.mistvideo-videobackground:after {
+  content: "";
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(1cm);
+  z-index: 2;
+}
+.mistvideo-videobackground * {
+  position: absolute;
+  filter: opacity(0);
+  transition: filter 0s 2s;
+  width: 100%;
+  height: 100%;
+}
+.mistvideo-videobackground [data-front] {
+  z-index: 1;
+  filter: opacity(1);
+  transition: filter 2s;
+}
+.mistvideo-videocontainer {
+  position: relative;
+  overflow: hidden;
+}
+.mistvideo.casting .mistvideo-controls {
+  bottom: 0;
+}
+.mistvideo.casting .mistvideo-video {
+  filter: blur(1em);
+}
+.mistvideo.casting .mistvideo-maincontainer {
+  overflow: hidden;
+}
+.mistvideo.casting .mistvideo-casting {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+  width: 100%;
+  font-size: 2em;
+  text-shadow: 1px 1px 5px #000a;
+}
+.mistvideo-error[data-passive] {
+  bottom: auto;
+  left: auto;
+  height: auto;
+  margin: .5em;
+  padding: .5em;
+}
+.mistvideo-error[data-passive] .message {
+  max-width: none;
+}
+.mistvideo-error .mistvideo-buttoncontainer {
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: center;
+}
+.mistvideo-error .mistvideo-buttoncontainer .mistvideo-button {
+  white-space: nowrap;
+}
+.browser-ie .mist.icon.loading {
+  animation: mistvideo-spin 1.5s infinite linear;
+  transform-origin: 50% 50%;
+}
+.browser-ie .mist.icon.loading .spin {
+  animation: none;
+}
+.mistvideo-chromecast {
+  display: flex;
+}
+.mistvideo google-cast-launcher {
+  width: 24px;
+  height: 24px;
+  --connected-color: $fill;
+  --disconnected-color: $semiFill;
+}
+.mistvideo google-cast-launcher.active {
+  --connected-color: $accent;
+  --disconnected-color: $fill;
+}
+.mistvideo.casting .mistvideo-slideshow_mode {
+  display: none;
+}
+
+/* <stdin> */

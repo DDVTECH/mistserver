@@ -772,19 +772,19 @@ function GenericPipeline(ref,track,opts){
       else {
         //"soft" reset
         pipeline.lastReset = new Date();
-        if (flushing) {
-          flushing.finally(function(){
-            post({type: "removetrack"});
-            pipeline.decoder.reset();
-            pipeline.configureDecoder(pipeline.decoderConfigOpts.description);
-            resolve();
-          });
-        }
-        else {
+
+        function finishUp() {
           post({type: "removetrack"});
           pipeline.decoder.reset();
-          pipeline.configureDecoder(pipeline.decoderConfigOpts.description);
+          if (pipeline.decoder.state != "unconfigured") pipeline.configureDecoder(pipeline.decoderConfigOpts.description);
           resolve();
+        }
+
+        if (flushing) {
+          flushing.finally(finishUp);
+        }
+        else {
+          finishUp();
         }
       }
     });
@@ -815,37 +815,41 @@ function GenericPipeline(ref,track,opts){
         );
       }
       if (flushing) return flushing;
-      if (pipeline.decoder.state == "closed") {
+
+      function closeFrames() {
         var frames = pipeline.queues.out;
         pipeline.queues.out = [];
         while (frames.length) {
           var first = frames.shift();
           if (first) first.close();
         }
-        resolve();
       }
-      else {
-        flushing = pipeline.decoder.flush().catch(function(e){
-          if (debugging) {
-            console.error("💼","‼️",function(t){
-              switch (t) {
-                case "video": return "🎞️";
-                case "audio": return "🎵";
-                default: return t;
-              }
-            }(track.type),"Error while flushing:",e);
-          }
-        }).finally(function(){
-          var frames = pipeline.queues.out;
-          pipeline.queues.out = [];
-          flushing = false;
-          while (frames.length) {
-            var first = frames.shift();
-            if (first) first.close();
-          }
+
+      switch (pipeline.decoder.state) {
+        case "closed":
+        case "unconfigured": {
+          closeFrames();
           resolve();
-        });
+          break;
+        }
+        default: {
+          flushing = pipeline.decoder.flush().catch(function(e){
+            if (debugging) {
+              console.error("💼","‼️",function(t){
+                switch (t) {
+                  case "video": return "🎞️";
+                  case "audio": return "🎵";
+                  default: return t;
+                }
+              }(track.type),"Error while flushing:",e);
+            }
+          }).finally(function(){
+            closeFrames();
+            resolve();
+          });
+        }
       }
+
     });
   }
 

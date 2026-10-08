@@ -5,7 +5,7 @@ mistplayers.rawws = {
   isMimeSupported: function (mimetype) {
     return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,trackmeta) {
     if (!("WebSocket" in window) || (MistVideo.info.capa && !MistVideo.info.capa.ssl)) {
       MistVideo.log("This player requires websocket support");
       return false;
@@ -26,42 +26,20 @@ mistplayers.rawws = {
         return false;
       }
     }
-    //we can actually test if track codecs will work.. but only in a promise
-    //if we have them cached, good! we can return that. otherwise..
-    //for now, assume all codecs are available
-    //we will perform the actual testing in player buildup and nextCombo if it's bad
-    var cache = {};
-    if (this.cacheSupported && (MistVideo.stream in this.cacheSupported)) {
-      cache = this.cacheSupported[MistVideo.stream];
-    }
-    else {
-      this.cacheSupported[MistVideo.stream] = {};
-    }
-    if (MistVideo.info && MistVideo.info.meta && MistVideo.info.meta.tracks) {
-      var playabletracks = {};
-      var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
-      for (var i in supported) {
-        var track = supported[i];
-        if (track.idx in cache) {
-          if (cache[track.idx]) playabletracks[track.type] = true;
-        }
-        else {
-          //we haven't actually tested yet if this track will play - but assume it will
-          playabletracks[track.type] = "maybe";
-        }
-      }
-      this.cacheSupported[MistVideo.stream].last = playabletracks;
-      return Object.keys(playabletracks);
-    }
-    return []; //there are no tracks in the metadata..
+
+    if (!trackmeta) trackmeta = MistVideo.info.meta.tracks;
+    return new MistUtil.tracks.TestResults(MistUtil.tracks.getSupported(trackmeta,source),function(track){
+      return new Promise(function(resolve,reject){
+        mistplayers.rawws.isTrackSupported(track).then(function(r){
+          resolve(r.supported);
+        }).catch(reject);
+      });
+    });
   },
   player: function(){
     this.onreadylist = [];
   },
   scriptsrc: function(host) { return host+"/webcodecsworker.js"; },
-  cacheSupported: {
-    //<streamname>: { last: <playabletracks>, trackId: true/false }
-  },
   isTrackSupported: function(track){
     function str2bin(str) {
       //the init data received is a string, because it is read from the stream info json
@@ -73,116 +51,128 @@ mistplayers.rawws = {
       return out;
     }
 
-    var decoder;
-    var config = {
-      codec: track.codecstring ? track.codecstring : (""+track.codec).toLowerCase()
-    }
-    if (track.init != "") {
-      config.description = str2bin(track.init);
-    }
-    switch (track.type) {
-      case "video": {
-        switch (track.codec) {
-          case "JPEG": {
-            if (!window.ImageDecoder) {
-              if (window.createImageBitmap) {
-                return new Promise(function(resolve,reject){
-                  resolve({
-                    supported: true,
-                    config: { codec: "image/jpeg" }
-                  }); 
-                });
-              }
-              else {
-                return new Promise(function(resolve,reject){
-                  resolve({
-                    supported: false,
-                    config: { codec: "image/jpeg" }
-                  }); 
-                });
-              }
-            }
-            decoder = ImageDecoder;
-            decoder.isConfigSupported = function(){
-              return new Promise(function(resolve,reject){
-                decoder.isTypeSupported("image/jpeg").then(function(isSupported){
-                  resolve({
-                    supported: isSupported,
-                    config: { codec: "image/jpeg" }
+    try {
+      var decoder;
+      var config = {
+        codec: track.codecstring ? track.codecstring : (""+track.codec).toLowerCase()
+      };
+      if (track.init != "") {
+        config.description = str2bin(track.init);
+      }
+      switch (track.type) {
+        case "video": {
+          switch (track.codec) {
+            case "JPEG": {
+              if (!window.ImageDecoder) {
+                if (window.createImageBitmap) {
+                  return new Promise(function(resolve,reject){
+                    resolve({
+                      supported: true,
+                      config: { codec: "image/jpeg" }
+                    }); 
                   });
-                }).catch(reject);
-              }) 
-            };
-            break;
-          }
-          case "UYVY":
-          case "YUYV":
-          case "NV12": {
-            return new Promise(function(resolve,reject){
-              function test(){
-                try {
-                  //attempt to create the smallest possible NV12 frame
-                  new VideoFrame(new Uint8Array(6),{
-                    format: "NV12",
-                    codedWidth: 2,
-                    codedHeight: 2,
-                    timestamp: 0,
-                    layout: [
-                      { offset: 0, stride: 2 }, // Y: 2x2
-                      { offset: 4, stride: 2 }  // UV: 2x2
-                    ]
-                  }).close();
-                  return true;
-                } catch (e) {
-                  return false;
+                }
+                else {
+                  return new Promise(function(resolve,reject){
+                    resolve({
+                      supported: false,
+                      config: { codec: "image/jpeg" }
+                    }); 
+                  });
                 }
               }
-
-              resolve({
-                supported: test(),
-                config: { codec: "video/"+track.codec.toLowerCase() }
-              })
-            });
-            break;
-
-          }
-          default: {
-            decoder = VideoDecoder;
-          }
-        }
-        break;
-      }
-      case "audio": {
-        switch (track.codec) {
-          case "PCM": {
-            track.codecstring = "pcm";
-            switch (track.size) {
-              case 32: { track.codecstring += "-s32"; break; }
-              case 24: { track.codecstring += "-s24"; break; }
-              case 16: { track.codecstring += "-s16"; break; }
-              case 8:  { track.codecstring += "u8";   break; }
+              decoder = ImageDecoder;
+              decoder.isConfigSupported = function(){
+                return new Promise(function(resolve,reject){
+                  decoder.isTypeSupported("image/jpeg").then(function(isSupported){
+                    resolve({
+                      supported: isSupported,
+                      config: { codec: "image/jpeg" }
+                    });
+                  }).catch(reject);
+                }) 
+              };
+              break;
             }
-            config.codec = track.codecstring;
-            //no break
+            case "UYVY":
+            case "YUYV":
+            case "NV12": {
+              return new Promise(function(resolve,reject){
+                function test(){
+                  try {
+                    //attempt to create the smallest possible NV12 frame
+                    new VideoFrame(new Uint8Array(6),{
+                      format: "NV12",
+                      codedWidth: 2,
+                      codedHeight: 2,
+                      timestamp: 0,
+                      layout: [
+                        { offset: 0, stride: 2 }, // Y: 2x2
+                        { offset: 4, stride: 2 }  // UV: 2x2
+                      ]
+                    }).close();
+                    return true;
+                  } catch (e) {
+                    return false;
+                  }
+                }
+
+                resolve({
+                  supported: test(),
+                  config: { codec: "video/"+track.codec.toLowerCase() }
+                })
+              });
+              break;
+
+            }
+            default: {
+              decoder = VideoDecoder;
+            }
           }
-          default: {
-            decoder = AudioDecoder;
-            config.numberOfChannels = track.channels;
-            config.sampleRate = track.rate;
-          }
+          break;
         }
-        break;
+        case "audio": {
+          switch (track.codec) {
+            case "PCM": {
+              track.codecstring = "pcm";
+              switch (track.size) {
+                case 32: { track.codecstring += "-s32"; break; }
+                case 24: { track.codecstring += "-s24"; break; }
+                case 16: { track.codecstring += "-s16"; break; }
+                case 8:  { track.codecstring += "u8";   break; }
+              }
+              config.codec = track.codecstring;
+              //no break
+            }
+            default: {
+              decoder = AudioDecoder;
+              config.numberOfChannels = track.channels;
+              config.sampleRate = track.rate;
+            }
+          }
+          break;
+        }
+        default: {
+          return new Promise(function(resolve,reject){
+            resolve({
+              supported: false,
+              config: { codec: track.codec }
+            });
+          });
+        }
       }
-      default: {
-        return new Promise(function(resolve,reject){ reject(); });;
-      }
+      return new Promise(function(resolve,reject){
+        decoder.isConfigSupported(config).then(function(result){
+          //if (MistVideo.) console.warn("WebCodecs player: isConfigSupported?",result.supported,result,result.config.description,track);
+          resolve(result);
+        }).catch(reject);
+      });
+
     }
-    return new Promise(function(resolve,reject){
-      decoder.isConfigSupported(config).then(function(result){
-        //if (MistVideo.) console.warn("WebCodecs player: isConfigSupported?",result.supported,result,result.config.description,track);
-        resolve(result);
-      }).catch(reject);
-    });
+    catch(e) {
+      console.warn(e);
+      return false;
+    }
   },
   getScore: function(varname,source){
     switch (varname) {
@@ -201,7 +191,8 @@ mistplayers.rawws = {
       case "recovery": return 10;
       default: return null;
     }
-  }
+  },
+  cachedSupport: {}
 };
 var p = mistplayers.rawws.player;
 p.prototype = new MistPlayer();
@@ -1005,40 +996,55 @@ p.prototype.build = function (MistVideo,callback) {
       }
       var pipeline = this;
 
-      //check cache if track is supported
-      var cache = mistplayers.rawws.cacheSupported;
-      if (cache) cache = cache[MistVideo.stream];
-      if (cache && (track.idx in cache)) {
-        if (!cache[track.idx]) {
-          MistVideo.log("Cancelling pipeline "+track.idx+" because this codec ("+track.codec+") is not supported");
+      if (!track || !(typeof track == "object")) {
+        MistVideo.log("Cancelling pipeline because the track parameter ("+JSON.stringify(track)+") is invalid");
+        return;
+      }
+      switch(track.type){
+        case "audio":
+        case "video": { break; }
+        default: {
+          MistVideo.log("Cancelling pipeline "+track.idx+" because this type ("+track.type+") is not supported");
           return;
         }
       }
-      else { 
-        //we don't know yet if this track is supported
-        mistplayers.rawws.isTrackSupported(track).then(function(result){
-          theCache[i] = result.supported;
-          if (!result.supported) {
+
+      //check cache if track is supported
+      var cache = mistplayers.rawws.cachedSupport[MistVideo.source.suid];
+      if (cache && (track.tuid in cache.results)) {
+        if (cache.results[track.tuid] === false) {
+          MistVideo.log("Cancelling pipeline "+track.idx+" because this codec ("+track.codec+") is not supported");
+          return;
+        }
+        else if (cache.results[track.tuid] instanceof Promise) {
+          //result is pending
+          cache.results[track.tuid].then(function(result){
+            if (!result.supported) {
+              MistVideo.log("Cancelling pipeline "+track.idx+" because this codec ("+track.codec+") is not supported");
+              pipeline.close();
+            }
+          }).catch(function(){
             MistVideo.log("Cancelling pipeline "+track.idx+" because this codec ("+track.codec+") is not supported");
             pipeline.close();
-          }
-        });
+          });
+        }
+        else {
+          //result is true
+        }
       }
-      
-      
-      let p = mistplayers.rawws.isTrackSupported(track);
-      if (!p) return;
-      if ("then" in p) {
-        p.then(function(result){
-          if (!result.supported){ 
-            MistVideo.log("Cancelling pipeline "+track.idx+" because this codec ("+track.codec+") is not supported")
+      else { 
+        //we don't know yet if this track is supported - check and fill cache with result
+        if (!cache) cache = new MistUtil.tracks.TestResults();
+        mistplayers.rawws.isTrackSupported(track).then(function(result){
+          cache.add(track.tuid,result.supported);
+          if (!result.supported) {
+            MistVideo.log("Cancelling pipeline "+track.idx+" because this codec ("+track.codec+") is not supported");
             pipeline.close();
           }
         }).catch(function(){
           pipeline.close();
         });
-      }
-        
+      }        
       
       if ((track.type != "audio") && (track.type != "video")) {
         controller.control.send({type:"hold"})
@@ -1108,13 +1114,19 @@ p.prototype.build = function (MistVideo,callback) {
         post({
           type: "configure",
           header: header
-        },"buffer" in header ? header.buffer : undefined);
+        },"buffer" in header ? header.buffer : undefined).catch(function(e){
+          MistVideo.log("Failed to configure "+track.type+" decoder: "+e.error,"error");
+          pipeline.close();
+        });
       };
       pipeline.receive = function(chunkOpts){
         post({
           type: "receive",
           chunk: chunkOpts
-        },chunkOpts.data.buffer);
+        },chunkOpts.data.buffer).catch(function(e){
+          MistVideo.log("Failed to add data to "+track.type+" decoder: "+e.error,"error");
+          pipeline.close();
+        });
       };
       pipeline.close = function(waitEmpty){
         post({
@@ -1251,7 +1263,12 @@ p.prototype.build = function (MistVideo,callback) {
           main.ABR.badness++;
         });
 
-        return controller.control.addListener("channel_open").then(function(){
+        return new Promise(function(resolve,reject){
+          if (controller.control.connectionState == "open") {
+            return resolve();
+          }
+          controller.control.addListener("channel_open").then(resolve).catch(reject);
+        }).then(function(){
           //now check if worker is ready
           return controller.worker.workerReady();
         }).then(function(){
@@ -1288,7 +1305,7 @@ p.prototype.build = function (MistVideo,callback) {
               if (main.debugging) console.warn("Pipeline for track "+trackIndex+" already exists, not creating it again");
             }
             else {
-              controller.pipelines[trackIndex] = new Pipeline(trackIndex);
+              new Pipeline(trackIndex);
             }
           }
           
@@ -1328,37 +1345,47 @@ p.prototype.build = function (MistVideo,callback) {
     var supportedCodecs = { audio: [], video: [] };
     function checkTracksAndConnect(){
       //check supported codecs if unknown, then connect
-      var promises = [], thePlayer = mistplayers.rawws;
-      if (!(MistVideo.stream in thePlayer.cacheSupported)) {
-        thePlayer.cacheSupported[MistVideo.stream] = {}; 
+      var promises = [];
+
+      if (!(MistVideo.source.suid in mistplayers.rawws.cachedSupport)) {
+        mistplayers.rawws.cachedSupport[MistVideo.source.suid] = new MistUtil.tracks.TestResults();
       }
-      var theCache = thePlayer.cacheSupported[MistVideo.stream];
-      function checkTrack(i){
+      var theCache = mistplayers.rawws.cachedSupport[MistVideo.source.suid];
+
+      function checkTrack(track){
         function pushIfUnique(array,entry) {
           if (array.indexOf(entry) < 0) array.push(entry);
         }
-        var track = MistVideo.info.meta.tracks[i];
-        var idx = track.idx;
-        if ((track.type != "audio") && (track.type != "video")) { return; }
-        if (idx in theCache) {
-          if (theCache[idx]) {
-            pushIfUnique(supportedCodecs[track.type],track.codec);
+        if (track.tuid in theCache.results) {
+          var result = theCache.results[track.tuid];
+          if (result instanceof Promise) {
+            promises.push(result);
           }
         }
         else {
-          promises.push(mistplayers.rawws.isTrackSupported(track).then(function(result){
-            theCache[idx] = result.supported;
-            if (result.supported) {
+          promises.push(mistplayers.rawws.isTrackSupported(track).then(function(r){
+            theCache.add(track.tuid,r.supported);
+            if (r.supported) {
               pushIfUnique(supportedCodecs[track.type],track.codec);
             }
           }));
         }
       }
-      for (var i in MistVideo.info.meta.tracks) {
-        checkTrack(i);
+      
+      var tracks = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,MistVideo.source,mistplayers.rawws);
+      for (var i in tracks) {
+        checkTrack(tracks[i]);
       }
+
       if (promises.length) {
-        Promise.all(promises).then(connectIfEnough).catch(console.err);
+        Promise.all(promises).then(function(){
+        }).catch(function(e){
+          console.warn(e);
+        }).finally(function(){
+          //signal to UI that track support is now known
+          MistUtil.event.send("metaUpdate_tracks",MistVideo.info,MistVideo.video);
+          connectIfEnough();
+        });
       }
       else {
         connectIfEnough();
@@ -1384,30 +1411,39 @@ p.prototype.build = function (MistVideo,callback) {
       }
       else {
         //calculate current player score
-        var oldtracks = mistplayers.rawws.cacheSupported[MistVideo.stream].last;
-        var myscore = MistVideo.scoreCombo(mistplayers.rawws.isBrowserSupported(MistVideo.source.type,MistVideo.source,MistVideo));
+        var oldscore = MistVideo.combo.canplay;
+        var supportCache = mistplayers.rawws.cachedSupport[MistVideo.source.suid];
+        var tracks = MistVideo.info.meta.tracks.getSupported(MistVideo.source);
+        
+        //all tracks should have their promises fullfilled
+        var canPlay = tracks.filter(function(track){ return supportCache.results[track.tuid] === true });
+        var myscore = MistVideo.scoreCombo(MistUtil.object.keys(canPlay.parsed));
+
         if (myscore < 1) {
-          //nothing (or only subtitles) can play, uhoh!
+          //nothing can play, uhoh!
           MistVideo.log("After testing decoders, "+mistplayers[MistVideo.playerName].name+" cannot play any tracks after all: trying next combo..");
           MistVideo.nextCombo(false,"rawws cannot play any tracks");
           return;
         }
 
-        var newtracks = mistplayers.rawws.cacheSupported[MistVideo.stream].last;
-        for (var kind in oldtracks) {
-          if (!(kind in newtracks)){
-            //our score has decreased..
-
-            //if not enough playable tracks, try to fall back to another player
-            var firstCombo = MistVideo.checkCombo({startCombo:false},true);
-            if (firstCombo.score > myscore && firstCombo.player != MistVideo.playerName) {
-              MistVideo.log("After testing decoders, "+mistplayers[MistVideo.playerName].name+" is no longer the best scoring player, trying next combo..");
-              MistVideo.nextCombo(false,"after testing, rawws is no longer the best player");
-              return;
+        if (myscore < oldscore) {
+          //our score has decreased..
+          //if not enough playable tracks, try to fall back to another player
+          var firstCombo = MistVideo.checkCombo({startCombo:false},true);
+          if (firstCombo.score > myscore && firstCombo.player != MistVideo.playerName) {
+            MistVideo.log("After testing decoders, "+mistplayers[MistVideo.playerName].name+" is no longer the best scoring player, trying next combo..");
+            MistVideo.nextCombo(false,"after testing, rawws is no longer the best player");
+            return;
+          }
+        }
+        
+        for (var i in canPlay) {
+          var track = MistVideo.info.meta.tracks[i];
+          switch (track.type){
+            case "audio":
+            case "video": {
+              if (supportedCodecs[track.type].indexOf(track.codec) < 0) supportedCodecs[track.type].push(track.codec);
             }
-
-            //our score is still best though
-            break; 
           }
         }
 
@@ -1418,7 +1454,24 @@ p.prototype.build = function (MistVideo,callback) {
       controller.connect();
     }
 
-    checkTracksAndConnect();
+    if ("meta" in MistVideo.info) checkTracksAndConnect();
+    else {
+      this.control.addListener("streaminfo",function(d){
+        function process(meta) {
+          d.tracks = new MistUtil.tracks.TrackList(d.tracks);
+          MistVideo.info.meta = d;
+          MistVideo.info.type = d.type;
+          keepAway = MistVideo.info.type == "live" ? 100 : 500;
+        }
+        if (!("meta" in MistVideo.info)) {
+          process(d);
+          checkTracksAndConnect();
+        }
+        else {
+          process(d);
+        }
+      });
+    }
   }
   try {
     this.controller = new RawPlayer(MistVideo.source.url);

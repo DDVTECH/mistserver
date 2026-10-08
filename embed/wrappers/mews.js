@@ -5,7 +5,7 @@ mistplayers.mews = {
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,trackmeta) {
     
     if ((!("WebSocket" in window)) || (!("MediaSource" in window)) || (!("Promise" in window))) { return false; }
 
@@ -24,9 +24,9 @@ mistplayers.mews = {
     if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
       return false;
     }
-    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
-    supported = MistUtil.shared.testMediaSource(supported);
-    return MistUtil.tracks.tracktypes(supported);
+
+    if (!trackmeta) trackmeta = MistVideo.info.meta.tracks;
+    return MistUtil.shared.testMediaSource(MistUtil.tracks.getSupported(trackmeta,source));
   },
   player: function(){},
   getScore: function(varname,source){

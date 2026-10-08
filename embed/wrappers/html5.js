@@ -5,7 +5,7 @@ mistplayers.html5 = {
   isMimeSupported: function (mimetype) {
     return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,tracks) {
     
     //check for http/https mismatch
     if (location.protocol != MistUtil.http.url.split(source.url).protocol) {
@@ -30,63 +30,46 @@ mistplayers.html5 = {
       return false;
     }
     
-    
-    var support = false;
-    var shortmime = mimetype.split("/");
-    shortmime.shift();
-    
     try {
+      var shortmime = mimetype.split("/");
+      shortmime.shift(); 
       shortmime = shortmime.join("/");
 
-      var codecs = {};
-      var playabletracks = {};
-      var hassubtitles = false;
-      var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
-      for (var i in supported) {
-        codecs[MistUtil.tracks.translateCodec(supported[i])] = supported[i];
-      }
-      var container = mimetype.split("/")[2];
+      var supported = tracks || MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
 
-      source.supportedCodecs = [];
-      for (var i in codecs) {
-        //i is the long name (like mp4a.40.2), codecs[i] is the track meta, codecs[i].codec is the short name (like AAC)
-        var s = test(i);
-        if (s) {
-          source.supportedCodecs.push(codecs[i].codec);
-          playabletracks[codecs[i].type] = 1;
-        }
-      }
-      function test(codecs) {
-        var v = document.createElement("video");
-        if ((v) && (typeof v.canPlayType == "function")) {
-          var result;
-          switch (shortmime) {
-            case "video/webm": {
-              //if codecs are included here, at least chrome reports it as not working, even though it does. So we'll just assume it will play if webm returns maybe.
-              result = v.canPlayType(shortmime);
-              break;
-            }
-            case "video/mp4":
-            case "html5/application/vnd.apple.mpegurl":
-            default: {
-              // Safari requires codecs before additional MIME parameters such as version=7.
-              var mimeparts = shortmime.split(";");
-              var testmime = mimeparts.shift()+";codecs=\""+codecs+"\"";
-              if (mimeparts.length) { testmime += ";"+mimeparts.join(";"); }
-              result = v.canPlayType(testmime);
-              break;
-            }
+      var container = mimetype.split("/")[2]; //the media container mime type
+
+      //create video element for codec testing
+      var v = document.createElement("video");
+      if ((!v) || (typeof v.canPlayType != "function")) return false;
+
+      var testresults = new MistUtil.tracks.TestResults(supported,function(track){
+        var codec = MistUtil.tracks.translateCodec(track);
+        var result;
+        switch (shortmime) {
+          case "video/webm": {
+            //if codecs are included here, at least chrome reports it as not working, even though it does. So we'll just assume it will play if webm returns maybe.
+            result = v.canPlayType(shortmime);
+            break;
           }
-          if (result != "") {
-            return result;
+          case "video/mp4":
+          case "html5/application/vnd.apple.mpegurl":
+          default: {
+            // Safari requires codecs before additional MIME parameters such as version=7.
+            var mimeparts = shortmime.split(";");
+            var testmime = mimeparts.shift()+";codecs=\""+codec+"\"";
+            if (mimeparts.length) { testmime += ";"+mimeparts.join(";"); }
+            result = v.canPlayType(testmime);
+            break;
           }
         }
-        return false;
-      }
-      
-      support = MistUtil.object.keys(playabletracks);
-    } catch(e){}
-    return support;
+        return result == "" ? false : result;
+      });
+
+      return testresults;
+    } catch(e){ 
+      return false;
+    }
   },
   player: function(){
     this.onreadylist = [];

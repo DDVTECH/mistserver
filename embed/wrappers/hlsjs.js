@@ -5,16 +5,15 @@ mistplayers.hlsjs = {
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,trackmeta) {
     //check for http/https mismatch
     if (location.protocol != MistUtil.http.url.split(source.url).protocol) {
       MistVideo.log("HTTP/HTTPS mismatch for this source");
       return false;
     }
 
-    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
-    supported = MistUtil.shared.testMediaSource(supported);
-    return MistUtil.tracks.tracktypes(supported);
+    if (!trackmeta) trackmeta = MistVideo.info.meta.tracks;
+    return MistUtil.shared.testMediaSource(MistUtil.tracks.getSupported(trackmeta,source));
   },
   player: function(){},
   scriptsrc: function(host) { return host+"/hlsjs.js"; },

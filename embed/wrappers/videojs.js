@@ -5,7 +5,7 @@ mistplayers.videojs = {
   isMimeSupported: function (mimetype) {
     return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,trackmeta) {
     if (location.protocol != MistUtil.http.url.split(source.url).protocol) {
       MistVideo.log("HTTP/HTTPS mismatch for this source");
       return false;
@@ -21,9 +21,8 @@ mistplayers.videojs = {
       return false;
     }
 
-    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
-    supported = MistUtil.shared.testMediaSource(supported);
-    return MistUtil.tracks.tracktypes(supported);
+    if (!trackmeta) trackmeta = MistVideo.info.meta.tracks;
+    return MistUtil.shared.testMediaSource(MistUtil.tracks.getSupported(trackmeta,source));
   },
   player: function(){},
   scriptsrc: function(host) { return host+"/videojs.js"; },

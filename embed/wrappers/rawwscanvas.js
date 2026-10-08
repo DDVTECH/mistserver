@@ -5,7 +5,7 @@ mistplayers.rawwscanvas = {
   isMimeSupported: function (mimetype) {
     return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,trackmeta) {
     
     //check for http/https mismatch
     if (location.protocol != MistUtil.http.url.split(source.url.replace(/^ws/,"http")).protocol) {
@@ -18,11 +18,11 @@ mistplayers.rawwscanvas = {
       }
     }
         
-    for (var i in MistVideo.info.meta.tracks) {
-      if (MistVideo.info.meta.tracks[i].codec == "HEVC") { return ["video"]; }
-    }
-    
-    return false;
+    if (!trackmeta) trackmeta = MistVideo.info.meta.tracks;
+
+    return new MistUtil.tracks.TestResults(MistUtil.tracks.getSupported(trackmeta,source),function(track){
+      return track.codec == "HEVC";
+    });
   },
   player: function(){
     this.onreadylist = [];

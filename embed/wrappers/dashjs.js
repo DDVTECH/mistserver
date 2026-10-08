@@ -5,7 +5,7 @@ mistplayers.dashjs = {
   isMimeSupported: function (mimetype) {
     return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,MistVideo) {
+  isBrowserSupported: function (mimetype,source,MistVideo,trackmeta) {
     
     //check for http/https mismatch
     if (location.protocol != MistUtil.http.url.split(source.url).protocol) {
@@ -19,9 +19,8 @@ mistplayers.dashjs = {
       return false;
     }
 
-    var supported = MistUtil.tracks.getSupported(MistVideo.info.meta.tracks,source);
-    supported = MistUtil.shared.testMediaSource(supported);
-    return MistUtil.tracks.tracktypes(supported);
+    if (!trackmeta) trackmeta = MistVideo.info.meta.tracks;
+    return MistUtil.shared.testMediaSource(MistUtil.tracks.getSupported(trackmeta,source));
   },
   player: function(){this.onreadylist = [];},
   scriptsrc: function(host) { return host+"/dashjs.js"; },

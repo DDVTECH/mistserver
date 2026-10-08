@@ -78,12 +78,19 @@ echo "  Minimizing CSS..";
 
 #if elementIn "embed/skins/default.css" "${CHANGES[@]}" || elementIn "embed/skins/general.css" "${CHANGES[@]}"; #then
   echo "    Minimizing default";
-  cleancss --format keep-breaks -o min/skins/default.css skins/general.css skins/default.css
+  #cleancss --format keep-breaks -o min/skins/default.css skins/general.css skins/default.css
+  
+  FILES=("skins/general.css" "skins/default.css")
+  printf '@import "%s";\n' "${FILES[@]}" | esbuild --bundle --minify-syntax --loader=css --outfile=min/skins/default.css
+
   ERRORS=$((ERRORS + $?))
 #fi
 #if elementIn "embed/skins/default.css" "${CHANGES[@]}" || elementIn "embed/skins/general.css" "${CHANGES[@]}" || elementIn "embed/skins/dev.css" "${CHANGES[@]}"; then
   echo "    Minimizing dev";
-  cleancss --format keep-breaks -o min/skins/dev.css skins/general.css skins/default.css skins/dev.css
+  #cleancss --format keep-breaks -o min/skins/dev.css skins/general.css skins/default.css skins/dev.css
+  FILES=("skins/dev.css" "skins/general.css" "skins/default.css")
+  printf '@import "%s";\n' "${FILES[@]}" | esbuild --bundle --minify-syntax --loader=css --outfile=min/skins/dev.css
+
   ERRORS=$((ERRORS + $?))
 #fi
 echo "  Done.";

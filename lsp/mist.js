@@ -13575,7 +13575,7 @@ context_menu: function(){
         return $preview_cont;
       },
       playercontrols: function(MistVideoObject,$video){
-        var $controls = $("<section>").addClass("controls").addClass("mistvideo").addClass("input_container").html(
+        var $controls = $("<section>").addClass("controls").addClass("mistvideo").html(
           $("<h3>").text("helloPlayer")
         ).append(
           $("<p>").text("Waiting for player..")
@@ -13625,16 +13625,6 @@ context_menu: function(){
                 style: {"flex-wrap": "wrap"},
                 children: [
                   {
-                    "if": function(){ return !!(this.player && this.player.api); },
-                    then: {
-                      type: "button",
-                      title: "Reload the video source",
-                      label: "Reload video",
-                      onclick: function(){
-                        this.player.api.load();
-                      }
-                    }
-                  },{
                     type: "button",
                     title: "Build MistVideo again",
                     label: "Reload player",

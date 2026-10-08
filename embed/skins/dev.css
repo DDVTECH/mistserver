@@ -18,6 +18,9 @@
 .mistvideo-log .logs .entry .message {
   margin: 0 0.2em;
 }
+.mistvideo-log .logs .entry .message .breakall {
+  word-break: break-all;
+}
 .mistvideo-log .logs .entry.type-error {
   color: $accent;
 }
@@ -47,6 +50,7 @@
   width: 15em;
   min-width: auto;
 }
+
 .mistvideo-devcontrols {
   margin: 0.5em 0;
 }
@@ -94,30 +98,46 @@
 .mistvideo select {
   border-radius: 0;
 }
-.mistvideo input[type="checkbox"] {
-  margin: 0;
-  margin-right: 0.2em;
-  border: 1px solid $semiFill;
-  border-radius: 0;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  -ms-appearance: none;
-  appearance: none;
-  width: 0.8em;
-  height: 0.8em;
-  color: inherit;
-  position: relative;
-  cursor: pointer;
-}
-.mistvideo input[type="checkbox"]:checked:after {
-  content: "\2713";
-  position: absolute;
-  bottom: -0.2em;
-  left: 0;
-  font-size: 1.2em;
-}
+
 .mistvideo.casting .mistvideo-forcePlayer,
 .mistvideo.casting .mistvideo-forceType,
 .mistvideo.casting .mistvideo-displayCombo {
   display: none !important;
+}
+
+.mistvideo-tracks select option[data-issupported="false"] {
+  display: initial;
+  opacity: 0.4;
+}
+.mistvideo-tracks tr:has(td span[data-issupported="false"]) {
+  display: table-row;
+  opacity: 0.4;
+}
+.mistvideo-tracks select + [hidden] {
+  display: initial;
+}
+
+@supports (appearance: base-select) {
+  .mistvideo-tracks select > option[data-issupported="false"][value] {
+    display: flex;
+  }
+  /* negate showing of select with one supported option as span */ 
+  .mistvideo .mistvideo-tracks select[data-type]:has(option[data-issupported]):not(:has(option[data-issupported="true"] ~ option[data-issupported="true"])){
+    cursor: pointer;
+
+    &::picker-icon { display: initial; }
+
+    button[data-empty] {
+      &:after {
+        content: attr(title);
+      }
+      & > span  {
+        display: none;
+      }
+    }
+
+    &:has(button[data-empty]) + span {
+      display: none;
+    }
+  }
 }

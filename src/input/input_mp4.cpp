@@ -13,10 +13,10 @@
 
 namespace Mist{
 
-  MP4::TrackHeader &InputMP4::headerData(size_t trackID){
+  MP4::TrackHeader & InputMP4::headerData(size_t trackID) {
     static MP4::TrackHeader none;
-    for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); it++){
-      if (it->trackId == trackID){return *it;}
+    for (auto & it : trackHeaders) {
+      if (it.trackId == trackID) { return it; }
     }
     return none;
   }
@@ -62,6 +62,7 @@ namespace Mist{
     capa["codecs"]["audio"].append("AC3");
     capa["codecs"]["audio"].append("MP3");
     capa["codecs"]["audio"].append("opus");
+    capa["codecs"]["meta"].append("subtitle");
     readPos = 0;
     nextBox = 0;
   }
@@ -144,14 +145,14 @@ namespace Mist{
 
         // for all box in moov
         std::deque<MP4::TRAK> trak = ((MP4::MOOV*)&moovBox)->getChildren<MP4::TRAK>();
-        for (std::deque<MP4::TRAK>::iterator trakIt = trak.begin(); trakIt != trak.end(); trakIt++){
+        for (MP4::TRAK & trakIt : trak) {
           trackHeaders.push_back(MP4::TrackHeader());
-          trackHeaders.rbegin()->read(*trakIt);
+          trackHeaders.rbegin()->read(trakIt);
         }
         std::deque<MP4::TREX> trex = ((MP4::MOOV*)&moovBox)->getChild<MP4::MVEX>().getChildren<MP4::TREX>();
         for (std::deque<MP4::TREX>::iterator trexIt = trex.begin(); trexIt != trex.end(); trexIt++){
-          for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); it++){
-            if (it->trackId == trexIt->getTrackID()){it->read(*trexIt);}
+          for (auto & it : trackHeaders) {
+            if (it.trackId == trexIt->getTrackID()) { it.read(*trexIt); }
           }
         }
         hasMoov = true;
@@ -196,29 +197,27 @@ namespace Mist{
 
     bool sawParts = false;
     bool parsedInitial = false;
-    for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); it++){
-      if (!it->compatible()){
-        INFO_MSG("Unsupported track: %s", it->trackType.c_str());
+    for (auto & it : trackHeaders) {
+      if (!it.compatible()) {
+        INFO_MSG("Unsupported track: %s %s", it.codec.c_str(), it.trackType.c_str());
         continue;
       }
       tNumber = meta.addTrack();
-      HIGH_MSG("Found track %zu of type %s -> %s", tNumber, it->sType.c_str(), it->codec.c_str());
-      meta.setID(tNumber, it->trackId);
-      meta.setCodec(tNumber, it->codec);
-      meta.setInit(tNumber, it->initData);
-      meta.setLang(tNumber, it->lang);
-      if (it->trackType == "video"){
-        meta.setType(tNumber, "video");
-        meta.setWidth(tNumber, it->vidWidth);
-        meta.setHeight(tNumber, it->vidHeight);
+      HIGH_MSG("Found track %zu of type %s -> %s", tNumber, it.sType.c_str(), it.codec.c_str());
+      meta.setID(tNumber, it.trackId);
+      meta.setCodec(tNumber, it.codec);
+      meta.setInit(tNumber, it.initData);
+      meta.setLang(tNumber, it.lang);
+      meta.setType(tNumber, it.trackType);
+      if (it.trackType == "video") {
+        meta.setWidth(tNumber, it.vidWidth);
+        meta.setHeight(tNumber, it.vidHeight);
+      } else if (it.trackType == "audio") {
+        meta.setChannels(tNumber, it.audChannels);
+        meta.setRate(tNumber, it.audRate);
+        meta.setSize(tNumber, it.audSize);
       }
-      if (it->trackType == "audio"){
-        meta.setType(tNumber, "audio");
-        meta.setChannels(tNumber, it->audChannels);
-        meta.setRate(tNumber, it->audRate);
-        meta.setSize(tNumber, it->audSize);
-      }
-      if (it->size()){sawParts = true;}
+      if (it.size()) { sawParts = true; }
     }
 
     // Might be an fMP4 file! Let's try finding some moof boxes...
@@ -239,16 +238,16 @@ namespace Mist{
           break;
         }
         if (sawParts && !parsedInitial){
-          for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); ++it){
-            tNumber = M.trackIDToIndex(it->trackId);
+          for (auto & it : trackHeaders) {
+            tNumber = M.trackIDToIndex(it.trackId);
             if (tNumber == INVALID_TRACK_ID) { continue; }
-            for (uint64_t partNo = 0; partNo < it->size(); ++partNo){
+            for (uint64_t partNo = 0; partNo < it.size(); ++partNo) {
               uint64_t prtBpos = 0, prtTime = 0;
               uint32_t prtBlen = 0;
               int32_t prtTimeOff = 0;
               bool prtKey = false;
-              it->getPart(partNo, &prtBpos, &prtBlen, &prtTime, &prtTimeOff, &prtKey);
-              meta.update(prtTime, prtTimeOff, tNumber, prtBlen, moovPos, prtKey && it->trackType != "audio");
+              it.getPart(partNo, &prtBpos, &prtBlen, &prtTime, &prtTimeOff, &prtKey);
+              meta.update(prtTime, prtTimeOff, tNumber, prtBlen, moovPos, prtKey && it.trackType != "audio");
               sawParts = true;
             }
             bps += M.getBps(tNumber);
@@ -273,20 +272,20 @@ namespace Mist{
         }
 
         // Parse data from moof header into our header
-        for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); it++){
-          if (!it->compatible()){continue;}
-          tNumber = M.trackIDToIndex(it->trackId);
+        for (auto & it : trackHeaders) {
+          if (!it.compatible()) { continue; }
+          tNumber = M.trackIDToIndex(it.trackId);
           if (tNumber == INVALID_TRACK_ID) { continue; }
-          for (uint64_t partNo = 0; partNo < it->size(); ++partNo){
+          for (uint64_t partNo = 0; partNo < it.size(); ++partNo) {
             uint64_t prtBpos = 0, prtTime = 0;
             uint32_t prtBlen = 0;
             int32_t prtTimeOff = 0;
             bool prtKey = false;
-            it->getPart(partNo, &prtBpos, &prtBlen, &prtTime, &prtTimeOff, &prtKey, moofPos);
+            it.getPart(partNo, &prtBpos, &prtBlen, &prtTime, &prtTimeOff, &prtKey, moofPos);
             // Skip any parts that are outside the file limits
             if (inFile.getSize() != std::string::npos && prtBpos + prtBlen > inFile.getSize()){continue;}
             // Note: we set the byte position to the position of the moof, so we can re-read it later with ease
-            meta.update(prtTime, prtTimeOff, tNumber, prtBlen, moofPos, prtKey && it->trackType != "audio");
+            meta.update(prtTime, prtTimeOff, tNumber, prtBlen, moofPos, prtKey && it.trackType != "audio");
             sawParts = true;
           }
         }
@@ -311,16 +310,16 @@ namespace Mist{
     // Mark file as fmp4 so we know to treat it as one
     if (sawMoof){meta.inputLocalVars["fmp4"] = true;}
     if (!parsedInitial){
-      for (std::deque<MP4::TrackHeader>::iterator it = trackHeaders.begin(); it != trackHeaders.end(); ++it){
-        tNumber = M.trackIDToIndex(it->trackId);
+      for (auto & it : trackHeaders) {
+        tNumber = M.trackIDToIndex(it.trackId);
         if (tNumber == INVALID_TRACK_ID) { continue; }
-        for (uint64_t partNo = 0; partNo < it->size(); ++partNo){
+        for (uint64_t partNo = 0; partNo < it.size(); ++partNo) {
           uint64_t prtBpos = 0, prtTime = 0;
           uint32_t prtBlen = 0;
           int32_t prtTimeOff = 0;
           bool prtKey = false;
-          it->getPart(partNo, &prtBpos, &prtBlen, &prtTime, &prtTimeOff, &prtKey);
-          meta.update(prtTime, prtTimeOff, tNumber, prtBlen, prtBpos, prtKey && it->trackType != "audio");
+          it.getPart(partNo, &prtBpos, &prtBlen, &prtTime, &prtTimeOff, &prtKey);
+          meta.update(prtTime, prtTimeOff, tNumber, prtBlen, prtBpos, prtKey && it.trackType != "audio");
           sawParts = true;
         }
         bps += M.getBps(tNumber);
@@ -390,9 +389,17 @@ namespace Mist{
 
       if (M.getCodec(curPart.trackID) == "subtitle") {
         static JSON::Value thisPack;
+        thisPack.null();
         thisPack["trackid"] = (uint64_t)curPart.trackID;
-        thisPack["bpos"] = curPart.bpos; //(long long)fileSource.tellg();
-        thisPack["data"] = std::string(readBuffer + (curPart.bpos - readPos), curPart.size);
+        thisPack["bpos"] = curPart.bpos;
+        if (curPart.size > 2) {
+          // MP4 subtitles have 2-bytes MSBF length, followed by length bytes text, and optional style boxes (which we ignore for now)
+          uint16_t subLen = Bit::btohs(readBuffer + (curPart.bpos - readPos));
+          thisPack["data"] = std::string(readBuffer + (curPart.bpos - readPos) + 2, subLen);
+        } else {
+          thisPack["data"] = "";
+        }
+
         thisPack["time"] = curPart.time;
         if (curPart.duration) { thisPack["duration"] = curPart.duration; }
         thisPack["keyframe"] = true;

@@ -1474,6 +1474,7 @@ namespace Mist{
       }
     }
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      std::string codec = M.getCodec(*it);
       bool newData = true;
 
       DTSC::Keys keys(M.keys(*it));
@@ -1486,6 +1487,12 @@ namespace Mist{
         for (uint32_t j = 0; j < endKey; j++){
           uint64_t keyTime = keys.getTime(j);
           if (newData){
+
+            // Give a bit extra space to subtitles, they usually need it
+            if (codec == "subtitle") {
+              tPages.setInt("size", tPages.getInt("size", pageNum) + tPages.getInt("parts", pageNum) * 100, pageNum);
+            }
+
             if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
               meta.resizeTrack(*it, M.fragments(*it).getRCount(), M.keys(*it).getRCount(), M.parts(*it).getRCount(), tPages.getRCount() * 2, "not enough pages");
             }
@@ -1507,34 +1514,6 @@ namespace Mist{
           }
         }
       }
-      /*LTS-START*/
-      /*
-      if (config->getString("encryption") == "" && config->getString("buydrm") != ""){
-        handleBuyDRM();
-      }
-      if (config->getString("encryption").find(":") != std::string::npos){
-        size_t tNumber = meta.addCopy(*it);
-        meta.setID(tNumber, tNumber);
-        meta.setType(tNumber, M.getType(*it));
-        meta.setCodec(tNumber, M.getCodec(*it));
-        meta.setEncryption(tNumber, "CTR128/" + config->getString("encryption"));
-        meta.setIvec(tNumber, 0x0CD00C657BA88D47);//Poke_compat
-//        meta.setIvec(tNumber, 0x5DC800E53A65018A);//Dash_compat
-        meta.setWidevine(tNumber, config->getString("widevine"));
-        meta.setPlayReady(tNumber, config->getString("playready"));
-
-        tNumber = meta.addCopy(*it);
-        meta.setID(tNumber, tNumber);
-        meta.setType(tNumber, M.getType(*it));
-        meta.setCodec(tNumber, M.getCodec(*it));
-        meta.setEncryption(tNumber, "CBC128/" + config->getString("encryption"));
-        meta.setIvec(tNumber, 0x0CD00C657BA88D47);//Poke_compat
-//        meta.setIvec(tNumber, 0x5DC800E53A65018A);//Dash_compat
-        meta.setWidevine(tNumber, config->getString("widevine"));
-        meta.setPlayReady(tNumber, config->getString("playready"));
-      }
-      */
-      /*LTS-END*/
     }
 
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
@@ -1768,11 +1747,11 @@ namespace Mist{
             size_t currPos = tPages.getInt("avail", pageIdx);
             if (currPos){
               size_t keySize = keys.getSize(keyNum);
-              if (currPos-prevPos == keySize){
+              if (currPos - prevPos == keySize || M.getCodec(idx) == "subtitle") {
                 VERYHIGH_MSG("Key %" PRIu32 " was %zu bytes", keyNum, currPos-prevPos);
-              }else if (currPos-prevPos > keySize){
+              } else if (currPos - prevPos > keySize) {
                 FAIL_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
-              }else{
+              } else {
                 MEDIUM_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
               }
               ++keyNum;
@@ -1782,7 +1761,7 @@ namespace Mist{
           char *data;
           size_t dataLen;
           thisPacket.getString("data", data, dataLen);
-          if (dataLen != parts.getSize(partNo)){
+          if (dataLen != parts.getSize(partNo) && M.getCodec(idx) != "subtitle") {
             if (partNo && dataLen == parts.getSize(partNo-1)){
               FAIL_MSG("Part size for part %zu (%" PRIu64 "ms) matches part before it, instead. Aborting page load!", partNo, thisTime);
               break;

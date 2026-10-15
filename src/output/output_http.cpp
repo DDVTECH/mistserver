@@ -257,8 +257,8 @@ namespace Mist{
 
     //Finish fast-forwarding if forwardTo time was reached
     if (forwardTo && thisTime >= forwardTo){
+      resetTiming(forwardTo);
       forwardTo = 0;
-      resetTiming(thisTime);
       if (target_rate == 0.0){
         realTime = 1000; // set playback speed to default
         maxSkipAhead = 0;//enable automatic rate control
@@ -967,6 +967,7 @@ namespace Mist{
       if (!forwardTo) { forwardTo = seek_time; }
       forwardTo += command["ff_add"].asInt();
     }
+    if (seek_time < currentTime()) { resetTiming(seek_time); }
     if (forwardTo) {
       if (forwardTo < currentTime()){
         resetTiming(forwardTo);

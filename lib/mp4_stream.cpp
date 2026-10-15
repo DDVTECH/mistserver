@@ -146,7 +146,9 @@ namespace MP4{
       trackType = "audio";
     }else if (handler == "sbtl"){
       trackType = "meta";
-    }else{
+    } else if (handler == "text") {
+      trackType = "meta";
+    } else {
       INFO_MSG("Unsupported handler: %s", handler.c_str());
     }
 
@@ -254,10 +256,13 @@ namespace MP4{
         }
       }
     }
-    if (sType == "tx3g"){// plain text subtitles
+    if (sType == "tx3g" || sType == "text") { // plain text subtitles
       codec = "subtitle";
+      trackType = "meta";
       isCompatible = true;
     }
+    INFO_MSG("Track %zu: %s", trackId, codec.c_str());
+    if (!isCompatible) { INFO_MSG("Incompatible type: %s", sType.c_str()); }
   }
 
   void TrackHeader::read(TRAF &trafBox){
@@ -439,11 +444,6 @@ namespace MP4{
         *byteLen = stszBox.getEntrySize(index);
       }
 
-      // Specifically for text tracks, remove the 2-byte header if possible
-      if (byteOffset && byteLen && *byteLen >= 2 && sType == "tx3g"){
-        *byteLen -= 2;
-        *byteOffset += 2;
-      }
     }else{
       // Reading from TRAF boxes
       size_t skipped = 0;

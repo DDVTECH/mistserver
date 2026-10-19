@@ -1,7 +1,10 @@
 #include "input_hls.h"
+
 #include <mist/defines.h>
-#include <thread>
-#include <mutex>
+#include <mist/encode.h>
+#include <mist/hls_support.h>
+
+#include <cctype>
 
 #define SEM_TS_CLAIM "/MstTSIN%s"
 
@@ -155,9 +158,6 @@ namespace Mist{
   /// Track which segment numbers have been parsed
   std::map<uint64_t, uint64_t> parsedSegments;
 
-  /// Mutex for accesses to listEntries
-  std::mutex entryMutex;
-
   JSON::Value playlist_urls; ///< Relative URLs to the various playlists
 
   static unsigned int plsTotalCount = 0; /// Total playlists active
@@ -226,7 +226,7 @@ namespace Mist{
 
   /// Handles both initial load and future reloads.
   /// Returns how many segments were added to the internal segment list.
-  bool Playlist::reload(){
+  bool Playlist::reload(const std::string & plsData) {
     uint64_t bposCounter = 1;
     nextUTC = 0; // Make sure we don't use old timestamps
     std::string line;
@@ -245,25 +245,13 @@ namespace Mist{
     int count = 0;
 
     std::istringstream urlSource;
-
-    HTTP::URIReader plsDL;
-    plsDL.open(uri);
-    char * dataPtr;
-    size_t dataLen;
-    plsDL.readAll(dataPtr, dataLen);
-    if (!dataLen){
-      FAIL_MSG("Could not download playlist '%s', aborting.", uri.c_str());
-      reloadNext = Util::bootSecs() + waitTime;
-      return false;
-    }
-    urlSource.str(std::string(dataPtr, dataLen));
+    urlSource.str(plsData);
 
     std::istream &input = (std::istream &)urlSource;
     std::getline(input, line);
 
     {// Mutex scope
       // Block the main thread from reading listEntries and firstIndex
-      std::lock_guard<std::mutex> guard(entryMutex);
       DONTEVEN_MSG("Reloading playlist '%s'", uri.c_str());
       while (std::getline(input, line)){
         DONTEVEN_MSG("Parsing line '%s'", line.c_str());
@@ -520,7 +508,6 @@ namespace Mist{
 
     // Set a playlist ID if we haven't assigned one yet.
     // Note: This method requires never removing playlists, only adding.
-    // The mutex assures we have a unique count/number.
     if (!id){id = listEntries.size() + 1;}
     if (entry.startAtByte){
       HIGH_MSG("Adding entry '%s' (%" PRIu64 "-%" PRIu64 ") to ID %u", filename.c_str(), entry.startAtByte, entry.stopAtByte, id);
@@ -663,7 +650,6 @@ namespace Mist{
       return false;
     }
     // Recover playlist entries
-    std::lock_guard<std::mutex> guard(entryMutex);
     HTTP::URL root = HTTP::localURIResolver().link(config->getString("input"));
     jsonForEachConst(M.inputLocalVars["playlistEntries"], i){
       uint64_t plNum = JSON::Value(i.key()).asInt();
@@ -753,45 +739,39 @@ namespace Mist{
     size_t dataLen;
     meta.reInit(isSingular() ? streamName : "");
 
-    std::lock_guard<std::mutex> guard(entryMutex);
 
     size_t totalSegments = 0, currentSegment = 0;
-    for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
-         pListIt != listEntries.end(); pListIt++){
-      totalSegments += pListIt->second.size();
-    }
+    for (const auto & pListIt : listEntries) { totalSegments += pListIt.second.size(); }
 
-    for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
-         pListIt != listEntries.end() && config->is_active; pListIt++){
+    for (auto & pListIt : listEntries) {
       segDowner.reset();
       std::string lastMapName;
       uint32_t entId = 0;
       bool foundAtLeastOnePacket = false;
-      VERYHIGH_MSG("Playlist %" PRIu32 " starts at media index %" PRIu64, pListIt->first, playlistMapping[pListIt->first]->firstIndex);
+      VERYHIGH_MSG("Playlist %" PRIu32 " starts at media index %" PRIu64, pListIt.first, playlistMapping[pListIt.first]->firstIndex);
 
-      for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
-           entryIt != pListIt->second.end() && config->is_active; entryIt++){
+      for (auto & entryIt : pListIt.second) {
         ++currentSegment;
 
-        if (entryIt->mapName != lastMapName){
-          lastMapName = entryIt->mapName;
-          segDowner.setInit(playlistMapping[pListIt->first]->maps[lastMapName]);
+        if (entryIt.mapName != lastMapName) {
+          lastMapName = entryIt.mapName;
+          segDowner.setInit(playlistMapping[pListIt.first]->maps[lastMapName]);
         }
-        if (!loadSegment(segDowner, *entryIt)){
+        if (!loadSegment(segDowner, entryIt)) {
           FAIL_MSG("Failed to load segment - skipping to next");
           continue;
         }
         entId++;
         allowRemap = true;
         DTSC::Packet headerPack;
-        while (config->is_active && readNext(segDowner, headerPack, entryIt->bytePos)){
+        while (config->is_active && readNext(segDowner, headerPack, entryIt.bytePos)) {
           if (!config->is_active){return false;}
           if (!headerPack){
             continue;
           }
           size_t tmpTrackId = headerPack.getTrackId();
-          uint64_t packetId = getPacketID(pListIt->first, tmpTrackId);
-          uint64_t packetTime = getPacketTime(headerPack.getTime(), tmpTrackId, pListIt->first, entryIt->mUTC);
+          uint64_t packetId = getPacketID(pListIt.first, tmpTrackId);
+          uint64_t packetTime = getPacketTime(headerPack.getTime(), tmpTrackId, pListIt.first, entryIt.mUTC);
           size_t idx = M.trackIDToIndex(packetId, getpid());
           if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
             segDowner.initializeMetadata(meta, tmpTrackId, packetId);
@@ -803,16 +783,16 @@ namespace Mist{
             // keyframe data exists, so always add 19 bytes keyframedata.
             uint32_t packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
             INSANE_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
-            meta.update(packetTime, packOffset, idx, dataLen, entryIt->bytePos, headerPack.hasMember("keyframe"));
+            meta.update(packetTime, packOffset, idx, dataLen, entryIt.bytePos, headerPack.hasMember("keyframe"));
           }
           foundAtLeastOnePacket = true;
         }
         // Finally save the offset as part of the TS segment. This is required for bufferframe
         // to work correctly, since not every segment might have an UTC timestamp tag
-        if (plsTimeOffset.count(pListIt->first)){
-          listEntries[pListIt->first].at(entId-1).timeOffset = plsTimeOffset[pListIt->first];
-        }else{
-          listEntries[pListIt->first].at(entId-1).timeOffset = 0;
+        if (plsTimeOffset.count(pListIt.first)) {
+          listEntries[pListIt.first].at(entId - 1).timeOffset = plsTimeOffset[pListIt.first];
+        } else {
+          listEntries[pListIt.first].at(entId - 1).timeOffset = 0;
         }
 
         //Set progress counter
@@ -821,7 +801,7 @@ namespace Mist{
         }
 
         // If live, don't actually parse anything. If non-live, we read all the segments
-        parsedSegments[pListIt->first] = playlistMapping[pListIt->first]->firstIndex + (streamIsLive ? 0 : currentSegment);
+        parsedSegments[pListIt.first] = playlistMapping[pListIt.first]->firstIndex + (streamIsLive ? 0 : currentSegment);
 
         // For still-appending streams, only parse the first segment for each playlist
         if (streamIsLive && foundAtLeastOnePacket){break;}
@@ -991,7 +971,6 @@ namespace Mist{
   void InputHLS::parseLivePoint(){
     uint64_t maxTime = Util::bootMS() + 500;
     // Block playlist runners from updating listEntries while the main thread is accessing it
-    std::lock_guard<std::mutex> guard(entryMutex);
     // Iterate over all playlists, parse new segments as they've appeared in listEntries and remove expired entries in listEntries
     for (std::map<uint64_t, Playlist*>::iterator pListIt = playlistMapping.begin();
          pListIt != playlistMapping.end(); pListIt++){
@@ -1127,31 +1106,25 @@ namespace Mist{
 
     VERYHIGH_MSG("Seeking to index %zu on playlist %" PRIu64, currentIndex, currentPlaylist);
 
-    {// Lock mutex for listEntries
-      std::lock_guard<std::mutex> guard(entryMutex);
-      if (!listEntries.count(currentPlaylist)){
-        WARN_MSG("Playlist %" PRIu64 " not loaded, aborting seek", currentPlaylist);
-        return;
-      }
-      std::deque<playListEntries> &curPlaylist = listEntries[currentPlaylist];
-      if (curPlaylist.size() <= currentIndex){
-        WARN_MSG("Playlist %" PRIu64 " has %zu <= %zu entries, aborting seek", currentPlaylist,
-                 curPlaylist.size(), currentIndex);
-        return;
-      }
-      playListEntries & e = curPlaylist.at(currentIndex);
-      if (e.mapName.size()){
-        segDowner.setInit(playlistMapping[currentPlaylist]->maps[e.mapName]);
-      }
-      loadSegment(segDowner, e);
-      if (e.timeOffset){
-        // If we have an offset, load it
-        allowRemap = false;
-        HIGH_MSG("Setting time offset of this TS segment to %" PRId64, e.timeOffset);
-        plsTimeOffset[currentPlaylist] = e.timeOffset;
-      }else{
-        allowRemap = true;
-      }
+    if (!listEntries.count(currentPlaylist)) {
+      WARN_MSG("Playlist %" PRIu64 " not loaded, aborting seek", currentPlaylist);
+      return;
+    }
+    std::deque<playListEntries> & curPlaylist = listEntries[currentPlaylist];
+    if (curPlaylist.size() <= currentIndex) {
+      WARN_MSG("Playlist %" PRIu64 " has %zu <= %zu entries, aborting seek", currentPlaylist, curPlaylist.size(), currentIndex);
+      return;
+    }
+    playListEntries & e = curPlaylist.at(currentIndex);
+    if (e.mapName.size()) { segDowner.setInit(playlistMapping[currentPlaylist]->maps[e.mapName]); }
+    loadSegment(segDowner, e);
+    if (e.timeOffset) {
+      // If we have an offset, load it
+      allowRemap = false;
+      HIGH_MSG("Setting time offset of this TS segment to %" PRId64, e.timeOffset);
+      plsTimeOffset[currentPlaylist] = e.timeOffset;
+    } else {
+      allowRemap = true;
     }
   }
 
@@ -1281,10 +1254,7 @@ namespace Mist{
     bool isRegularPls = false;
     plsInitCount = 0;
     plsTotalCount = 0;
-    {
-      std::lock_guard<std::mutex> guard(entryMutex);
-      listEntries.clear();
-    }
+    listEntries.clear();
     std::string line;
     bool ret = false;
     startTime = Util::bootSecs();
@@ -1437,16 +1407,16 @@ namespace Mist{
 
     if (!isUrl){fileSource.close();}
 
-    uint32_t maxWait = 0;
+    uint64_t maxWait = Util::bootMS() + 50000;
     unsigned int lastCount = 9999;
-    while (plsTotalCount != plsInitCount && ++maxWait < 1000){
+    while (plsTotalCount != plsInitCount && Util::bootMS() < maxWait) {
       if (plsInitCount != lastCount){
         lastCount = plsInitCount;
         INFO_MSG("Waiting for variant playlists to load... %u/%u", lastCount, plsTotalCount);
       }
-      Util::sleep(50);
+      evLp.await(100);
     }
-    if (maxWait >= 1000){
+    if (Util::bootMS() >= maxWait) {
       WARN_MSG("Timeout waiting for variant playlists (%u/%u)", plsInitCount, plsTotalCount);
     }
     plsInitCount = 0;
@@ -1464,43 +1434,58 @@ namespace Mist{
     }else{
       urlBuffer = uri.getUrl() + "\n" + relurl;
     }
+    if (!urlBuffer.size()) { return false; }
+
     VERYHIGH_MSG("Adding playlist(s): %s", urlBuffer.c_str());
-    bool inited = false;
-    std::thread runList([urlBuffer, fullInit, &inited](){
-      if (!urlBuffer.size()){return;}// abort if we received a null pointer - something is seriously wrong
-      Util::setStreamName(self->getStreamName());
 
-      Playlist *pls = new Playlist(urlBuffer);
-      plsTotalCount++;
-      pls->id = plsTotalCount;
-      playlistMapping[pls->id] = pls;
+    Playlist *pls = new Playlist(urlBuffer);
+    plsTotalCount++;
+    pls->id = plsTotalCount;
+    playlistMapping[pls->id] = pls;
 
-      if (!pls->uri.size()){
-        FAIL_MSG("Variant playlist URL is empty, aborting update thread.");
-        return;
+    if (!pls->uri.size()) {
+      FAIL_MSG("Variant playlist URL is empty, aborting update handler");
+      return false;
+    }
+
+    pls->interval = evLp.addInterval([pls, fullInit, this]() {
+      if (pls->plsDl.isEventLooping()) { return (size_t)1000; }
+      // Wait until next reload, if this is not the first time
+      if (pls->wasInited) {
+        uint64_t currSecs = Util::bootSecs();
+        if (pls->reloadNext > currSecs) { return (size_t)(1000 * (pls->reloadNext - currSecs)); }
       }
-
-      pls->reload();
-      inited = true;
-      plsInitCount++;
-      if (!fullInit){
-        INFO_MSG("Thread for %s exiting", pls->uri.c_str());
-        return;
-      }// Exit because init-only mode
-
-      while (self->config->is_active && streamIsLive){
-        if (pls->reloadNext > Util::bootSecs()){
-          Util::sleep(1000);
-        }else{
-          pls->reload();
+      pls->plsDl.progressCallback = 0;
+      if (HTTP::URL(pls->uri).isLocalPath()) {
+        Util::ResizeablePointer data;
+        HTTP::URIReader rdr(pls->uri);
+        rdr.readAll(data);
+        rdr.close();
+        if (data.size()) {
+          pls->reload(std::string(data, data.size()));
+          if (!pls->wasInited) {
+            plsInitCount++;
+            pls->wasInited = true;
+          }
+        } else {
+          WARN_MSG("Could not load local playlist: %s", pls->uri.c_str());
         }
+      } else {
+        pls->plsDl.getEventLooped(evLp, pls->uri, 3, [pls]() {
+          INFO_MSG("Downloaded %s", pls->uri.c_str());
+          pls->reload(pls->plsDl.data());
+          pls->plsDl.data().clear();
+          if (!pls->wasInited) {
+            plsInitCount++;
+            pls->wasInited = true;
+          }
+        }, [pls]() { WARN_MSG("Failed to download playlist %s", pls->uri.c_str()); });
       }
-      INFO_MSG("Downloader thread for '%s' exiting", pls->uri.c_str());
-    });
-    runList.detach(); // Abandon the thread, it's now running independently
-    uint32_t timeout = 0;
-    while (!inited && ++timeout < 100){Util::sleep(100);}
-    if (timeout >= 100){WARN_MSG("Thread start timed out for: %s", urlBuffer.c_str());}
+
+      // No further calls in init-only mode
+      if (!fullInit) { return (size_t)0; }
+      return (size_t)1000;
+    }, 1);
     return true;
   }
 
@@ -1513,7 +1498,6 @@ namespace Mist{
     {
       // Switch to next file
       currentIndex++;
-      std::lock_guard<std::mutex> guard(entryMutex);
       std::deque<playListEntries> &curList = listEntries[currentPlaylist];
       HIGH_MSG("Current playlist contains %zu entries. Current index is %zu in playlist %" PRIu64, curList.size(), currentIndex, currentPlaylist);
       if (curList.size() <= currentIndex){
@@ -1551,7 +1535,6 @@ namespace Mist{
     int tmpId = -1;
     int segCount = 0;
 
-    std::lock_guard<std::mutex> guard(entryMutex);
     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
          pListIt != listEntries.end(); pListIt++){
       segCount += pListIt->second.size();

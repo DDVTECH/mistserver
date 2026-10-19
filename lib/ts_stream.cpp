@@ -1083,10 +1083,10 @@ namespace TS{
   void Stream::initializeMetadata(DTSC::Meta &meta, size_t tid, size_t mappingId){
     std::lock_guard<std::recursive_mutex> guard(tMutex);
 
-    for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
-      if (tid != INVALID_TRACK_ID && it->first != tid){continue;}
+    for (const auto & it : pidToCodec) {
+      if (tid != INVALID_TRACK_ID && it.first != tid) { continue; }
 
-      size_t mId = (mappingId == INVALID_TRACK_ID ? it->first : mappingId);
+      size_t mId = (mappingId == INVALID_TRACK_ID ? it.first : mappingId);
 
       size_t idx = meta.trackIDToIndex(mId, getpid());
       if (idx != INVALID_TRACK_ID && meta.getCodec(idx).size()){continue;}
@@ -1095,183 +1095,183 @@ namespace TS{
       bool addNewTrack = false;
       DTSC::TrackMetadata trkDta;
 
-      switch (it->second){
-      case H264:{
-        if (!spsInfo.count(it->first) || !ppsInfo.count(it->first)){
-          MEDIUM_MSG("Aborted meta fill for h264 track %zu: no SPS/PPS", it->first);
-          continue;
-        }
-        // First generate needed data
-        std::string tmpBuffer = spsInfo[it->first];
-        h264::sequenceParameterSet sps(tmpBuffer.data(), tmpBuffer.size());
+      switch (it.second) {
+        case H264: {
+          if (!spsInfo.count(it.first) || !ppsInfo.count(it.first)) {
+            MEDIUM_MSG("Aborted meta fill for h264 track %zu: no SPS/PPS", it.first);
+            continue;
+          }
+          // First generate needed data
+          std::string tmpBuffer = spsInfo[it.first];
+          h264::sequenceParameterSet sps(tmpBuffer.data(), tmpBuffer.size());
 
-        MP4::AVCC avccBox;
-        avccBox.setVersion(1);
-        avccBox.setProfile(spsInfo[it->first][1]);
-        avccBox.setCompatibleProfiles(spsInfo[it->first][2]);
-        avccBox.setLevel(spsInfo[it->first][3]);
-        avccBox.setSPSCount(1);
-        avccBox.setSPS(spsInfo[it->first]);
-        avccBox.setPPSCount(1);
-        avccBox.setPPS(ppsInfo[it->first]);
+          MP4::AVCC avccBox;
+          avccBox.setVersion(1);
+          avccBox.setProfile(spsInfo[it.first][1]);
+          avccBox.setCompatibleProfiles(spsInfo[it.first][2]);
+          avccBox.setLevel(spsInfo[it.first][3]);
+          avccBox.setSPSCount(1);
+          avccBox.setSPS(spsInfo[it.first]);
+          avccBox.setPPSCount(1);
+          avccBox.setPPS(ppsInfo[it.first]);
 
-        // Then set all data for track
-        addNewTrack = true;
-        trkDta.type = "video";
-        trkDta.codec = "H264";
-        if (sps) {
-          trkDta.width = sps.chars.width;
-          trkDta.height = sps.chars.height;
-          trkDta.fpks = sps.chars.fps * 1000;
-        }
-        trkDta.init.assign(avccBox.payload(), avccBox.payloadSize());
-      }break;
-      case H265:{
-        if (!hevcInfo.count(it->first) || !hevcInfo[it->first].haveRequired()){
-          MEDIUM_MSG("Aborted meta fill for hevc track %zu: no info nal unit", it->first);
-          continue;
-        }
-        addNewTrack = true;
-        trkDta.type = "video";
-        trkDta.codec = "HEVC";
-        trkDta.init = hevcInfo[it->first].generateHVCC();
-        h265::metaInfo metaInfo = hevcInfo[it->first].getMeta();
-        trkDta.width = metaInfo.width;
-        trkDta.height = metaInfo.height;
-        trkDta.fpks = metaInfo.fps * 1000;
-      }break;
-      case MPEG2:{
-        addNewTrack = true;
-        trkDta.type = "video";
-        trkDta.codec = "MPEG2";
-        trkDta.init =
-          std::string("\000\000\001", 3) + mpeg2SeqHdr[it->first] + std::string("\000\000\001", 3) + mpeg2SeqExt[it->first];
-        Mpeg::MPEG2Info info = Mpeg::parseMPEG2Header(trkDta.init);
-        trkDta.width = info.width;
-        trkDta.height = info.height;
-        trkDta.fpks = info.fps * 1000;
-      }break;
-      case ID3:{
-        addNewTrack = true;
-        trkDta.type = "meta";
-        trkDta.codec = "ID3";
-        trkDta.init = metaInit[it->first];
-      }break;
-      case META:{
-        addNewTrack = true;
-        trkDta.type = "meta";
-        trkDta.codec = "RAW";
-        trkDta.init = metaInit[it->first];
-      }break;
-      case AC3:{
-        addNewTrack = true;
-        trkDta.type = "audio";
-        trkDta.codec = "AC3";
-        trkDta.size = 16;
-      }break;
-      case JSON:{
-        addNewTrack = true;
-        trkDta.type = "meta";
-        trkDta.codec = "JSON";
-      }break;
-      case AV1: {
-        addNewTrack = true;
-        trkDta.type = "video";
-        trkDta.codec = "AV1";
-        trkDta.init = TS::ProgramDescriptors(metaInit[it->first].data(), metaInit[it->first].size()).getTag(0x80);
-        if (trkDta.init.size() >= 8) {
-          uint16_t div = Bit::btohs(trkDta.init.data() + 6);
-          if (!div) { div = 1; }
-          trkDta.fpks = Bit::btohs(trkDta.init.data() + 4) * 1000 / div;
-          trkDta.init.erase(4);
-        }
-      } break;
-      case SCTE35: {
-        addNewTrack = true;
-        trkDta.type = "meta";
-        trkDta.codec = "SCTE35";
-      } break;
-      case PCM: {
-        addNewTrack = true;
-        trkDta.type = "audio";
-        trkDta.codec = "PCM";
-        std::string reg = TS::ProgramDescriptors(metaInit[it->first].data(), metaInit[it->first].size()).getRegistration();
-        trkDta.channels = reg[3];
-        trkDta.size = reg[4];
-        trkDta.rate = Bit::btoh24(reg.data() + 5);
-      } break;
-      case OPUS:{
-        addNewTrack = true;
-        trkDta.type = "audio";
-        trkDta.codec = "opus";
-        trkDta.size = 16;
-        trkDta.init = std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\001", 19);
-        trkDta.channels = 2;
-        std::string extData = TS::ProgramDescriptors(metaInit[it->first].data(), metaInit[it->first].size()).getExtension();
-        if (extData.size() > 1){
-          trkDta.channels = extData[1];
-          uint8_t channel_map = extData[2];
-          if (trkDta.channels > 8) {
-            FAIL_MSG("Channel count %u not implemented", (int)trkDta.channels);
-            if (channel_map == 1){channel_map = 255;}
+          // Then set all data for track
+          addNewTrack = true;
+          trkDta.type = "video";
+          trkDta.codec = "H264";
+          if (sps) {
+            trkDta.width = sps.chars.width;
+            trkDta.height = sps.chars.height;
+            trkDta.fpks = sps.chars.fps * 1000;
           }
-          if (channel_map > 1){
-            FAIL_MSG("Channel mapping table %u not implemented", (int)trkDta.init[18]);
-            channel_map = 255;
+          trkDta.init.assign(avccBox.payload(), avccBox.payloadSize());
+        } break;
+        case H265: {
+          if (!hevcInfo.count(it.first) || !hevcInfo[it.first].haveRequired()) {
+            MEDIUM_MSG("Aborted meta fill for hevc track %zu: no info nal unit", it.first);
+            continue;
           }
-          if (trkDta.channels > 2 && trkDta.channels <= 8 && channel_map == 0) {
-            WARN_MSG("Overriding channel mapping table from 0 to 1");
-            channel_map = 1;
+          addNewTrack = true;
+          trkDta.type = "video";
+          trkDta.codec = "HEVC";
+          trkDta.init = hevcInfo[it.first].generateHVCC();
+          h265::metaInfo metaInfo = hevcInfo[it.first].getMeta();
+          trkDta.width = metaInfo.width;
+          trkDta.height = metaInfo.height;
+          trkDta.fpks = metaInfo.fps * 1000;
+        } break;
+        case MPEG2: {
+          addNewTrack = true;
+          trkDta.type = "video";
+          trkDta.codec = "MPEG2";
+          trkDta.init =
+            std::string("\000\000\001", 3) + mpeg2SeqHdr[it.first] + std::string("\000\000\001", 3) + mpeg2SeqExt[it.first];
+          Mpeg::MPEG2Info info = Mpeg::parseMPEG2Header(trkDta.init);
+          trkDta.width = info.width;
+          trkDta.height = info.height;
+          trkDta.fpks = info.fps * 1000;
+        } break;
+        case ID3: {
+          addNewTrack = true;
+          trkDta.type = "meta";
+          trkDta.codec = "ID3";
+          trkDta.init = metaInit[it.first];
+        } break;
+        case META: {
+          addNewTrack = true;
+          trkDta.type = "meta";
+          trkDta.codec = "RAW";
+          trkDta.init = metaInit[it.first];
+        } break;
+        case AC3: {
+          addNewTrack = true;
+          trkDta.type = "audio";
+          trkDta.codec = "AC3";
+          trkDta.size = 16;
+        } break;
+        case JSON: {
+          addNewTrack = true;
+          trkDta.type = "meta";
+          trkDta.codec = "JSON";
+        } break;
+        case AV1: {
+          addNewTrack = true;
+          trkDta.type = "video";
+          trkDta.codec = "AV1";
+          trkDta.init = TS::ProgramDescriptors(metaInit[it.first].data(), metaInit[it.first].size()).getTag(0x80);
+          if (trkDta.init.size() >= 8) {
+            uint16_t div = Bit::btohs(trkDta.init.data() + 6);
+            if (!div) { div = 1; }
+            trkDta.fpks = Bit::btohs(trkDta.init.data() + 4) * 1000 / div;
+            trkDta.init.erase(4);
           }
-          trkDta.init[9] = trkDta.channels;
-          trkDta.init[18] = channel_map;
-          if (channel_map == 1){
-            static const uint8_t opus_coupled_stream_cnt[9] = {1,0,1,1,2,2,2,3,3};
-            static const uint8_t opus_stream_cnt[9] = {1,1,1,2,2,3,4,4,5};
-            static const uint8_t opus_channel_map[8][8] = {
+        } break;
+        case SCTE35: {
+          addNewTrack = true;
+          trkDta.type = "meta";
+          trkDta.codec = "SCTE35";
+        } break;
+        case PCM: {
+          addNewTrack = true;
+          trkDta.type = "audio";
+          trkDta.codec = "PCM";
+          std::string reg = TS::ProgramDescriptors(metaInit[it.first].data(), metaInit[it.first].size()).getRegistration();
+          trkDta.channels = reg[3];
+          trkDta.size = reg[4];
+          trkDta.rate = Bit::btoh24(reg.data() + 5);
+        } break;
+        case OPUS: {
+          addNewTrack = true;
+          trkDta.type = "audio";
+          trkDta.codec = "opus";
+          trkDta.size = 16;
+          trkDta.init = std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\001", 19);
+          trkDta.channels = 2;
+          std::string extData = TS::ProgramDescriptors(metaInit[it.first].data(), metaInit[it.first].size()).getExtension();
+          if (extData.size() > 1) {
+            trkDta.channels = extData[1];
+            uint8_t channel_map = extData[2];
+            if (trkDta.channels > 8) {
+              FAIL_MSG("Channel count %u not implemented", (int)trkDta.channels);
+              if (channel_map == 1) { channel_map = 255; }
+            }
+            if (channel_map > 1) {
+              FAIL_MSG("Channel mapping table %u not implemented", (int)trkDta.init[18]);
+              channel_map = 255;
+            }
+            if (trkDta.channels > 2 && trkDta.channels <= 8 && channel_map == 0) {
+              WARN_MSG("Overriding channel mapping table from 0 to 1");
+              channel_map = 1;
+            }
+            trkDta.init[9] = trkDta.channels;
+            trkDta.init[18] = channel_map;
+            if (channel_map == 1) {
+              static const uint8_t opus_coupled_stream_cnt[9] = {1, 0, 1, 1, 2, 2, 2, 3, 3};
+              static const uint8_t opus_stream_cnt[9] = {1, 1, 1, 2, 2, 3, 4, 4, 5};
+              static const uint8_t opus_channel_map[8][8] = {
                 {0},
-                {0,1},
-                {0,2,1},
-                {0,1,2,3},
-                {0,4,1,2,3},
-                {0,4,1,2,3,5},
-                {0,4,1,2,3,5,6},
-                {0,6,1,2,3,4,5,7},
-            };
-            trkDta.init += (char)opus_stream_cnt[trkDta.channels];
-            trkDta.init += (char)opus_coupled_stream_cnt[trkDta.channels];
-            trkDta.init += std::string("\000\000\000\000\000\000\000\000", trkDta.channels);
-            memcpy((char *)trkDta.init.data() + 21, opus_channel_map[trkDta.channels - 1], trkDta.channels);
+                {0, 1},
+                {0, 2, 1},
+                {0, 1, 2, 3},
+                {0, 4, 1, 2, 3},
+                {0, 4, 1, 2, 3, 5},
+                {0, 4, 1, 2, 3, 5, 6},
+                {0, 6, 1, 2, 3, 4, 5, 7},
+              };
+              trkDta.init += (char)opus_stream_cnt[trkDta.channels];
+              trkDta.init += (char)opus_coupled_stream_cnt[trkDta.channels];
+              trkDta.init += std::string("\000\000\000\000\000\000\000\000", trkDta.channels);
+              memcpy((char *)trkDta.init.data() + 21, opus_channel_map[trkDta.channels - 1], trkDta.channels);
+            }
           }
-        }
-        trkDta.rate = 48000;
-      }break;
-      case MP2:{
-        addNewTrack = true;
-        Mpeg::MP2Info info = Mpeg::parseMP2Header(mp2Hdr[it->first]);
-        trkDta.type = "audio";
-        trkDta.codec = (info.layer == 3 ? "MP3" : "MP2");
-        trkDta.rate = info.sampleRate;
-        trkDta.channels = info.channels;
-      }break;
-      case AAC:{
-        addNewTrack = true;
-        trkDta.init.resize(2);
-        trkDta.init[0] =
-          ((adtsInfo[it->first].getAACProfile() & 0x1F) << 3) | ((adtsInfo[it->first].getFrequencyIndex() & 0x0E) >> 1);
-        trkDta.init[1] = ((adtsInfo[it->first].getFrequencyIndex() & 0x01) << 7) |
-          ((adtsInfo[it->first].getChannelConfig() & 0x0F) << 3);
-        // Wait with adding the track until we have init data
-        if (trkDta.init[0] == 0 && trkDta.init[1] == 0) { addNewTrack = false; }
-        trkDta.type = "audio";
-        trkDta.codec = "AAC";
-        trkDta.size = 16;
-        trkDta.rate = adtsInfo[it->first].getFrequency();
-        trkDta.channels = adtsInfo[it->first].getChannelCount();
-      }break;
+          trkDta.rate = 48000;
+        } break;
+        case MP2: {
+          addNewTrack = true;
+          Mpeg::MP2Info info = Mpeg::parseMP2Header(mp2Hdr[it.first]);
+          trkDta.type = "audio";
+          trkDta.codec = (info.layer == 3 ? "MP3" : "MP2");
+          trkDta.rate = info.sampleRate;
+          trkDta.channels = info.channels;
+        } break;
+        case AAC: {
+          addNewTrack = true;
+          trkDta.init.resize(2);
+          trkDta.init[0] =
+            ((adtsInfo[it.first].getAACProfile() & 0x1F) << 3) | ((adtsInfo[it.first].getFrequencyIndex() & 0x0E) >> 1);
+          trkDta.init[1] = ((adtsInfo[it.first].getFrequencyIndex() & 0x01) << 7) |
+            ((adtsInfo[it.first].getChannelConfig() & 0x0F) << 3);
+          // Wait with adding the track until we have init data
+          if (trkDta.init[0] == 0 && trkDta.init[1] == 0) { addNewTrack = false; }
+          trkDta.type = "audio";
+          trkDta.codec = "AAC";
+          trkDta.size = 16;
+          trkDta.rate = adtsInfo[it.first].getFrequency();
+          trkDta.channels = adtsInfo[it.first].getChannelCount();
+        } break;
       }
 
-      trkDta.lang = TS::ProgramDescriptors(metaInit[it->first].data(), metaInit[it->first].size()).getLanguage();
+      trkDta.lang = TS::ProgramDescriptors(metaInit[it.first].data(), metaInit[it.first].size()).getLanguage();
 
       // Add track to meta here, if newTrack is set. Otherwise only re-initialize values
       if (idx == INVALID_TRACK_ID){
@@ -1280,7 +1280,7 @@ namespace TS{
         idx = meta.addOrResumeDelayedTrack(trkDta);
       }
 
-      MEDIUM_MSG("Initialized PID %zu (%s %s) as track %zu", it->first, trkDta.codec.c_str(), trkDta.type.c_str(), idx);
+      MEDIUM_MSG("Initialized PID %zu (%s %s) as track %zu", it.first, trkDta.codec.c_str(), trkDta.type.c_str(), idx);
       if (!delayTracks) { meta.validateTrack(idx, DTSC::trackValidDefault); }
       if (tid != INVALID_TRACK_ID){return;}
     }

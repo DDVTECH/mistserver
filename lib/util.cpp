@@ -445,6 +445,7 @@ namespace Util{
     if (target.protocol == "http" || target.protocol == "https") {
       HIGH_MSG("Using native HTTP PUT handler with protocol %s", target.protocol.c_str());
       HTTP::Downloader dl;
+      dl.retryCount = 1; // Only make one attempt to start the PUT
       target = HTTP::injectHeaders(target, "PUT", dl);
       if (!dl.startPut(target, conn)) { return false; }
       return true;

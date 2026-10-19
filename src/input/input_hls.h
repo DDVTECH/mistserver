@@ -68,12 +68,13 @@ namespace Mist{
   public:
     Playlist(const std::string &uriSrc = "");
     bool isUrl() const;
-    bool reload();
+    bool reload(const std::string & plsData);
     void addEntry(const std::string & absolute_filename, const std::string &filename, float duration, uint64_t &bpos,
                   const std::string &key, const std::string &keyIV, const std::string mapName, uint64_t startByte, uint64_t lenByte);
 
     std::string uri; // link to the current playlistfile
     HTTP::URL root;
+    HTTP::Downloader plsDl;
     std::string relurl;
 
     uint64_t reloadNext;
@@ -85,6 +86,8 @@ namespace Mist{
     uint64_t waitTime;
     uint64_t lastTimestamp;
     uint64_t startTime;
+    bool wasInited{false};
+    size_t interval{std::string::npos};
     int64_t oUTC;
     uint64_t nextUTC; ///< If non-zero, the UTC timestamp of the next segment on this playlist
     char keyAES[16];

@@ -618,13 +618,16 @@ namespace HTTP{
       prepareRequest(link, "PUT", conn);
       if (!conn) { continue; } // No connection? Retry up to retryCount times.
       conn.setChunkedMode(false);
+      conn.setBlocking(false);
       H.SetHeader("Expect", "100-continue");
       H.SetHeader("Transfer-Encoding", "chunked");
       H.sendRequest(conn);
       H.Clean();
       conn.setChunkedMode(true);
       Event::Loop ev;
-      ev.addSocket(1, conn.getSocket());
+      ev.addSocket(1, conn);
+      ev.addSendSocket(conn);
+      conn.onClose([&](int fd) { ev.remove(fd); });
       uint64_t now = Util::bootMS();
       uint64_t deadLine = now + 5000;
       while (true) {
@@ -649,6 +652,7 @@ namespace HTTP{
             if (sp1 != std::string::npos && sp2 != std::string::npos && line.substr(sp1 + 1, sp2 - sp1 - 1) == "100") {
               INFO_MSG("Server approved PUT request for %s: %s", link.getUrl().c_str(), line.c_str() + sp2 + 1);
               conn.Received().clear();
+              conn.setBlocking(true);
               return true;
             }
             INFO_MSG("Server denied PUT request for %s: %s", link.getUrl().c_str(), line.c_str());

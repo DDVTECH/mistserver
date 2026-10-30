@@ -2600,7 +2600,11 @@ context_menu: function(){
             if (Number(curval) != 0) $field.setval(curval);
           });
           for (let j in e.unit) {
-            $unit.append($("<option>").val(e.unit[j][0]).text(e.unit[j][1]));
+            var $option = $("<option>").val(e.unit[j][0]).text(e.unit[j][1]);
+            if ('default' in e && e.unit[j][0] == e.default) {
+              $option.attr('selected', 'selected');
+            }
+            $unit.append($option);
           }
           $fc.append(
             $('<span>').addClass('unit').html($unit)
@@ -2612,23 +2616,28 @@ context_menu: function(){
             if (kind == "initial") {
               var val = $(this).getval();
               var opts = $(this).data("opts");
-              if ((opts.placeholder) && (Number(val) == 0)) {
-                val = opts.placeholder;
+              if (("default_unit" in opts) && (Number(val) == 0)) {
+                $(this).closest(".field_container").find(".unit select").val(opts.default_unit).trigger("change");
               }
-              if (Number(val) != 0) {
-                //set unit to "shortest" value
-                var shortest = 1e9;
-                var unit = false;
-                for (var i in opts.unit) {
-                  //calculate display value for this unit
-                  var display = (val / opts.unit[i][0]).toString();
-                  if (display.length < shortest) {
-                    shortest = display.length;
-                    unit = opts.unit[i][0];
-                  }
+              else {
+                if ((opts.placeholder) && (Number(val) == 0)) {
+                  val = opts.placeholder;
                 }
-                if (unit) {
-                  $(this).closest(".field_container").find(".unit select").val(unit).trigger("change");
+                if (Number(val) != 0) {
+                  //set unit to "shortest" value
+                  var shortest = 1e9;
+                  var unit = false;
+                  for (var i in opts.unit) {
+                    //calculate display value for this unit
+                    var display = (val / opts.unit[i][0]).toString();
+                    if (display.length < shortest) {
+                      shortest = display.length;
+                      unit = opts.unit[i][0];
+                    }
+                  }
+                  if (unit) {
+                    $(this).closest(".field_container").find(".unit select").val(unit).trigger("change");
+                  }
                 }
               }
             }
@@ -5081,7 +5090,11 @@ context_menu: function(){
           defaultStream: mist.data.config.defaultStream,
           trustedproxy: mist.data.config.trustedproxy,
           weights: mist.data.config.weights
-        };
+        };           
+        var s_cache = mist.data.config.cache || {};
+        s_cache.bytes = s_cache.bytes || null;      //if set to 0, show placeholder
+        s_cache.percent = s_cache.percent || null;  //if set to 0, show placeholder
+
         var s_sessions = {
           sessionViewerMode: mist.data.config.sessionViewerMode,
           sessionInputMode: mist.data.config.sessionInputMode,
@@ -5442,7 +5455,68 @@ context_menu: function(){
           }
         ]));
 
+        $main.append(UI.buildUI([
+          $("<h3>").text("Cache settings"),{
+            type: "help",
+            help: "These settings control the local cache. If both limits are set, the cache stops growing at whichever threshold is reached first. When full, older and less frequently used files are replaced automatically."
+          },{
+            type: "browse",
+            filetypes: ["/*/"],
+            label: "Cache folder",
+            placeholder: "Disable cache",
+            pointer: {
+              main: s_cache,
+              index: "path"
+            },
+            help: "Select the directory where cached data will be stored. If you leave this blank, caching will be disabled."
+          },{
+            type: "int",
+            label: "Cache size limit in bytes",
+            min: 0,
+            unit: [
+              [1, "byte"],
+              [1024, "Kibyte"],
+              [1048576, "Mibyte"],
+              [1073741824,"Gibyte"],
+              [1099511627776,"Tibyte"]
+            ],
+            placeholder: "Unlimited",
+            default_unit: 1073741824, //GiB
+            pointer: {
+              main: s_cache,
+              index: "bytes"
+            },
+            help: "Maximum amount of disk space the cache may use, in bytes.<br>To use unlimited space, leave this value blank or set it to 0. If you want to disable the cache, unset the cache folder.",
+          },{
+            type: "double",
+            label: "Cache size limit as percentage of disk size",
+            min: 0,
+            max: 100,
+            step: 0.001,
+            unit: "%",
+            placeholder: "100", 
+            pointer: {
+              main: s_cache,
+              index: "percent"
+            },
+            help: "Maximum amount of disk space the cache may use, as a percentage of the disk it's on.<br>When set to 0, the cache size will be unlimited: effectively 100%. If you want to disable the cache, unset the cache folder.",
+          },,{
+            type: "buttons",
+            buttons: [{
+              type: "save",
+              label: "Save",
+              'function': function(ele){
+                $(ele).text("Saving..");
 
+                var save = {config: {cache: s_cache}};
+
+                mist.send(function(){
+                  UI.navto('General');
+                }, save);
+              }
+            }]
+          }
+        ]));
 
         $main.append(UI.buildUI([
           $("<h3>").text("Sessions"),
@@ -7546,8 +7620,9 @@ context_menu: function(){
             ["Preview stream",function(){ UI.navto("Preview",streamname); },"Preview","Watch the stream."],
             ["Embed stream",function(){ UI.navto("Embed",streamname); },"Embed","Get urls to this stream or get code to embed it on your website."]
           ];
+          let cache_enabled = mist.data.config.cache && mist.data.config.cache.path;
           var actions = [
-            ["Delete stream",function(){
+            ["Delete stream"+(cache_enabled ? ", keep cache" : ""),function(){
               if (confirm('Are you sure you want to delete the stream "'+streamname+'"?')) {
                 delete mist.data.streams[streamname];
                 mist.send(function(d){
@@ -7555,7 +7630,23 @@ context_menu: function(){
                   $streams.update(current_streams);
                 },{deletestream: [streamname]});
               }
-            },"trash","Remove this stream's settings."],
+            },"trash","Remove this stream's settings"+(cache_enabled ? ", but do not clear the cache." : "")],
+            cache_enabled ? ["Delete stream, remove cache",function(){
+              if (confirm('Are you sure you want to delete the stream "'+streamname+'" and its cache?')) {
+                delete mist.data.streams[streamname];
+                mist.send(function(d){
+                  delete current_streams[streamname];
+                  $streams.update(current_streams);
+                },{deletestream: [streamname], deletecache: [streamname]});
+              }
+            },"trashsweep","Remove this stream's settings and delete its cache."] : false,
+            cache_enabled ? ["Remove stream cache",function(){
+              if (confirm('Are you sure you want to clear the cache for stream "'+streamname+'"?')) {
+                mist.send(function(d){
+                  //done
+                },{deletecache: [streamname]});
+              }
+            },"sweep","Remove this stream's cache."] : false,
             ["Stop sessions",function(){
               if (confirm("Are you sure you want to disconnect all sessions (viewers, pushes and possibly the input) for the stream '"+streamname+"'?")) {
                 mist.send(function(){
@@ -7582,8 +7673,13 @@ context_menu: function(){
             gototabs.shift();
             gototabs.unshift([$("<span>").html("Create <b>"+streamname.split("+")[0]+"</b>"),function(){ UI.navto("Edit",streamname); },"Edit","Create this stream."]);
             actions.shift();
+            actions.shift();
           }
-          if (settings.isfolderstream) {
+          else if (settings.ischild) {
+            actions.shift();
+            actions.shift();
+          }
+          else if (settings.isfolderstream) {
             gototabs.pop();
             gototabs.pop();
             actions = [actions[0]];
@@ -12308,6 +12404,15 @@ context_menu: function(){
       },
       actions: function(currenttab,streamname){
         return $("<section>").addClass("actions").addClass("bigbuttons").html(
+            mist.data.config.cache && mist.data.config.cache.path ? 
+          $("<button>").text("Remove stream cache").attr("data-icon","sweep").attr("title","Remove this stream's cache.").click(function(){
+            if (confirm("Are you sure you want to clear the cache for this stream?")) { 
+              mist.send(function(){
+                //done
+              },{deletecache:streamname});
+            }
+          }) : "",
+        ).append(
           $("<button>").text("Stop all sessions").attr("data-icon","stop").attr("title","Disconnect sessions for this stream. Disconnecting a session will kill any currently open connections (viewers, pushes and possibly the input). If the USER_NEW trigger is in use, it will be triggered again by any reconnecting connections.").click(function(){
             if (confirm("Are you sure you want to disconnect all sessions (viewers, pushes and possibly the input) from this stream?")) { 
               mist.send(function(){

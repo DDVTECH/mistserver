@@ -964,6 +964,14 @@ Socket::Connection::Connection(int sockNo){
   open(sockNo, sockNo);
 }// Socket::Connection basic constructor
 
+/// Creates a socket cloned from the given file descriptor, rather than using it directly.
+Socket::Connection::Connection(Socket::clone, int sockNo) {
+  clear();
+  int newSock = dup(sockNo);
+  open(newSock, newSock);
+  doShutdown = false;
+} // Socket::Connection basic constructor
+
 /// Open from existing socket connection.
 /// Closes any existing connections and resets all internal values beforehand.
 /// Simply calls open(sockNo, sockNo) internally.
@@ -998,6 +1006,7 @@ void Socket::Connection::open(int write, int read){
 
 void Socket::Connection::clear(){
   blocking = true;
+  doShutdown = true;
   chunkedMode = false;
   isLocked = false;
   sSend = -1;
@@ -1061,7 +1070,7 @@ bool Socket::Connection::isBlocking(){
 /// This function calls shutdown, thus making the socket unusable in all other
 /// processes as well. Do not use on shared sockets that are still in use.
 void Socket::Connection::close(){
-  if (sSend != -1){shutdown(sSend, SHUT_RDWR);}
+  if (sSend != -1 && doShutdown) { shutdown(sSend, SHUT_RDWR); }
   drop();
 }// Socket::Connection::close
 
@@ -1145,13 +1154,22 @@ void Socket::Connection::onClose(std::function<void(int)> cb) {
   closeCallbacks.push_back(cb);
 }
 
-/// Returns internal socket number.
+/// Returns internal socket number, defaulting to the write-end if they differ.
 int Socket::Connection::getSocket() const {
 #ifdef SSL
   if (sslConnected){return server_fd->fd;}
 #endif
   if (sSend != -1){return sSend;}
   return sRecv;
+}
+
+/// Returns internal socket number, defaulting to the read-end if they differ.
+int Socket::Connection::getReadSocket() const {
+#ifdef SSL
+  if (sslConnected) { return server_fd->fd; }
+#endif
+  if (sRecv != -1) { return sRecv; }
+  return sSend;
 }
 
 /// Returns non-piped internal socket number.

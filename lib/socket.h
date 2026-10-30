@@ -81,6 +81,9 @@ namespace Socket{
       std::string binForm() const;
   };
 
+  /// Used to signal that a socket should clone the file descriptor
+  struct clone {};
+
   const Address unsetAddress;
 
   std::string sockaddrToString(const sockaddr* A);
@@ -158,6 +161,7 @@ namespace Socket{
     bool isLocked;
     bool chunkedMode;
     bool blocking;
+    bool doShutdown{true};
 #ifdef SSL
     /// optional extension that uses mbedtls for SSL
     bool sslConnected;
@@ -176,6 +180,7 @@ namespace Socket{
     // constructors
     Connection();           ///< Create a new disconnected base socket.
     Connection(int sockNo); ///< Create a new base socket.
+    Connection(clone, int sockNo); ///< Create a new base socket.
     Connection(std::string hostname, int port, bool nonblock, bool with_ssl = false); ///< Create a new TCP socket.
     Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
     Connection(int write, int read); ///< Simulate a socket using two file descriptors.
@@ -205,7 +210,8 @@ namespace Socket{
     std::string getBinHost() const;
     void setHost(std::string host); ///< Sets hostname for connection manually.
     std::string getBoundAddress() const;
-    int getSocket() const; ///< Returns internal socket number.
+    int getSocket() const;
+    int getReadSocket() const;
     int getPureSocket();    ///< Returns non-piped internal socket number.
     std::string getError(); ///< Returns a string describing the last error that occurred.
     bool connected() const; ///< Returns the connected-state for this socket.

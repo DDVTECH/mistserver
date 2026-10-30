@@ -25,14 +25,19 @@ namespace Event {
       ~Loop();
       size_t await(size_t maxMs);
       void addSocket(size_t eId, int sock);
+      void addSocket(size_t eId, const Socket::Connection & S);
       void addSocket(int sock, std::function<void(void *)> cb, void *userPtr);
+      void addSocket(const Socket::Connection & S, std::function<void(void *)> cb, void *userPtr);
       void addSendSocket(int sock, std::function<void(void *)> cb, std::function<bool(void *)> checker, void *userPtr);
+      void addSendSocket(const Socket::Connection & S, std::function<void(void *)> cb,
+                         std::function<bool(void *)> checker, void *userPtr);
       void addSendQueue(Socket::UDPConnection *udpSock);
       size_t addInterval(std::function<size_t()> cb, size_t millis);
       void onChildSig(std::function<size_t()> cb);
       void removeInterval(size_t id);
       void rescheduleInterval(size_t id, size_t millis);
       void remove(int sock);
+      void remove(const Socket::Connection & S);
       void setup();
 
     private:

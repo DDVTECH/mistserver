@@ -234,6 +234,9 @@ namespace Event{
     recvSockets[sock].retVal = eId;
   }
 
+  void Loop::addSocket(size_t eId, const Socket::Connection & S) {
+    addSocket(eId, S.getReadSocket());
+  }
 
   void Loop::addSocket(int sock, std::function<void(void*)> cb, void* userPtr){
     if (recvSockets.count(sock)) {
@@ -244,6 +247,10 @@ namespace Event{
     recvSockets[sock].cbArg = userPtr;
   }
 
+  void Loop::addSocket(const Socket::Connection & S, std::function<void(void *)> cb, void *userPtr) {
+    addSocket(S.getReadSocket(), cb, userPtr);
+  }
+
   void Loop::addSendSocket(int sock, std::function<void(void *)> cb, std::function<bool(void *)> checker, void *userPtr) {
     if (sendSockets.count(sock)) {
       FAIL_MSG("Cannot add handler for socket %d: another handler is already installed!", sock);
@@ -252,6 +259,11 @@ namespace Event{
     sendSockets[sock].cbFunc = cb;
     sendSockets[sock].checkFunc = checker;
     sendSockets[sock].cbArg = userPtr;
+  }
+
+  void Loop::addSendSocket(const Socket::Connection & S, std::function<void(void *)> cb,
+                           std::function<bool(void *)> checker, void *userPtr) {
+    addSendSocket(S.getSocket(), cb, checker, userPtr);
   }
 
   void Loop::addSendQueue(Socket::UDPConnection * udpSock){
@@ -272,7 +284,19 @@ namespace Event{
     }
   }
 
+  void Loop::remove(const Socket::Connection & S) {
+    int recvSock = S.getReadSocket();
+    int sendSock = S.getSocket();
+    if (recvSock != -1) { remove(recvSock); }
+    if (recvSock == sendSock) { return; }
+    if (sendSock != -1) { remove(sendSock); }
+  }
+
+  /// Adds a function that runs at regular intervals to the event loop.
+  /// millis is the initial delay before running, if set to zero the function will be ran immediately and the initial delay set to its return value.
+  /// The return value of the function determines when it is rescheduled. If it returns zero, it won't be rescheduled anymore and the interval is deleted.
   size_t Loop::addInterval(std::function<size_t()> cb, size_t millis) {
+    if (!millis) { millis = cb(); }
     if (!millis) { return std::string::npos; }
     timerFuncs[timerCount] = cb;
     timerTimes.insert({Util::bootMS() + millis, timerCount});

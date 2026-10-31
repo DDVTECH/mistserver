@@ -2958,14 +2958,16 @@ namespace MP4{
     return getBox(78 + getBoxLen(78));
   }
 
-  size_t VisualSampleEntry::getBoxEntryCount(){
-    if (payloadSize() < 84){// if the EntryBox is not big enough to hold any box
+  size_t VisualSampleEntry::getBoxEntryCount() {
+    if (payloadSize() < 84) { // if the EntryBox is not big enough to hold any box
       return 0;
     }
     size_t count = 0;
     size_t offset = 78;
-    while (offset <= payloadSize() - 8){
-      offset += getBoxLen(offset);
+    while (offset <= payloadSize() - 8) {
+      size_t bLen = getBoxLen(offset);
+      if (!bLen) { return count; }
+      offset += bLen;
       count++;
     }
     return count;

@@ -349,6 +349,7 @@ namespace Mist{
   void InputTSSRT::setSingular(bool newSingular){singularFlag = newSingular;}
 
   void InputTSSRT::connStats(Comms::Connections &statComm){
+    srtConn->connTime();
     statComm.setUp(srtConn->dataUp());
     statComm.setDown(srtConn->dataDown());
     statComm.setPacketCount(srtConn->packetCount());

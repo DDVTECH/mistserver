@@ -13,25 +13,25 @@ namespace Mist{
     InputTSSRT(Util::Config *cfg, Socket::SRTConnection s = Socket::SRTConnection());
     ~InputTSSRT();
     void setSingular(bool newSingular);
-    virtual bool needsLock();
-    virtual std::string getConnectedBinHost(){
+    virtual bool needsLock() override;
+    virtual std::string getConnectedBinHost() override {
       if (srtConn && *srtConn){return srtConn->getBinHost();}
       return Input::getConnectedBinHost();
     }
-    virtual void onCrash();
+    virtual void onCrash() override;
 
   protected:
     // Private Functions
-    bool checkArguments();
-    bool preRun();
-    virtual void getNext(size_t idx = INVALID_TRACK_ID);
-    virtual bool needHeader(){return false;}
-    virtual bool isSingular(){return singularFlag;}
-    virtual bool isThread(){return !singularFlag;}
-    virtual bool publishesTracks(){return false;}
+    bool checkArguments() override;
+    bool preRun() override;
+    virtual void getNext(size_t idx = INVALID_TRACK_ID) override;
+    virtual bool needHeader() override { return false; }
+    virtual bool isSingular() override { return singularFlag; }
+    virtual bool isThread() override { return !singularFlag; }
+    virtual bool publishesTracks() override { return false; }
 
-    bool openStreamSource();
-    void streamMainLoop();
+    bool openStreamSource() override;
+    void streamMainLoop() override;
     TS::Stream tsStream; ///< Used for parsing the incoming ts stream
     TS::Packet tsBuf;
     TS::Assembler assembler;
@@ -41,7 +41,7 @@ namespace Mist{
     Socket::SRTConnection * srtConn;
     Socket::UDPConnection * udpInit;
     bool singularFlag;
-    virtual void connStats(Comms::Connections &statComm);
+    virtual void connStats(Comms::Connections & statComm) override;
 
     Util::ResizeablePointer rawBuffer;
     size_t rawIdx;

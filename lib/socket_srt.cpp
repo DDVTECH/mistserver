@@ -338,8 +338,6 @@ namespace Socket{
     }else{
       lastGood = Util::bootMS();
     }
-
-    srt_bstats(sock, &performanceMonitor, false);
     return receivedBytes;
   }
 
@@ -432,7 +430,6 @@ namespace Socket{
     }else{
       lastGood = Util::bootMS();
     }
-    srt_bstats(sock, &performanceMonitor, false);
     return receivedBytes;
   }
 
@@ -578,7 +575,6 @@ namespace Socket{
     }else{
       lastGood = Util::bootMS();
     }
-    srt_bstats(sock, &performanceMonitor, false);
   }
 
   unsigned int SRTConnection::connTime(){
@@ -590,15 +586,16 @@ namespace Socket{
 
   uint64_t SRTConnection::dataDown(){return performanceMonitor.byteRecvTotal;}
 
-  uint64_t SRTConnection::packetCount(){
-    return (direction == "output" ? performanceMonitor.pktSentTotal : performanceMonitor.pktRecvTotal);
+  uint64_t SRTConnection::packetCount() {
+    return direction == "output" ? performanceMonitor.pktSentUniqueTotal : performanceMonitor.pktRecvUniqueTotal;
   }
 
-  uint64_t SRTConnection::packetLostCount(){
-    return (direction == "output" ? performanceMonitor.pktSndLossTotal : performanceMonitor.pktRcvLossTotal);
+  uint64_t SRTConnection::packetLostCount() {
+    return direction == "output" ? performanceMonitor.pktSndLossTotal + performanceMonitor.pktSndDropTotal
+                                 : performanceMonitor.pktRcvLossTotal + performanceMonitor.pktRcvDropTotal;
   }
 
-  uint64_t SRTConnection::packetRetransmitCount(){
+  uint64_t SRTConnection::packetRetransmitCount() {
     return direction == "output" ? performanceMonitor.pktRetransTotal : performanceMonitor.pktRcvRetrans;
   }
 
@@ -721,6 +718,7 @@ namespace Socket{
 #ifdef HAS_SRT_SHUTDOWN
       if (srt_getsockstate(sock) == SRTS_SHUTDOWN) { closedByRemote = true; }
 #endif
+      srt_bstats(sock, &performanceMonitor, false);
       HIGH_MSG("Closing SRT socket %d (state = %s)", sock, getStateStr());
       setBlocking(true);
       srt_close(sock);

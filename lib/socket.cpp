@@ -430,7 +430,7 @@ bool Socket::isBinAddress(const std::string & binAddr, std::string addr) {
   // Loops over all IPs for the given address and matches them in IPv6 form.
   std::deque<Socket::Address> addrs = getAddrs(addr, 0);
   for (const auto & A : addrs) {
-    if (A.family() == AF_INET) {
+    if (A.family() == AF_INET || A.is4in6()) {
       if (matchIPv6Addr(A.binForm(), binAddr, prefixLen ? prefixLen + 96 : 0)) { return true; }
     } else {
       if (matchIPv6Addr(A.binForm(), binAddr, prefixLen)) { return true; }

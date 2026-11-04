@@ -813,14 +813,18 @@ namespace Mist{
     if (currentPage.count(trackId) && currentPage[trackId] == pageNum){return;}
     invalidateDataPage(trackId);
 
-    // Try to load from cache first, without waiting.
-    char id[NAME_BUFFER_SIZE];
-    snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, M.getUUID().c_str(), trackId, pageNum);
-    curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE, false, false, true);
-    // If that fails, try to load from shared memory, with waiting
-    if (!(curPage[trackId].mapped)) {
-      snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
-      curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE, false, true);
+    // Try to load from cache first, then from shared memory. Keep checking both while waiting, as a page that is
+    // being loaded may only be in shared memory very briefly before it moves to the cache.
+    char cacheId[NAME_BUFFER_SIZE];
+    char pageId[NAME_BUFFER_SIZE];
+    snprintf(cacheId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, M.getUUID().c_str(), trackId, pageNum);
+    snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
+    for (size_t i = 0; i < 12 && keepGoing(); ++i) {
+      if (i) { Util::wait(Util::expBackoffMs(i - 1, 10, 10000)); }
+      curPage[trackId].init(cacheId, DEFAULT_DATA_PAGE_SIZE, false, false, true);
+      if (curPage[trackId].mapped) { break; }
+      curPage[trackId].init(pageId, DEFAULT_DATA_PAGE_SIZE, false, false);
+      if (curPage[trackId].mapped) { break; }
     }
 
     if (!(curPage[trackId].mapped)){
@@ -832,9 +836,9 @@ namespace Mist{
     currentPage[trackId] = pageNum;
     micros = Util::getMicros(micros);
     if (micros > 2000000){
-      INFO_MSG("Page %s loaded for %s in %.2fms", id, streamName.c_str(), micros/1000.0);
+      INFO_MSG("Page %s loaded for %s in %.2fms", curPage[trackId].name.c_str(), streamName.c_str(), micros/1000.0);
     }else{
-      VERYHIGH_MSG("Page %s loaded for %s in %.2fms", id, streamName.c_str(), micros/1000.0);
+      VERYHIGH_MSG("Page %s loaded for %s in %.2fms", curPage[trackId].name.c_str(), streamName.c_str(), micros/1000.0);
     }
   }
 

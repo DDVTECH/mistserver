@@ -14,6 +14,10 @@
 #include <sys/sem.h>
 #include <unistd.h>
 
+#ifndef SHM_ENABLED
+#include "stream.h"
+#endif
+
 namespace IPC{
 
   ///\brief Empty semaphore constructor, clears all values
@@ -329,7 +333,7 @@ namespace IPC{
 #ifdef SHM_ENABLED
         shm_unlink(name.c_str());
 #else
-        unlink(name.c_str());
+        unlink(std::string(Util::getTmpFolder() + name).c_str());
 #endif
       }
     }

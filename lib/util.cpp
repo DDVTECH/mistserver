@@ -457,11 +457,12 @@ namespace Util{
 
   /// Writes atomically to the filename using the provided callback.
   /// Does so by creating a temporary file, calling the callback, then renaming to the target filename.
+  /// The temporary file is hidden, so that utilities like the cache do not treat it as a finished file.
   /// Creates any needed subdirectories, if needed.
   /// Returns true on success, false on failure.
   bool atomicWriteFile(const std::string & file, std::function<bool(int)> cb) {
     HTTP::URL tgt = HTTP::localURIResolver().link(file);
-    std::string tmpFile = tgt.link("./XXXXXX").getFilePath();
+    std::string tmpFile = tgt.link("./.XXXXXX").getFilePath();
     std::string tgtFile = tgt.getFilePath();
 
     if (!createPathFor(tgtFile, true)) {

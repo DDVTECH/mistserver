@@ -51,7 +51,11 @@ namespace Cache {
 
   std::string getStrFileAttr(int fd, const std::string & attr) {
     char strVal[NAME_BUFFER_SIZE];
+#if defined(__APPLE__)
+    ssize_t len = fgetxattr(fd, attr.c_str(), strVal, NAME_BUFFER_SIZE, 0, 0);
+#else
     ssize_t len = fgetxattr(fd, attr.c_str(), strVal, NAME_BUFFER_SIZE);
+#endif
     if (len <= 0) return "";
     return std::string(strVal, len);
   }
@@ -62,7 +66,11 @@ namespace Cache {
   }
 
   void setFileAttr(int fd, const std::string & attr, const std::string & val) {
+#if defined(__APPLE__)
+    if (val.size()) { fsetxattr(fd, attr.c_str(), val.c_str(), val.size(), 0, 0); }
+#else
     if (val.size()) { fsetxattr(fd, attr.c_str(), val.c_str(), val.size(), 0); }
+#endif
   }
 
   void setFileAttr(int fd, const std::string & attr, uint64_t val) {

@@ -195,6 +195,7 @@ namespace Mist{
     if (!isLive) prep["serve"] = true;
     if (args.count("sync")) prep["sync"].fromString(args["sync"]);
     if (args.count("noinput")) prep["noinput"].fromString(args["noinput"]);
+    headerRequested = Util::bootMS();
     sendCmd(prep);
     return true;
   }
@@ -723,7 +724,7 @@ namespace Mist{
     if (cmd == "streaminfo") {
       isLive = thisPacket.getFlag("live");
       isVod = thisPacket.getFlag("vod");
-      uuid = thisPacket.getInt("uuid");
+      thisPacket.getString("uuid", uuid);
       infoReceived = true;
       return DTSC::DTCM;
     }
@@ -751,6 +752,7 @@ namespace Mist{
       page.master = false;
 
       pageFillStart = Util::bootMS();
+      pageParts = 0;
       return DTSC::DTCM;
     }
     // "stop_track_media" closes the current page and sets avail to zero if the page was incomplete
@@ -768,7 +770,13 @@ namespace Mist{
         return DTSC::DTCM;
       }
 
-      if (isVod) {
+      const uint64_t expectedParts = M.pages(trkIdx).getInt("parts", pageIdx);
+      if (isVod && (!pageParts || pageParts < expectedParts)) {
+        WARN_MSG("Track %" PRIu64 " page %" PRIu64 " is incomplete (%" PRIu64 "/%" PRIu64 " parts), not caching it",
+                 trkIdx, firstKey, pageParts, expectedParts);
+        meta.pages(trkIdx).setInt("avail", 0, pageIdx);
+        page.master = true; // ensure deletion of the partial page
+      } else if (isVod) {
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, M.getUUID().c_str(), trkIdx, (uint32_t)firstKey);
 
@@ -810,12 +818,15 @@ namespace Mist{
         clearMeta = false;
         headerReceived = true;
 
+        // The remote pushes headers without us asking, so only the first one says how long a header takes to get
+        if (!headerGenTime) { headerGenTime = Util::bootMS() - headerRequested; }
+
         if (isVod) {
           INFO_MSG("Attempting to write header to cache");
           Cache::cacheWrite(config->getString("input") + ".dtsh", [this](int fd) {
             Socket::Connection conn(Socket::clone{}, fd);
             M.send(conn);
-          }, 0, streamName);
+          }, headerGenTime, streamName);
         }
 
         break;
@@ -863,6 +874,7 @@ namespace Mist{
           thisPacket.getString("data", dataPointer, len);
           InOutBase::bufferNext(thisPacket.getTime(), thisPacket.getInt("offset"), thisIdx, dataPointer, len,
                                 thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"), page);
+          ++pageParts;
         }
         break;
       }

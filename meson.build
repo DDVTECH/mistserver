@@ -183,6 +183,12 @@ if usessl
   usrsctp_dep = false
   if not get_option('NOUSRSCTP') and host_machine.system() != 'cygwin'
     usrsctp_dep = dependency('usrsctp', fallback: ['usrsctp', 'usrsctp_dep'])
+    # Some system pkg-config files advertise an include directory that does not
+    # contain usrsctp.h. Verify usability before enabling WebRTC data channels.
+    if usrsctp_dep.type_name() != 'internal' and not ccpp.has_header('usrsctp.h', dependencies: usrsctp_dep)
+      usrsctp_project = subproject('usrsctp')
+      usrsctp_dep = usrsctp_project.get_variable('usrsctp_dep')
+    endif
   endif
   have_usrsctp = not get_option('NOUSRSCTP') and host_machine.system() != 'cygwin' and usrsctp_dep.found()
   if have_usrsctp

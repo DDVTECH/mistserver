@@ -15,28 +15,46 @@
 #include <cstdint>
 #include <cstring>
 #include <dirent.h>
-#include <map>
 #include <mutex>
 #include <set>
 #include <sstream>
-#include <sys/inotify.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/xattr.h>
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>
-#include <vector>
 
-int inotFd{-1}, expiryInterval{-1};
+#if !defined(__APPLE__)
+
+#include <sys/inotify.h>
+int inotFd{-1};
+std::set<int> wdTop, wdLower, wdFiles;
+std::unordered_map<int, std::string> watchPaths;
+
+#else
+
+#include <CoreServices/CoreServices.h>
+#include <dispatch/dispatch.h>
+
+int fsPipe[2]{-1, -1};
+FSEventStreamRef fsStream{nullptr};
+dispatch_queue_t fsQueue{nullptr};
+std::string fsRoot;
+std::mutex fsMutex;
+std::set<std::string> fsChanges;
+bool fsRescan{false};
+
+#endif
+
+int expiryInterval{-1};
 uint64_t nextExpiry = Util::unixMS() + CACHE_CHECK_INTERVAL;
 uint64_t currentSize{0}, maxBytes{0}, maxPercentBytes{0}, lastScoreComputation{0}, fsSize{0};
 double maxPercent{0.0};
 std::deque<std::pair<uint64_t, std::string>> scores;
 Event::Loop evLp;
-std::set<int> wdTop, wdLower, wdFiles;
 std::mutex attributeMutex;
-std::unordered_map<int, std::string> watchPaths;
+std::set<std::string> unreadableDirs;
 static std::map<int, std::string> openFiles{};
 
 /// Cache attribute container with some constructors and a score function
@@ -68,9 +86,12 @@ struct cacheAttribute {
     ~cacheAttribute() {
       if (fd != -1) { close(fd); }
     }
+
+    /// Returns the hit frequency, halved for every CACHE_SCORE_HALFLIFE since the last decay
     uint64_t freq(uint64_t now) const {
       return frequency * std::pow(2.0, -double(now - lastHit) / CACHE_SCORE_HALFLIFE);
     }
+
     /// Computes the GDSF score, used by clearCache() to determine which files need to be evicted
     double score(uint64_t now) const {
       if (!lastHit || !fileSize) return 0;
@@ -80,47 +101,32 @@ struct cacheAttribute {
 
 std::unordered_map<std::string, cacheAttribute> attributeMap;
 
-/// Sets up the inotify watch for the given path, mask specifies the events, watchSet contains the inotify fds
-bool addWatch(const std::string & path, uint32_t mask, std::set<int> & watchSet) {
-  if (&watchSet == &wdTop) {
-    struct statvfs cacheFs;
-    statvfs(path.c_str(), &cacheFs);
-    fsSize = (cacheFs.f_blocks * cacheFs.f_frsize);
-    if (maxPercent) {
-      uint64_t newPBytes = (maxPercent / 100.0) * fsSize;
-      if (newPBytes != maxPercentBytes) {
-        INFO_MSG("Setting cache percent-size to %.3f ( = %" PRIu64 "b)", maxPercent, maxPercentBytes);
-        maxPercentBytes = newPBytes;
-      }
-    } else {
-      maxPercentBytes = 0;
+/// Reads the size of the cache filesystem and updates the percentage based size limit
+void updateFilesystemSize(const std::string & path) {
+  struct statvfs cacheFs;
+  if (statvfs(path.c_str(), &cacheFs) != 0) {
+    WARN_MSG("Could not read cache filesystem size at '%s': %s", path.c_str(), strerror(errno));
+    return;
+  }
+  fsSize = (cacheFs.f_blocks * cacheFs.f_frsize);
+  if (maxPercent) {
+    uint64_t newPBytes = (maxPercent / 100.0) * fsSize;
+    if (newPBytes != maxPercentBytes) {
+      INFO_MSG("Setting cache percent-size to %.3f ( = %" PRIu64 "b)", maxPercent, newPBytes);
+      maxPercentBytes = newPBytes;
     }
+  } else {
+    maxPercentBytes = 0;
   }
-
-  int wd = inotify_add_watch(inotFd, path.c_str(), mask);
-  if (wd == -1) {
-    if (errno == ENOENT) return false;
-    ERROR_MSG("Could not watch '%s': %s", path.c_str(), strerror(errno));
-    return false;
-  }
-  watchSet.insert(wd);
-  watchPaths[wd] = path;
-  return true;
 }
 
-/// Updates the attribute of a file in the global attribute map
-void updateAttribute(const std::string & filePath) {
-  cacheAttribute ca(filePath);
+/// Updates the attribute of a file in the global attribute map, reading them from the file if none are given
+void updateAttribute(const std::string & filePath, const cacheAttribute *attributes = nullptr) {
+  const cacheAttribute ca = attributes ? *attributes : cacheAttribute(filePath);
   if (ca.expiry && ca.expiry < nextExpiry) {
     nextExpiry = ca.expiry;
     uint64_t now = Util::unixMS();
-    if (expiryInterval != -1) {
-      if (nextExpiry <= now) {
-        evLp.rescheduleInterval(expiryInterval, 1);
-      } else {
-        evLp.rescheduleInterval(expiryInterval, nextExpiry - now);
-      }
-    }
+    if (expiryInterval != -1) { evLp.rescheduleInterval(expiryInterval, nextExpiry <= now ? 1 : nextExpiry - now); }
   }
 
   std::lock_guard<std::mutex> lock(attributeMutex);
@@ -145,133 +151,144 @@ void removeAttribute(const std::string & filePath) {
   lastScoreComputation = 0;
 }
 
-// Scans the cache directory for directories (top two levels) and files (lowest level)
-void scanCacheDirectory(const std::string & path, unsigned int level) {
-  uint32_t flags = IN_CREATE | IN_MOVED_TO | IN_ONLYDIR | (level < 2 ? 0 : IN_DELETE | IN_MOVED_FROM);
-  if (!addWatch(path, flags, level < 2 ? wdTop : wdLower)) return;
+/// Remembers a directory that could not be read, unless it is simply gone, so that rebuildCache keeps its files
+void markUnreadable(const std::string & dirPath) {
+  if (errno == ENOENT || errno == ENOTDIR) return;
+  WARN_MSG("Could not read cache directory '%s': %s", dirPath.c_str(), strerror(errno));
+  std::lock_guard<std::mutex> lock(attributeMutex);
+  unreadableDirs.insert(dirPath);
+}
 
+#if !defined(__APPLE__)
+/// Sets up the inotify watch for the given path, mask specifies the events, watchSet contains the inotify fds
+bool addWatch(const std::string & path, uint32_t mask, std::set<int> & watchSet) {
+  int wd = inotify_add_watch(inotFd, path.c_str(), mask);
+  if (wd == -1) {
+    if (errno == ENOENT) return false;
+    ERROR_MSG("Could not watch '%s': %s", path.c_str(), strerror(errno));
+    return false;
+  }
+  watchSet.insert(wd);
+  watchPaths[wd] = path;
+  return true;
+}
+#endif
+
+/// Returns the full paths of the subdirectories of a cache directory
+std::vector<std::string> listSubdirectories(const std::string & path) {
+  std::vector<std::string> subdirectories;
   DIR *dir = opendir(path.c_str());
   if (!dir) {
-    WARN_MSG("Could not scan cache directory '%s': %s", path.c_str(), strerror(errno));
+    markUnreadable(path);
+    return subdirectories;
+  }
+  struct dirent *entry;
+  struct stat st;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (entry->d_name[0] == '.') continue;
+    if (entry->d_type != DT_DIR && entry->d_type != DT_UNKNOWN) continue;
+    const std::string entryPath = path + entry->d_name + '/';
+    if (entry->d_type == DT_UNKNOWN && (stat(entryPath.c_str(), &st) != 0 || !S_ISDIR(st.st_mode))) continue;
+    subdirectories.emplace_back(entryPath);
+  }
+  closedir(dir);
+  return subdirectories;
+}
+
+/// Watches a cache directory, on Apple the FSEvents stream already covers the whole tree
+void watchDirectory(const std::string & path, unsigned int level) {
+#if !defined(__APPLE__)
+  uint32_t flags = IN_CREATE | IN_MOVED_TO | IN_ONLYDIR | IN_MOVED_FROM | (level < 2 ? 0 : IN_DELETE | IN_CLOSE_WRITE);
+  std::lock_guard<std::mutex> lock(attributeMutex);
+  addWatch(path, flags, level < 2 ? wdTop : wdLower);
+#endif
+}
+
+/// Collects the regular files in a lowest level cache directory
+void scanFiles(const std::string & path, std::unordered_map<std::string, cacheAttribute> & files) {
+  DIR *dir = opendir(path.c_str());
+  if (!dir) {
+    markUnreadable(path);
     return;
   }
   struct dirent *entry;
   struct stat st;
   while ((entry = readdir(dir)) != nullptr) {
-    if (level < 2) {
-      if (entry->d_name[0] == '.') continue;
-      if (entry->d_type != DT_DIR && entry->d_type != DT_UNKNOWN) continue;
-      const std::string entryPath = path + entry->d_name + '/';
-      if (stat(entryPath.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) continue;
-      scanCacheDirectory(entryPath, level + 1);
-    } else {
-      if (entry->d_type != DT_REG && entry->d_type != DT_UNKNOWN) continue;
-      if (!S_ISREG(st.st_mode)) continue;
-      const std::string filePath = path + entry->d_name;
-      updateAttribute(filePath);
+    if (entry->d_name[0] == '.') continue;
+    if (entry->d_type != DT_REG && entry->d_type != DT_UNKNOWN) continue;
+    const std::string filePath = path + entry->d_name;
+    if (stat(filePath.c_str(), &st) != 0) {
+      markUnreadable(path);
+      continue;
     }
+    if (!S_ISREG(st.st_mode)) continue;
+
+    // Get the file size from stat, and the remainder from extended attributes
+    cacheAttribute ca(filePath);
+    ca.fileSize = st.st_size;
+    files.insert({filePath, ca});
   }
   closedir(dir);
 }
 
+/// Scans the cache directory for directories (top two levels) and files (lowest level), collecting the files found.
+/// Leaves the global attribute map alone, so that initCache can call this from multiple threads.
+void scanCacheDirectory(const std::string & path, unsigned int level, std::unordered_map<std::string, cacheAttribute> & files) {
+  watchDirectory(path, level);
+  if (level == 2) {
+    scanFiles(path, files);
+    return;
+  }
+  for (const auto & subdir : listSubdirectories(path)) { scanCacheDirectory(subdir, level + 1, files); }
+}
+
+/// Adds scanned files to the global attribute map, must run on the event loop thread
+void addScannedFiles(const std::unordered_map<std::string, cacheAttribute> & files) {
+  for (const auto & file : files) {
+    updateAttribute(file.first, &file.second);
+#if !defined(__APPLE__)
+    addWatch(file.first, IN_MOVED_TO | IN_MODIFY | IN_ATTRIB | IN_DELETE | IN_DELETE_SELF, wdFiles);
+#endif
+  }
+}
+
+/// Scans a directory that appeared while running
+void addDirectory(const std::string & path, unsigned int level) {
+  std::unordered_map<std::string, cacheAttribute> files;
+  scanCacheDirectory(path, level, files);
+  addScannedFiles(files);
+}
+
 /// Function which initialises the cache and memory structures from an existing cache directory
 void initCache(const std::string & path) {
-  DIR *upper = opendir(path.c_str());
-  if (!upper) return;
-
-  struct stat st;
-  struct dirent *upperEntry;
-  std::vector<std::thread> threads;
-  std::vector<std::string> upperPaths;
-  addWatch(path, IN_CREATE | IN_MOVED_TO | IN_CLOSE_WRITE | IN_ONLYDIR, wdTop);
-
-  // Iterate over the top-level directory, this should only contain subdirectories
-  while ((upperEntry = readdir(upper)) != nullptr) {
-    if (upperEntry->d_name[0] == '.') continue;
-    if (upperEntry->d_type != DT_DIR && upperEntry->d_type != DT_UNKNOWN) continue;
-
-    const std::string upperPath = path + upperEntry->d_name + '/';
-    if (upperEntry->d_type == DT_UNKNOWN && (stat(upperPath.c_str(), &st) != 0 || !S_ISDIR(st.st_mode))) continue;
-    upperPaths.emplace_back(upperPath);
-    addWatch(upperPath, IN_CREATE | IN_MOVED_TO | IN_ONLYDIR, wdTop);
-  }
-  closedir(upper);
+  updateFilesystemSize(path);
+  watchDirectory(path, 0);
+  const std::vector<std::string> upperPaths = listSubdirectories(path);
 
   const size_t hardwareThreads = std::thread::hardware_concurrency();
   const size_t threadCount = std::min({hardwareThreads ? hardwareThreads : 4UL, 32UL, upperPaths.size()});
   std::atomic<size_t> nextUpperPath(0);
+  std::vector<std::unordered_map<std::string, cacheAttribute>> scanned(threadCount);
+  std::vector<std::thread> threads;
 
   // Create worker threads that each process the next available top-level directory
   for (size_t i = 0; i < threadCount; ++i) {
-    threads.emplace_back([&]() {
-      std::unordered_map<std::string, cacheAttribute> caMap;
-      std::set<std::string> files;
-      struct stat threadSt;
-      size_t upperIndex{};
-      size_t threadSize{};
-
-      do {
-        upperIndex = nextUpperPath.fetch_add(1);
-        if (upperIndex >= upperPaths.size()) break;
-        const std::string & upperPath = upperPaths[upperIndex];
-
-        // Set-up the second level directory dirent structures
-        DIR *lower = opendir(upperPath.c_str());
-        if (!lower) continue;
-        struct dirent *lowerEntry;
-
-        // Iterate the middle-level directory, there are no files just directories
-        while ((lowerEntry = readdir(lower)) != nullptr) {
-          if (lowerEntry->d_name[0] == '.') continue;
-          if (lowerEntry->d_type != DT_DIR && lowerEntry->d_type != DT_UNKNOWN) continue;
-
-          const std::string lowerPath = upperPath + lowerEntry->d_name + '/';
-          if (lowerEntry->d_type == DT_UNKNOWN && (stat(lowerPath.c_str(), &threadSt) != 0 || !S_ISDIR(threadSt.st_mode)))
-            continue;
-
-          // Set-up the lowest directory, here be files
-          {
-            std::lock_guard<std::mutex> lock(attributeMutex);
-            addWatch(lowerPath, IN_CREATE | IN_MOVED_TO | IN_CLOSE_WRITE | IN_DELETE | IN_MOVED_FROM | IN_ONLYDIR, wdLower);
-          }
-          DIR *fileDir = opendir(lowerPath.c_str());
-          if (!fileDir) continue;
-          struct dirent *fileDirEntry;
-
-          // Read the actual files
-          while ((fileDirEntry = readdir(fileDir)) != nullptr) {
-            if (fileDirEntry->d_type != DT_REG && fileDirEntry->d_type != DT_UNKNOWN) continue;
-            const std::string filePath = lowerPath + fileDirEntry->d_name;
-            if (stat(filePath.c_str(), &threadSt) != 0 || !S_ISREG(threadSt.st_mode)) continue;
-
-            // Get the file size from stat, and the remainder from extended attributes
-            caMap.insert({filePath, cacheAttribute(filePath)});
-            files.insert(filePath);
-            threadSize += threadSt.st_size;
-          }
-          closedir(fileDir);
-        }
-        closedir(lower);
-      } while (upperIndex + 1 < upperPaths.size());
-
-      {
-        std::lock_guard<std::mutex> lock(attributeMutex);
-        currentSize += threadSize;
-        attributeMap.insert(std::make_move_iterator(caMap.begin()), std::make_move_iterator(caMap.end()));
-        for (std::string file : files)
-          addWatch(file, IN_MOVED_TO | IN_MODIFY | IN_ATTRIB | IN_DELETE | IN_DELETE_SELF, wdFiles);
+    threads.emplace_back([&, i]() {
+      for (size_t upper = nextUpperPath++; upper < upperPaths.size(); upper = nextUpperPath++) {
+        scanCacheDirectory(upperPaths[upper], 1, scanned[i]);
       }
     });
   }
   for (size_t i = 0; i < threads.size(); ++i) threads[i].join();
-  INFO_MSG(
-    "Restored cache directory at %s with %zu files in %zu directories (%zu accounted bytes, limit %zub / %.3f%%)",
-    path.c_str(), attributeMap.size(), wdTop.size() + wdLower.size() - 1, currentSize, maxBytes, maxPercent);
+  for (const auto & files : scanned) { addScannedFiles(files); }
+  INFO_MSG("Restored cache directory at %s with %zu files (%" PRIu64 " accounted bytes, limit %" PRIu64 "b / %.3f%%)",
+           path.c_str(), attributeMap.size(), currentSize, maxBytes, maxPercent);
 }
 
 /// Rebuilds the cache watch state and then calls initialise
 void rebuildCache(const std::string & path) {
-  INFO_MSG("Rebuilding cache accounting at '%s' after lost inotify events", path.c_str());
+  INFO_MSG("Rebuilding cache accounting at '%s' after lost filesystem events", path.c_str());
+#if !defined(__APPLE__)
   for (std::unordered_map<int, std::string>::const_iterator it = watchPaths.begin(); it != watchPaths.end(); ++it) {
     if (inotify_rm_watch(inotFd, it->first) == -1 && errno != EINVAL)
       WARN_MSG("Could not remove cache watch %d: %s", it->first, strerror(errno));
@@ -290,16 +307,136 @@ void rebuildCache(const std::string & path) {
     if (data_len == -1 && errno != EAGAIN) ERROR_MSG("Could not drain old cache events: %s", strerror(errno));
     break;
   }
+#endif
 
+  std::unordered_map<std::string, cacheAttribute> oldAttributes;
   {
     std::lock_guard<std::mutex> lock(attributeMutex);
-    attributeMap.clear();
+    oldAttributes.swap(attributeMap);
     currentSize = 0;
     scores.clear();
     lastScoreComputation = 0;
+    unreadableDirs.clear();
   }
   initCache(path);
+
+  // Files in directories we could not read still take up space, so they stay in the accounting
+  std::lock_guard<std::mutex> lock(attributeMutex);
+  for (const auto & oldFile : oldAttributes) {
+    for (const std::string & dir : unreadableDirs) {
+      if (oldFile.first.compare(0, dir.size(), dir) != 0) continue;
+      if (attributeMap.insert(oldFile).second) { currentSize += oldFile.second.fileSize; }
+      break;
+    }
+  }
 }
+
+#if defined(__APPLE__)
+/// Queues changed files for the event loop, as FSEvents calls this from its own dispatch queue
+void fsEventsCallback(ConstFSEventStreamRef, void *, size_t count, void *paths, const FSEventStreamEventFlags flags[],
+                      const FSEventStreamEventId[]) {
+  char **names = static_cast<char **>(paths);
+  {
+    std::lock_guard<std::mutex> lock(fsMutex);
+    for (size_t i = 0; i < count; ++i) {
+      if (flags[i] &
+          (kFSEventStreamEventFlagRootChanged | kFSEventStreamEventFlagMustScanSubDirs |
+           kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped |
+           kFSEventStreamEventFlagEventIdsWrapped | kFSEventStreamEventFlagMount | kFSEventStreamEventFlagUnmount)) {
+        fsRescan = true;
+      }
+
+      // Loss notifications can refer to an ancestor outside the watched root.
+      const std::string name = names[i];
+      if (name.compare(0, fsRoot.size(), fsRoot) != 0) { continue; }
+      std::string relative = name.substr(fsRoot.size());
+      while (!relative.empty() && relative.back() == '/') { relative.pop_back(); }
+      if (relative.empty()) { continue; }
+
+      // Non-hidden files only exist in level 2 directories, above that only directories appearing or moving matter
+      const size_t level = std::count(relative.begin(), relative.end(), '/');
+      const bool isCachedFile = level == 2 && relative[relative.rfind('/') + 1] != '.';
+      const bool isChangedDir = level < 2 && (flags[i] & kFSEventStreamEventFlagItemIsDir) &&
+        (flags[i] & (kFSEventStreamEventFlagItemCreated | kFSEventStreamEventFlagItemRenamed));
+      if (isCachedFile || isChangedDir) { fsChanges.insert(relative); }
+    }
+    if (fsRescan) { fsChanges.clear(); }
+  }
+  char byte = 1;
+  ssize_t result;
+  do { result = write(fsPipe[1], &byte, 1); } while (result == -1 && errno == EINTR);
+
+  // EAGAIN means a previous notification already makes the pipe readable.
+  if (result == -1 && errno != EAGAIN) { ERROR_MSG("Could not notify cache event loop: %s", strerror(errno)); }
+}
+
+/// Starts the FSEvents stream for the given path, and the pipe that wakes up the event loop
+bool startFsEvents(const std::string & path) {
+  auto fail = [](const std::string & message) {
+    ERROR_MSG("%s", message.c_str());
+    return false;
+  };
+
+  char *resolved = realpath(path.c_str(), nullptr);
+  if (!resolved) { return fail("Could not resolve cache path '" + path + "': " + strerror(errno)); }
+  fsRoot = resolved;
+  free(resolved);
+  if (fsRoot.back() != '/') { fsRoot += '/'; }
+  if (pipe(fsPipe) != 0) { return fail(std::string("Could not create cache notification pipe: ") + strerror(errno)); }
+  for (int fd : fsPipe) {
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) != -1 && fcntl(fd, F_SETFD, FD_CLOEXEC) != -1) { continue; }
+    return fail(std::string("Could not configure cache notification pipe: ") + strerror(errno));
+  }
+  fsQueue = dispatch_queue_create("org.mistserver.cache.fsevents", DISPATCH_QUEUE_SERIAL);
+  CFStringRef root = CFStringCreateWithFileSystemRepresentation(nullptr, fsRoot.c_str());
+  if (!fsQueue || !root) {
+    if (root) { CFRelease(root); }
+    return fail("Could not allocate cache event stream resources");
+  }
+  const void *roots[] = {root};
+  CFArrayRef watchedPaths = CFArrayCreate(nullptr, roots, 1, &kCFTypeArrayCallBacks);
+  if (watchedPaths) {
+    fsStream = FSEventStreamCreate(nullptr, fsEventsCallback, nullptr, watchedPaths, kFSEventStreamEventIdSinceNow, 0.1,
+                                   kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagWatchRoot | kFSEventStreamCreateFlagNoDefer);
+    CFRelease(watchedPaths);
+  }
+  CFRelease(root);
+  if (!fsStream) { return fail("Could not create cache FSEvents stream"); }
+  FSEventStreamSetDispatchQueue(fsStream, fsQueue);
+  if (!FSEventStreamStart(fsStream)) { return fail("Could not start cache FSEvents stream"); }
+  return true;
+}
+
+/// Applies a change to a cached file
+void applyFileChange(const std::string & filePath) {
+  struct stat st;
+  const int result = lstat(filePath.c_str(), &st);
+  if (result == 0 && S_ISREG(st.st_mode)) {
+    updateAttribute(filePath);
+    return;
+  }
+  if (result != 0 && errno != ENOENT && errno != ENOTDIR) {
+    WARN_MSG("Could not read cached file '%s': %s", filePath.c_str(), strerror(errno));
+    return;
+  }
+  removeAttribute(filePath);
+}
+
+/// Applies a change to a cache directory, returns false if it is gone, as its files get no events of their own
+bool applyDirectoryChange(const std::string & dirPath, unsigned int level) {
+  struct stat st;
+  if (lstat(dirPath.c_str(), &st) != 0) { return false; }
+  if (S_ISDIR(st.st_mode)) { addDirectory(dirPath + '/', level); }
+  return true;
+}
+
+/// Stops the FSEvents stream, and waits for queued callbacks as those use the global state
+void stopFsEvents() {
+  FSEventStreamStop(fsStream);
+  FSEventStreamInvalidate(fsStream);
+  dispatch_sync_f(fsQueue, nullptr, [](void *) {});
+}
+#endif
 
 /// Removes the given files and returns the number of bytes removed. Assumes attributeMutex is locked by the caller
 uint64_t removeMarkedFiles(std::set<std::string> & markedForDeletion) {
@@ -347,13 +484,13 @@ bool clearCache(uint64_t sizeNeeded = 0) {
     WARN_MSG("Requested cache clear exceeds current cache size! (%" PRIu64 " > %" PRIu64 ")", sizeNeeded, currentSize);
     return false;
   }
+  nextExpiry = now + CACHE_CHECK_INTERVAL;
   if (attributeMap.empty()) {
     // Nothing cached, this is normal for the periodic expiry sweep and not worth warning about
     return false;
   }
 
   // Check whether there are any files that are expired; expired files are always removed
-  nextExpiry = now + CACHE_CHECK_INTERVAL;
   for (const auto & fhr : attributeMap) {
     const std::string & fn = fhr.first;
     const cacheAttribute & ca = fhr.second;
@@ -379,8 +516,7 @@ bool clearCache(uint64_t sizeNeeded = 0) {
   // Update the expiryInterval, if it's running already
   if (expiryInterval != -1) {
     uint64_t now = Util::unixMS();
-    if (nextExpiry <= now) { evLp.rescheduleInterval(expiryInterval, 1); }
-    evLp.rescheduleInterval(expiryInterval, nextExpiry - now);
+    evLp.rescheduleInterval(expiryInterval, nextExpiry <= now ? 1 : nextExpiry - now);
   }
 
   // Recompute the scores after attribute changes, or periodically as decay moves files around in the ranking
@@ -391,7 +527,9 @@ bool clearCache(uint64_t sizeNeeded = 0) {
     for (const auto & fhr : attributeMap) {
       const std::string & fn = fhr.first;
       const cacheAttribute & ca = fhr.second;
-      scores.emplace(scores.end(), (uint64_t)(ca.score(now)), fn);
+      // Real scores are often far below 1, so scale them up to stop the cast rounding them all down to zero
+      const uint64_t scaled = std::min(ca.score(now) * 1000000.0, (double)INT64_MAX);
+      scores.emplace(scores.end(), scaled, fn);
     }
     std::sort(scores.begin(), scores.end());
     lastScoreComputation = now;
@@ -404,6 +542,7 @@ bool clearCache(uint64_t sizeNeeded = 0) {
     auto it = attributeMap.find(fn);
     if (it == attributeMap.end()) continue;
     const cacheAttribute & ca = it->second;
+
     // Expired files were already marked earlier, do not count their size twice
     const bool alreadyMarked = !markedForDeletion.insert(fn).second;
     if (alreadyMarked) continue;
@@ -427,12 +566,13 @@ bool clearCache(uint64_t sizeNeeded = 0) {
   return true;
 }
 
+/// Clears the cache if it exceeds the byte or percentage based size limit
 void checkSize() {
   if (maxBytes && currentSize > maxBytes) { clearCache(currentSize - maxBytes); }
   if (maxPercentBytes && currentSize > maxPercentBytes) { clearCache(currentSize - maxPercentBytes); }
 }
 
-/// Retrieves cache settings, initialises the cache, and creates an inotify instance using the event loop
+/// Retrieves cache settings, initialises the cache, and monitors changes using the event loop
 int main(int argc, char **argv) {
   evLp.setup();
   Util::redirectLogsIfNeeded();
@@ -475,14 +615,10 @@ int main(int argc, char **argv) {
       }
       JSON::Value confPercent = Util::getGlobalConfig("cachePercent");
       if (confPercent.isInt() && confPercent.asDouble() / 1000.0 != maxPercent) {
-        if (fsSize) {
-          maxPercentBytes = (confPercent.asDouble() / 100000.0) * fsSize;
-          INFO_MSG("Changed cache percent-size from %.3f to %.3f ( = %" PRIu64 "b)", maxPercent,
-                   confPercent.asDouble() / 1000.0, maxPercentBytes);
-        } else {
-          INFO_MSG("Changed cache percent-size from %.3f to %.3f", maxPercent, confPercent.asDouble() / 1000.0);
-        }
-        maxPercent = confPercent.asDouble() / 1000.0;
+        const double newPercent = confPercent.asDouble() / 1000.0;
+        if (fsSize) { maxPercentBytes = (newPercent / 100.0) * fsSize; }
+        INFO_MSG("Changed cache percent-size from %.3f to %.3f ( = %" PRIu64 "b)", maxPercent, newPercent, maxPercentBytes);
+        maxPercent = newPercent;
         checkSize();
       }
       return 5000;
@@ -501,13 +637,6 @@ int main(int argc, char **argv) {
   }
   if (*path.rbegin() != '/') path += '/';
 
-  // Start setting up inotify and the event loop
-  inotFd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-  if (inotFd == -1) {
-    ERROR_MSG("Could not initialise inotify instance: %s", strerror(errno));
-    return 1;
-  }
-
   struct stat st;
   if (stat(path.c_str(), &st) == -1) {
     // Cache initialisation first case where cache does not exist yet and we only have to create the directory for it
@@ -516,12 +645,22 @@ int main(int argc, char **argv) {
       return 1;
     }
     INFO_MSG("Created new cache directory at '%s'", path.c_str());
-    addWatch(path, IN_CREATE | IN_MOVED_TO | IN_CLOSE_WRITE | IN_ONLYDIR, wdTop);
-  } else {
-    // Cache initialisation second case where we are initialising with files that already have metadata
-    initCache(path);
-    checkSize();
   }
+
+#if !defined(__APPLE__)
+  inotFd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+  if (inotFd == -1) {
+    ERROR_MSG("Could not initialise inotify instance: %s", strerror(errno));
+    return 1;
+  }
+#else
+  // Subscribe before the initial scan so writes during startup remain queued.
+  if (streamName.empty() && !startFsEvents(path)) { return 1; }
+#endif
+
+  // Cache initialisation second case where we are initialising with files that already have metadata
+  initCache(path);
+  checkSize();
 
   if (!streamName.empty()) {
     std::vector<std::string> markedForDeletion;
@@ -579,6 +718,7 @@ int main(int argc, char **argv) {
           if (R.isMember("hit")) { ++recentHits[R["hit"]]; }
         }
       }, 0);
+
       // Once per minute, process decay and write updated frequency values if cache hits happened for a file
       evLp.addInterval([&]() {
         if (recentHits.size()) {
@@ -603,6 +743,7 @@ int main(int argc, char **argv) {
     }
   }
 
+#if !defined(__APPLE__)
   evLp.addSocket(inotFd, [&](void *) {
     char data[4096];
     ssize_t data_len;
@@ -637,15 +778,17 @@ int main(int argc, char **argv) {
 
         // Top directory and middle-level directories only contain directories, lower-level directories only files
         if (wdTop.count(event->wd)) {
+          if ((event->mask & IN_MOVED_FROM) && (event->mask & IN_ISDIR)) { rescanNeeded = true; }
           if ((event->mask & (IN_CREATE | IN_MOVED_TO)) && (event->mask & IN_ISDIR)) {
             eventPath += '/';
-            scanCacheDirectory(eventPath, watchPath->second == path ? 1 : 2);
+            addDirectory(eventPath, watchPath->second == path ? 1 : 2);
           }
           continue;
         }
 
         // Watch newly-created files and remove deleted files from the attribute map
         if (wdLower.count(event->wd)) {
+          if (event->len && event->name[0] == '.') continue;
           if ((event->mask & (IN_MOVED_TO | IN_CLOSE_WRITE)) && !(event->mask & IN_ISDIR)) {
             if (stat(eventPath.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
               addWatch(eventPath, IN_MOVED_TO | IN_MODIFY | IN_ATTRIB | IN_DELETE | IN_DELETE_SELF, wdFiles);
@@ -660,7 +803,8 @@ int main(int argc, char **argv) {
 
         // Files may be deleted using IN_DELETE_SELF rather than IN_DELETE
         if (event->mask & IN_DELETE_SELF) {
-          removeAttribute(eventPath);
+          // Renaming over a file also deletes the old inode, while the path is still in use
+          if (stat(eventPath.c_str(), &st) != 0) { removeAttribute(eventPath); }
           continue;
         }
 
@@ -677,16 +821,48 @@ int main(int argc, char **argv) {
     }
     checkSize();
   }, 0);
+#else
+  evLp.addSocket(fsPipe[0], [&](void *) {
+    char buffer[1024];
+    ssize_t result;
+    do { result = read(fsPipe[0], buffer, sizeof(buffer)); } while (result > 0 || (result == -1 && errno == EINTR));
+
+    std::set<std::string> changes;
+    bool rescan;
+    {
+      std::lock_guard<std::mutex> lock(fsMutex);
+      changes.swap(fsChanges);
+      rescan = fsRescan;
+      fsRescan = false;
+    }
+    for (const std::string & change : changes) {
+      const unsigned int level = std::count(change.begin(), change.end(), '/');
+      if (level == 2) {
+        applyFileChange(path + change);
+        continue;
+      }
+      if (!applyDirectoryChange(path + change, level + 1)) rescan = true;
+    }
+    if (rescan) { rebuildCache(path); }
+    checkSize();
+  }, nullptr);
+#endif
 
   // Periodically sweep for expired files and update the size of the cache
-  expiryInterval = evLp.addInterval([]() {
+  clearCache();
+  const uint64_t now = Util::unixMS();
+  expiryInterval = evLp.addInterval([&]() {
+    updateFilesystemSize(path);
     clearCache();
     uint64_t now = Util::unixMS();
     if (nextExpiry <= now) { return (size_t)1; }
     return (size_t)(nextExpiry - now);
-  }, nextExpiry);
+  }, nextExpiry <= now ? 1 : nextExpiry - now);
 
   conf.activate();
   while (conf.is_active) evLp.await(10000);
+#if defined(__APPLE__)
+  stopFsEvents();
+#endif
   return 0;
 }

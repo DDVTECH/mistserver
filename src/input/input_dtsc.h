@@ -62,6 +62,7 @@ namespace Mist{
     uint64_t lastRecvTime{0};
     uint64_t lastPktTime{0};
     uint64_t pageFillStart{0};
+    uint64_t pageParts{0};
     HTTP::Downloader balanceDl;
 
     char buffer[8];
@@ -80,6 +81,8 @@ namespace Mist{
     bool infoReceived{false};
     bool headerReceived{false};
     bool gotPong{false};
+    uint64_t headerRequested{0};
+    uint32_t headerGenTime{0};
     std::string uuid;
     HTTP::URL sourceUri;
     IPC::sharedPage page;

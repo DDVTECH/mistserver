@@ -19,13 +19,17 @@ endif
 utils_tgts = []
 
 foreach util : utils
+  util_deps = [libmist_dep]
+  if util.get('name') == 'Cache' and host_machine.system() == 'darwin'
+    util_deps += dependency('appleframeworks', modules: ['CoreServices'])
+  endif
   executables += {
     'name': 'MistUtil'+util.get('name'),
     'sources' : [
       files('util_'+util.get('file')+'.cpp'),
       header_tgts
     ],
-    'deps' : [libmist_dep],
+    'deps' : util_deps,
     'defines' :[],
   }
 endforeach

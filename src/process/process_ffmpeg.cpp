@@ -912,7 +912,7 @@ namespace Mist{
     }
 
     // Construct final command
-    ffcmd = s_base + s_input + s_filter + s_scale + s_overlay + "-c:v " + options + " -an -f matroska -";
+    ffcmd = s_base + s_input + s_filter + s_scale + s_overlay + " -c:v " + options + " -an -f matroska -";
     INFO_MSG("Constructed FFMPEG video command: %s", ffcmd.c_str());
     return true;
   }

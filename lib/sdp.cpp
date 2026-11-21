@@ -524,9 +524,17 @@ namespace SDP{
         // profile-level-id=42C01E
         std::string sprop = tracks[tid].getParamString("sprop-parameter-sets");
         size_t comma = sprop.find(',');
-        tracks[tid].spsData = Encodings::Base64::decode(sprop.substr(0, comma));
-        tracks[tid].ppsData = Encodings::Base64::decode(sprop.substr(comma + 1));
-        updateH264Init(tid);
+        if (comma != std::string::npos){
+          tracks[tid].spsData = Encodings::Base64::decode(sprop.substr(0, comma));
+          tracks[tid].ppsData = Encodings::Base64::decode(sprop.substr(comma + 1));
+          if (tracks[tid].spsData.size() >= 4 && !tracks[tid].ppsData.empty()){
+            updateH264Init(tid);
+          }else{
+            MEDIUM_MSG("H264 SDP lacks valid SPS/PPS; deferring initialization");
+          }
+        }else{
+          MEDIUM_MSG("H264 SDP has no sprop-parameter-sets; deferring initialization");
+        }
       }
       if (myMeta->getCodec(tid) == "HEVC") {
         tracks[tid].hevcInfo.addUnit(Encodings::Base64::decode(tracks[tid].getParamString("sprop-vps")));
@@ -803,6 +811,10 @@ namespace SDP{
   /// Calculates H264 track metadata from vps, sps and pps data stored in tracks[trackNo]
   void State::updateH264Init(uint64_t tid){
     SDP::Track &RTrk = tracks[tid];
+    if (RTrk.spsData.size() < 4 || RTrk.ppsData.empty()){
+      MEDIUM_MSG("H264 initialization deferred: missing or short SPS/PPS");
+      return;
+    }
     h264::sequenceParameterSet sps(RTrk.spsData.data(), RTrk.spsData.size());
     MP4::AVCC avccBox;
     avccBox.setVersion(1);

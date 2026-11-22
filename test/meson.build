@@ -238,3 +238,5 @@ test('AMF parser', amftest, suite: 'AMF parser', protocol:'tap')
 #abst_test = executable('abst_test', 'abst_test.cpp', dependencies: libmist_dep)
 #test('MP4::ABST Test', abst_test)
 
+tserasetracktest = executable('tserasetracktest', 'ts_erase_track.cpp', header_tgts, dependencies: libmist_dep)
+test('A track erased with frames pending stops reporting a packet', tserasetracktest, suite: 'TS')

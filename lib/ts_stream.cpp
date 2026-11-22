@@ -921,6 +921,7 @@ namespace TS{
 
     if (!packetReady){
       ERROR_MSG("Track %zu: PES without valid packets?", tid);
+      seenUnitStart[tid] = 0;
       return;
     }
 
@@ -1335,6 +1336,7 @@ namespace TS{
   void Stream::eraseTrack(size_t tid){
     std::lock_guard<std::recursive_mutex> guard(tMutex);
     pesStreams.erase(tid);
+    seenUnitStart.erase(tid);
     psCacheTid = 0;
     psCache = 0;
     pesPositions.erase(tid);

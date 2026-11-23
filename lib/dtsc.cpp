@@ -3638,6 +3638,7 @@ namespace DTSC{
         trackJSON["rate"] = getRate(*it);
         trackJSON["size"] = getSize(*it);
         trackJSON["channels"] = getChannels(*it);
+        trackJSON["qscore"] = getQuality(*it);
       }else if (type == "video"){
         trackJSON["width"] = getWidth(*it);
         trackJSON["height"] = getHeight(*it);
@@ -3645,6 +3646,7 @@ namespace DTSC{
         trackJSON["efpks"] = getEfpks(*it);
         trackJSON["fps"] = getFpks(*it) / 1000.0;
         trackJSON["efps"] = getEfpks(*it) / 1000.0;
+        trackJSON["qscore"] = getQuality(*it);
         if (hasBFrames(*it)){
           bframes = true;
           trackJSON["bframes"] = 1;

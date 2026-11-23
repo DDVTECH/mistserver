@@ -119,7 +119,7 @@ namespace Util{
       size = s;
       offset = o;
     }
-    operator bool() const {return offset;}
+    operator bool() const { return type && size; }
   };
 
 #define RAX_NESTED 0x01

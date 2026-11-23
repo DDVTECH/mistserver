@@ -398,8 +398,16 @@ namespace Mist {
 
     // For servers that don't support the RTMP Enhanced handshake, we support the "diminished=1" option
     bool enhanced = !targetParams.count("diminished");
+
     // Twitter is stupid and doesn't support Enhanced handshakes. Force diminished mode.
     if (pushUrl.host.find("pscp.tv") != std::string::npos) { enhanced = false; }
+
+    // Telegram is also stupid, plus they have a max chunk size of 16KiB for no apparent reason
+    if (pushUrl.host.size() > 5 && pushUrl.host.substr(pushUrl.host.size() - 5) == ".t.me") {
+      enhanced = false;
+      if (!targetParams.count("chunksize")) { targetParams["chunksize"] = "16384"; }
+    }
+
     if (enhanced) {
       AMF::Object *ccList = opts->addContent("fourCcList", AMF::AMF0_STRICT_ARRAY);
       ccList->addContent("av01");
@@ -433,7 +441,11 @@ namespace Mist {
     }
     sendCommand(amfReply, 20, 0);
 
-    RTMPStream::chunk_snd_max = 65536;                                 // 64KiB
+    RTMPStream::chunk_snd_max = 65536; // 64KiB
+    if (targetParams.count("chunksize") && targetParams["chunksize"].size()) {
+      RTMPStream::chunk_snd_max = atoi(targetParams["chunksize"].c_str());
+      if (RTMPStream::chunk_snd_max < 1024) { RTMPStream::chunk_snd_max = 1024; }
+    }
     myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); // send chunk size max (msg 1)
 
     pushState = "connect";
@@ -617,6 +629,16 @@ namespace Mist {
     pp["graceless"]["format"] = "set_or_unset"; // when not checked do not set at all so `graceless=false` does not do what you expect
     pp["graceless"]["sort"] = "1a"; // alphanumerical sorting: determines the position in the web interface form.
 
+    pp["diminished"]["name"] = "Disable RTMP Enhanced mode";
+    pp["diminished"]["help"] =
+      "Normally, we use a backwards-compatible RTMP Enhanced handshake to announce we support all the new features and "
+      "codecs. Some platforms disconnect immediately when they receive such a hanshake. Setting this option reverts to "
+      "the plain old non-enhanced RTMP handshake. The new features and codecs will still be attempted if you force "
+      "their usage, but without negotiation.";
+    pp["diminished"]["type"] = "bool";
+    pp["diminished"]["format"] = "set_or_unset"; // when not checked do not set at all so `diminished=false` does not do what you expect
+    pp["diminished"]["sort"] = "1aa"; // alphanumerical sorting: determines the position in the web interface form.
+
     // Specify the <host> part for the `tcUrl` that we use when
     // connecting with the remote media server, see
     // https://en.wikipedia.org/wiki/Real-Time_Messaging_Protocol
@@ -642,6 +664,13 @@ namespace Mist {
                            "<code>rtmp://host:port/app/&lt;stream&gt;. ";
     pp["stream"]["type"] = "string";
     pp["stream"]["sort"] = "1d";
+
+    pp["chunksize"]["name"] = "Chunk size";
+    pp["chunksize"]["help"] = "Maximum number of bytes per chunk. Defaults to 64k (RTMP maximum) but some servers have "
+                              "arbitrary limits. For hosts ending in \"t.me\" we use 16k as default if unset.";
+    pp["chunksize"]["type"] = "int";
+    pp["chunksize"]["sort"] = "1e";
+    pp["chunksize"]["default"] = 65536;
 
     JSON::Value opt;
     opt["arg"] = "string";
